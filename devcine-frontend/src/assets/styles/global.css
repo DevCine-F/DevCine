@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #131313;
+  --color-on-surface: #e5e2e1;
+  --color-on-surface-variant: #d1c5ac;
+  --color-primary: #f5c518;
+  --color-primary-container: #f5c518;
+  --color-on-primary: #3d2f00;
+  --color-surface-container: #201f1f;
+  --color-surface-container-low: #1c1b1b;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-outline-variant: #4e4633;
+  --color-tertiary-container: #49dbff;
+  --color-on-tertiary-container: #005e70;
+
+  --font-sans: "Be Vietnam Pro", sans-serif;
+  --font-headline: "Montserrat", sans-serif;
+  --font-body: "Be Vietnam Pro", sans-serif;
+  --font-label: "Be Vietnam Pro", sans-serif;
+  
+  --shadow-color: rgba(0,0,0,0.5);
+}
+
+@layer base {
+  body {
+    @apply font-body text-on-surface;
+    background-color: #000; /* Dự phòng nền đen phía dưới cùng */
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-headline,
+  .uppercase.font-bold, .uppercase.font-extrabold, .uppercase.font-black {
+    font-family: 'Montserrat', sans-serif !important;
+  }
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #0e0e0e; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #4e4633; }
+
+:root.light {
+  /* Nền chính: Trắng tinh hoặc xám cực nhạt để các thành phần nổi lên rõ ràng */
+  --color-surface: #ffffff;
+  
+  /* Chữ: Đen hoặc xám rất đậm để tương phản 100% với nền trắng */
+  --color-on-surface: #0a0a0a;
+  --color-on-surface-variant: #404040;
+  
+  /* Primary: Giữ nguyên màu vàng hiện tại theo yêu cầu */
+  --color-primary: #f5c518;
+  --color-primary-container: #ffdf78;
+  --color-on-primary: #3d2f00;
+  
+  /* Các Container Background: Xám nhạt đậm dần để phân chia layer thay vì dùng nền kem */
+  --color-surface-container: #f4f4f5;
+  --color-surface-container-low: #fafafa;
+  --color-surface-container-high: #e5e5e5;
+  --color-surface-container-lowest: #ffffff;
+  
+  /* Outline (Đường viền): Đổi thành màu ĐEN tuyệt đối. 
+     Vì giao diện dùng border-outline-variant/10 (tức opacity 10%), 
+     nên màu đen / 10% sẽ thành viền xám nhạt cực sắc nét trên nền trắng. */
+  --color-outline-variant: #000000;
+  
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #410002;
+  --color-tertiary-container: #c0e8ff;
+  --color-on-tertiary-container: #001e2b;
+  
+  --shadow-color: rgba(0,0,0,0.05);
+}
+
+:root.light ::-webkit-scrollbar-track { background: #ffffff; }
+:root.light ::-webkit-scrollbar-thumb { background: #e5dfd3; }
+:root.light ::-webkit-scrollbar-thumb:hover { background: #d6d1c7; }
+
+/* HIỆU ỨNG PHẢN CHIẾU VIỀN KÍNH (GLASS EDGE REFLECTION) */
+@layer utilities {
+  .glass-shine-edge {
+    position: relative;
+  }
+  .glass-shine-edge::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    /* Dải sáng màu Ice Blue nhạt xuyệt ngang */
+    background: linear-gradient(120deg, transparent 20%, rgba(220, 235, 255, 0.5) 30%, transparent 40%);
+    background-size: 300% 300%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    animation: shineEdge 15s infinite linear;
+    z-index: 10;
+  }
+}
+
+@keyframes shineEdge {
+  0% { background-position: 300% 50%; opacity: 0; }
+  5% { opacity: 1; }
+  25% { background-position: -100% 50%; opacity: 1; }
+  30% { opacity: 0; }
+  100% { background-position: -100% 50%; opacity: 0; }
+}
+
+/* THIẾT KẾ THẺ KÍNH (GLASS CARD) ĐỒNG NHẤT - CHUẨN IOS DARK ACRYLIC */
+@layer utilities {
+  .glass-card {
+    /* Nền tối màu đầm, sang trọng (Dark Acrylic) */
+    background-color: rgba(10, 10, 15, 0.45);
+    
+    /* Làm nhòe mạnh và tăng độ bão hòa (Đặc trưng iOS Glass) */
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    
+    /* Viền nguyên khối cực mờ */
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    
+    /* Viền dập nổi 3D (Beveled Edge): Ánh sáng bạc ở mép trên, bóng đổ ở mép dưới */
+    box-shadow: 
+      0 16px 40px -10px rgba(0, 0, 0, 0.8), /* Đổ bóng sâu xuống không gian */
+      inset 0 1px 1px rgba(255, 255, 255, 0.15), /* Hắt sáng mép trên (Top Highlight) */
+      inset 0 -1px 1px rgba(0, 0, 0, 0.6); /* Bắt bóng mép dưới */
+      
+    /* Lớp phủ gradient chéo tạo độ trơn láng (Glossy) */
+    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%);
+  }
+}

@@ -1,44 +1,20 @@
-# .
+<div align="center">
 
-This template should help get you started developing with Vue 3 in Vite.
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Montserrat&weight=700&size=28&pause=1000&color=F5C518&center=true&vCenter=true&width=800&height=80&lines=DevCine+-+Frontend;+Repository+lưu+trữ+Giao+diện+DevCine)](https://github.com/DevCine-F/DevCine-Frontend)
 
-## Recommended IDE Setup
+<br>
+</div>
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+---
+**[DevCine-Frontend](https://github.com/DevCine-F/DevCine-Frontend)** tạo ra nhằm phục vụ việc lưu trữ trong quá trình xây dựng giao diện website cho Đồ án tốt nghiệp. Repository này chứa toàn bộ mã nguồn **Giao diện người dùng (Frontend)** của dự án.
 
-## Recommended Browser Setup
+## 🛠 Công nghệ sử dụng
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+Dự án được phát triển dựa trên hệ sinh thái hiện đại nhất của Vue, tối ưu hóa cho hiệu năng và trải nghiệm người dùng:
 
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
-```
-
-### Compile and Minify for Production
-
-```sh
-npm run build
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-npm run lint
-```
+- **Core Framework:** [Vue 3](https://vuejs.org/)
+- **Build Tool:** [Vite](https://vitejs.dev/)
+- **State Management:** [Pinia](https://pinia.vuejs.org/)
+- **Routing:** [Vue Router](https://router.vuejs.org/)
+- **Styling UI:** [Tailwind CSS v4](https://tailwindcss.com/)
+- **HTTP Client:** [Axios](https://axios-http.com/)

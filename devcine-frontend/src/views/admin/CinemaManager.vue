@@ -1,0 +1,1837 @@
+<script setup>
+import { ref, reactive, computed, onMounted } from "vue";
+import axios from "axios";
+import SeatMapBuilder from "@/components/admin/SeatMapBuilder.vue";
+
+const API_BASE_URL = "http://localhost:8080/api/cinemas";
+
+const selectedCinema = ref(null);
+const activeTab = ref("infrastructure");
+const viewingHall = ref(null);
+
+// Drawer state
+const selectedShowtime = ref(null);
+const showDrawer = ref(false);
+
+const openShowtimeDetails = (show) => {
+  selectedShowtime.value = show;
+  showDrawer.value = true;
+};
+
+const closeDrawer = () => {
+  showDrawer.value = false;
+  setTimeout(() => {
+    selectedShowtime.value = null;
+  }, 300);
+};
+
+// Seat Map Modal State for Drawer
+const showSeatMapModal = ref(false);
+
+// Helper function for mocking sold tickets based on movie
+const getSoldTickets = (movieName) => {
+  if (!movieName) return 0;
+  return movieName.includes('DORAEMON') ? 45 : 112;
+};
+
+// Modal Create Cinema State
+const showCreateModal = ref(false);
+const newCinema = reactive({
+  name: '',
+  address: '',
+  hotline: '',
+  type: 'Standard',
+  rooms: 1
+});
+
+const handleCreateCinema = () => {
+  if (!newCinema.name || !newCinema.address || !newCinema.hotline) {
+    alert("Vui lòng điền đầy đủ các thông tin bắt buộc!");
+    return;
+  }
+  
+  const id = cinemas.value.length + 1;
+  cinemas.value.push({
+    id: id,
+    name: newCinema.name,
+    address: newCinema.address,
+    rooms: newCinema.rooms,
+    type: newCinema.type,
+    hotline: newCinema.hotline,
+    stats: {
+      revenue: "0đ",
+      occupancy: "0%",
+      growth: "+0%",
+    },
+    halls: Array.from({ length: newCinema.rooms }, (_, i) => ({
+      id: `New_H${i+1}`,
+      name: `Phòng ${i+1}`,
+      type: "2D Standard",
+      rows: 10,
+      cols: 12,
+      status: "Active"
+    })),
+    staff: [],
+    inventory: [],
+    shows: []
+  });
+  
+  // Reset form
+  newCinema.name = '';
+  newCinema.address = '';
+  newCinema.hotline = '';
+  newCinema.type = 'Standard';
+  newCinema.rooms = 1;
+  showCreateModal.value = false;
+};
+
+const cinemas = ref([
+  {
+    id: 1,
+    name: "DevCine Landmark 81",
+    address: "Tầng B1, Vincom Landmark 81, Bình Thạnh, TP.HCM",
+    rooms: 8,
+    type: "Premium/IMAX",
+    hotline: "1900 1234",
+    stats: {
+      revenue: "850.000.000đ",
+      occupancy: "82%",
+      growth: "+12.5%",
+    },
+    halls: [
+      { id: "H1", name: "Phòng 01", type: "IMAX Laser", rows: 12, cols: 16, status: "Active" },
+      { id: "H2", name: "Phòng 02", type: "Gold Class", rows: 6, cols: 8, status: "Active" },
+      { id: "H3", name: "Phòng 03", type: "2D/3D Standard", rows: 10, cols: 14, status: "Maintenance" },
+      { id: "H4", name: "Phòng 04", type: "Dolby Atmos", rows: 10, cols: 12, status: "Active" },
+    ],
+    staff: [
+      { id: 1, name: "Quỳnh Anh", role: "Box Office", shift: "Morning", status: "On Duty", sales: 124 },
+      { id: 2, name: "Minh Khôi", role: "F&B", shift: "Afternoon", status: "On Duty", sales: 45 },
+    ],
+    inventory: [
+      { id: 1, name: "Bắp Rang Bơ (M)", category: "F&B", stock: "High", level: 85, trend: "up", minStock: 50, waste: 8 },
+    ],
+    shows: [
+      { id: 1, roomId: "H1", movie: "OPPENHEIMER", format: "IMAX 2D", startTime: "09:30", duration: 180, color: "#4A0E0E", status: "past", price: 150000 },
+      { id: 2, roomId: "H2", movie: "DORAEMON", format: "2D Lồng tiếng", startTime: "13:00", duration: 90, color: "#0E3A2F", status: "ongoing", price: 95000 },
+    ],
+  },
+  {
+    id: 2,
+    name: "DevCine Bitexco",
+    address: "Tầng 3, Bitexco Financial Tower, Quận 1, TP.HCM",
+    rooms: 5,
+    type: "Standard/Sweetbox",
+    hotline: "1900 5678",
+    stats: {
+      revenue: "420.000.000đ",
+      occupancy: "65%",
+      growth: "+5.2%",
+    },
+    halls: [
+      { id: "B1", name: "Phòng Cinema 01", type: "2D Standard", rows: 8, cols: 12, status: "Active" },
+    ],
+    staff: [
+      { id: 4, name: "Hoàng Nam", role: "Manager", shift: "Evening", status: "On Duty" },
+    ],
+    inventory: [],
+    shows: [],
+  },
+]);
+
+const fetchCinemas = async () => {
+  try {
+    const res = await axios.get(API_BASE_URL);
+    if (res.data && res.data.length > 0) {
+      cinemas.value = res.data.map((c, index) => ({
+        ...c,
+        stats: {
+          revenue: (Math.random() * 500 + 300).toFixed(0) + ".000.000đ",
+          occupancy: (Math.random() * 20 + 70).toFixed(0) + "%",
+          growth: "+" + (Math.random() * 15).toFixed(1) + "%",
+        },
+        halls: index === 0 ? [
+          { id: "H1", name: "Phòng 01", type: "IMAX Laser", rows: 12, cols: 16, status: "Active" },
+          { id: "H2", name: "Phòng 02", type: "Gold Class", rows: 6, cols: 8, status: "Active" }
+        ] : [
+          { id: "B1", name: "Phòng Cinema 01", type: "2D Standard", rows: 8, cols: 12, status: "Active" }
+        ],
+        staff: [
+          { id: index + 10, name: "Nhân viên " + (index + 1), role: "Box Office", shift: "Morning", status: "On Duty", sales: 124 }
+        ],
+        inventory: [
+          { id: index + 100, name: "Bắp Rang Bơ (M)", category: "F&B", stock: "High", level: 85, trend: "up" }
+        ],
+        shows: []
+      }));
+    }
+  } catch (error) {
+    console.error("Error fetching cinemas:", error);
+  }
+};
+
+onMounted(() => {
+  fetchCinemas();
+  if (cinemas.value.length > 0) {
+    selectedCinema.value = cinemas.value[0];
+  }
+});
+
+const getEndTime = (startTime, duration = 120) => {
+  const [hour, minute] = startTime.split(":").map(Number);
+  const totalMinutes = hour * 60 + minute + duration;
+  const endHour = Math.floor(totalMinutes / 60);
+  const endMin = totalMinutes % 60;
+  return `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
+};
+
+// Seat Map State
+const currentSeatMap = ref({});
+const isMouseDown = ref(false);
+const activeBrush = ref("standard");
+const tempRows = ref(10);
+const tempCols = ref(16);
+
+// Schedule State
+const selectedDate = ref("20/10");
+const dates = [
+  { day: "Thứ 2", date: "19/10" },
+  { day: "Thứ 3", date: "20/10" },
+  { day: "Thứ 4", date: "21/10" },
+  { day: "Thứ 5", date: "22/10" },
+  { day: "Thứ 6", date: "23/10" },
+];
+
+const getGridStyle = (startTime, duration) => {
+  const [hour, minute] = startTime.split(":").map(Number);
+  const startUnit = (hour - 8) * 4 + Math.floor(minute / 15) + 1;
+  const spanUnit = Math.ceil(duration / 15);
+  return {
+    gridColumnStart: startUnit,
+    gridColumnEnd: `span ${spanUnit}`,
+  };
+};
+
+// Logic Advanced Constraints
+const checkConflict = (hallId, show) => {
+  if (!selectedCinema.value) return false;
+  const hallShows = selectedCinema.value.shows.filter(
+    (s) => s.roomId === hallId && s.id !== show.id,
+  );
+  const CLEANING_TIME = 20; // minutes
+
+  const showStart = timeToMinutes(show.startTime);
+  const showEnd = showStart + show.duration + CLEANING_TIME;
+
+  return hallShows.some((other) => {
+    const otherStart = timeToMinutes(other.startTime);
+    const otherEnd = otherStart + other.duration + CLEANING_TIME;
+    return showStart < otherEnd && showEnd > otherStart;
+  });
+};
+
+const checkFormatMismatch = (hall, format) => {
+  if (format.includes("IMAX") && !hall.type.includes("IMAX")) return true;
+  return false;
+};
+
+const timeToMinutes = (time) => {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+};
+
+const seatBrushes = [
+  {
+    id: "standard",
+    label: "Tiêu chuẩn",
+    icon: "event_seat",
+    color: "bg-slate-500/40",
+  },
+  { id: "vip", label: "Premium VIP", icon: "stars", color: "bg-[#f5c518]" },
+  { id: "sweetbox", label: "Sweetbox", icon: "favorite", color: "bg-red-500" },
+  { id: "aisle", label: "Lối đi", icon: "space_bar", color: "bg-white/10" },
+  {
+    id: "broken",
+    label: "Ghế hỏng",
+    icon: "heart_broken",
+    color: "bg-white/5",
+  },
+];
+
+const openCinemaDetail = (cinema) => {
+  selectedCinema.value = cinema;
+  activeTab.value = "infrastructure";
+};
+
+const closeDetail = () => {
+  selectedCinema.value = null;
+  viewingHall.value = null;
+};
+
+const openHallDetail = (hall) => {
+  viewingHall.value = hall;
+  tempRows.value = hall.rows;
+  tempCols.value = hall.cols;
+  initializeSeatMap(hall);
+};
+
+const initializeSeatMap = (hall) => {
+  const map = {};
+  for (let r = 0; r < hall.rows; r++) {
+    for (let c = 0; c < hall.cols; c++) {
+      map[`${r}-${c}`] = {
+        type: "standard",
+        label: `${String.fromCharCode(65 + r)}${c + 1}`,
+      };
+    }
+  }
+  currentSeatMap.value = map;
+};
+
+const regenerateGrid = () => {
+  if (!viewingHall.value) return;
+  viewingHall.value.rows = tempRows.value;
+  viewingHall.value.cols = tempCols.value;
+  initializeSeatMap(viewingHall.value);
+};
+
+const resetMap = () => {
+  if (!viewingHall.value) return;
+  initializeSeatMap(viewingHall.value);
+};
+
+const toggleSeat = (r, c) => {
+  const key = `${r}-${c}`;
+  const nextKey = `${r}-${c + 1}`;
+  const prevKey = `${r}-${c - 1}`;
+
+  // Handle Sweetbox logic (Double Seat)
+  if (activeBrush.value === "sweetbox") {
+    if (c < viewingHall.value.cols - 1) {
+      currentSeatMap.value[key].type = "sweetbox";
+      currentSeatMap.value[nextKey].type = "hidden";
+    }
+    return;
+  }
+
+  // Restore if changing from a sweetbox
+  if (currentSeatMap.value[key]?.type === "sweetbox") {
+    if (currentSeatMap.value[nextKey])
+      currentSeatMap.value[nextKey].type = "standard";
+  }
+
+  // If clicking the hidden part of a sweetbox, restore both
+  if (currentSeatMap.value[key]?.type === "hidden") {
+    if (currentSeatMap.value[prevKey]) {
+      currentSeatMap.value[prevKey].type = activeBrush.value;
+      currentSeatMap.value[key].type = "standard";
+      return;
+    }
+  }
+
+  if (currentSeatMap.value[key]) {
+    currentSeatMap.value[key].type = activeBrush.value;
+  }
+};
+
+const tabs = [
+  { id: "infrastructure", label: "Cơ sở vật chất", icon: "domain" },
+  { id: "showtimes", label: "Lịch chiếu", icon: "schedule" },
+  { id: "staff", label: "Nhân sự", icon: "badge" },
+  { id: "fnb", label: "Dịch vụ Bắp nước", icon: "fastfood" },
+  { id: "analytics", label: "Báo cáo", icon: "analytics" },
+];
+</script>
+
+<template>
+  <div class="p-10 min-h-screen bg-surface">
+    <!-- List View -->
+    <div v-if="!selectedCinema">
+      <header class="flex justify-between items-center mb-12 text-on-surface">
+        <div>
+          <h1
+            class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary"
+          >
+            Cluster Network
+          </h1>
+          <p
+            class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold"
+          >
+            Hệ thống quản lý cụm rạp DevCine toàn quốc
+          </p>
+        </div>
+        <button
+          @click="showCreateModal = true"
+          class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-4 rounded-sm hover:brightness-110 transition-all flex items-center gap-3 shadow-lg shadow-primary/20"
+        >
+          <span class="material-symbols-outlined text-lg font-bold"
+            >add_location</span
+          >
+          Thiết lập Cụm Rạp Mới
+        </button>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div
+          v-for="cinema in cinemas"
+          :key="cinema.id"
+          @click="openCinemaDetail(cinema)"
+          class="bg-surface-container-low border border-outline-variant/10 rounded-xl overflow-hidden hover:border-primary/40 transition-all group cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 duration-500"
+        >
+          <div
+            class="h-56 bg-surface-container-highest relative overflow-hidden"
+          >
+            <img
+              src="/images/Hopper.webp"
+              class="w-full h-full object-cover transition-all duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-100"
+            />
+            <div
+              class="absolute inset-0 bg-gradient-to-t from-surface-container-low via-surface-container-low/40 to-transparent"
+            ></div>
+            <div class="absolute bottom-4 left-6 flex gap-2">
+              <span
+                class="bg-primary/20 text-primary text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest backdrop-blur-md border border-primary/20"
+                >{{ cinema.type }}</span
+              >
+              <span
+                class="bg-green-500/20 text-green-500 text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest backdrop-blur-md border border-green-500/20"
+                >Online</span
+              >
+            </div>
+          </div>
+          <div class="p-8">
+            <h3
+              class="font-headline font-bold text-xl mb-3 text-on-surface group-hover:text-primary transition-colors"
+            >
+              {{ cinema.name }}
+            </h3>
+            <p
+              class="text-xs text-on-surface-variant mb-8 line-clamp-2 leading-relaxed opacity-70 italic"
+            >
+              {{ cinema.address }}
+            </p>
+
+            <div
+              class="flex justify-between items-center pt-6 border-t border-outline-variant/5"
+            >
+              <div class="flex items-center gap-3 text-on-surface-variant">
+                <div class="p-2 bg-on-surface/5 rounded-lg">
+                  <span class="material-symbols-outlined text-lg"
+                    >meeting_room</span
+                  >
+                </div>
+                <div>
+                  <p
+                    class="text-[10px] font-black uppercase tracking-widest text-on-surface"
+                  >
+                    {{ cinema.rooms }} Phòng
+                  </p>
+                  <p
+                    class="text-[8px] uppercase tracking-tighter opacity-50 font-bold"
+                  >
+                    Cinema Halls
+                  </p>
+                </div>
+              </div>
+              <div
+                class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <button
+                  class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-container-high border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all"
+                >
+                  <span class="material-symbols-outlined text-sm"
+                    >settings</span
+                  >
+                </button>
+                <div
+                  class="w-10 h-10 flex items-center justify-center rounded-xl bg-primary text-on-primary shadow-lg shadow-primary/20"
+                >
+                  <span class="material-symbols-outlined text-sm"
+                    >arrow_forward_ios</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Cinema View -->
+    <div v-else class="animate-in fade-in slide-in-from-bottom-8 duration-700">
+      <header
+        class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10"
+      >
+        <div class="flex items-center gap-6">
+          <button
+            @click="closeDetail"
+            class="w-12 h-12 flex items-center justify-center rounded-2xl bg-surface-container-high border border-outline-variant/10 text-on-surface hover:text-primary transition-all group"
+          >
+            <span
+              class="material-symbols-outlined group-hover:-translate-x-1 transition-transform"
+              >arrow_back</span
+            >
+          </button>
+          <div>
+            <div class="flex items-center gap-3 mb-1">
+              <span
+                class="bg-primary/20 text-primary text-[9px] font-black px-2 py-1 rounded uppercase tracking-widest border border-primary/20"
+                >{{ selectedCinema.type }}</span
+              >
+              <span
+                class="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest opacity-60"
+                >ID: DC-{{ selectedCinema.id }}</span
+              >
+            </div>
+            <h1
+              class="text-4xl font-extrabold tracking-tight font-headline uppercase text-on-surface"
+            >
+              {{ selectedCinema.name }}
+            </h1>
+          </div>
+        </div>
+      </header>
+
+      <!-- Stats Bar -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div
+          v-for="(val, key) in selectedCinema.stats"
+          :key="key"
+          class="bg-surface-container-low border border-outline-variant/10 p-6 rounded-2xl flex justify-between items-center group hover:border-primary/30 transition-all"
+        >
+          <div>
+            <p
+              class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1"
+            >
+              {{
+                key === "revenue"
+                  ? "Doanh thu tháng"
+                  : key === "occupancy"
+                    ? "Tỷ lệ lấp đầy"
+                    : "Tăng trưởng"
+              }}
+            </p>
+            <h4 class="text-2xl font-black text-on-surface">{{ val }}</h4>
+          </div>
+          <div
+            class="w-12 h-12 rounded-xl bg-on-surface/5 flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors"
+          >
+            <span class="material-symbols-outlined text-2xl">{{
+              key === "revenue"
+                ? "payments"
+                : key === "occupancy"
+                  ? "chair"
+                  : "trending_up"
+            }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Tabs Content -->
+      <div
+        v-if="!viewingHall"
+        class="bg-surface-container-low border border-outline-variant/10 rounded-3xl overflow-hidden shadow-2xl"
+      >
+        <div
+          class="flex border-b border-outline-variant/10 bg-on-surface/[0.02] p-2 overflow-x-auto no-scrollbar"
+        >
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            @click="activeTab = tab.id"
+            :class="[
+              activeTab === tab.id
+                ? 'bg-surface-container-high text-primary shadow-sm border-outline-variant/20'
+                : 'text-on-surface-variant hover:text-on-surface border-transparent',
+            ]"
+            class="flex items-center gap-3 px-8 py-5 text-xs font-black font-headline uppercase tracking-widest transition-all rounded-2xl border flex-shrink-0"
+          >
+            <span class="material-symbols-outlined text-xl">{{
+              tab.icon
+            }}</span>
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div class="p-10 min-h-[500px]">
+          <!-- Infrastructure Tab -->
+          <div
+            v-if="activeTab === 'infrastructure'"
+            class="animate-in fade-in slide-in-from-left-4 duration-500"
+          >
+            <div class="flex justify-between items-center mb-10">
+              <h3
+                class="text-2xl font-bold font-headline uppercase tracking-tight text-on-surface"
+              >
+                Cấu hình Phòng chiếu
+              </h3>
+              <button
+                class="bg-primary/10 text-primary px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2"
+              >
+                <span class="material-symbols-outlined text-sm font-bold"
+                  >add</span
+                >
+                Thêm Phòng
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div
+                v-for="hall in selectedCinema.halls"
+                :key="hall.id"
+                class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-2xl hover:border-primary/30 transition-all group"
+              >
+                <div class="flex justify-between items-start mb-8">
+                  <div class="flex items-center gap-5">
+                    <div
+                      class="w-16 h-16 rounded-2xl bg-on-surface/5 flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-all group-hover:scale-105"
+                    >
+                      <span class="material-symbols-outlined text-3xl"
+                        >tv_gen</span
+                      >
+                    </div>
+                    <div>
+                      <h4 class="text-xl font-bold text-on-surface mb-1">
+                        {{ hall.name }}
+                      </h4>
+                      <span
+                        class="text-[9px] font-black text-primary uppercase tracking-[0.2em] px-2 py-1 bg-primary/10 rounded-md"
+                        >{{ hall.type }}</span
+                      >
+                    </div>
+                  </div>
+                  <div
+                    :class="
+                      hall.status === 'Active'
+                        ? 'text-green-500'
+                        : 'text-orange-500'
+                    "
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/20 text-[9px] font-black uppercase tracking-widest border border-white/5"
+                  >
+                    <span
+                      class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"
+                    ></span>
+                    {{ hall.status === "Active" ? "Hoạt động" : "Bảo trì" }}
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                  <div
+                    class="p-4 bg-on-surface/[0.03] rounded-xl border border-white/5"
+                  >
+                    <p
+                      class="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest mb-1 opacity-50"
+                    >
+                      Kích thước
+                    </p>
+                    <p class="text-lg font-black text-on-surface">
+                      {{ hall.rows }}x{{ hall.cols }} Matrix
+                    </p>
+                  </div>
+                  <div
+                    class="p-4 bg-on-surface/[0.03] rounded-xl border border-white/5"
+                  >
+                    <p
+                      class="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest mb-1 opacity-50"
+                    >
+                      Tổng số ghế
+                    </p>
+                    <p class="text-lg font-black text-on-surface">
+                      {{ hall.rows * hall.cols }} Ghế
+                    </p>
+                  </div>
+                </div>
+
+                <div class="flex gap-3">
+                  <button
+                    @click="openHallDetail(hall)"
+                    class="flex-grow py-3 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-primary/10 hover:brightness-110"
+                  >
+                    Xem Chi tiết & Sơ đồ ghế
+                  </button>
+                  <button
+                    class="w-12 h-12 flex items-center justify-center rounded-xl bg-on-surface/5 hover:bg-on-surface/10 text-on-surface-variant transition-all border border-white/5"
+                  >
+                    <span class="material-symbols-outlined text-sm"
+                      >settings</span
+                    >
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Showtimes Tab (Upgraded Timeline Matrix) -->
+          <div
+            v-else-if="activeTab === 'showtimes'"
+            class="animate-in fade-in slide-in-from-left-4 duration-500 -mx-10 -my-10"
+          >
+            <!-- Header: Date Picker -->
+            <header
+              class="flex justify-between items-center p-8 border-b border-outline-variant/10 bg-on-surface/[0.02]"
+            >
+              <div class="flex items-center gap-3">
+                <button
+                  v-for="d in dates"
+                  :key="d.date"
+                  @click="selectedDate = d.date"
+                  :class="
+                    selectedDate === d.date
+                      ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20'
+                      : 'bg-surface-container-high text-on-surface-variant border-outline-variant/10'
+                  "
+                  class="flex flex-col items-center min-w-[65px] py-2 rounded-xl border transition-all hover:bg-white/5"
+                >
+                  <span class="text-[8px] font-black uppercase opacity-40">{{
+                    d.day
+                  }}</span>
+                  <span class="text-xs font-black">{{ d.date }}</span>
+                </button>
+              </div>
+
+              <div class="flex gap-4">
+                <button
+                  class="bg-surface-container-highest text-on-surface px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-white/10 transition-all flex items-center gap-2"
+                >
+                  <span class="material-symbols-outlined text-sm">bolt</span> AI
+                  Optimizer
+                </button>
+                <button
+                  class="bg-primary text-on-primary px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:brightness-110 transition-all flex items-center gap-2"
+                >
+                  <span class="material-symbols-outlined text-sm">add</span>
+                  Thêm suất chiếu
+                </button>
+              </div>
+            </header>
+
+            <!-- Main Timeline Matrix -->
+            <div class="overflow-hidden relative h-[500px] flex flex-col">
+              <!-- Scrollable Area -->
+              <div
+                class="flex-grow overflow-x-auto overflow-y-auto scrollbar-hide relative bg-[#0b111e]"
+              >
+                <!-- Main Wrapper -->
+                <div class="min-w-[2400px] flex flex-col min-h-full relative">
+                  <!-- Time Ruler -->
+                  <div
+                    class="flex border-b border-outline-variant/10 bg-[#0b111e] flex-shrink-0 sticky top-0 z-40"
+                  >
+                    <div
+                      class="w-48 flex-shrink-0 p-4 border-r border-outline-variant/10 flex items-center justify-center font-black text-primary uppercase tracking-[0.2em] text-[8px] italic bg-[#0b111e] sticky left-0 z-50"
+                    >
+                      Room \ Time
+                    </div>
+                    <div
+                      class="flex-grow grid grid-cols-[repeat(64,minmax(0,1fr))] relative h-10"
+                    >
+                      <div
+                        v-for="hour in 16"
+                        :key="hour"
+                        class="col-span-4 border-r border-outline-variant/10 flex items-center justify-center text-[9px] font-black text-on-surface-variant/30"
+                      >
+                        {{ (hour + 7).toString().padStart(2, "0") }}:00
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Vertical Grid Lines -->
+                  <div
+                    class="absolute inset-0 top-10 grid grid-cols-[repeat(64,minmax(0,1fr))] pointer-events-none pl-48 z-0"
+                  >
+                    <div
+                      v-for="i in 64"
+                      :key="i"
+                      :class="
+                        i % 4 === 0
+                          ? 'border-r border-outline-variant/20'
+                          : 'border-r border-outline-variant/5'
+                      "
+                      class="h-full"
+                    ></div>
+                  </div>
+
+                  <!-- Rows Container -->
+                  <div class="flex-grow relative z-10 flex flex-col">
+                    <div
+                      v-for="hall in selectedCinema.halls"
+                      :key="hall.id"
+                      class="flex items-center border-b border-outline-variant/10 group hover:bg-white/[0.02] transition-all min-h-[100px] relative"
+                    >
+                      <!-- Hall Labels (Sticky Column) -->
+                      <div
+                        class="w-48 flex-shrink-0 p-5 border-r border-outline-variant/10 flex items-center gap-3 bg-[#0b111e] sticky left-0 z-20 self-stretch"
+                      >
+                        <div
+                          class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20"
+                        >
+                          <span
+                            class="material-symbols-outlined text-primary text-lg"
+                            >tv_gen</span
+                          >
+                        </div>
+                        <div class="flex flex-col text-left overflow-hidden">
+                          <h3
+                            class="text-[11px] font-black uppercase tracking-tight text-on-surface truncate"
+                          >
+                            {{ hall.name }}
+                          </h3>
+                          <p
+                            class="text-[8px] font-bold text-on-surface-variant/50 uppercase tracking-widest mt-0.5"
+                          >
+                            {{ hall.type }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <!-- Showtime Container -->
+                      <div
+                        class="flex-grow grid grid-cols-[repeat(64,minmax(0,1fr))] grid-rows-1 gap-x-0 relative p-0 items-center min-w-[2200px]"
+                      >
+                        <div
+                          v-for="show in selectedCinema.shows.filter(
+                            (s) => s.roomId === hall.id,
+                          )"
+                          :key="show.id"
+                          :style="{
+                            ...getGridStyle(show.startTime, show.duration),
+                            backgroundColor: show.color + '33',
+                            borderColor:
+                              checkConflict(hall.id, show) ||
+                              checkFormatMismatch(hall, show.format)
+                                ? '#ef4444'
+                                : show.color + '66',
+                          }"
+                          @click="openShowtimeDetails(show)"
+                          class="relative h-[76px] mx-0.5 border rounded-xl p-2.5 cursor-pointer group/card transition-all duration-300 hover:z-30 hover:scale-[1.02] hover:brightness-125 shadow-xl flex flex-col justify-between"
+                          :class="{
+                            'ring-2 ring-red-500 ring-inset animate-pulse':
+                              checkConflict(hall.id, show) ||
+                              checkFormatMismatch(hall, show.format),
+                          }"
+                        >
+                          <div class="flex justify-between items-start">
+                            <p class="text-[12px] font-bold font-sans text-white leading-tight truncate tracking-wide flex-1 pr-1">
+                              {{ show.movie }}
+                            </p>
+                            <div class="flex items-center gap-1 shrink-0">
+                              <span v-if="checkConflict(hall.id, show)" class="material-symbols-outlined text-red-500 text-[12px]">warning</span>
+                              <span v-if="checkFormatMismatch(hall, show.format)" class="material-symbols-outlined text-red-500 text-[12px]">error</span>
+                              <div class="px-2 h-[18px] bg-white/10 rounded flex items-center justify-center text-[8px] leading-none font-bold font-sans text-white border border-white/20 uppercase tracking-wider">
+                                {{ show.format }}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div class="text-[10px] font-bold font-sans text-white/90 tracking-wide mt-0.5">
+                            {{ show.startTime }} - {{ getEndTime(show.startTime, show.duration) }}
+                          </div>
+                          
+                          <div class="flex justify-between items-center mt-auto">
+                            <span class="text-[9px] font-medium font-sans text-[#B3B3B3]">
+                              {{ show.duration }}m
+                            </span>
+                            <span class="text-[9px] font-bold font-sans text-primary">
+                              {{ show.price.toLocaleString() }}đ
+                            </span>
+                          </div>
+                          <!-- Dynamic Glow -->
+                          <div
+                            class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none rounded-2xl"
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Footer Legend (Updated) -->
+              <footer
+                class="p-4 bg-on-surface/[0.02] border-t border-outline-variant/10 flex items-center gap-8"
+              >
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#F5C518]"
+                  ></div>
+                  <span
+                    class="text-[8px] font-black uppercase tracking-widest text-on-surface-variant"
+                    >Đang chiếu</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-1.5 h-1.5 rounded-full bg-white/20"></div>
+                  <span
+                    class="text-[8px] font-black uppercase tracking-widest text-on-surface-variant"
+                    >Sắp chiếu</span
+                  >
+                </div>
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"
+                  ></div>
+                  <span
+                    class="text-[8px] font-black uppercase tracking-widest text-red-500"
+                    >Xung đột / Sai định dạng</span
+                  >
+                </div>
+                <div
+                  class="ml-auto text-[7px] font-black uppercase tracking-[0.3em] text-on-surface-variant opacity-20 italic"
+                >
+                  Constraint Engine v4.0
+                </div>
+              </footer>
+            </div>
+          </div>
+
+          <!-- Staff Tab (Advanced Roster & KPI) -->
+          <div
+            v-else-if="activeTab === 'staff'"
+            class="animate-in fade-in slide-in-from-left-4 duration-500"
+          >
+            <div class="flex justify-between items-center mb-10">
+              <h3
+                class="text-2xl font-bold font-headline uppercase tracking-tight text-on-surface"
+              >
+                Quản trị Nhân sự
+              </h3>
+              <div class="flex gap-4">
+                <button
+                  class="bg-surface-container-high px-4 py-2 rounded-xl border border-outline-variant/10 text-[10px] font-black uppercase tracking-widest text-on-surface-variant"
+                >
+                  Xuất Bảng Lương
+                </button>
+                <button
+                  class="bg-primary/10 text-primary px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2"
+                >
+                  <span class="material-symbols-outlined text-sm font-bold"
+                    >person_add</span
+                  >
+                  Tuyển dụng mới
+                </button>
+              </div>
+            </div>
+
+            <!-- Role-based Groups -->
+            <div class="space-y-12">
+              <div v-for="role in ['Box Office', 'Usher', 'F&B']" :key="role">
+                <div class="flex items-center gap-4 mb-6">
+                  <span class="w-8 h-[1px] bg-primary/30"></span>
+                  <h4
+                    class="text-xs font-black uppercase tracking-[0.3em] text-primary italic"
+                  >
+                    {{ role }} Team
+                  </h4>
+                  <span
+                    class="px-2 py-0.5 bg-primary/10 text-primary text-[8px] font-black rounded"
+                    >{{
+                      selectedCinema.staff.filter((s) => s.role === role).length
+                    }}
+                    Thành viên</span
+                  >
+                </div>
+
+                <div
+                  class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                >
+                  <div
+                    v-for="member in selectedCinema.staff.filter(
+                      (s) => s.role === role,
+                    )"
+                    :key="member.id"
+                    class="bg-surface-container-high border border-outline-variant/10 p-6 rounded-2xl group hover:border-primary/30 transition-all relative overflow-hidden"
+                  >
+                    <div class="flex items-center gap-4 mb-6">
+                      <div
+                        class="w-14 h-14 rounded-2xl bg-on-surface/5 flex items-center justify-center text-primary font-black text-xl border border-white/5 relative"
+                      >
+                        {{ member.name.charAt(0) }}
+                        <span
+                          v-if="member.status === 'On Duty'"
+                          class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-surface-container-high"
+                        ></span>
+                      </div>
+                      <div>
+                        <h4
+                          class="text-lg font-black text-on-surface group-hover:text-primary transition-colors uppercase tracking-tight"
+                        >
+                          {{ member.name }}
+                        </h4>
+                        <p
+                          class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest"
+                        >
+                          Ca {{ member.shift }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- KPI Stats -->
+                    <div
+                      class="grid grid-cols-2 gap-4 mb-6 p-4 bg-on-surface/5 rounded-xl border border-white/5"
+                    >
+                      <div v-if="role === 'Box Office'">
+                        <p
+                          class="text-[8px] font-black text-on-surface-variant uppercase mb-1"
+                        >
+                          Vé đã bán
+                        </p>
+                        <p class="text-lg font-black text-on-surface">
+                          {{ member.sales }}
+                        </p>
+                      </div>
+                      <div v-if="role === 'F&B'">
+                        <p
+                          class="text-[8px] font-black text-on-surface-variant uppercase mb-1"
+                        >
+                          Đơn hàng
+                        </p>
+                        <p class="text-lg font-black text-on-surface">
+                          {{ member.sales }}
+                        </p>
+                      </div>
+                      <div v-if="role === 'Usher'">
+                        <p
+                          class="text-[8px] font-black text-on-surface-variant uppercase mb-1"
+                        >
+                          Suất đã soát
+                        </p>
+                        <p class="text-lg font-black text-on-surface">--</p>
+                      </div>
+                      <div>
+                        <p
+                          class="text-[8px] font-black text-on-surface-variant uppercase mb-1"
+                        >
+                          Hiệu suất
+                        </p>
+                        <p class="text-lg font-black text-green-500">92%</p>
+                      </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                      <button
+                        class="flex-grow py-2.5 bg-on-surface/5 hover:bg-white/5 text-[9px] font-black uppercase tracking-widest rounded-lg border border-white/5 transition-all italic"
+                      >
+                        Lịch sử ca trực
+                      </button>
+                      <button
+                        class="w-10 h-10 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all border border-primary/20"
+                      >
+                        <span class="material-symbols-outlined text-sm"
+                          >trending_up</span
+                        >
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- F&B Tab (Inventory & Combo Creator) -->
+          <div
+            v-else-if="activeTab === 'fnb'"
+            class="animate-in fade-in slide-in-from-left-4 duration-500"
+          >
+            <div class="flex justify-between items-center mb-10">
+              <h3
+                class="text-2xl font-bold font-headline uppercase tracking-tight text-on-surface"
+              >
+                Hệ thống F&B & Kho
+              </h3>
+              <div class="flex gap-4">
+                <button
+                  class="bg-surface-container-high px-4 py-2 rounded-xl border border-outline-variant/10 text-[10px] font-black uppercase tracking-widest text-on-surface-variant"
+                >
+                  Báo cáo Hao hụt
+                </button>
+                <button
+                  class="bg-primary text-on-primary px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:brightness-110 transition-all flex items-center gap-2 italic"
+                >
+                  <span class="material-symbols-outlined text-sm"
+                    >celebration</span
+                  >
+                  Tạo Combo
+                </button>
+              </div>
+            </div>
+
+            <div
+              class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
+            >
+              <div
+                v-for="item in selectedCinema.inventory"
+                :key="item.id"
+                class="bg-surface-container-high border border-outline-variant/10 p-6 rounded-2xl group hover:border-primary/30 transition-all relative overflow-hidden"
+              >
+                <div
+                  class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity"
+                >
+                  <span class="material-symbols-outlined text-7xl"
+                    >inventory_2</span
+                  >
+                </div>
+                <div class="flex justify-between items-start mb-4">
+                  <p
+                    class="text-[9px] font-black text-primary uppercase tracking-widest"
+                  >
+                    Vật tư kho
+                  </p>
+                  <span
+                    v-if="item.stock < item.minStock"
+                    class="flex items-center gap-1 text-[8px] font-black text-red-500 animate-bounce"
+                  >
+                    <span class="material-symbols-outlined text-xs"
+                      >warning</span
+                    >
+                    SẮP HẾT HÀNG
+                  </span>
+                </div>
+                <h4
+                  class="text-lg font-black text-on-surface mb-6 uppercase tracking-tight"
+                >
+                  {{ item.name }}
+                </h4>
+                <div class="flex items-end justify-between relative z-10">
+                  <div>
+                    <p
+                      class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1 opacity-50"
+                    >
+                      Tồn kho hiện tại
+                    </p>
+                    <h5
+                      class="text-3xl font-black"
+                      :class="
+                        item.stock < item.minStock
+                          ? 'text-red-500'
+                          : 'text-on-surface'
+                      "
+                    >
+                      {{ item.stock }}
+                      <span class="text-xs font-normal opacity-50">{{
+                        item.unit
+                      }}</span>
+                    </h5>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-[8px] font-black text-orange-500 uppercase">
+                      Hao hụt/Hỏng
+                    </p>
+                    <p class="text-sm font-black text-on-surface">
+                      {{ item.waste }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Seasonal Combos (Special Request) -->
+            <h4
+              class="text-xs font-black uppercase tracking-[0.3em] text-primary italic mb-6"
+            >
+              Combos Theo Mùa
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div
+                class="bg-surface-container-high border-2 border-dashed border-outline-variant/20 p-8 rounded-2xl flex flex-col items-center justify-center text-center group hover:border-primary/50 cursor-pointer transition-all"
+              >
+                <div
+                  class="w-16 h-16 rounded-full bg-on-surface/5 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
+                >
+                  <span class="material-symbols-outlined text-primary text-3xl"
+                    >add_circle</span
+                  >
+                </div>
+                <p
+                  class="text-xs font-black uppercase tracking-widest text-on-surface group-hover:text-primary transition-colors"
+                >
+                  Tạo Combo Mùa Lễ Hội
+                </p>
+                <p
+                  class="text-[9px] text-on-surface-variant mt-2 font-bold italic opacity-60"
+                >
+                  Thanh toán riêng, gán giá đặc biệt cho từng cụm rạp
+                </p>
+              </div>
+              <div
+                class="bg-gradient-to-br from-primary/10 to-transparent border border-primary/30 p-8 rounded-2xl flex justify-between items-center relative overflow-hidden group"
+              >
+                <div
+                  class="absolute -right-4 -bottom-4 text-primary opacity-10 group-hover:scale-110 transition-transform"
+                >
+                  <span class="material-symbols-outlined text-9xl"
+                    >favorite</span
+                  >
+                </div>
+                <div>
+                  <h5
+                    class="text-xl font-black text-on-surface uppercase tracking-tight mb-2"
+                  >
+                    Combo Valentine 2024
+                  </h5>
+                  <p
+                    class="text-[10px] font-bold text-on-surface-variant italic mb-4"
+                  >
+                    2 Pepsi Large + 1 Bắp Phô Mai (L) + 1 Gấu Bông
+                  </p>
+                  <div class="flex items-center gap-4">
+                    <span class="text-2xl font-black text-primary italic"
+                      >199.000đ</span
+                    >
+                    <span
+                      class="px-2 py-1 bg-green-500/20 text-green-500 text-[8px] font-black rounded uppercase"
+                      >Đang áp dụng</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Analytics Tab (Operational Hub) -->
+          <div
+            v-else-if="activeTab === 'analytics'"
+            class="animate-in fade-in slide-in-from-left-4 duration-500"
+          >
+            <div class="flex justify-between items-center mb-10">
+              <h3
+                class="text-2xl font-bold font-headline uppercase tracking-tight text-on-surface"
+              >
+                Trung tâm Điều hành
+              </h3>
+              <div class="flex gap-4">
+                <div
+                  class="flex items-center bg-surface-container-high rounded-xl border border-outline-variant/10 p-1"
+                >
+                  <button
+                    class="px-4 py-2 bg-primary text-on-primary text-[8px] font-black uppercase tracking-widest rounded-lg"
+                  >
+                    Thời gian thực
+                  </button>
+                  <button
+                    class="px-4 py-2 text-on-surface-variant text-[8px] font-black uppercase tracking-widest rounded-lg"
+                  >
+                    Theo tuần
+                  </button>
+                </div>
+                <button
+                  class="bg-on-surface/5 text-on-surface px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-white/5 transition-all flex items-center gap-2 italic"
+                >
+                  <span class="material-symbols-outlined text-sm">print</span>
+                  Xuất Báo Cáo Cinema
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <!-- Heatmap Doanh thu (Mockup) -->
+              <div
+                class="lg:col-span-2 bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden"
+              >
+                <div class="flex justify-between items-center mb-10">
+                  <div>
+                    <p
+                      class="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic"
+                    >
+                      Phân tích giờ cao điểm
+                    </p>
+                    <h4
+                      class="text-xl font-bold text-on-surface uppercase tracking-tight"
+                    >
+                      Heatmap Doanh thu trong ngày
+                    </h4>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[8px] font-bold opacity-40 uppercase"
+                      >Low</span
+                    >
+                    <div class="flex gap-1">
+                      <div class="w-3 h-3 rounded-sm bg-primary/20"></div>
+                      <div class="w-3 h-3 rounded-sm bg-primary/40"></div>
+                      <div class="w-3 h-3 rounded-sm bg-primary/70"></div>
+                      <div
+                        class="w-3 h-3 rounded-sm bg-primary shadow-[0_0_8px_#F5C518]"
+                      ></div>
+                    </div>
+                    <span class="text-[8px] font-bold opacity-40 uppercase"
+                      >Peak</span
+                    >
+                  </div>
+                </div>
+
+                <!-- The Heatmap Grid -->
+                <div class="grid grid-cols-12 gap-2 h-40">
+                  <div
+                    v-for="i in 24"
+                    :key="i"
+                    class="rounded-lg transition-all hover:scale-110 hover:z-20 cursor-pointer relative group"
+                    :class="[
+                      i > 18 && i < 22
+                        ? 'bg-primary shadow-[0_0_15px_rgba(245,197,24,0.4)]'
+                        : i > 16 && i < 24
+                          ? 'bg-primary/70'
+                          : i > 10 && i < 15
+                            ? 'bg-primary/40'
+                            : 'bg-primary/10',
+                    ]"
+                  >
+                    <div
+                      class="absolute -top-8 left-1/2 -translate-x-1/2 bg-black px-2 py-1 rounded text-[7px] font-black text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30"
+                    >
+                      {{ i }}:00 - Bận rộn
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="flex justify-between mt-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest opacity-80"
+                >
+                  <span>08:00</span>
+                  <span>14:00</span>
+                  <span>20:00</span>
+                  <span>02:00</span>
+                </div>
+              </div>
+
+              <!-- Waste & Cost Optimization -->
+              <div
+                class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl"
+              >
+                <h4
+                  class="text-sm font-black uppercase tracking-[0.2em] text-on-surface-variant mb-8 flex items-center gap-2 italic"
+                >
+                  <span
+                    class="material-symbols-outlined text-orange-500 text-lg"
+                    >recycling</span
+                  >
+                  Báo cáo phế phẩm
+                </h4>
+                <div class="space-y-6">
+                  <div
+                    class="flex justify-between items-end border-b border-white/5 pb-4"
+                  >
+                    <p
+                      class="text-[9px] font-black text-on-surface-variant uppercase italic"
+                    >
+                      Tổng Waste (Tháng)
+                    </p>
+                    <p class="text-2xl font-black text-red-500">
+                      1.2tr
+                      <span
+                        class="text-[10px] font-normal text-on-surface-variant italic"
+                        >VND</span
+                      >
+                    </p>
+                  </div>
+                  <div class="space-y-4">
+                    <div
+                      v-for="item in selectedCinema.inventory.filter(
+                        (i) => i.waste > 5,
+                      )"
+                      :key="item.id"
+                      class="flex items-center justify-between"
+                    >
+                      <span
+                        class="text-[10px] font-bold text-on-surface uppercase"
+                        >{{ item.name }}</span
+                      >
+                      <span class="text-[10px] font-black text-orange-400"
+                        >{{ item.waste }} {{ item.unit }}</span
+                      >
+                    </div>
+                  </div>
+                  <button
+                    class="w-full py-3 bg-on-surface/5 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-white/5 transition-all border border-white/5"
+                  >
+                    Xem phân tích tối ưu chi phí
+                  </button>
+                </div>
+              </div>
+
+              <!-- Room Occupancy Detailed -->
+              <div
+                class="lg:col-span-3 bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl"
+              >
+                <div class="flex justify-between items-center mb-10">
+                  <h4
+                    class="text-xl font-bold text-on-surface uppercase tracking-tight"
+                  >
+                    Hiệu suất lấp đầy chi tiết (Occupancy Rate)
+                  </h4>
+                  <div
+                    class="text-[10px] font-black text-primary uppercase tracking-widest italic flex items-center gap-2"
+                  >
+                    Target: 75%
+                    <span
+                      class="material-symbols-outlined text-green-500 text-xs"
+                      >trending_up</span
+                    >
+                  </div>
+                </div>
+                <div
+                  class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                >
+                  <div
+                    v-for="hall in selectedCinema.halls"
+                    :key="hall.id"
+                    class="p-6 bg-black/20 rounded-2xl border border-white/5 group hover:border-primary/40 transition-all"
+                  >
+                    <div class="flex justify-between items-center mb-4">
+                      <span
+                        class="text-[10px] font-black text-white/40 uppercase"
+                        >{{ hall.name }}</span
+                      >
+                      <span
+                        class="text-lg font-black"
+                        :class="
+                          hall.id === 'H2' ? 'text-green-500' : 'text-primary'
+                        "
+                        >{{
+                          hall.id === "H1"
+                            ? "88%"
+                            : hall.id === "H2"
+                              ? "92%"
+                              : "45%"
+                        }}</span
+                      >
+                    </div>
+                    <div
+                      class="w-full h-1 bg-white/5 rounded-full overflow-hidden mb-2"
+                    >
+                      <div
+                        class="h-full bg-current transition-all duration-1000"
+                        :style="{
+                          width:
+                            hall.id === 'H1'
+                              ? '88%'
+                              : hall.id === 'H2'
+                                ? '92%'
+                                : '45%',
+                          color: hall.id === 'H2' ? '#22c55e' : '#F5C518',
+                        }"
+                      ></div>
+                    </div>
+                    <p
+                      class="text-[8px] font-bold text-on-surface-variant uppercase tracking-widest opacity-40"
+                    >
+                      Dựa trên 12 suất chiếu hôm nay
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seat Map View -->
+      <div
+        v-else
+        class="animate-in fade-in slide-in-from-right-8 duration-700 flex flex-col h-[calc(100vh-120px)]"
+      >
+        <header
+          class="flex justify-between items-center mb-8 px-4 flex-shrink-0"
+        >
+          <div class="flex items-center gap-6">
+            <button
+              @click="viewingHall = null"
+              class="w-10 h-10 flex items-center justify-center rounded-full bg-on-surface/5 border border-white/10 text-on-surface hover:text-primary transition-all"
+            >
+              <span class="material-symbols-outlined text-lg">arrow_back</span>
+            </button>
+            <div>
+              <h1
+                class="text-2xl font-black tracking-tight font-headline uppercase text-on-surface flex items-center gap-3"
+              >
+                {{ viewingHall.name }}
+                <span class="text-primary/30 text-lg">/</span>
+                <span class="text-primary text-lg">{{ viewingHall.type }}</span>
+              </h1>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button
+              @click="resetMap"
+              class="px-6 py-2.5 rounded-lg border border-white/10 text-on-surface-variant text-[9px] font-black uppercase tracking-widest hover:bg-white/5 transition-all"
+            >
+              Đặt lại
+            </button>
+            <button
+              class="px-8 py-2.5 rounded-lg bg-primary text-on-primary text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center gap-2"
+            >
+              <span class="material-symbols-outlined text-sm">save</span>
+              Lưu Cấu Trúc
+            </button>
+          </div>
+        </header>
+
+        <div class="flex-grow overflow-hidden min-h-0">
+          <SeatMapBuilder 
+            :initial-rows="tempRows" 
+            :initial-cols="tempCols" 
+            :initial-seat-map="currentSeatMap" 
+            @update:layout="(data) => {
+              tempRows = data.rows;
+              tempCols = data.cols;
+              currentSeatMap = data.seats;
+            }" 
+          />
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Cinema Modal Overlay -->
+    <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <!-- Modal Content -->
+      <div class="bg-surface-container-low border border-outline-variant/10 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col slide-in-from-bottom-8">
+        <!-- Header -->
+        <div class="px-8 py-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-high/30">
+          <h2 class="text-xl font-black uppercase tracking-widest text-primary flex items-center gap-3">
+            <span class="material-symbols-outlined">add_business</span>
+            Thiết lập Cụm Rạp Mới
+          </h2>
+          <button @click="showCreateModal = false" class="text-on-surface-variant hover:text-white transition-colors">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        
+        <!-- Body -->
+        <div class="p-8 space-y-6">
+          <div class="grid grid-cols-2 gap-6">
+            <!-- Tên Cụm Rạp -->
+            <div class="space-y-2 col-span-2 sm:col-span-1">
+              <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Tên Cụm Rạp <span class="text-red-500">*</span></label>
+              <input v-model="newCinema.name" type="text" placeholder="VD: DevCine Landmark 81" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+            </div>
+            
+            <!-- Hotline -->
+            <div class="space-y-2 col-span-2 sm:col-span-1">
+              <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Hotline <span class="text-red-500">*</span></label>
+              <input v-model="newCinema.hotline" type="text" placeholder="VD: 1900 1234" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+            </div>
+
+            <!-- Địa chỉ -->
+            <div class="space-y-2 col-span-2">
+              <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Địa chỉ chi tiết <span class="text-red-500">*</span></label>
+              <input v-model="newCinema.address" type="text" placeholder="VD: Tầng B1, Vincom Landmark 81, TP.HCM" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+            </div>
+
+            <!-- Loại rạp -->
+            <div class="space-y-2 col-span-2 sm:col-span-1">
+              <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Loại Cụm Rạp</label>
+              <select v-model="newCinema.type" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all appearance-none cursor-pointer">
+                <option value="Standard" class="bg-surface-container-high text-white">Standard</option>
+                <option value="Premium/IMAX" class="bg-surface-container-high text-white">Premium/IMAX</option>
+                <option value="Sweetbox" class="bg-surface-container-high text-white">Sweetbox</option>
+                <option value="Gold Class" class="bg-surface-container-high text-white">Gold Class</option>
+              </select>
+            </div>
+
+            <!-- Số lượng phòng -->
+            <div class="space-y-2 col-span-2 sm:col-span-1">
+              <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Số lượng phòng dự kiến</label>
+              <input v-model.number="newCinema.rooms" type="number" min="1" max="20" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-8 py-6 border-t border-outline-variant/10 bg-surface-container-high/10 flex justify-end gap-4">
+          <button @click="showCreateModal = false" class="px-6 py-3 rounded-xl border border-white/10 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">
+            Hủy bỏ
+          </button>
+          <button @click="handleCreateCinema" class="px-8 py-3 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-primary/20 flex items-center gap-2">
+            Tạo Cụm Rạp
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Showtime Details Drawer -->
+    <Transition name="fade">
+      <div v-if="showDrawer" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" @click="closeDrawer"></div>
+    </Transition>
+    
+    <Transition name="drawer">
+      <div v-if="showDrawer" class="fixed top-0 right-0 h-full w-[500px] bg-surface-container-high border-l border-outline-variant/10 shadow-2xl z-[101] flex flex-col">
+        <!-- Header -->
+        <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container">
+          <h2 class="text-lg font-black font-headline uppercase tracking-widest text-on-surface">Chi tiết lịch chiếu</h2>
+          <button @click="closeDrawer" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all">
+            <span class="material-symbols-outlined text-white/70 text-sm">close</span>
+          </button>
+        </div>
+        
+        <!-- Body -->
+        <div class="flex-1 overflow-y-auto p-6" v-if="selectedShowtime">
+          <!-- Movie Info Header -->
+          <div class="flex gap-4 mb-6">
+            <!-- Portrait Poster -->
+            <div class="w-24 h-[140px] shrink-0 rounded-xl bg-gradient-to-br from-primary/20 to-surface-variant flex items-center justify-center border border-white/10 relative overflow-hidden shadow-lg shadow-black/20">
+              <span class="material-symbols-outlined text-4xl text-primary/40">movie</span>
+            </div>
+            
+            <!-- Movie Details -->
+            <div class="flex flex-col py-1">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span :class="selectedShowtime.movie.includes('DORAEMON') ? 'bg-green-500' : 'bg-red-500'" class="px-1.5 py-0.5 rounded text-[9px] font-bold text-white uppercase tracking-wider">
+                  {{ selectedShowtime.movie.includes('DORAEMON') ? 'P' : 'T18' }}
+                </span>
+                <span class="text-[10px] font-medium text-white/60">
+                  {{ selectedShowtime.movie.includes('DORAEMON') ? 'Hoạt hình, Phiêu lưu' : 'Tâm lý, Giật gân' }}
+                </span>
+              </div>
+              <div class="flex items-center gap-3 mb-2">
+                <h3 class="text-xl font-black font-headline text-white leading-tight">{{ selectedShowtime.movie }}</h3>
+                <div 
+                  class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border"
+                  :class="
+                    selectedShowtime.status === 'ongoing' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                    selectedShowtime.status === 'past' ? 'bg-white/5 text-white/40 border-white/10' :
+                    'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                  "
+                >
+                  {{ selectedShowtime.status === 'ongoing' ? 'Đang chiếu' : selectedShowtime.status === 'past' ? 'Đã chiếu' : 'Sắp chiếu' }}
+                </div>
+              </div>
+              
+              <div class="flex flex-wrap items-center gap-2 mb-3">
+                <div class="px-2 h-[18px] bg-white/10 rounded flex items-center justify-center text-[10px] leading-none font-bold font-sans text-white border border-white/20 uppercase tracking-wider">
+                  {{ selectedShowtime.format }}
+                </div>
+                <div class="px-2 h-[18px] bg-primary/10 text-primary rounded flex items-center justify-center text-[9px] leading-none font-bold font-sans border border-primary/20 uppercase tracking-wider">
+                  {{ selectedShowtime.movie.includes('DORAEMON') ? 'Lồng tiếng' : 'Phụ đề Tiếng Việt' }}
+                </div>
+                <span class="text-xs font-medium text-white/50">{{ selectedShowtime.duration }} phút</span>
+              </div>
+              
+              <div class="text-[11px] text-white/50 font-medium">Đạo diễn: <span class="text-white/80">{{ selectedShowtime.movie.includes('DORAEMON') ? 'Kazuaki Imai' : 'Christopher Nolan' }}</span></div>
+              <div class="text-[11px] text-white/50 font-medium mt-0.5 line-clamp-1">Diễn viên: <span class="text-white/80">{{ selectedShowtime.movie.includes('DORAEMON') ? 'Wasabi Mizuta, Megumi Ohara' : 'Cillian Murphy, Emily Blunt' }}</span></div>
+            </div>
+          </div>
+
+          <!-- Synopsis -->
+          <div class="mb-6">
+            <h4 class="text-[11px] font-bold text-white/50 uppercase tracking-widest mb-2">Nội dung phim</h4>
+            <p class="text-xs text-white/70 leading-relaxed line-clamp-3">
+              {{ selectedShowtime.movie.includes('DORAEMON') ? 'Nobita và những người bạn tình cờ phát hiện ra một hòn đảo kỳ lạ, nơi trú ngụ của những loài động vật đã tuyệt chủng. Họ cùng nhau trải qua cuộc phiêu lưu bảo vệ hòn đảo khỏi sự tấn công của những kẻ săn trộm độc ác.' : 'Câu chuyện lịch sử về nhà vật lý J. Robert Oppenheimer và vai trò lãnh đạo của ông trong Dự án Manhattan, dẫn đến việc chế tạo ra bom nguyên tử trong Thế chiến thứ hai, thay đổi cục diện thế giới mãi mãi.' }}
+            </p>
+          </div>
+
+          <!-- Divider -->
+          <div class="h-px w-full bg-outline-variant/10 mb-6"></div>
+          
+          <h4 class="text-[11px] font-bold text-white/50 uppercase tracking-widest mb-4">Thông tin lịch chiếu</h4>
+          <div class="space-y-4">
+            <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex items-center gap-4">
+              <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-primary">schedule</span>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Ngày & Thời gian</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/10 text-white/90">20/10/2026</span>
+                  <p class="text-sm font-bold text-white">{{ selectedShowtime.startTime }} - {{ getEndTime(selectedShowtime.startTime, selectedShowtime.duration) }}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex items-center gap-4">
+              <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-primary">meeting_room</span>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Phòng chiếu</p>
+                <p class="text-sm font-bold text-white mt-0.5">{{ selectedCinema?.halls.find(h => h.id === selectedShowtime.roomId)?.name || selectedShowtime.roomId }}</p>
+              </div>
+            </div>
+            
+            <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex items-center gap-4">
+              <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-primary">payments</span>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Giá vé cơ bản</p>
+                <p class="text-sm font-bold text-primary mt-0.5">{{ selectedShowtime.price.toLocaleString() }}đ</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Thống kê suất chiếu -->
+          <h4 class="text-[11px] font-bold text-white/50 uppercase tracking-widest mt-8 mb-4">Thống kê suất chiếu (Tạm tính)</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div 
+              class="bg-black/20 p-4 rounded-xl border border-white/5 cursor-pointer hover:bg-white/5 transition-all group relative"
+              @click="showSeatMapModal = true"
+            >
+              <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl pointer-events-none flex items-center justify-center backdrop-blur-[1px]">
+                <span class="px-3 py-1.5 bg-black/80 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg border border-white/10 shadow-xl">Xem sơ đồ ghế</span>
+              </div>
+              
+              <div class="flex items-center justify-between mb-1">
+                <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Ghế đã đặt</p>
+                <span class="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">
+                  Trống: {{ 144 - getSoldTickets(selectedShowtime.movie) }}
+                </span>
+              </div>
+              <div class="flex items-baseline gap-1">
+                <span class="text-lg font-black text-white">{{ getSoldTickets(selectedShowtime.movie) }}</span>
+                <span class="text-xs text-white/40">/ 144</span>
+              </div>
+              <div class="h-1 w-full bg-white/5 rounded-full mt-2 overflow-hidden">
+                <div class="h-full bg-primary rounded-full transition-all duration-1000" :style="{ width: `${(getSoldTickets(selectedShowtime.movie) / 144) * 100}%` }"></div>
+              </div>
+            </div>
+            
+            <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col justify-center">
+              <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Doanh thu dự kiến</p>
+              <span class="text-lg font-black text-green-400">{{ selectedShowtime.movie.includes('DORAEMON') ? '4.275.000đ' : '16.800.000đ' }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="p-6 border-t border-outline-variant/10 bg-surface-container flex gap-4">
+          <button 
+            v-if="getSoldTickets(selectedShowtime?.movie) === 0"
+            class="flex-1 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 text-[11px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
+          >
+            <span class="material-symbols-outlined text-[16px]">delete</span> Xóa
+          </button>
+          
+          <button 
+            v-else
+            class="flex-1 py-3 rounded-xl border border-white/10 bg-black/20 text-white/50 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 hover:text-red-400 hover:border-red-400/30 transition-all flex flex-col items-center justify-center gap-0.5 group"
+          >
+            <div class="flex items-center gap-1">
+              <span class="material-symbols-outlined text-[14px]">cancel</span> 
+              <span class="group-hover:hidden">Hủy & Hoàn tiền</span>
+              <span class="hidden group-hover:inline">Xác nhận Hủy</span>
+            </div>
+            <span class="text-[8px] font-medium text-white/30 lowercase normal-case tracking-normal">(Đã có {{ getSoldTickets(selectedShowtime?.movie) }} vé)</span>
+          </button>
+
+          <button 
+            class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            :class="getSoldTickets(selectedShowtime?.movie) > 0 ? 'opacity-80 hover:brightness-105' : 'hover:brightness-110 shadow-lg shadow-primary/20'"
+          >
+            <span class="material-symbols-outlined text-[16px]">edit</span> 
+            {{ getSoldTickets(selectedShowtime?.movie) > 0 ? 'Sửa (Hạn chế)' : 'Chỉnh sửa' }}
+          </button>
+        </div>
+      </div>
+    </Transition>
+    
+    <!-- Seat Map ReadOnly Modal -->
+    <Transition name="fade">
+      <div v-if="showSeatMapModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-8" @click.self="showSeatMapModal = false">
+        <div class="bg-surface-container rounded-3xl border border-white/10 shadow-2xl w-full max-w-5xl h-[95vh] flex flex-col relative overflow-hidden">
+          <!-- Modal Header -->
+          <div class="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-black/20">
+            <div>
+              <h2 class="text-xl font-black text-white uppercase tracking-widest font-headline">Sơ đồ phòng chiếu</h2>
+              <p class="text-sm font-medium text-white/50 mt-1">
+                {{ selectedCinema?.halls.find(h => h.id === selectedShowtime?.roomId)?.name || selectedShowtime?.roomId }} • {{ selectedShowtime?.movie }}
+              </p>
+            </div>
+            <button @click="showSeatMapModal = false" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all border border-white/10">
+              <span class="material-symbols-outlined text-white/70">close</span>
+            </button>
+          </div>
+          
+          <!-- Modal Body (SeatMapBuilder in ReadOnly Mode) -->
+          <div class="flex-1 overflow-hidden relative">
+             <SeatMapBuilder 
+               :rows="selectedCinema?.halls.find(h => h.id === selectedShowtime?.roomId)?.rows || 10" 
+               :cols="selectedCinema?.halls.find(h => h.id === selectedShowtime?.roomId)?.cols || 16"
+               :initialMap="{}"
+               :readonly="true"
+               :soldTickets="getSoldTickets(selectedShowtime?.movie)"
+               :canceledTickets="selectedShowtime?.movie?.includes('DORAEMON') ? 2 : 5"
+               :revenue="selectedShowtime?.movie?.includes('DORAEMON') ? '4.275.000đ' : '16.800.000đ'"
+             />
+          </div>
+        </div>
+      </div>
+    </Transition>
+</template>
+
+<style scoped>
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  transform: translateX(100%);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-in-from-bottom {
+  from {
+    transform: translateY(20px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(20px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes slide-in-from-left {
+  from {
+    transform: translateX(-20px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-in {
+  animation-duration: 0.5s;
+  animation-fill-mode: both;
+}
+.fade-in {
+  animation-name: fade-in;
+}
+.slide-in-from-bottom-8 {
+  animation-name: slide-in-from-bottom;
+}
+.slide-in-from-right-8 {
+  animation-name: slide-in-from-right;
+}
+.slide-in-from-left-4 {
+  animation-name: slide-in-from-left;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+</style>
