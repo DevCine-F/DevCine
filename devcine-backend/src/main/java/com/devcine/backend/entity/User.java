@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,6 +27,7 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(length = 20)
     private String phone;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -33,13 +35,9 @@ public class User {
     private Role role;
 
     @Column(name = "is_active", nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
 }

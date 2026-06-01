@@ -2,9 +2,8 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "movies")
@@ -28,7 +27,7 @@ public class Movie {
     @Column(name = "duration_mins")
     private Integer durationMins;
 
-    @Column(name = "age_rating")
+    @Column(name = "age_rating", length = 10)
     private String ageRating;
 
     @Column(name = "release_date")
@@ -37,14 +36,6 @@ public class Movie {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    @Column(length = 20)
     private String status;
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "movie_categories",
-            joinColumns = @JoinColumn(name = "movie_id"),
-            inverseJoinColumns = @JoinColumn(name = "category_id")
-    )
-    @Builder.Default
-    private Set<Category> categories = new HashSet<>();
 }

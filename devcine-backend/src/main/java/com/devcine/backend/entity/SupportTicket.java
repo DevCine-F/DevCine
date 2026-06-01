@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -25,16 +26,12 @@ public class SupportTicket {
     @JoinColumn(name = "assigned_to_staff")
     private Staff assignedToStaff;
 
-    @Column(name = "issue_type")
+    @Column(name = "issue_type", length = 50)
     private String issueType;
 
+    @Column(length = 20)
     private String status;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
 }

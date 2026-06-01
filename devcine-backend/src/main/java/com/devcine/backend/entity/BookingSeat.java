@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -17,8 +18,9 @@ public class BookingSeat {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "booking_id", nullable = false)
-    private Integer bookingId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "booking_id", nullable = false)
+    private Booking booking;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seat_id", nullable = false)
@@ -27,5 +29,6 @@ public class BookingSeat {
     @Column(name = "price_snapshot", precision = 15, scale = 2)
     private BigDecimal priceSnapshot;
 
+    @Column(length = 20)
     private String status;
 }

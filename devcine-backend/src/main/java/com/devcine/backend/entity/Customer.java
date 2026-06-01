@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 
 @Entity
@@ -24,12 +25,13 @@ public class Customer {
 
     private LocalDate dob;
 
-    @Column(name = "id_card")
+    @Column(name = "id_card", length = 20)
     private String idCard;
 
-    @Column(name = "membership_tier")
+    @Column(name = "membership_tier", length = 50)
     private String membershipTier;
 
     @Column(name = "loyalty_points")
+    @Builder.Default
     private Integer loyaltyPoints = 0;
 }

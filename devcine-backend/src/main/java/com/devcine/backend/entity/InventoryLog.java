@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -25,16 +26,12 @@ public class InventoryLog {
     @JoinColumn(name = "changed_by_staff")
     private Staff changedByStaff;
 
+    @Column(length = 20)
     private String type;
 
     @Column(name = "quantity_change", nullable = false)
     private Integer quantityChange;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false)
     private LocalDateTime timestamp;
-
-    @PrePersist
-    protected void onCreate() {
-        this.timestamp = LocalDateTime.now();
-    }
 }

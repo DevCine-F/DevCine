@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,14 +27,9 @@ public class CinemaInventory {
     private FnbItem fnbItem;
 
     @Column(name = "in_stock", nullable = false)
+    @Builder.Default
     private Integer inStock = 0;
 
     @Column(name = "last_updated")
     private LocalDateTime lastUpdated;
-
-    @PrePersist
-    @PreUpdate
-    protected void onUpdate() {
-        this.lastUpdated = LocalDateTime.now();
-    }
 }

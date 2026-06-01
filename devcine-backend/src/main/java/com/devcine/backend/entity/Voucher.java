@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -29,5 +30,6 @@ public class Voucher {
     private LocalDateTime validUntil;
 
     @Column(name = "is_used", nullable = false)
+    @Builder.Default
     private Boolean isUsed = false;
 }

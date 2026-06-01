@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -22,7 +23,9 @@ public class Wallet {
     private Customer customer;
 
     @Column(nullable = false, precision = 15, scale = 2)
+    @Builder.Default
     private BigDecimal balance = BigDecimal.ZERO;
 
+    @Column(length = 20)
     private String status;
 }

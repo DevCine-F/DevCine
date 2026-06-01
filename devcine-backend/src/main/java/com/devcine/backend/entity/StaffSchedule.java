@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 
 @Entity
@@ -28,5 +29,6 @@ public class StaffSchedule {
     @Column(name = "work_date", nullable = false)
     private LocalDate workDate;
 
+    @Column(length = 20)
     private String status;
 }

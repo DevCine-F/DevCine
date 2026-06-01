@@ -20,11 +20,13 @@ public class Room {
     @JoinColumn(name = "cinema_id", nullable = false)
     private Cinema cinema;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private String name;
 
+    @Column(length = 30)
     private String type;
 
+    @Column(length = 20)
     private String status;
 
     @Column(name = "turnaround_time_mins")

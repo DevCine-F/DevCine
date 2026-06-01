@@ -21,7 +21,7 @@ public class Staff {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "staff_code", unique = true)
+    @Column(name = "staff_code", length = 20, unique = true)
     private String staffCode;
 
     @ManyToOne(fetch = FetchType.LAZY)

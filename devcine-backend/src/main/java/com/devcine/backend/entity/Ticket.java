@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,13 +22,15 @@ public class Ticket {
     @JoinColumn(name = "booking_seat_id", nullable = false, unique = true)
     private BookingSeat bookingSeat;
 
-    @Column(name = "qr_code")
+    @Column(name = "qr_code", length = 500)
     private String qrCode;
 
     @Column(name = "is_checked_in", nullable = false)
+    @Builder.Default
     private Boolean isCheckedIn = false;
 
     @Column(name = "is_age_verified")
+    @Builder.Default
     private Boolean isAgeVerified = false;
 
     @ManyToOne(fetch = FetchType.LAZY)

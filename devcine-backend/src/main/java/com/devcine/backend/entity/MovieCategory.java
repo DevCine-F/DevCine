@@ -15,28 +15,20 @@ import java.io.Serializable;
 public class MovieCategory {
 
     @Id
-    @Column(name = "movie_id")
-    private Integer movieId;
-
-    @Id
-    @Column(name = "category_id")
-    private Integer categoryId;
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "movie_id", insertable = false, updatable = false)
+    @JoinColumn(name = "movie_id", nullable = false)
     private Movie movie;
 
+    @Id
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", insertable = false, updatable = false)
+    @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    @Getter
-    @Setter
+    @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    @EqualsAndHashCode
     public static class MovieCategoryId implements Serializable {
-        private Integer movieId;
-        private Integer categoryId;
+        private Integer movie;
+        private Integer category;
     }
 }

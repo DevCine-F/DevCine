@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -34,5 +35,6 @@ public class ShiftHandover {
     @Column(precision = 15, scale = 2)
     private BigDecimal difference;
 
+    @Column(length = 20)
     private String status;
 }

@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -18,10 +19,10 @@ public class Promotion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(unique = true)
+    @Column(unique = true, length = 50)
     private String code;
 
-    @Column(name = "discount_type", nullable = false)
+    @Column(name = "discount_type", nullable = false, length = 20)
     private String discountType;
 
     @Column(name = "discount_value", nullable = false, precision = 15, scale = 2)
@@ -34,5 +35,6 @@ public class Promotion {
     private LocalDateTime endDate;
 
     @Column(name = "is_stackable", nullable = false)
+    @Builder.Default
     private Boolean isStackable = false;
 }

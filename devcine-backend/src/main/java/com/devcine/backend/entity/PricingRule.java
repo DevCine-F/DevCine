@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -18,10 +19,10 @@ public class PricingRule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(name = "rule_type", nullable = false)
+    @Column(name = "rule_type", nullable = false, length = 30)
     private String ruleType;
 
     @Column(nullable = false, precision = 15, scale = 2)

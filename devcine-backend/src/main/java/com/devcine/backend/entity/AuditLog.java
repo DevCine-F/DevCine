@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,20 +22,15 @@ public class AuditLog {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private String action;
 
-    @Column(name = "target_table")
+    @Column(name = "target_table", length = 100)
     private String targetTable;
 
-    @Column(name = "ip_address")
+    @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false)
     private LocalDateTime timestamp;
-
-    @PrePersist
-    protected void onCreate() {
-        this.timestamp = LocalDateTime.now();
-    }
 }

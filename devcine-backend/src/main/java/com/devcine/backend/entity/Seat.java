@@ -20,7 +20,7 @@ public class Seat {
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 
-    @Column(name = "row_char", nullable = false)
+    @Column(name = "row_char", nullable = false, length = 2)
     private String rowChar;
 
     @Column(name = "col_num", nullable = false)
@@ -31,5 +31,6 @@ public class Seat {
     private SeatType seatType;
 
     @Column(name = "is_active", nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
 }

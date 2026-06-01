@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,5 +24,6 @@ public class Shift {
     @Column(name = "end_time", nullable = false)
     private LocalDateTime endTime;
 
+    @Column(length = 20)
     private String status;
 }

@@ -2,6 +2,7 @@ package com.devcine.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -20,6 +21,7 @@ public class FnbItem {
     @Column(nullable = false)
     private String name;
 
+    @Column(length = 30)
     private String type;
 
     @Column(nullable = false, precision = 15, scale = 2)
