@@ -37,4 +37,8 @@ public class Promotion {
     @Column(name = "is_stackable", nullable = false)
     @Builder.Default
     private Boolean isStackable = false;
+
+    @Column(name = "points_required")
+    @Builder.Default
+    private Integer pointsRequired = 0;
 }

@@ -5,6 +5,7 @@ const settings = ref({
   siteName: 'DevCine Editorial Cinema',
   contactEmail: 'contact@devcine.com',
   baseTicketPrice: '110.000',
+  pointConversionRate: '100000',
   maintenanceMode: false
 })
 </script>
@@ -63,6 +64,12 @@ const settings = ref({
               <option>Việt Nam Đồng (VNĐ)</option>
               <option>US Dollar ($)</option>
             </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tỷ lệ quy đổi (VNĐ / 1 Điểm)</label>
+            <input v-model="settings.pointConversionRate" type="number" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface" placeholder="VD: 100000">
           </div>
         </div>
       </section>

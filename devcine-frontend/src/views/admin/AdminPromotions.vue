@@ -75,6 +75,8 @@ const newVoucher = ref({
   code: '',
   type: 'PERCENTAGE',
   value: null,
+  allowPointExchange: false,
+  pointsRequired: null,
   title: '',
   description: '',
   expiry: '',
@@ -102,7 +104,7 @@ const removeComboItem = (index) => {
 }
 
 const openVoucherDrawer = () => {
-  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, title: '', description: '', expiry: '', cinemaMode: 'all', selectedCinemas: [] }
+  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', cinemaMode: 'all', selectedCinemas: [] }
   isVoucherDrawerOpen.value = true
 }
 
@@ -297,11 +299,11 @@ onMounted(async () => {
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-surface-container-highest/50 border-b border-outline-variant/10">
-              <th class="p-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant w-24">Hình ảnh</th>
-              <th class="p-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Thông tin</th>
-              <th class="p-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Thời gian áp dụng</th>
-              <th class="p-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant text-center">Trạng thái</th>
-              <th class="p-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant text-right">Thao tác</th>
+              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant w-24">Hình ảnh</th>
+              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thông tin</th>
+              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian áp dụng</th>
+              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-center">Trạng thái</th>
+              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -363,23 +365,23 @@ onMounted(async () => {
         <!-- Drawer Body -->
         <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã Code (Tự tạo)</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã Code (Tự tạo)</label>
             <input v-model="newVoucher.code" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none font-mono uppercase tracking-widest" placeholder="VD: SUMMER2026" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiêu đề chiến dịch</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiêu đề chiến dịch</label>
             <input v-model="newVoucher.title" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: Khuyến mãi hè rực rỡ" />
           </div>
           
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
             <textarea v-model="newVoucher.description" rows="2" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-medium text-on-surface focus:border-primary outline-none resize-none" placeholder="Mô tả chi tiết voucher..."></textarea>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Loại giảm giá</label>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Loại giảm giá</label>
               <CustomSelect 
                 v-model="newVoucher.type" 
                 :options="discountTypeOptions" 
@@ -387,19 +389,38 @@ onMounted(async () => {
               />
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giá trị giảm</label>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá trị giảm</label>
               <input v-model="newVoucher.value" type="number" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
             </div>
           </div>
           
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ngày hết hạn</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày hết hạn</label>
             <input v-model="newVoucher.expiry" type="date" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
           </div>
 
           <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Cụm rạp áp dụng</label>
-            <div class="flex gap-4">
+            <div class="bg-surface-container-highest rounded-xl border border-outline-variant/10 overflow-hidden transition-all duration-300">
+              <div class="flex items-center justify-between p-4">
+                <div>
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Áp dụng đổi bằng điểm</p>
+                  <p class="text-[10px] text-on-surface-variant mt-1 font-bold">Nếu tắt, người dùng nhập trực tiếp mã (Code) để sử dụng</p>
+                </div>
+                <button @click="newVoucher.allowPointExchange = !newVoucher.allowPointExchange" :class="newVoucher.allowPointExchange ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
+                  <span :class="newVoucher.allowPointExchange ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
+                </button>
+              </div>
+              
+              <div v-if="newVoucher.allowPointExchange" class="p-4 pt-2 border-t border-outline-variant/5 animate-in fade-in slide-in-from-top-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 block">Số điểm cần đổi</label>
+                <input v-model="newVoucher.pointsRequired" type="number" class="w-full bg-surface-container-lowest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: 50" />
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-3">Cụm rạp áp dụng</label>
+            <div class="flex gap-8">
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="radio" v-model="newVoucher.cinemaMode" value="all" class="accent-primary">
                 <span class="text-xs font-bold uppercase">Toàn hệ thống</span>
@@ -421,8 +442,8 @@ onMounted(async () => {
 
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
-          <button @click="isVoucherDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Voucher</button>
+          <button @click="isVoucherDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
+          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Voucher</button>
         </div>
       </div>
     </div>
@@ -448,7 +469,7 @@ onMounted(async () => {
         <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
           <!-- Image Upload Mock -->
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ảnh Combo</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ảnh Combo</label>
             <div class="w-full h-32 bg-surface-container-highest border-2 border-dashed border-outline-variant/20 rounded-2xl flex flex-col items-center justify-center text-on-surface-variant hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer">
               <span class="material-symbols-outlined text-3xl mb-2">cloud_upload</span>
               <span class="text-[10px] font-bold uppercase tracking-widest">Tải ảnh lên</span>
@@ -456,34 +477,34 @@ onMounted(async () => {
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tên Combo</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên Combo</label>
             <input v-model="newCombo.name" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none uppercase" placeholder="VD: COMBO COUPLE" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giá bán (VNĐ)</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá bán (VNĐ)</label>
             <input v-model="newCombo.price" type="number" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: 159000" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
             <textarea v-model="newCombo.description" rows="2" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-medium text-on-surface focus:border-primary outline-none resize-none" placeholder="Mô tả thành phần..."></textarea>
           </div>
 
           <!-- Trạng thái -->
           <div class="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10">
              <div>
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Trạng thái hiển thị</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Trạng thái hiển thị</p>
              </div>
-             <button @click="newCombo.status = newCombo.status === 'active' ? 'inactive' : 'active'" :class="newCombo.status === 'active' ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-14 h-8 rounded-full transition-colors duration-300 focus:outline-none">
-                <span :class="newCombo.status === 'active' ? 'translate-x-7 bg-white' : 'translate-x-1 bg-on-surface-variant'" class="inline-block w-6 h-6 transform rounded-full transition-transform duration-300 shadow-md absolute top-1 left-0"></span>
+             <button @click="newCombo.status = newCombo.status === 'active' ? 'inactive' : 'active'" :class="newCombo.status === 'active' ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
+                <span :class="newCombo.status === 'active' ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
              </button>
           </div>
 
           <!-- Dynamic List: Items -->
           <div class="space-y-4 pt-4 border-t border-outline-variant/10">
             <div class="flex items-center justify-between">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Danh sách Món (Items)</label>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Danh sách Món (Items)</label>
               <button @click="addComboItem" class="text-xs font-bold text-primary hover:text-white transition-colors flex items-center gap-1 uppercase tracking-widest">
                  <span class="material-symbols-outlined text-sm">add</span> Thêm món
               </button>
@@ -505,8 +526,8 @@ onMounted(async () => {
 
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
-          <button @click="isComboDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Combo</button>
+          <button @click="isComboDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
+          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Combo</button>
         </div>
       </div>
     </div>
@@ -533,7 +554,7 @@ onMounted(async () => {
         <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
           <!-- Image Upload Mock -->
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ảnh Banner / Thumbnail</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ảnh Banner / Thumbnail</label>
             <div class="w-full h-40 bg-surface-container-highest border-2 border-dashed border-outline-variant/20 rounded-2xl flex flex-col items-center justify-center text-on-surface-variant hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer">
               <span class="material-symbols-outlined text-3xl mb-2">cloud_upload</span>
               <span class="text-xs font-bold uppercase tracking-widest">Kéo thả ảnh hoặc click để tải lên</span>
@@ -541,22 +562,22 @@ onMounted(async () => {
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiêu đề Tin Khuyến Mãi</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiêu đề Tin Khuyến Mãi</label>
             <input v-model="newArticle.title" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: Khuyến mãi Hè rực rỡ" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
             <textarea v-model="newArticle.description" rows="2" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-medium text-on-surface focus:border-primary outline-none resize-none" placeholder="Mô tả tóm tắt hiển thị ở danh sách ngoài trang chủ..."></textarea>
           </div>
 
           <div class="grid grid-cols-2 gap-6">
             <div class="space-y-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ngày bắt đầu</label>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày bắt đầu</label>
               <input v-model="newArticle.startDate" type="date" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ngày kết thúc</label>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày kết thúc</label>
               <input v-model="newArticle.endDate" type="date" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
             </div>
           </div>
@@ -564,17 +585,17 @@ onMounted(async () => {
           <!-- Trạng thái -->
           <div class="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10">
              <div>
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Trạng thái hiển thị</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Trạng thái hiển thị</p>
                 <p class="text-xs text-on-surface-variant mt-1">Cho phép hiển thị tin tức này trên hệ thống website</p>
              </div>
-             <button @click="newArticle.status = newArticle.status === 'active' ? 'inactive' : 'active'" :class="newArticle.status === 'active' ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-14 h-8 rounded-full transition-colors duration-300 focus:outline-none">
-                <span :class="newArticle.status === 'active' ? 'translate-x-7 bg-white' : 'translate-x-1 bg-on-surface-variant'" class="inline-block w-6 h-6 transform rounded-full transition-transform duration-300 shadow-md absolute top-1 left-0"></span>
+             <button @click="newArticle.status = newArticle.status === 'active' ? 'inactive' : 'active'" :class="newArticle.status === 'active' ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
+                <span :class="newArticle.status === 'active' ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
              </button>
           </div>
 
           <!-- Rich Text Mock -->
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Nội dung chi tiết</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Nội dung chi tiết</label>
             <div class="bg-surface-container-highest border border-outline-variant/20 rounded-xl overflow-hidden flex flex-col h-64">
               <!-- Toolbar -->
               <div class="bg-surface-container-lowest border-b border-outline-variant/10 p-2 flex gap-1 items-center">
@@ -593,8 +614,8 @@ onMounted(async () => {
 
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
-          <button @click="isArticleDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Tin Tức</button>
+          <button @click="isArticleDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
+          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Tin Tức</button>
         </div>
       </div>
     </div>
