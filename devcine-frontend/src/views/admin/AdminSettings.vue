@@ -67,9 +67,43 @@ const settings = ref({
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tỷ lệ quy đổi (VNĐ / 1 Điểm)</label>
-            <input v-model="settings.pointConversionRate" type="number" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface" placeholder="VD: 100000">
+          <div class="space-y-4 md:col-span-2 p-6 rounded-2xl bg-surface-container-low border border-outline-variant/10 relative overflow-hidden">
+            <!-- Decorative background element for space theme -->
+            <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+            
+            <label class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2 relative z-10">
+              <span class="material-symbols-outlined text-sm">stars</span>
+              Cơ chế Tích luỹ Điểm Thành Viên
+            </label>
+            
+            <div class="flex flex-col md:flex-row items-center gap-4 md:gap-6 relative z-10 mt-2">
+              <div class="w-full md:w-1/2 space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mức chi tiêu yêu cầu</label>
+                <div class="relative">
+                  <input v-model="settings.pointConversionRate" type="number" class="w-full bg-surface-container-highest border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-16 text-on-surface transition-all" placeholder="10000">
+                  <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">VNĐ</span>
+                </div>
+              </div>
+              
+              <div class="flex items-center justify-center shrink-0 w-10 h-10 rounded-full bg-surface-container-highest border border-outline-variant/10 hidden md:flex mt-6 shadow-lg shadow-black/20">
+                <span class="material-symbols-outlined text-on-surface-variant text-sm">arrow_forward</span>
+              </div>
+              <div class="flex items-center justify-center shrink-0 h-8 w-full md:hidden mt-2 mb-2">
+                <span class="material-symbols-outlined text-on-surface-variant text-sm rotate-90 md:rotate-0">arrow_forward</span>
+              </div>
+
+              <div class="w-full md:w-1/2 space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Điểm thưởng nhận được</label>
+                <div class="w-full bg-primary/10 border border-primary/20 text-sm font-bold rounded-xl py-4 px-5 text-primary flex items-center justify-between shadow-inner shadow-primary/5">
+                  <span class="text-lg">1</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest opacity-80">Điểm (Point)</span>
+                </div>
+              </div>
+            </div>
+            
+            <p class="text-xs text-on-surface-variant mt-4 italic opacity-75 relative z-10 border-t border-outline-variant/10 pt-4">
+              <span class="text-primary font-bold">Ví dụ:</span> Nếu cấu hình 10.000 VNĐ, một hoá đơn 85.000 VNĐ sẽ được cộng 8 điểm (Hệ thống tự động làm tròn xuống phần dư).
+            </p>
           </div>
         </div>
       </section>
