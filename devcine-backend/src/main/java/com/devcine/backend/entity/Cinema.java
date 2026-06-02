@@ -22,6 +22,9 @@ public class Cinema {
     @Column(length = 500)
     private String address;
 
+    @Column(length = 100)
+    private String city;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id")
     private Staff manager;

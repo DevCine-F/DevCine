@@ -1,5 +1,46 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useBookingStore } from '@/stores/booking'
+import { computed, onMounted, ref } from 'vue'
+
+const store = useBookingStore()
+const router = useRouter()
+const paymentMethod = ref('VNPAY')
+
+onMounted(async () => {
+  if (!store.selectedShowtime) {
+    // If accessed directly without a showtime, redirect back
+    router.push('/lich-chieu')
+    return
+  }
+  await store.fetchSeats()
+  await store.fetchFnbs()
+})
+
+const handleSeatClick = (seat) => {
+  if (seat.status === 'AVAILABLE') {
+    store.toggleSeat(seat)
+  }
+}
+
+const isSeatSelected = (seat) => {
+  return store.selectedSeats.some(s => s.seatId === seat.seatId)
+}
+
+const proceedToPayment = async () => {
+  const success = await store.holdSeatsAndProceed()
+  if (success) {
+    const paid = await store.confirmPayment(paymentMethod.value)
+    if (paid) {
+      router.push('/success')
+    } else {
+      alert('Payment failed')
+    }
+  } else {
+    alert('Failed to hold seats. They might have been taken.')
+  }
+}
+
 </script>
 
 <template>
@@ -10,12 +51,12 @@ import { RouterLink } from 'vue-router'
       <section>
         <div class="mb-12">
           <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">01. Chọn Chỗ Ngồi</h1>
-          <div class="flex items-center gap-4 text-on-surface-variant">
-            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">location_on</span> DevCine Landmark 81</span>
+          <div class="flex items-center gap-4 text-on-surface-variant" v-if="store.selectedShowtime">
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">location_on</span> {{ store.selectedShowtime.cinema?.cinemaName }}</span>
             <span class="w-1 h-1 rounded-full bg-outline-variant"></span>
-            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">calendar_today</span> 24/05/2024</span>
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">calendar_today</span> {{ new Date(store.selectedShowtime.startTime).toLocaleDateString() }}</span>
             <span class="w-1 h-1 rounded-full bg-outline-variant"></span>
-            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">schedule</span> 19:30</span>
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">schedule</span> {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</span>
           </div>
         </div>
         <div class="relative glass-card glass-shine-edge p-12 overflow-hidden rounded-3xl">
@@ -25,44 +66,29 @@ import { RouterLink } from 'vue-router'
           <p class="text-center text-label-sm font-bold uppercase tracking-[0.3em] text-outline-variant mb-16">Màn Hình / Screen</p>
           
           <!-- Seats Grid -->
-          <div class="seat-grid max-w-2xl mx-auto grid grid-cols-12 gap-3 mb-16">
-            <!-- Row A (Booked) -->
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">A</div>
-            <div class="col-span-10 grid grid-cols-10 gap-2">
-              <div v-for="n in 10" :key="n" class="aspect-square bg-surface-variant/30 cursor-not-allowed"></div>
+          <div class="seat-grid max-w-2xl mx-auto flex flex-col gap-3 mb-16" v-if="store.availableSeats.length">
+            <div v-for="rowChar in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J']" :key="rowChar" class="flex items-center gap-2 justify-center">
+              <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ rowChar }}</div>
+              
+              <template v-for="col in 10" :key="col">
+                <div v-if="store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)"
+                     @click="handleSeatClick(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col))"
+                     :class="[
+                       'aspect-square w-8 flex items-center justify-center text-[10px] font-bold cursor-pointer transition-colors',
+                       store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).status === 'AVAILABLE' && !isSeatSelected(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)) ? 
+                         (store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).seatType === 'VIP' ? 'border-2 border-primary-container/60 bg-primary-container/10 hover:bg-primary-container/30' : 
+                          store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).seatType === 'SWEETBOX' ? 'border-2 border-pink-500/50 bg-pink-500/10 rounded-t-xl hover:bg-pink-500/20' : 
+                          'border border-outline-variant/30 hover:border-primary-container') : '',
+                       store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).status !== 'AVAILABLE' ? 'bg-surface-variant/30 cursor-not-allowed opacity-50' : '',
+                       isSeatSelected(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)) ? 'bg-primary-container text-on-primary border-primary-container' : ''
+                     ]">
+                  {{ isSeatSelected(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)) ? rowChar + col : '' }}
+                </div>
+                <div v-else class="aspect-square w-8 opacity-0"></div>
+              </template>
+
+              <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ rowChar }}</div>
             </div>
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">A</div>
-            
-            <!-- Row B (Selected) -->
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">B</div>
-            <div class="col-span-10 grid grid-cols-10 gap-2">
-              <div class="aspect-square border border-outline-variant/30 hover:border-primary-container transition-colors cursor-pointer"></div>
-              <div class="aspect-square border border-outline-variant/30 hover:border-primary-container transition-colors cursor-pointer"></div>
-              <div class="aspect-square bg-primary-container text-on-primary flex items-center justify-center text-[10px] font-bold">B3</div>
-              <div class="aspect-square bg-primary-container text-on-primary flex items-center justify-center text-[10px] font-bold">B4</div>
-              <div v-for="n in 6" :key="n" class="aspect-square border border-outline-variant/30 hover:border-primary-container transition-colors cursor-pointer"></div>
-            </div>
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">B</div>
-            
-            <!-- Row D (VIP) -->
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">D</div>
-            <div class="col-span-10 grid grid-cols-10 gap-2">
-              <div class="aspect-square border border-outline-variant/30"></div>
-              <div class="aspect-square border border-outline-variant/30"></div>
-              <div v-for="n in 6" :key="n" class="aspect-square border-2 border-primary-container/60 bg-primary-container/10 hover:bg-primary-container/30 transition-colors cursor-pointer"></div>
-              <div class="aspect-square border border-outline-variant/30"></div>
-              <div class="aspect-square border border-outline-variant/30"></div>
-            </div>
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">D</div>
-            
-            <!-- Row J (Sweetbox) -->
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">J</div>
-            <div class="col-span-10 grid grid-cols-5 gap-2">
-              <div v-for="n in 5" :key="n" class="h-8 border-2 border-pink-500/50 bg-pink-500/10 rounded-t-xl hover:bg-pink-500/20 transition-colors cursor-pointer relative group">
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">J{{n*2-1}}-{{n*2}}</span>
-              </div>
-            </div>
-            <div class="col-span-1 text-label-sm font-bold text-outline-variant flex items-center justify-center">J</div>
           </div>
           
           <!-- Legend -->
@@ -107,26 +133,45 @@ import { RouterLink } from 'vue-router'
           <p class="text-sm text-on-surface-variant">Thêm hương vị cho trải nghiệm điện ảnh của bạn</p>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="glass-card p-6 flex gap-6 hover:border-primary-container/30 transition-all group rounded-2xl" v-for="n in 4" :key="n">
+          <div class="glass-card p-6 flex gap-6 hover:border-primary-container/30 transition-all group rounded-2xl" v-for="fnb in store.availableFnbs" :key="fnb.id">
             <div class="w-28 h-28 flex-shrink-0 bg-black overflow-hidden relative rounded-xl">
-              <img src="/images/Hopper.webp" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-500"/>
+              <img :src="fnb.imageUrl || '/images/Hopper.webp'" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-500"/>
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
             </div>
             <div class="flex flex-col justify-between flex-grow">
               <div>
-                <h3 class="font-headline font-bold text-lg mb-1">{{ ['COMBO SOLO', 'COMBO COUPLE', 'LUXURY COFFEE SET', 'KIDS PARTY'][n-1] }}</h3>
-                <p class="text-xs text-on-surface-variant line-clamp-2">Mô tả sản phẩm và ưu đãi đi kèm. Tiết kiệm tối đa cho thành viên.</p>
+                <h3 class="font-headline font-bold text-lg mb-1">{{ fnb.name }}</h3>
+                <p class="text-xs text-on-surface-variant line-clamp-2">{{ fnb.description }}</p>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="font-headline font-bold text-primary-container">{{ [85, 145, 120, 95][n-1] }}.000 VNĐ</span>
+              <div class="flex items-center justify-between mt-2">
+                <span class="font-headline font-bold text-primary-container">{{ fnb.price?.toLocaleString('vi-VN') }} VNĐ</span>
                 <div class="flex items-center bg-surface-container-high rounded-full px-2 py-1">
-                  <button class="w-6 h-6 flex items-center justify-center hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-sm">remove</span></button>
-                  <span class="w-8 text-center text-xs font-bold">{{ n === 1 ? 1 : 0 }}</span>
-                  <button class="w-6 h-6 flex items-center justify-center hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-sm">add</span></button>
+                  <button @click="store.updateFnb(fnb, (store.selectedFnbs.find(f => f.fnbItem.id === fnb.id)?.quantity || 0) - 1)" class="w-6 h-6 flex items-center justify-center hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-sm">remove</span></button>
+                  <span class="w-8 text-center text-xs font-bold">{{ store.selectedFnbs.find(f => f.fnbItem.id === fnb.id)?.quantity || 0 }}</span>
+                  <button @click="store.updateFnb(fnb, (store.selectedFnbs.find(f => f.fnbItem.id === fnb.id)?.quantity || 0) + 1)" class="w-6 h-6 flex items-center justify-center hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-sm">add</span></button>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+        
+        <div class="mt-16 mb-8 border-t border-outline-variant/10 pt-16">
+          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">03. Phương Thức Thanh Toán</h1>
+          <p class="text-sm text-on-surface-variant">Chọn phương thức thanh toán phù hợp nhất</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'VNPAY'}">
+                <input type="radio" value="VNPAY" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
+                <span class="font-bold">Thanh toán qua VNPAY</span>
+            </label>
+            <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'MOMO'}">
+                <input type="radio" value="MOMO" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
+                <span class="font-bold">Thanh toán qua MoMo</span>
+            </label>
+            <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'TRANSFER'}">
+                <input type="radio" value="TRANSFER" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
+                <span class="font-bold">Chuyển khoản thủ công</span>
+            </label>
         </div>
       </section>
     </div>
@@ -152,21 +197,21 @@ import { RouterLink } from 'vue-router'
           <div>
             <div class="flex justify-between items-center mb-3">
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ghế đã chọn</span>
-              <span class="text-xs font-bold text-primary-container">B3, B4 (Standard)</span>
+              <span class="text-xs font-bold text-primary-container">{{ store.selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
             </div>
             <div class="flex justify-between text-sm">
-              <span class="text-on-surface/60">2 x 110.000 VNĐ</span>
-              <span class="font-semibold">220.000 VNĐ</span>
+              <span class="text-on-surface/60">{{ store.selectedSeats.length }} x ghế</span>
+              <span class="font-semibold">{{ store.selectedSeats.reduce((acc, s) => acc + s.price, 0).toLocaleString('vi-VN') }} VNĐ</span>
             </div>
           </div>
-          <div class="pt-6 border-t border-outline-variant/10">
+          <div class="pt-6 border-t border-outline-variant/10" v-if="store.selectedFnbs.length > 0">
             <div class="flex justify-between items-center mb-3">
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bắp nước</span>
-              <span class="text-xs font-bold text-primary-container">1 sản phẩm</span>
+              <span class="text-xs font-bold text-primary-container">{{ store.selectedFnbs.reduce((acc, f) => acc + f.quantity, 0) }} sản phẩm</span>
             </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-on-surface/60">1 x Combo Solo</span>
-              <span class="font-semibold">85.000 VNĐ</span>
+            <div class="flex justify-between text-sm" v-for="fnb in store.selectedFnbs" :key="fnb.fnbItem.id">
+              <span class="text-on-surface/60">{{ fnb.quantity }} x {{ fnb.fnbItem.name }}</span>
+              <span class="font-semibold">{{ (fnb.quantity * fnb.fnbItem.price).toLocaleString('vi-VN') }} VNĐ</span>
             </div>
           </div>
           <!-- Total Calculation -->
@@ -174,16 +219,16 @@ import { RouterLink } from 'vue-router'
             <div class="bg-black/40 border border-white/5 p-5 rounded-xl">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Tổng thanh toán</span>
-                <span class="text-2xl font-headline font-extrabold text-primary-container">305.000 VNĐ</span>
+                <span class="text-2xl font-headline font-extrabold text-primary-container">{{ store.totalPrice.toLocaleString('vi-VN') }} VNĐ</span>
               </div>
               <p class="text-[10px] text-outline-variant text-right italic">(VAT & Phí dịch vụ đã bao gồm)</p>
             </div>
           </div>
           <!-- Action Button -->
-          <router-link to="/payment" class="w-full bg-primary-container text-on-primary py-4 rounded-xl font-headline font-extrabold tracking-[0.2em] hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group">
+          <button @click="proceedToPayment" :disabled="store.selectedSeats.length === 0" class="w-full bg-primary-container text-on-primary py-4 rounded-xl font-headline font-extrabold tracking-[0.2em] hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed">
             XÁC NHẬN THANH TOÁN
             <span class="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </router-link>
+          </button>
           <p class="text-[10px] text-center text-on-surface-variant/40 leading-relaxed uppercase tracking-tighter">
             Thanh toán an toàn qua Cổng liên kết quốc tế
           </p>

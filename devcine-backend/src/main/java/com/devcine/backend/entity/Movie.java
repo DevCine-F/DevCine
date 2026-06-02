@@ -38,4 +38,54 @@ public class Movie {
 
     @Column(length = 20)
     private String status;
+
+    @Column(length = 100)
+    private String country;
+
+    @Column(length = 10)
+    private String rating;
+
+    @Column(name = "poster_base64", columnDefinition = "TEXT")
+    private String posterUrl;
+
+    @Column(name = "trailer_url", length = 1000)
+    private String trailerUrl;
+
+    @Column(length = 255)
+    private String format;
+
+    @Column(name = "title_vietnamese")
+    private String titleVietnamese;
+
+    @Column(name = "production_year")
+    private Integer productionYear;
+
+    @Column(length = 100)
+    private String language;
+
+    @Column(name = "base_price")
+    private Double basePrice;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "original_language", length = 100)
+    private String originalLanguage;
+
+    @Column(name = "version_type", length = 100)
+    private String versionType;
+
+    @Column(name = "internal_notes", columnDefinition = "TEXT")
+    private String internalNotes;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "movie_genre_mapping",
+        joinColumns = @JoinColumn(name = "movie_id"),
+        inverseJoinColumns = @JoinColumn(name = "category_id")
+    )
+    private java.util.Set<Category> genres;
 }

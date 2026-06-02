@@ -184,6 +184,7 @@ const fetchMovies = async () => {
     const response = await axios.get(`${API_BASE_URL}/movies`);
     movies.value = response.data.map((m) => ({
       ...m,
+      duration: m.durationMins ? m.durationMins + " Phút" : (m.duration ? m.duration + " Phút" : "N/A"),
       // Hiển thị tên thể loại nối nhau bằng dấu phẩy để dễ đọc trên bảng
       genreDisplay: m.genres?.map(g => g.name).join(", ") || "N/A",
       statusText:
@@ -269,6 +270,7 @@ const saveMovie = async () => {
   try {
     const payload = {
       ...newMovie.value,
+      durationMins: parseInt(newMovie.value.duration) || null,
       genres: selectedGenres.value,
       format: selectedFormats.value.join(", "),
       rating: newMovie.value.rating || "5.0",
@@ -605,7 +607,7 @@ onMounted(() => {
                   class="w-14 h-20 bg-surface-container-highest overflow-hidden rounded-sm relative border border-outline-variant/10"
                 >
                   <img
-                    src="/images/Hopper.webp"
+                    :src="movie.posterUrl || '/images/Hopper.webp'"
                     class="w-full h-full object-cover transition-all duration-700"
                   />
                   <div
@@ -1435,6 +1437,7 @@ onMounted(() => {
                   </div>
                 </div>
               </div>
+
             </div>
 
             <div class="grid grid-cols-12 gap-16">

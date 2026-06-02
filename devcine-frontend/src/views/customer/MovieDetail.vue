@@ -1,164 +1,205 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useBookingStore } from '@/stores/booking'
+import { onMounted, ref, computed } from 'vue'
+import api from '@/api/axios'
+
+const route = useRoute()
+const router = useRouter()
+const store = useBookingStore()
+
+const movie = ref({})
+const loading = ref(true)
+const activeDateStr = ref('')
+
+const formatDateForUI = (dateString) => {
+  // expects YYYY-MM-DD
+  const d = new Date(dateString)
+  if (isNaN(d.getTime())) {
+    // fallback if dateString is not parseable
+    return { month: 'Th. 01', day: '01', weekday: 'Thứ hai' }
+  }
+  const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy']
+  const month = (d.getMonth() + 1).toString().padStart(2, '0')
+  const day = d.getDate().toString().padStart(2, '0')
+  return {
+    month: `Th. ${month}`,
+    day: day,
+    weekday: days[d.getDay()]
+  }
+}
+
+onMounted(async () => {
+  const movieId = route.params.id || 1 
+  
+  try {
+    const response = await api.get(`/movies/${movieId}`)
+    movie.value = response.data
+  } catch(e) {
+    // mock data if api fails
+    movie.value = {
+      id: movieId,
+      titleVietnamese: 'PHIM SUPER MARIO THIÊN HÀ - P (LỒNG TIẾNG)',
+      title: 'SUPER MARIO GALAXY',
+      posterUrl: '/images/Hopper.webp',
+      format: '2D',
+      durationMins: 99,
+      director: 'Aaron Horvath, Michael Jelenic',
+      cast: 'Chris Pratt, Anya Taylor-Joy, Charlie Day, Jack Black, Keegan-Michael Key',
+      releaseDate: '2026-04-01',
+      description: 'Phim Super Mario Thiên Hà là một bộ phim hoạt hình được lấy bối cảnh trong thế giới của Anh Em Super Mario và là phần tiếp theo của Phim Anh Em Super Mario - tác phẩm ra mắt năm 2023 và đạt doanh thu hơn 1,3 tỷ đô la trên toàn cầu. Cả hai bộ phim Phim Anh Em Super Mario (2023) và Phim Super Mario Thiên Hà đều do Chris...',
+      ageRating: 'P'
+    }
+  }
+
+  await store.fetchCities()
+  await store.fetchShowtimes(movieId, store.selectedCity)
+  
+  if (uniqueDates.value.length > 0) {
+     activeDateStr.value = uniqueDates.value[0]
+  }
+  loading.value = false
+})
+
+const onCityChange = async () => {
+  const movieId = route.params.id || 1
+  await store.fetchShowtimes(movieId, store.selectedCity)
+  if (uniqueDates.value.length > 0 && !uniqueDates.value.includes(activeDateStr.value)) {
+     activeDateStr.value = uniqueDates.value[0]
+  }
+}
+
+const selectShowtime = (showtime, cinema) => {
+  store.setShowtime(showtime, cinema)
+  router.push('/booking')
+}
+
+const uniqueDates = computed(() => {
+  const dates = new Set()
+  store.cinemaShowtimes.forEach(c => {
+    Object.keys(c.showtimesByDate).forEach(d => dates.add(d))
+  })
+  return Array.from(dates).sort()
+})
 </script>
 
 <template>
-  <main>
-    <!-- Hero Section -->
-    <section class="relative h-[921px] w-full flex items-end overflow-hidden">
-      <div class="absolute inset-0 z-0">
-        <img class="w-full h-full object-cover" src="/images/Hopper.webp"/>
-        <div class="absolute inset-0 hero-gradient"></div>
+  <main v-if="!loading" class="min-h-screen bg-[#111111] text-white">
+    <!-- Top Section with Blurred Background -->
+    <section class="relative pt-32 pb-16 min-h-[600px] flex items-center">
+      <div class="absolute inset-0 z-0 overflow-hidden">
+        <img class="w-full h-full object-cover opacity-30 scale-110 blur-xl" :src="movie.posterUrl || '/images/Hopper.webp'"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/80 to-black/30"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-[#111111]/90 via-[#111111]/50 to-transparent"></div>
       </div>
-      <div class="relative z-10 max-w-[1440px] mx-auto px-10 pb-20 w-full grid grid-cols-1 md:grid-cols-12 gap-12 items-end">
-        <div class="md:col-span-3 hidden md:block">
-          <div class="relative aspect-[2/3] shadow-2xl overflow-hidden rounded-sm group">
-            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="/images/Hopper.webp"/>
-            <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-3 py-1 font-label text-xs font-bold">T16</div>
+      
+      <div class="relative z-10 max-w-[1200px] mx-auto px-6 w-full flex flex-col md:flex-row gap-12 items-start">
+        <!-- Poster -->
+        <div class="w-full md:w-[320px] flex-shrink-0">
+          <div class="rounded-xl overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.8)] border border-white/10">
+            <img class="w-full h-auto object-cover" :src="movie.posterUrl || '/images/Hopper.webp'"/>
           </div>
         </div>
-        <div class="md:col-span-9">
-          <div class="flex items-center gap-4 mb-4">
-            <span class="bg-surface-container-high px-3 py-1 rounded-sm text-[10px] font-bold tracking-widest text-primary-container uppercase">Science Fiction</span>
-            <span class="text-on-surface-variant font-label text-xs tracking-widest uppercase">128 Phút</span>
+        
+        <!-- Info -->
+        <div class="flex-1 mt-6">
+          <div class="flex flex-wrap items-center gap-4 mb-4">
+            <h1 class="text-4xl md:text-[40px] font-bold uppercase tracking-tight text-white leading-tight">
+              {{ movie.titleVietnamese || movie.title }}
+            </h1>
+            <span class="border border-white/50 text-white/90 px-2 py-0.5 rounded text-sm font-bold backdrop-blur-sm">{{ movie.format || '2D' }}</span>
           </div>
-          <h1 class="text-[5rem] md:text-[8rem] font-headline font-extrabold leading-none tracking-tighter mb-6 editorial-shadow text-on-surface uppercase">Hoppers</h1>
-          <div class="flex flex-wrap gap-4 items-center">
-            <router-link to="/booking" class="bg-primary-container text-on-primary px-10 py-4 font-headline font-bold tracking-wider hover:opacity-90 transition-all flex items-center gap-3 scale-100 active:scale-95">
+          
+          <div class="text-[15px] text-gray-300 space-y-1.5 mb-6 leading-relaxed">
+            <p><span class="font-bold text-white">{{ movie.durationMins || 120 }} phút</span> &nbsp;|&nbsp; Đạo diễn: <span class="text-gray-400">{{ movie.director || 'Đang cập nhật' }}</span></p>
+            <p>Diễn viên: <span class="text-gray-400">{{ movie.cast || 'Đang cập nhật' }}</span></p>
+            <p>Khởi chiếu: <span class="text-gray-400">{{ movie.releaseDate ? new Date(movie.releaseDate).toLocaleDateString('vi-VN') : 'Đang cập nhật' }}</span></p>
+          </div>
+          
+          <p class="text-[15px] text-gray-300 leading-relaxed mb-6 line-clamp-4">
+            {{ movie.description || 'Chưa có thông tin nội dung phim.' }}
+          </p>
+          
+          <p class="text-[#ff3b30] text-sm font-medium mb-8">
+            Kiểm duyệt: {{ movie.ageRating || 'P' }} - Phim được phép phổ biến đến người xem ở độ tuổi tương ứng.
+          </p>
+          
+          <div class="flex items-center gap-8">
+            <button class="text-white hover:text-gray-300 transition-colors text-sm font-semibold flex items-center gap-1">
+              Chi tiết nội dung <span class="material-symbols-outlined text-sm ml-1">arrow_forward</span>
+            </button>
+            <button class="border-2 border-[#f5c518] text-[#f5c518] px-6 py-2.5 rounded-full flex items-center gap-2 hover:bg-[#f5c518] hover:text-black transition-colors font-bold text-sm">
               <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-              ĐẶT VÉ NGAY
-            </router-link>
-            <button class="border border-outline-variant/30 text-on-surface px-10 py-4 font-headline font-bold tracking-wider hover:bg-primary/10 transition-all flex items-center gap-3">
-              <span class="material-symbols-outlined">add</span>
-              DANH SÁCH CỦA TÔI
+              Xem trailer
             </button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Content Details -->
-    <section class="max-w-[1440px] mx-auto px-10 py-24 grid grid-cols-1 lg:grid-cols-3 gap-20">
-      <div class="lg:col-span-2 space-y-12">
-        <div>
-          <h2 class="text-2xl font-headline font-bold mb-6 text-primary-container tracking-tight uppercase">Nội dung phim</h2>
-          <p class="text-on-surface/80 text-lg leading-relaxed font-body">
-            Trong một tương lai gần nơi ý thức có thể được chuyển đổi giữa các cơ thể sinh học khác nhau, một nhóm thợ săn tiền thưởng nghiệp dư phát hiện ra một âm mưu đen tối đe dọa sự tồn vong của nhân loại. Hoppers không chỉ là một cuộc rượt đuổi nghẹt thở mà còn là bài toán về đạo đức và bản sắc cá nhân trong kỷ nguyên công nghệ số.
-          </p>
+    <!-- Date & Showtimes Section -->
+    <section class="bg-[#1a1a1a] min-h-[400px]">
+      <!-- Date Picker Bar -->
+      <div class="bg-[#111] border-y border-white/5">
+        <div class="max-w-[1200px] mx-auto px-6 flex overflow-x-auto no-scrollbar items-center justify-center md:justify-start gap-2">
+          <button 
+            v-for="date in uniqueDates" 
+            :key="date"
+            @click="activeDateStr = date"
+            :class="[
+              'flex flex-col items-center justify-center min-w-[100px] py-4 px-4 transition-colors cursor-pointer border-t-[3px]',
+              activeDateStr === date ? 'bg-[#ff3b30] text-white border-transparent' : 'text-gray-400 hover:text-white border-transparent hover:bg-white/5'
+            ]"
+          >
+            <span class="text-[11px] font-medium">{{ formatDateForUI(date).month }}</span>
+            <span class="text-2xl font-bold my-0.5">{{ formatDateForUI(date).day }}</span>
+            <span class="text-[11px] font-medium">{{ formatDateForUI(date).weekday }}</span>
+          </button>
         </div>
-        <div>
-          <h2 class="text-2xl font-headline font-bold mb-8 text-primary-container tracking-tight uppercase">Trailer & Video</h2>
-          <div class="relative aspect-video bg-surface-container-lowest overflow-hidden group cursor-pointer">
-            <img class="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity" src="/images/Hopper.webp"/>
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-20 h-20 bg-primary-container/20 backdrop-blur-md rounded-full flex items-center justify-center border border-primary-container/30 group-hover:scale-110 transition-transform">
-                <span class="material-symbols-outlined text-primary-container text-4xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+      </div>
+      
+      <!-- Cinemas & Showtimes -->
+      <div class="max-w-[1200px] mx-auto px-6 py-10">
+        <div class="mb-8 flex justify-end">
+           <select v-model="store.selectedCity" @change="onCityChange" class="w-full md:w-[250px] py-2.5 px-4 bg-[#222] border border-white/10 text-white rounded-md outline-none focus:border-[#ff3b30] text-sm">
+            <option value="">Toàn quốc</option>
+            <option v-for="city in store.cities" :key="city" :value="city">{{ city }}</option>
+          </select>
+        </div>
+
+        <div v-if="store.cinemaShowtimes.length === 0" class="text-center text-gray-500 py-10">
+          Chưa có lịch chiếu cho phim này.
+        </div>
+        
+        <div class="space-y-8" v-else>
+          <div v-for="cinema in store.cinemaShowtimes" :key="cinema.cinemaId">
+            <!-- Only show cinema if it has showtimes for active date -->
+            <div v-if="cinema.showtimesByDate[activeDateStr]" class="flex flex-col md:flex-row gap-6 items-start border-b border-white/5 pb-8 last:border-0">
+              <div class="w-full md:w-[300px]">
+                <h3 class="font-bold text-lg text-white mb-1.5">{{ cinema.cinemaName }}</h3>
+                <p class="text-[13px] text-gray-500 leading-relaxed">{{ cinema.address }}</p>
+              </div>
+              <div class="flex-1">
+                <div class="flex flex-wrap gap-3">
+                  <button 
+                    v-for="st in cinema.showtimesByDate[activeDateStr]" 
+                    :key="st.id" 
+                    @click="selectShowtime(st, cinema)" 
+                    class="bg-[#2a2a2a] border border-white/10 text-gray-300 hover:bg-[#ff3b30] hover:text-white hover:border-transparent transition-colors px-6 py-2.5 rounded font-semibold text-[15px]"
+                  >
+                    {{ new Date(st.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="absolute bottom-6 left-6 text-on-surface font-headline font-bold tracking-tight">Trailer chính thức - Hoppers (2024)</div>
           </div>
         </div>
-      </div>
-      <div class="space-y-10">
-        <div class="glass-card p-8 rounded-2xl glass-shine-edge">
-          <h3 class="font-headline font-bold text-lg mb-6 border-b border-outline-variant/10 pb-4 text-primary-container tracking-tight">Chi tiết sản xuất</h3>
-          <div class="space-y-6">
-            <div>
-              <span class="font-label text-[10px] text-on-surface-variant block mb-1 tracking-widest uppercase">Đạo diễn</span>
-              <span class="text-on-surface font-semibold text-lg">Denis Villeneuve Jr.</span>
-            </div>
-            <div>
-              <span class="font-label text-[10px] text-on-surface-variant block mb-1 tracking-widest uppercase">Diễn viên chính</span>
-              <ul class="text-on-surface font-semibold space-y-1">
-                <li>Florence Pugh</li>
-                <li>Timothée Chalamet</li>
-                <li>Oscar Isaac</li>
-              </ul>
-            </div>
-            <div>
-              <span class="font-label text-[10px] text-on-surface-variant block mb-1 tracking-widest uppercase">Ngày khởi chiếu</span>
-              <span class="text-on-surface font-semibold">15 Tháng 11, 2024</span>
-            </div>
-            <div>
-              <span class="font-label text-[10px] text-on-surface-variant block mb-1 tracking-widest uppercase">Ngôn ngữ</span>
-              <span class="text-on-surface font-semibold">Tiếng Anh (Phụ đề Việt)</span>
-            </div>
-          </div>
-        </div>
-        <div class="glass-card p-8 rounded-2xl flex flex-col items-center text-center">
-          <span class="material-symbols-outlined text-primary-container text-4xl mb-4">confirmation_number</span>
-          <h4 class="font-headline font-bold mb-2">Trải nghiệm Lumière Noir</h4>
-          <p class="text-sm text-on-surface-variant mb-6">Thưởng thức điện ảnh với tiêu chuẩn âm thanh Dolby Atmos và ghế ngồi hạng thương gia.</p>
-          <button class="w-full py-3 bg-on-surface text-background font-headline font-bold text-sm tracking-widest hover:bg-primary-container hover:text-on-primary transition-colors">TÌM RẠP GẦN BẠN</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Recommended Grid -->
-    <section class="max-w-[1440px] mx-auto px-10 pb-32">
-      <div class="flex justify-between items-end mb-12">
-        <div>
-          <h2 class="text-3xl font-headline font-extrabold tracking-tight text-on-surface uppercase mb-2">Phim gợi ý</h2>
-          <div class="h-1 w-20 bg-primary-container"></div>
-        </div>
-        <a class="text-primary-container font-label text-xs font-bold tracking-widest uppercase hover:underline" href="#">Xem tất cả</a>
-      </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        <!-- Movie Card 1 -->
-        <router-link to="/movie/1" class="group cursor-pointer">
-          <div class="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl glass-card glass-shine-edge">
-            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="/images/Hopper.webp"/>
-            <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-2 py-0.5 font-label text-[10px] font-bold">T18</div>
-          </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">THE SILENT ECHO</h3>
-          <p class="font-label text-[10px] text-on-surface-variant tracking-wider">Thriller • 112m</p>
-        </router-link>
-        <!-- Movie Card 2 -->
-        <router-link to="/movie/1" class="group cursor-pointer">
-          <div class="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl glass-card glass-shine-edge">
-            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="/images/Hopper.webp"/>
-            <div class="absolute top-0 left-0 bg-tertiary-container text-on-tertiary-container px-2 py-0.5 font-label text-[10px] font-bold">P</div>
-          </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">NEON FOREST</h3>
-          <p class="font-label text-[10px] text-on-surface-variant tracking-wider">Animation • 95m</p>
-        </router-link>
-        <!-- Movie Card 3 -->
-        <router-link to="/movie/1" class="group cursor-pointer">
-          <div class="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl glass-card glass-shine-edge">
-            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="/images/Hopper.webp"/>
-            <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-2 py-0.5 font-label text-[10px] font-bold">T16</div>
-          </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">VELOCITY ZERO</h3>
-          <p class="font-label text-[10px] text-on-surface-variant tracking-wider">Action • 134m</p>
-        </router-link>
-        <!-- Movie Card 4 -->
-        <router-link to="/movie/1" class="group cursor-pointer">
-          <div class="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl glass-card glass-shine-edge">
-            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="/images/Hopper.webp"/>
-            <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-2 py-0.5 font-label text-[10px] font-bold">T13</div>
-          </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">MIDNIGHT RHYTHM</h3>
-          <p class="font-label text-[10px] text-on-surface-variant tracking-wider">Drama • 142m</p>
-        </router-link>
-        <!-- Movie Card 5 -->
-        <router-link to="/movie/1" class="hidden lg:block group cursor-pointer">
-          <div class="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl glass-card glass-shine-edge">
-            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="/images/Hopper.webp"/>
-            <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-2 py-0.5 font-label text-[10px] font-bold">T18</div>
-          </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">GHOSTS OF ELM</h3>
-          <p class="font-label text-[10px] text-on-surface-variant tracking-wider">Horror • 108m</p>
-        </router-link>
       </div>
     </section>
   </main>
 </template>
 
 <style scoped>
-.hero-gradient {
-  background: linear-gradient(0deg, transparent 0%, rgba(10, 10, 15, 0.4) 50%, rgba(10, 10, 15, 0.1) 100%);
-}
-.editorial-shadow {
-  text-shadow: 0 4px 12px rgba(0,0,0,0.5);
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>
