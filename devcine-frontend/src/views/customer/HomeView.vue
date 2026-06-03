@@ -82,26 +82,21 @@ const getGenreNames = (movie) => {
             </div>
 
             <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div v-for="movie in nowShowingMovies" :key="movie.id" class="group cursor-pointer">
+              <router-link :to="`/movie/${movie.id}`" v-for="movie in nowShowingMovies" :key="movie.id" class="group cursor-pointer block">
                 <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge">
                   <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
                        :src="movie.posterUrl || '/images/Hopper.webp'"/>
                   <span class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
-                  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center">
-                    <router-link :to="`/movie/${movie.id}`" class="bg-primary-container/90 backdrop-blur-md text-on-primary px-6 py-3 rounded-xl font-headline font-extrabold text-sm uppercase tracking-widest shadow-lg shadow-primary-container/30 border border-primary-container/50 hover:bg-primary-container hover:scale-105 transition-all duration-300">
-                      MUA VÉ NGAY
-                    </router-link>
-                  </div>
                 </div>
                 <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider block mb-1">{{ getGenreNames(movie) }}</span>
-                <router-link :to="`/movie/${movie.id}`" class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 hover:text-primary-container transition-colors">
+                <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 group-hover:text-primary-container transition-colors">
                   {{ movie.titleVietnamese || movie.title }}
-                </router-link>
+                </div>
                 <div class="flex justify-between items-center text-sm text-on-surface-variant/80 font-normal">
                   <span>{{ movie.versionType || movie.format || 'Phụ đề' }}</span>
                   <span>{{ movie.durationMins ? movie.durationMins + ' phút' : '' }}</span>
                 </div>
-              </div>
+              </router-link>
             </div>
           </section>
         </div>
