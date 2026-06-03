@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
+import { formatDate, formatDateDot } from '@/utils/format'
 
 
 const movies = ref([])
@@ -88,7 +89,10 @@ const getGenreNames = (movie) => {
                        :src="movie.posterUrl || '/images/Hopper.webp'"/>
                   <span class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
                 </div>
-                <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider block mb-1">{{ getGenreNames(movie) }}</span>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider">{{ getGenreNames(movie) }}</span>
+                  <span class="text-[#f5c518] text-[11px] font-bold tracking-widest">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
+                </div>
                 <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 group-hover:text-primary-container transition-colors">
                   {{ movie.titleVietnamese || movie.title }}
                 </div>

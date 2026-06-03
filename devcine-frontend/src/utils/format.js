@@ -20,6 +20,19 @@ export const formatDate = (date) => {
 };
 
 /**
+ * Định dạng ngày tháng DD.MM.YYYY (Phong cách điện ảnh)
+ * @param {string|Date} date 
+ */
+export const formatDateDot = (date) => {
+  if (!date) return '';
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
+/**
  * Định dạng thời gian HH:mm
  * @param {string|Date} date 
  */
