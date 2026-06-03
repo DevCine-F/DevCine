@@ -33,7 +33,7 @@ import BookingHistoryView from './BookingHistoryView.vue'
           <span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
           <div>
             <p class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-0.5">Hạng thành viên</p>
-            <span class="text-lg font-bold italic tracking-tight text-primary-container uppercase font-headline">Lumière Elite</span>
+            <span class="text-lg font-bold italic tracking-tight text-primary-container uppercase font-headline">Diamond</span>
           </div>
         </div>
         <div class="h-10 w-[1px] bg-white/10 hidden md:block"></div>
