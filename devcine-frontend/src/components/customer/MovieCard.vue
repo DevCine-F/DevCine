@@ -10,7 +10,7 @@ defineProps({
 <template>
   <div class="group relative bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_20px_50px_-15px_rgba(245,197,24,0.15)]">
     <!-- Poster Image -->
-    <div class="aspect-[2/3] overflow-hidden relative">
+    <div class="aspect-[2/3] overflow-hidden relative hover-shine-effect">
       <img :src="movie.poster || 'https://placehold.co/400x600/1a1a1a/f5c518?text=DevCine'" 
            class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
            :alt="movie.title">

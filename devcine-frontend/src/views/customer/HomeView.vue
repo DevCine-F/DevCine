@@ -83,8 +83,8 @@ const getGenreNames = (movie) => {
 
             <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-6">
               <router-link :to="`/movie/${movie.id}`" v-for="movie in nowShowingMovies" :key="movie.id" class="group cursor-pointer block">
-                <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge">
-                  <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge hover-shine-effect">
+                  <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110" 
                        :src="movie.posterUrl || '/images/Hopper.webp'"/>
                   <span class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
                 </div>
