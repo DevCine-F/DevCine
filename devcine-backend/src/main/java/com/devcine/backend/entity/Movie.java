@@ -48,6 +48,12 @@ public class Movie {
     @Column(name = "poster_base64", columnDefinition = "TEXT")
     private String posterUrl;
 
+    @Column(name = "banner_base64", columnDefinition = "TEXT")
+    private String bannerUrl;
+
+    @Column(name = "show_on_banner")
+    private Boolean showOnBanner;
+
     @Column(name = "trailer_url", length = 1000)
     private String trailerUrl;
 

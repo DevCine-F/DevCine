@@ -74,18 +74,34 @@ const handleWheel = (e) => {
   }
 };
 
-const fileInput = ref(null);
+const posterInput = ref(null);
+const bannerInput = ref(null);
 
-const triggerFileInput = () => {
-  fileInput.value.click();
+const triggerPosterInput = () => {
+  posterInput.value.click();
 };
 
-const onFileChange = (e) => {
+const triggerBannerInput = () => {
+  bannerInput.value.click();
+};
+
+const onPosterChange = (e) => {
   const file = e.target.files[0];
   if (file) {
     const reader = new FileReader();
     reader.onload = (event) => {
       newMovie.value.posterUrl = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+const onBannerChange = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      newMovie.value.bannerUrl = event.target.result;
     };
     reader.readAsDataURL(file);
   }
@@ -125,6 +141,8 @@ const newMovie = ref({
   basePrice: 85000,
   description: "",
   posterUrl: "",
+  bannerUrl: "",
+  showOnBanner: true,
   trailerUrl: "",
   format: "",
   internalNotes: "",
@@ -226,6 +244,8 @@ const openAddModal = () => {
     basePrice: 85000,
     description: "",
     posterUrl: "",
+    bannerUrl: "",
+    showOnBanner: true,
     trailerUrl: "",
     format: "2D",
     originalLanguage: "Tiếng Anh",
@@ -724,7 +744,7 @@ onMounted(() => {
               <h2
                 class="font-headline font-black text-2xl uppercase tracking-tighter italic text-on-surface"
               >
-                {{ isEditing ? "Hiệu chỉnh Phim" : "Khai báo Phim Mới" }}
+                {{ isEditing ? "Chỉnh sửa thông tin phim" : "Thêm phim mới" }}
               </h2>
             </div>
             <p
@@ -1087,29 +1107,41 @@ onMounted(() => {
               <div class="space-y-2">
                 <label
                   class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1"
-                  >Hình ảnh Poster</label
+                  >Hình ảnh Banner (Ảnh bìa ngang)</label
                 >
                 <input
-                  ref="fileInput"
+                  ref="bannerInput"
                   type="file"
-                  @change="onFileChange"
+                  @change="onBannerChange"
                   accept="image/*"
                   class="hidden"
                 />
                 <button
-                  @click="triggerFileInput"
+                  @click="triggerBannerInput"
                   type="button"
-                  class="w-full bg-surface-container-high border border-dashed border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all py-8 rounded-lg flex flex-col items-center justify-center gap-2 group"
+                  class="w-full bg-surface-container-high border border-dashed border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all py-8 rounded-lg flex flex-col items-center justify-center gap-2 group relative overflow-hidden"
                 >
+                  <img
+                    v-if="newMovie.bannerUrl"
+                    :src="newMovie.bannerUrl"
+                    class="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-20 transition-opacity"
+                  />
                   <span
-                    class="material-symbols-outlined text-3xl text-on-surface-variant group-hover:text-primary transition-colors"
+                    class="material-symbols-outlined text-3xl text-on-surface-variant group-hover:text-primary transition-colors relative z-10"
                     >add_photo_alternate</span
                   >
                   <span
-                    class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant group-hover:text-primary transition-colors"
-                    >Tải ảnh poster chính thức</span
+                    class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant group-hover:text-primary transition-colors relative z-10"
+                    >{{ newMovie.bannerUrl ? "Thay đổi ảnh banner" : "Tải ảnh banner chính thức" }}</span
                   >
                 </button>
+                <div class="flex items-center gap-3 pt-2">
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" v-model="newMovie.showOnBanner" class="sr-only peer">
+                    <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface-variant peer-checked:after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Hiển thị trên Banner trang chủ</span>
+                </div>
               </div>
               <div class="space-y-2">
                 <label
@@ -1140,12 +1172,19 @@ onMounted(() => {
             <p
               class="text-[10px] font-black uppercase tracking-widest text-center text-primary"
             >
-              Xem trước hiển thị
+              Xem trước hiển thị (Click để tải Poster)
             </p>
 
+            <input
+              ref="posterInput"
+              type="file"
+              @change="onPosterChange"
+              accept="image/*"
+              class="hidden"
+            />
             <div
-              @click="triggerFileInput"
-              class="aspect-[2/3] max-w-[260px] mx-auto w-full rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl bg-surface-container-highest relative group cursor-pointer"
+              @click="triggerPosterInput"
+              class="aspect-[2/3] max-w-[260px] mx-auto w-full rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl bg-surface-container-highest relative group cursor-pointer hover:border-primary/50 transition-colors"
             >
               <img
                 v-if="newMovie.posterUrl"
