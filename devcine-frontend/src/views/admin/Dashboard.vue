@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import axios from "axios";
 
-const isMonthlyRevenue = ref(true);
+const isMonthlyRevenue = ref(false);
 const isSeeding = ref(false);
 
 const globalSeed = async () => {
