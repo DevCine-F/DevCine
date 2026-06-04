@@ -38,6 +38,8 @@ public class MovieService {
             existingMovie.setCountry(movieDetails.getCountry());
             existingMovie.setRating(movieDetails.getRating());
             existingMovie.setPosterUrl(movieDetails.getPosterUrl());
+            existingMovie.setBannerUrl(movieDetails.getBannerUrl());
+            existingMovie.setShowOnBanner(movieDetails.getShowOnBanner());
             existingMovie.setTrailerUrl(movieDetails.getTrailerUrl());
             existingMovie.setFormat(movieDetails.getFormat());
             existingMovie.setTitleVietnamese(movieDetails.getTitleVietnamese());

@@ -16,6 +16,8 @@ public class MovieDTO {
     private String country;
     private String rating;
     private String posterUrl;
+    private String bannerUrl;
+    private Boolean showOnBanner;
     private String trailerUrl;
     private String format;
     private String titleVietnamese;
