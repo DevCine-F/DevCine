@@ -92,13 +92,13 @@ export default [
     ]
   },
   {
-    path: '/auth',
-    component: () => import('../layouts/AuthLayout.vue'),
+    path: '/login',
+    component: () => import('../layouts/LoginLayout.vue'),
     children: [
       {
         path: '',
-        name: 'auth',
-        component: () => import('../views/customer/AuthView.vue')
+        name: 'login',
+        component: () => import('../views/customer/LoginView.vue')
       }
     ]
   },

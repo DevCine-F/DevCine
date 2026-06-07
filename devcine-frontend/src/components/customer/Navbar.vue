@@ -141,7 +141,7 @@ const viewNotification = (notif) => {
         
         <div v-else class="flex items-center pl-2">
           <div class="group relative">
-            <router-link to="/auth" 
+            <router-link to="/login" 
               class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-400 hover:text-[#f5c518] hover:bg-white/5 transition-all duration-300">
               <span class="material-symbols-outlined text-[22px]">login</span>
             </router-link>

@@ -77,6 +77,9 @@ pom.xml → chỉ thêm dependency khi thật sự cần
    - Table: snake_case, số nhiều (`booking_seats`)
    - API path: kebab-case (`/api/fnb-items`)
    - DTO: `Create{Entity}Request`, `{Entity}Response`
+6. API Prefix Structure:
+   - API Khách hàng (Public/Customer): prefix bắt buộc là `/api/v1/public/...`
+   - API Nội bộ (Admin/Staff): prefix bắt buộc là `/api/v1/admin/...`
 
 ### Frontend (Vue.js)
 1. Component name: PascalCase (`MovieCard.vue`)

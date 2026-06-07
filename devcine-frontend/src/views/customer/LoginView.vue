@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 const activeTab = ref('login')
+const isDev = import.meta.env.DEV
 
 const loginAs = (role) => {
   const email = role === 'admin' ? 'admin@devcine.com' : 'customer@devcine.com'
@@ -141,14 +142,14 @@ const handleRegister = (e) => {
         </div>
         
         <!-- Quick Access for Testing -->
-        <div class="mt-6 pt-6 border-t border-outline-variant/10">
+        <div v-if="isDev" class="mt-6 pt-6 border-t border-outline-variant/10">
           <p class="text-[9px] font-black uppercase tracking-widest text-neutral-600 mb-4 text-center">Chế độ thử nghiệm</p>
           <div class="flex gap-4">
             <button @click="loginAs('customer')" 
                     class="flex-1 py-3 bg-surface-container-high border border-outline-variant/20 rounded text-[9px] font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
               Vào quyền Khách
             </button>
-            <button @click="loginAs('admin')"
+            <button @click="router.push('/admin/login')"
                     class="flex-1 py-3 bg-primary/10 border border-primary/40 rounded text-[9px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors">
               Vào quyền Admin
             </button>
