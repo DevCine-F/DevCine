@@ -8,6 +8,7 @@ const movies = ref([]);
 const isFilterOpen = ref(false);
 const isAddModalOpen = ref(false);
 const isDetailModalOpen = ref(false);
+const isDescriptionExpanded = ref(false);
 const selectedMovie = ref(null);
 const searchQuery = ref("");
 const filterCountry = ref("Tất cả quốc gia");
@@ -219,6 +220,7 @@ const fetchMovies = async () => {
 
 const openDetailModal = (movie) => {
   selectedMovie.value = movie;
+  isDescriptionExpanded.value = false;
   isDetailModalOpen.value = true;
 };
 
@@ -1485,7 +1487,7 @@ onMounted(() => {
                       <span class="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-black rounded-full border border-green-500/20">+14%</span>
                     </div>
                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Doanh thu tuần</p>
-                    <p class="text-4xl font-bold text-white">482.5M <span class="text-lg text-white/40 font-bold">VNĐ</span></p>
+                    <p class="text-4xl font-bold text-white">456.7M <span class="text-lg text-white/40 font-bold">VNĐ</span></p>
                   </div>
                   <!-- Vé đã bán -->
                   <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] relative group hover:bg-white/[0.04] transition-all">
@@ -1495,7 +1497,7 @@ onMounted(() => {
                       <span class="px-3 py-1 bg-white/5 text-white/50 text-[10px] font-black rounded-full border border-white/10">Toàn quốc</span>
                     </div>
                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Tổng vé đã bán</p>
-                    <p class="text-4xl font-bold text-white">12,450 <span class="text-lg text-white/40 font-bold">vé</span></p>
+                    <p class="text-4xl font-bold text-white">12,345 <span class="text-lg text-white/40 font-bold">vé</span></p>
                   </div>
                   <!-- Tổng suất chiếu tuần -->
                   <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] relative group hover:bg-white/[0.04] transition-all">
@@ -1563,10 +1565,12 @@ onMounted(() => {
                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">Nội dung phim</p>
                   </div>
                   <div>
-                    <p class="text-sm text-white/60 leading-relaxed font-medium line-clamp-4">
+                    <p class="text-sm text-white/60 leading-relaxed font-medium transition-all duration-300" :class="{ 'line-clamp-4': !isDescriptionExpanded }">
                       {{ selectedMovie.description || "Chưa có tóm tắt nội dung chính thức cho bộ phim này. Thông tin sẽ sớm được cập nhật." }}
                     </p>
-                    <button class="text-[10px] text-white font-bold uppercase tracking-widest mt-2 hover:underline">Xem thêm</button>
+                    <button @click="isDescriptionExpanded = !isDescriptionExpanded" class="text-[10px] text-white font-bold uppercase tracking-widest mt-2 hover:underline">
+                      {{ isDescriptionExpanded ? 'Thu gọn' : 'Xem thêm' }}
+                    </button>
                   </div>
                 </section>
 
@@ -1618,13 +1622,13 @@ onMounted(() => {
                   <div>
                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Thể loại & Phân loại</p>
                     <div class="flex flex-wrap gap-2">
-                      <span v-for="g in selectedMovie.genre?.split(', ')" :key="g" class="px-3 py-1.5 bg-transparent border border-white/20 text-[9px] font-bold text-white/80 uppercase tracking-widest rounded-lg hover:border-white/50 hover:text-white transition-colors">{{ g }}</span>
+                      <span v-for="g in selectedMovie.genres" :key="g.id" class="px-3 py-1.5 bg-primary/10 border border-primary/20 text-[9px] font-bold text-primary uppercase tracking-widest rounded-lg">{{ g.name }}</span>
                     </div>
                   </div>
                   <div>
                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Định dạng chiếu</p>
                     <div class="flex flex-wrap gap-2">
-                      <span v-for="f in selectedMovie.format?.split(', ')" :key="f" class="px-3 py-1.5 bg-white/10 border border-white/10 text-[9px] font-black text-white uppercase tracking-widest rounded-lg">{{ f }}</span>
+                      <span v-for="f in selectedMovie.format?.split(', ')" :key="f" class="px-3 py-1.5 bg-white border border-white text-[9px] font-black text-black uppercase tracking-widest rounded-lg shadow-[0_0_15px_rgba(255,255,255,0.2)]">{{ f }}</span>
                     </div>
                   </div>
                 </section>
