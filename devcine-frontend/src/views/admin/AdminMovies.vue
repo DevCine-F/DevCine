@@ -127,7 +127,7 @@ const newMovie = ref({
   titleVietnamese: "",
   duration: "",
   genres: [],
-  country: "USA",
+  country: "Mỹ",
   productionYear: new Date().getFullYear().toString(),
   language: "Phụ đề Tiếng Việt",
   status: "upcoming",
@@ -232,7 +232,7 @@ const openAddModal = () => {
     titleVietnamese: "",
     duration: "",
     genres: [],
-    country: "USA",
+    country: "Mỹ",
     productionYear: new Date().getFullYear().toString(),
     language: "Phụ đề Tiếng Việt",
     status: "upcoming",
@@ -321,7 +321,7 @@ const populateDemoData = async () => {
       title: "Oppenheimer",
       genre: "Drama",
       duration: "180 Phút",
-      country: "USA",
+      country: "Mỹ",
       status: "active",
       rating: "9.0",
     },
@@ -329,7 +329,7 @@ const populateDemoData = async () => {
       title: "Dune: Part Two",
       genre: "Sci-Fi",
       duration: "166 Phút",
-      country: "USA",
+      country: "Mỹ",
       status: "active",
       rating: "8.8",
     },
@@ -337,7 +337,7 @@ const populateDemoData = async () => {
       title: "Spirited Away",
       genre: "Animation",
       duration: "125 Phút",
-      country: "Japan",
+      country: "Nhật Bản",
       status: "active",
       rating: "8.6",
     },
@@ -345,11 +345,11 @@ const populateDemoData = async () => {
       title: "Interstellar",
       genre: "Sci-Fi",
       duration: "169 Phút",
-      country: "USA",
+      country: "Mỹ",
       status: "active",
       rating: "8.7",
       duration: "148 Phút",
-      country: "USA",
+      country: "Mỹ",
       status: "active",
       rating: "8.8",
     },
@@ -373,7 +373,7 @@ onMounted(() => {
     <header class="flex justify-between items-center mb-12">
       <div>
         <h1
-          class="text-3xl font-extrabold tracking-tight font-headline uppercase text-on-surface italic"
+          class="text-3xl font-bold font-headline uppercase text-on-surface"
         >
           Nội dung <span class="text-primary">Kỹ thuật số</span>
         </h1>
@@ -549,11 +549,12 @@ onMounted(() => {
               class="w-full bg-surface-container-high border border-outline-variant/10 text-[11px] font-bold uppercase tracking-wider rounded-lg py-3 px-4 text-on-surface focus:border-primary transition-all outline-none appearance-none"
             >
               <option>Tất cả quốc gia</option>
-              <option>USA</option>
-              <option>Japan</option>
-              <option>UK</option>
-              <option>South Korea</option>
-              <option>Vietnam</option>
+              <option>Mỹ</option>
+              <option>Nhật Bản</option>
+              <option>Anh</option>
+              <option>Hàn Quốc</option>
+              <option>Việt Nam</option>
+              <option>Pháp</option>
             </select>
           </div>
           <div class="space-y-3">
@@ -742,7 +743,7 @@ onMounted(() => {
             <div class="flex items-center gap-3 mb-2">
               <span class="w-8 h-1 bg-primary rounded-full"></span>
               <h2
-                class="font-headline font-black text-2xl uppercase tracking-tighter italic text-on-surface"
+                class="font-headline font-bold text-2xl uppercase text-on-surface"
               >
                 {{ isEditing ? "Chỉnh sửa thông tin phim" : "Thêm phim mới" }}
               </h2>
@@ -1207,7 +1208,7 @@ onMounted(() => {
                 class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6"
               >
                 <p
-                  class="text-white font-black text-xs uppercase tracking-tighter italic leading-none mb-1"
+                  class="text-white font-bold text-xs uppercase leading-none mb-1"
                 >
                   {{ newMovie.title || "Tiêu đề phim" }}
                 </p>
@@ -1225,7 +1226,7 @@ onMounted(() => {
               <div class="flex justify-between items-center mb-2">
                 <span
                   class="text-[9px] font-bold text-on-surface-variant uppercase"
-                  >Rating Demo</span
+                  >Đánh giá mẫu</span
                 >
                 <span class="text-primary font-black text-xs">5.0</span>
               </div>
@@ -1271,15 +1272,7 @@ onMounted(() => {
         @click="isDetailModalOpen = false"
       ></div>
 
-      <!-- Immersive Background Glows -->
-      <div class="absolute inset-0 overflow-hidden pointer-events-none">
-        <div
-          class="absolute -top-[20%] -left-[10%] w-[60%] h-[60%] bg-primary/10 blur-[150px] rounded-full animate-pulse"
-        ></div>
-        <div
-          class="absolute -bottom-[20%] -right-[10%] w-[50%] h-[50%] bg-primary/5 blur-[120px] rounded-full"
-        ></div>
-      </div>
+      <!-- Immersive Background Glows Removed for Monotone Aesthetic -->
 
       <div
         class="bg-white/[0.02] w-full max-w-7xl h-full max-h-[900px] rounded-[48px] border border-white/10 shadow-[0_40px_100px_rgba(0,0,0,0.8)] relative z-10 overflow-hidden flex flex-col md:flex-row"
@@ -1335,7 +1328,7 @@ onMounted(() => {
               </div>
               <div>
                 <h2
-                  class="text-5xl font-black text-white italic tracking-tighter uppercase leading-[0.85] mb-4"
+                  class="text-4xl font-black text-white uppercase leading-tight mb-4"
                 >
                   {{ selectedMovie.title }}
                 </h2>
@@ -1388,7 +1381,7 @@ onMounted(() => {
                 class="space-y-1"
               >
                 <p
-                  class="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]"
+                  class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]"
                 >
                   {{ info.label }}
                 </p>
@@ -1405,7 +1398,7 @@ onMounted(() => {
                 "
                 class="px-8 py-3 bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-on-primary transition-all duration-500"
               >
-                Edit Asset
+                Chỉnh sửa
               </button>
               <button
                 @click="isDetailModalOpen = false"
@@ -1418,176 +1411,128 @@ onMounted(() => {
 
           <!-- Content Scrollable Area -->
           <div
-            class="flex-grow overflow-y-auto custom-scrollbar p-16 space-y-16"
+            class="flex-grow overflow-y-auto custom-scrollbar p-16"
           >
-            <!-- Quick Insights Grid -->
-            <div class="grid grid-cols-4 gap-6">
-              <div
-                v-for="(stat, idx) in [
-                  {
-                    label: 'Suất chiếu',
-                    val: '24',
-                    icon: 'confirmation_number',
-                    color: 'from-blue-500/20 to-transparent',
-                  },
-                  {
-                    label: 'Tỷ lệ lấp đầy',
-                    val: '68%',
-                    icon: 'groups',
-                    color: 'from-primary/20 to-transparent',
-                  },
-                  {
-                    label: 'Doanh thu',
-                    val: '4.2M',
-                    icon: 'payments',
-                    color: 'from-green-500/20 to-transparent',
-                  },
-                  {
-                    label: 'Giá vé gốc',
-                    val:
-                      (selectedMovie.basePrice || 85000).toLocaleString() + 'đ',
-                    icon: 'sell',
-                    color: 'from-white/10 to-transparent',
-                  },
-                ]"
-                :key="idx"
-                class="relative group/stat p-8 bg-white/[0.03] border border-white/[0.08] rounded-[40px] overflow-hidden transition-all duration-500 hover:bg-white/[0.05] hover:-translate-y-1"
-              >
-                <div
-                  class="absolute inset-0 bg-gradient-to-br opacity-0 group-hover/stat:opacity-100 transition-opacity duration-700"
-                  :class="stat.color"
-                ></div>
-                <div class="relative z-10 space-y-4">
-                  <span
-                    class="material-symbols-outlined text-2xl text-white/20 group-hover/stat:text-white transition-colors duration-500"
-                    >{{ stat.icon }}</span
-                  >
-                  <div>
-                    <p
-                      class="text-[8px] font-black text-white/30 uppercase tracking-[0.2em] mb-1"
-                    >
-                      {{ stat.label }}
-                    </p>
-                    <p
-                      class="text-2xl font-black text-white italic tracking-tighter"
-                    >
-                      {{ stat.val }}
-                    </p>
+            <div class="grid grid-cols-12 gap-16">
+              <!-- Left: Data-First Center (8 cols) -->
+              <div class="col-span-8 space-y-10">
+                <!-- 1. Quick Insights Grid (Replaces old storyline area) -->
+                <div class="grid grid-cols-2 gap-6">
+                  <!-- Doanh thu tuần -->
+                  <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] relative group hover:bg-white/[0.04] transition-all">
+                    <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[24px]"></div>
+                    <div class="flex justify-between items-start mb-6">
+                      <span class="material-symbols-outlined text-white/30 text-3xl">payments</span>
+                      <span class="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-black rounded-full border border-green-500/20">+14%</span>
+                    </div>
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Doanh thu tuần</p>
+                    <p class="text-4xl font-bold text-white">482.5M <span class="text-lg text-white/40 font-bold">VNĐ</span></p>
+                  </div>
+                  <!-- Vé đã bán -->
+                  <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] relative group hover:bg-white/[0.04] transition-all">
+                    <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[24px]"></div>
+                    <div class="flex justify-between items-start mb-6">
+                      <span class="material-symbols-outlined text-white/30 text-3xl">confirmation_number</span>
+                      <span class="px-3 py-1 bg-white/5 text-white/50 text-[10px] font-black rounded-full border border-white/10">Toàn quốc</span>
+                    </div>
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Tổng vé đã bán</p>
+                    <p class="text-4xl font-bold text-white">12,450 <span class="text-lg text-white/40 font-bold">vé</span></p>
+                  </div>
+                </div>
+
+                <!-- 2. Occupancy Bar -->
+                <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px]">
+                  <div class="flex justify-between items-end mb-4">
+                    <div>
+                      <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-1">Tỷ lệ lấp đầy phòng chiếu</p>
+                      <p class="text-2xl font-black text-white">68.5%</p>
+                    </div>
+                    <p class="text-xs font-bold text-green-400">Đạt chỉ tiêu</p>
+                  </div>
+                  <div class="w-full h-3 bg-white/5 rounded-full overflow-hidden flex">
+                    <div class="h-full bg-white/80 w-[68.5%] rounded-full"></div>
+                  </div>
+                </div>
+
+                <!-- 3. Ticket Class Distribution -->
+                <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px]">
+                  <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-6">Phân bổ doanh thu theo hạng vé</p>
+                  <div class="space-y-4">
+                    <div class="flex items-center gap-4">
+                      <span class="text-xs font-bold text-white/60 w-16">Thường</span>
+                      <div class="flex-grow h-2 bg-white/5 rounded-full overflow-hidden">
+                        <div class="h-full bg-white/40 w-[45%] rounded-full"></div>
+                      </div>
+                      <span class="text-xs font-bold text-white w-12 text-right">45%</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                      <span class="text-xs font-bold text-white/60 w-16">VIP</span>
+                      <div class="flex-grow h-2 bg-white/5 rounded-full overflow-hidden">
+                        <div class="h-full bg-white/70 w-[35%] rounded-full"></div>
+                      </div>
+                      <span class="text-xs font-bold text-white w-12 text-right">35%</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                      <span class="text-xs font-bold text-white/60 w-16">Sweetbox</span>
+                      <div class="flex-grow h-2 bg-white/5 rounded-full overflow-hidden">
+                        <div class="h-full bg-white w-[20%] rounded-full"></div>
+                      </div>
+                      <span class="text-xs font-bold text-white w-12 text-right">20%</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-            </div>
-
-            <div class="grid grid-cols-12 gap-16">
-              <div class="col-span-7 space-y-12">
-                <section class="space-y-6">
-                  <div class="flex items-center gap-4">
-                    <div class="w-12 h-px bg-primary/40"></div>
-                    <p
-                      class="text-[10px] font-black text-primary uppercase tracking-[0.4em]"
-                    >
-                      Storyline
-                    </p>
+              <!-- Right: Metadata Pillar (4 cols) -->
+              <div class="col-span-4 pl-12 border-l border-white/10 space-y-12">
+                <!-- Storyline Moved Here and Shrunk -->
+                <section class="space-y-4">
+                  <div class="flex items-center gap-3">
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">Nội dung phim</p>
                   </div>
-                  <p
-                    class="text-2xl text-on-surface/80 leading-relaxed font-medium italic text-justify"
-                  >
-                    {{
-                      selectedMovie.description ||
-                      "Chưa có tóm tắt nội dung chính thức cho bộ phim này. Thông tin sẽ sớm được cập nhật."
-                    }}
-                  </p>
+                  <div>
+                    <p class="text-sm text-white/60 leading-relaxed font-medium line-clamp-4">
+                      {{ selectedMovie.description || "Chưa có tóm tắt nội dung chính thức cho bộ phim này. Thông tin sẽ sớm được cập nhật." }}
+                    </p>
+                    <button class="text-[10px] text-white font-bold uppercase tracking-widest mt-2 hover:underline">Xem thêm</button>
+                  </div>
                 </section>
 
-                <div class="grid grid-cols-2 gap-12">
-                  <section class="space-y-6">
-                    <p
-                      class="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]"
-                    >
-                      Release Timeline
-                    </p>
-                    <div class="space-y-6">
-                      <div class="flex items-center gap-4 group/tm">
-                        <div
-                          class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover/tm:bg-primary transition-all duration-500"
-                        >
-                          <span
-                            class="material-symbols-outlined text-lg text-primary group-hover/tm:text-on-primary"
-                            >rocket_launch</span
-                          >
-                        </div>
-                        <div>
-                          <p
-                            class="text-[8px] font-black text-white/30 uppercase"
-                          >
-                            Khởi chiếu
-                          </p>
-                          <p class="text-sm font-bold text-white">
-                            {{ selectedMovie.startDate || "TBA" }}
-                          </p>
-                        </div>
+                <section class="space-y-6">
+                  <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">Lịch trình phát hành</p>
+                  <div class="space-y-6">
+                    <div class="flex items-center gap-4 group/tm">
+                      <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-hover/tm:bg-white/10 transition-all duration-500">
+                        <span class="material-symbols-outlined text-sm text-white/70 group-hover/tm:text-white">rocket_launch</span>
                       </div>
-                      <div class="flex items-center gap-4 group/tm">
-                        <div
-                          class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover/tm:bg-primary transition-all duration-500"
-                        >
-                          <span
-                            class="material-symbols-outlined text-lg text-primary group-hover/tm:text-on-primary"
-                            >timer_off</span
-                          >
-                        </div>
-                        <div>
-                          <p
-                            class="text-[8px] font-black text-white/30 uppercase"
-                          >
-                            Kết thúc
-                          </p>
-                          <p class="text-sm font-bold text-white">
-                            {{ selectedMovie.endDate || "TBA" }}
-                          </p>
-                        </div>
+                      <div>
+                        <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Khởi chiếu</p>
+                        <p class="text-xs font-bold text-white">{{ selectedMovie.startDate || "TBA" }}</p>
                       </div>
                     </div>
-                  </section>
-                </div>
-              </div>
+                    <div class="flex items-center gap-4 group/tm">
+                      <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-hover/tm:bg-white/10 transition-all duration-500">
+                        <span class="material-symbols-outlined text-sm text-white/70 group-hover/tm:text-white">timer_off</span>
+                      </div>
+                      <div>
+                        <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Kết thúc</p>
+                        <p class="text-xs font-bold text-white">{{ selectedMovie.endDate || "TBA" }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
 
-              <div class="col-span-5 space-y-12">
-                <section
-                  class="p-10 bg-white/[0.03] border border-white/[0.08] rounded-[48px] space-y-8 relative overflow-hidden group/box"
-                >
-                  <div
-                    class="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 blur-3xl rounded-full opacity-0 group-hover/box:opacity-100 transition-opacity duration-1000"
-                  ></div>
+                <section class="space-y-8">
                   <div>
-                    <p
-                      class="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mb-4"
-                    >
-                      Genres & Categorization
-                    </p>
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Thể loại & Phân loại</p>
                     <div class="flex flex-wrap gap-2">
-                      <span
-                        v-for="g in selectedMovie.genre?.split(', ')"
-                        :key="g"
-                        class="px-4 py-2 bg-white/5 border border-white/5 text-[9px] font-black text-white uppercase tracking-widest rounded-xl hover:border-primary/50 transition-colors"
-                        >{{ g }}</span
-                      >
+                      <span v-for="g in selectedMovie.genre?.split(', ')" :key="g" class="px-3 py-1.5 bg-transparent border border-white/20 text-[9px] font-bold text-white/80 uppercase tracking-widest rounded-lg hover:border-white/50 hover:text-white transition-colors">{{ g }}</span>
                     </div>
                   </div>
                   <div>
-                    <p
-                      class="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mb-4"
-                    >
-                      Screening Formats
-                    </p>
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Định dạng chiếu</p>
                     <div class="flex flex-wrap gap-2">
-                      <span
-                        v-for="f in selectedMovie.format?.split(', ')"
-                        :key="f"
-                        class="px-4 py-2 bg-primary text-on-primary text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary/20"
-                        >{{ f }}</span
-                      >
+                      <span v-for="f in selectedMovie.format?.split(', ')" :key="f" class="px-3 py-1.5 bg-white/10 border border-white/10 text-[9px] font-black text-white uppercase tracking-widest rounded-lg">{{ f }}</span>
                     </div>
                   </div>
                 </section>
@@ -1597,14 +1542,8 @@ onMounted(() => {
 
           <!-- Bottom Action Bar (Footer) -->
           <div
-            class="px-16 py-8 shrink-0 bg-white/[0.02] border-t border-white/5 flex items-center justify-between"
+            class="px-16 py-8 shrink-0 bg-white/[0.02] border-t border-white/5 flex items-center justify-end"
           >
-            <div class="flex items-center gap-4 text-white/20">
-              <span class="material-symbols-outlined text-sm">security</span>
-              <p class="text-[9px] font-bold uppercase tracking-widest">
-                Administrative Access Only • Secure Data Portal
-              </p>
-            </div>
             <div class="flex gap-4">
               <button
                 @click="
