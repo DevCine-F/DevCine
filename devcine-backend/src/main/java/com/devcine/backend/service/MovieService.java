@@ -52,6 +52,10 @@ public class MovieService {
             existingMovie.setInternalNotes(movieDetails.getInternalNotes());
             existingMovie.setStartDate(movieDetails.getStartDate());
             existingMovie.setGenres(movieDetails.getGenres());
+            existingMovie.setDirector(movieDetails.getDirector());
+            existingMovie.setCastMembers(movieDetails.getCastMembers());
+            existingMovie.setDistributor(movieDetails.getDistributor());
+            existingMovie.setRatingCount(movieDetails.getRatingCount());
             return movieRepository.save(existingMovie);
         }
         return null;

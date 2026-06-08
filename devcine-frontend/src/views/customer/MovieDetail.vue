@@ -32,28 +32,32 @@ const formatDateForUI = (dateString) => {
 onMounted(async () => {
   const movieId = route.params.id || 1 
   
-  try {
-    const response = await api.get(`/movies/${movieId}`)
-    movie.value = response.data
-  } catch(e) {
-    // mock data if api fails
-    movie.value = {
-      id: movieId,
-      titleVietnamese: 'PHIM SUPER MARIO THIÊN HÀ - P (LỒNG TIẾNG)',
-      title: 'SUPER MARIO GALAXY',
-      posterUrl: '/images/Hopper.webp',
-      format: '2D',
-      durationMins: 99,
-      director: 'Aaron Horvath, Michael Jelenic',
-      cast: 'Chris Pratt, Anya Taylor-Joy, Charlie Day, Jack Black, Keegan-Michael Key',
-      releaseDate: '2026-04-01',
-      description: 'Phim Super Mario Thiên Hà là một bộ phim hoạt hình được lấy bối cảnh trong thế giới của Anh Em Super Mario và là phần tiếp theo của Phim Anh Em Super Mario - tác phẩm ra mắt năm 2023 và đạt doanh thu hơn 1,3 tỷ đô la trên toàn cầu. Cả hai bộ phim Phim Anh Em Super Mario (2023) và Phim Super Mario Thiên Hà đều do Chris...',
-      ageRating: 'P'
-    }
-  }
+  const fetchMovieData = api.get(`/movies/${movieId}`)
+    .then(response => {
+      movie.value = response.data
+    })
+    .catch(e => {
+      // mock data if api fails
+      movie.value = {
+        id: movieId,
+        titleVietnamese: 'PHIM SUPER MARIO THIÊN HÀ - P (LỒNG TIẾNG)',
+        title: 'SUPER MARIO GALAXY',
+        posterUrl: '/images/Hopper.webp',
+        format: '2D',
+        durationMins: 99,
+        director: 'Aaron Horvath, Michael Jelenic',
+        castMembers: 'Chris Pratt, Anya Taylor-Joy, Charlie Day, Jack Black, Keegan-Michael Key',
+        releaseDate: '2026-04-01',
+        description: 'Phim Super Mario Thiên Hà là một bộ phim hoạt hình được lấy bối cảnh trong thế giới của Anh Em Super Mario và là phần tiếp theo của Phim Anh Em Super Mario - tác phẩm ra mắt năm 2023 và đạt doanh thu hơn 1,3 tỷ đô la trên toàn cầu. Cả hai bộ phim Phim Anh Em Super Mario (2023) và Phim Super Mario Thiên Hà đều do Chris...',
+        ageRating: 'P'
+      }
+    })
 
-  await store.fetchCities()
-  await store.fetchShowtimes(movieId, store.selectedCity)
+  await Promise.all([
+    fetchMovieData,
+    store.fetchCities(),
+    store.fetchShowtimes(movieId, store.selectedCity)
+  ])
   
   if (uniqueDates.value.length > 0) {
      activeDateStr.value = uniqueDates.value[0]
@@ -84,7 +88,66 @@ const uniqueDates = computed(() => {
 </script>
 
 <template>
-  <main v-if="!loading" class="min-h-screen bg-[#111111] text-white">
+  <main v-if="loading" class="min-h-screen bg-[#111111] text-white">
+    <section class="relative pt-32 pb-16 min-h-[600px] flex items-center">
+      <div class="relative z-10 max-w-[1200px] mx-auto px-6 w-full flex flex-col md:flex-row gap-12 items-start animate-pulse">
+        <!-- Skeleton Poster -->
+        <div class="w-full md:w-[320px] flex-shrink-0">
+          <div class="w-full aspect-[2/3] bg-white/10 rounded-xl border border-white/5"></div>
+        </div>
+        
+        <!-- Skeleton Info -->
+        <div class="flex-1 mt-6 w-full">
+          <div class="h-10 bg-white/10 rounded w-3/4 mb-6"></div>
+          <div class="space-y-3 mb-8">
+            <div class="h-4 bg-white/10 rounded w-1/2"></div>
+            <div class="h-4 bg-white/10 rounded w-2/3"></div>
+            <div class="h-4 bg-white/10 rounded w-1/3"></div>
+          </div>
+          <div class="space-y-3 mb-8">
+            <div class="h-4 bg-white/10 rounded w-full"></div>
+            <div class="h-4 bg-white/10 rounded w-full"></div>
+            <div class="h-4 bg-white/10 rounded w-4/5"></div>
+          </div>
+          <div class="flex gap-6">
+            <div class="h-10 bg-white/10 rounded-full w-32"></div>
+            <div class="h-10 bg-white/10 rounded-full w-40"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Skeleton Showtimes -->
+    <section class="bg-[#1a1a1a] min-h-[400px]">
+      <div class="bg-[#111] border-y border-white/5 py-4">
+        <div class="max-w-[1200px] mx-auto px-6 flex gap-4 animate-pulse">
+          <div class="w-20 h-16 bg-white/10 rounded"></div>
+          <div class="w-20 h-16 bg-white/10 rounded"></div>
+          <div class="w-20 h-16 bg-white/10 rounded"></div>
+        </div>
+      </div>
+      <div class="max-w-[1200px] mx-auto px-6 py-10 animate-pulse">
+        <div class="flex justify-end mb-8">
+          <div class="w-[250px] h-10 bg-white/10 rounded"></div>
+        </div>
+        <div class="space-y-8">
+          <div class="flex flex-col md:flex-row gap-6 border-b border-white/5 pb-8">
+            <div class="w-full md:w-[300px] space-y-3">
+              <div class="w-3/4 h-5 bg-white/10 rounded"></div>
+              <div class="w-full h-4 bg-white/5 rounded"></div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-3">
+              <div class="w-24 h-10 bg-white/10 rounded"></div>
+              <div class="w-24 h-10 bg-white/10 rounded"></div>
+              <div class="w-24 h-10 bg-white/10 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main v-else class="min-h-screen bg-[#111111] text-white">
     <!-- Top Section with Blurred Background -->
     <section class="relative pt-32 pb-16 min-h-[600px] flex items-center">
       <div class="absolute inset-0 z-0 overflow-hidden">
@@ -112,7 +175,7 @@ const uniqueDates = computed(() => {
           
           <div class="text-[15px] text-gray-300 space-y-1.5 mb-6 leading-relaxed">
             <p><span class="font-bold text-white">{{ movie.durationMins || 120 }} phút</span> &nbsp;|&nbsp; Đạo diễn: <span class="text-gray-400">{{ movie.director || 'Đang cập nhật' }}</span></p>
-            <p>Diễn viên: <span class="text-gray-400">{{ movie.cast || 'Đang cập nhật' }}</span></p>
+            <p>Diễn viên: <span class="text-gray-400">{{ movie.castMembers || 'Đang cập nhật' }}</span></p>
             <p>Khởi chiếu: <span class="text-gray-400">{{ movie.releaseDate ? new Date(movie.releaseDate).toLocaleDateString('vi-VN') : 'Đang cập nhật' }}</span></p>
           </div>
           

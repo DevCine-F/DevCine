@@ -87,6 +87,18 @@ public class Movie {
     @Column(name = "start_date")
     private LocalDate startDate;
 
+    @Column(length = 255)
+    private String distributor;
+
+    @Column(length = 255)
+    private String director;
+
+    @Column(name = "cast_members", columnDefinition = "TEXT")
+    private String castMembers;
+
+    @Column(name = "rating_count")
+    private Integer ratingCount;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "movie_genre_mapping",

@@ -251,6 +251,10 @@ const openAddModal = () => {
     originalLanguage: "Tiếng Anh",
     versionType: "Phụ đề Tiếng Việt",
     internalNotes: "",
+    distributor: "",
+    director: "",
+    castMembers: "",
+    ratingCount: 0,
   };
   isAddModalOpen.value = true;
 };
@@ -319,39 +323,59 @@ const populateDemoData = async () => {
   const demoMovies = [
     {
       title: "Oppenheimer",
-      genre: "Drama",
-      duration: "180 Phút",
+      titleVietnamese: "Oppenheimer",
+      durationMins: 180,
       country: "Mỹ",
       status: "active",
       rating: "9.0",
+      ageRating: "T18",
+      distributor: "CGV",
+      director: "Christopher Nolan",
+      castMembers: "Cillian Murphy, Emily Blunt, Matt Damon",
+      versionType: "Phụ đề Tiếng Việt",
+      ratingCount: 15420
     },
     {
       title: "Dune: Part Two",
-      genre: "Sci-Fi",
-      duration: "166 Phút",
+      titleVietnamese: "Hành Tinh Cát 2",
+      durationMins: 166,
       country: "Mỹ",
       status: "active",
       rating: "8.8",
+      ageRating: "T16",
+      distributor: "Galaxy",
+      director: "Denis Villeneuve",
+      castMembers: "Timothée Chalamet, Zendaya",
+      versionType: "Phụ đề Tiếng Việt",
+      ratingCount: 12350
     },
     {
       title: "Spirited Away",
-      genre: "Animation",
-      duration: "125 Phút",
+      titleVietnamese: "Vùng Đất Linh Hồn",
+      durationMins: 125,
       country: "Nhật Bản",
       status: "active",
       rating: "8.6",
+      ageRating: "P",
+      distributor: "BHD",
+      director: "Hayao Miyazaki",
+      castMembers: "Rumi Hiiragi, Miyu Irino",
+      versionType: "Lồng tiếng",
+      ratingCount: 9800
     },
     {
       title: "Interstellar",
-      genre: "Sci-Fi",
-      duration: "169 Phút",
+      titleVietnamese: "Hố Đen Tử Thần",
+      durationMins: 169,
       country: "Mỹ",
       status: "active",
       rating: "8.7",
-      duration: "148 Phút",
-      country: "Mỹ",
-      status: "active",
-      rating: "8.8",
+      ageRating: "T13",
+      distributor: "Lotte",
+      director: "Christopher Nolan",
+      castMembers: "Matthew McConaughey, Anne Hathaway",
+      versionType: "Phụ đề Tiếng Việt",
+      ratingCount: 22100
     },
   ];
 
@@ -375,12 +399,12 @@ onMounted(() => {
         <h1
           class="text-3xl font-bold font-headline uppercase text-on-surface"
         >
-          Nội dung <span class="text-primary">Kỹ thuật số</span>
+          Quản lý <span class="text-primary">Phim</span>
         </h1>
         <p
           class="text-on-surface-variant text-sm mt-1 font-bold uppercase tracking-widest"
         >
-          Quản lý Phim, Diễn viên & Bản quyền
+          Danh sách các phim trên hệ thống
         </p>
       </div>
 
@@ -397,13 +421,7 @@ onMounted(() => {
             class="bg-surface-container-high border-none text-xs pl-10 pr-4 py-3 rounded-sm w-72 focus:ring-1 focus:ring-primary transition-all text-on-surface"
           />
         </div>
-        <button
-          @click="populateDemoData"
-          class="bg-surface-container-high text-on-surface font-headline font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-sm hover:bg-white/5 transition-all flex items-center gap-2 border border-outline-variant/10"
-        >
-          <span class="material-symbols-outlined text-sm">database</span>
-          Dữ liệu Mẫu
-        </button>
+
         <button
           @click="openAddModal"
           class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
@@ -823,6 +841,30 @@ onMounted(() => {
                     placeholder="https://youtube.com/..."
                   />
                 </div>
+                <div class="space-y-2">
+                  <label
+                    class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1"
+                    >Đạo diễn</label
+                  >
+                  <input
+                    v-model="newMovie.director"
+                    type="text"
+                    class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg"
+                    placeholder="VD: Christopher Nolan"
+                  />
+                </div>
+                <div class="space-y-2 col-span-2">
+                  <label
+                    class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1"
+                    >Diễn viên chính (cách nhau bằng dấu phẩy)</label
+                  >
+                  <input
+                    v-model="newMovie.castMembers"
+                    type="text"
+                    class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg"
+                    placeholder="VD: Cillian Murphy, Emily Blunt"
+                  />
+                </div>
               </div>
             </section>
 
@@ -862,6 +904,18 @@ onMounted(() => {
                     type="text"
                     class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg"
                     placeholder="2024"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <label
+                    class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1"
+                    >Nhà phát hành</label
+                  >
+                  <input
+                    v-model="newMovie.distributor"
+                    type="text"
+                    class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg"
+                    placeholder="VD: CGV, Galaxy..."
                   />
                 </div>
                 <div class="space-y-2">
@@ -1344,6 +1398,7 @@ onMounted(() => {
                     <span class="text-sm font-black text-white">{{
                       selectedMovie.rating
                     }}</span>
+                    <span v-if="selectedMovie.ratingCount" class="text-[10px] text-white/50 font-bold ml-1">({{ selectedMovie.ratingCount.toLocaleString() }} lượt)</span>
                   </div>
                   <span
                     class="text-[10px] font-bold text-white/40 uppercase tracking-widest"
@@ -1371,8 +1426,12 @@ onMounted(() => {
               <div
                 v-for="(info, i) in [
                   {
-                    label: 'Ngôn ngữ',
-                    val: selectedMovie.language || 'Tiếng Việt',
+                    label: 'Ngôn ngữ gốc',
+                    val: selectedMovie.originalLanguage || 'Tiếng Anh',
+                  },
+                  {
+                    label: 'Phiên bản',
+                    val: selectedMovie.versionType || 'Phụ đề',
                   },
                   { label: 'Năm', val: selectedMovie.productionYear || '2024' },
                   { label: 'Hệ thống ID', val: '#' + selectedMovie.id },
@@ -1411,12 +1470,12 @@ onMounted(() => {
 
           <!-- Content Scrollable Area -->
           <div
-            class="flex-grow overflow-y-auto custom-scrollbar p-16"
+            class="flex-grow overflow-y-auto custom-scrollbar p-10"
           >
-            <div class="grid grid-cols-12 gap-16">
-              <!-- Left: Data-First Center (8 cols) -->
-              <div class="col-span-8 space-y-10">
-                <!-- 1. Quick Insights Grid (Replaces old storyline area) -->
+            <div class="grid grid-cols-12 gap-10">
+              <!-- Left: Data-First Center -->
+              <div class="col-span-7 space-y-10">
+                <!-- 1. Quick Insights Grid -->
                 <div class="grid grid-cols-2 gap-6">
                   <!-- Doanh thu tuần -->
                   <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] relative group hover:bg-white/[0.04] transition-all">
@@ -1438,19 +1497,32 @@ onMounted(() => {
                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Tổng vé đã bán</p>
                     <p class="text-4xl font-bold text-white">12,450 <span class="text-lg text-white/40 font-bold">vé</span></p>
                   </div>
-                </div>
-
-                <!-- 2. Occupancy Bar -->
-                <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px]">
-                  <div class="flex justify-between items-end mb-4">
-                    <div>
-                      <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-1">Tỷ lệ lấp đầy phòng chiếu</p>
-                      <p class="text-2xl font-black text-white">68.5%</p>
+                  <!-- Tổng suất chiếu tuần -->
+                  <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] relative group hover:bg-white/[0.04] transition-all">
+                    <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[24px]"></div>
+                    <div class="flex justify-between items-start mb-6">
+                      <span class="material-symbols-outlined text-white/30 text-3xl">event_seat</span>
+                      <span class="px-3 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-black rounded-full border border-blue-500/20">Tuần này</span>
                     </div>
-                    <p class="text-xs font-bold text-green-400">Đạt chỉ tiêu</p>
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Suất chiếu</p>
+                    <p class="text-4xl font-bold text-white">42 <span class="text-lg text-white/40 font-bold">suất</span></p>
                   </div>
-                  <div class="w-full h-3 bg-white/5 rounded-full overflow-hidden flex">
-                    <div class="h-full bg-white/80 w-[68.5%] rounded-full"></div>
+                  <!-- Tỷ lệ lấp đầy (Occupancy) -->
+                  <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] relative group hover:bg-white/[0.04] transition-all flex flex-col justify-between">
+                    <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[24px]"></div>
+                    <div>
+                      <div class="flex justify-between items-start mb-6">
+                        <span class="material-symbols-outlined text-white/30 text-3xl">chair</span>
+                        <span class="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-black rounded-full border border-green-500/20">Đạt chỉ tiêu</span>
+                      </div>
+                      <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Tỷ lệ lấp đầy</p>
+                    </div>
+                    <div>
+                      <p class="text-4xl font-bold text-white mb-3">68.5%</p>
+                      <div class="w-full h-2 bg-white/5 rounded-full overflow-hidden flex">
+                        <div class="h-full bg-white w-[68.5%] rounded-full"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1483,8 +1555,8 @@ onMounted(() => {
                 </div>
               </div>
 
-              <!-- Right: Metadata Pillar (4 cols) -->
-              <div class="col-span-4 pl-12 border-l border-white/10 space-y-12">
+              <!-- Right: Metadata Pillar -->
+              <div class="col-span-5 pl-10 border-l border-white/10 space-y-12">
                 <!-- Storyline Moved Here and Shrunk -->
                 <section class="space-y-4">
                   <div class="flex items-center gap-3">
@@ -1499,7 +1571,27 @@ onMounted(() => {
                 </section>
 
                 <section class="space-y-6">
-                  <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">Lịch trình phát hành</p>
+                  <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">Đội ngũ sản xuất</p>
+                  <div class="space-y-4">
+                    <div>
+                      <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Đạo diễn</p>
+                      <p class="text-sm font-medium text-white">{{ selectedMovie.director || "Đang cập nhật" }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Diễn viên chính</p>
+                      <p class="text-sm font-medium text-white">{{ selectedMovie.castMembers || "Đang cập nhật" }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Nhà phát hành</p>
+                      <p class="text-sm font-medium text-white">{{ selectedMovie.distributor || "Đang cập nhật" }}</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="space-y-6">
+                  <div class="flex justify-between items-center">
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">Lịch trình phát hành</p>
+                  </div>
                   <div class="space-y-6">
                     <div class="flex items-center gap-4 group/tm">
                       <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-hover/tm:bg-white/10 transition-all duration-500">

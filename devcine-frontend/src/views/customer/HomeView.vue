@@ -185,7 +185,7 @@ const getGenreNames = (movie) => {
           <div class="md:w-1/2 p-12 md:p-16 flex flex-col justify-center space-y-8">
             <div>
               <span class="text-primary-container font-headline text-sm font-bold tracking-[0.2em] uppercase mb-2 block">TRẢI NGHIỆM SỚM</span>
-              <h2 class="font-headline text-5xl font-black text-white uppercase tracking-tighter leading-none">CHUYẾN TÀU ĐỊNH MỆNH</h2>
+              <h2 class="font-headline text-5xl font-black text-white uppercase tracking-tighter leading-none">THẰN LẰN XANH</h2>
             </div>
             <p class="text-on-surface-variant text-lg leading-relaxed max-w-lg">
               Đừng bỏ lỡ cơ hội trở thành những khán giả đầu tiên tại Việt Nam được trải nghiệm siêu phẩm hành động kịch tính này trước ngày khởi chiếu chính thức.
