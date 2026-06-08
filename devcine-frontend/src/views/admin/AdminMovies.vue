@@ -1453,15 +1453,6 @@ onMounted(() => {
             </div>
             <div class="flex gap-4">
               <button
-                @click="
-                  openEditModal(selectedMovie);
-                  isDetailModalOpen = false;
-                "
-                class="px-8 py-3 bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-on-primary transition-all duration-500"
-              >
-                Chỉnh sửa
-              </button>
-              <button
                 @click="isDetailModalOpen = false"
                 class="w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
               >
