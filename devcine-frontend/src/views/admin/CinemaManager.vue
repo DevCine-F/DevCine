@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import axios from "axios";
 import SeatMapBuilder from "@/components/admin/SeatMapBuilder.vue";
 
@@ -27,6 +27,49 @@ const closeDrawer = () => {
 
 // Seat Map Modal State for Drawer
 const showSeatMapModal = ref(false);
+
+// Scheduling State
+const showCleaningSettingsModal = ref(false);
+const tempCleaningTime = ref(20);
+const draggedShow = ref(null);
+
+const onDragStart = (event, show) => {
+  draggedShow.value = show;
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+};
+
+const onDrop = (event, hallId) => {
+  if (!draggedShow.value) return;
+  const show = draggedShow.value;
+  
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const colWidth = rect.width / 64;
+  const colIndex = Math.floor(x / colWidth);
+  
+  const totalMinutes = colIndex * 15;
+  const newHour = Math.floor(totalMinutes / 60) + 8;
+  const newMinute = totalMinutes % 60;
+  const newStartTime = `${newHour.toString().padStart(2, '0')}:${newMinute.toString().padStart(2, '0')}`;
+  
+  const originalRoomId = show.roomId;
+  const originalStartTime = show.startTime;
+  
+  show.roomId = hallId;
+  show.startTime = newStartTime;
+  
+  if (checkConflict(hallId, show)) {
+    show.roomId = originalRoomId;
+    show.startTime = originalStartTime;
+    alert("Xung đột lịch chiếu hoặc đè lên thời gian dọn dẹp. Vui lòng chọn giờ/phòng khác!");
+  }
+  
+  draggedShow.value = null;
+};
+
+const handlePublish = () => {
+  alert("Lịch chiếu đã được xuất bản thành công!");
+};
 
 // Helper function for mocking sold tickets based on movie
 const getSoldTickets = (movieName) => {
@@ -111,6 +154,7 @@ const cinemas = ref([
     inventory: [
       { id: 1, name: "Bắp Rang Bơ (M)", category: "F&B", stock: "High", level: 85, trend: "up", minStock: 50, waste: 8 },
     ],
+    cleaningTime: 20,
     shows: [
       { id: 1, roomId: "H1", movie: "OPPENHEIMER", format: "IMAX 2D", startTime: "09:30", duration: 180, color: "#4A0E0E", status: "past", price: 150000 },
       { id: 2, roomId: "H2", movie: "DORAEMON", format: "2D Lồng tiếng", startTime: "13:00", duration: 90, color: "#0E3A2F", status: "ongoing", price: 95000 },
@@ -135,6 +179,7 @@ const cinemas = ref([
       { id: 4, name: "Hoàng Nam", role: "Manager", shift: "Evening", status: "On Duty" },
     ],
     inventory: [],
+    cleaningTime: 15,
     shows: [],
   },
 ]);
@@ -145,6 +190,7 @@ const fetchCinemas = async () => {
     if (res.data && res.data.length > 0) {
       cinemas.value = res.data.map((c, index) => ({
         ...c,
+        cleaningTime: 20,
         stats: {
           revenue: (Math.random() * 500 + 300).toFixed(0) + ".000.000đ",
           occupancy: (Math.random() * 20 + 70).toFixed(0) + "%",
@@ -170,11 +216,32 @@ const fetchCinemas = async () => {
   }
 };
 
+const currentMinuteOffset = ref(0);
+const currentTimeLeft = computed(() => {
+  const totalMinutes = 16 * 60; // 16 hours from 8:00 to 24:00
+  const offset = Math.max(0, Math.min(currentMinuteOffset.value, totalMinutes));
+  return `${(offset / totalMinutes) * 100}%`;
+});
+
+const updateCurrentTime = () => {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  currentMinuteOffset.value = (hour - 8) * 60 + minute;
+};
+
+let timeInterval;
 onMounted(() => {
   fetchCinemas();
   if (cinemas.value.length > 0) {
     selectedCinema.value = cinemas.value[0];
   }
+  updateCurrentTime();
+  timeInterval = setInterval(updateCurrentTime, 60000);
+});
+
+onUnmounted(() => {
+  if (timeInterval) clearInterval(timeInterval);
 });
 
 const getEndTime = (startTime, duration = 120) => {
@@ -193,14 +260,23 @@ const tempRows = ref(10);
 const tempCols = ref(16);
 
 // Schedule State
-const selectedDate = ref("20/10");
-const dates = [
-  { day: "Thứ 2", date: "19/10" },
-  { day: "Thứ 3", date: "20/10" },
-  { day: "Thứ 4", date: "21/10" },
-  { day: "Thứ 5", date: "22/10" },
-  { day: "Thứ 6", date: "23/10" },
-];
+const generateDates = () => {
+  const today = new Date();
+  return Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i - 1);
+    const dayNames = ['CN', '2', '3', '4', '5', '6', '7'];
+    return {
+      day: i === 1 ? 'Hôm nay' : `Thứ ${dayNames[d.getDay()]}`,
+      date: `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`,
+      isToday: i === 1
+    };
+  });
+};
+
+const dates = generateDates();
+const selectedDate = ref(dates[1].date);
+const isToday = computed(() => selectedDate.value === dates[1].date);
 
 const getGridStyle = (startTime, duration) => {
   const [hour, minute] = startTime.split(":").map(Number);
@@ -218,7 +294,7 @@ const checkConflict = (hallId, show) => {
   const hallShows = selectedCinema.value.shows.filter(
     (s) => s.roomId === hallId && s.id !== show.id,
   );
-  const CLEANING_TIME = 20; // minutes
+  const CLEANING_TIME = selectedCinema.value.cleaningTime || 20;
 
   const showStart = timeToMinutes(show.startTime);
   const showEnd = showStart + show.duration + CLEANING_TIME;
@@ -691,6 +767,12 @@ const tabs = [
 
               <div class="flex gap-4">
                 <button
+                  @click="showCleaningSettingsModal = true; tempCleaningTime = selectedCinema.cleaningTime || 20"
+                  class="bg-surface-container-highest text-on-surface px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-white/10 transition-all flex items-center gap-2"
+                >
+                  <span class="material-symbols-outlined text-sm">settings</span> Cài đặt dọn dẹp
+                </button>
+                <button
                   class="bg-surface-container-highest text-on-surface px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-white/10 transition-all flex items-center gap-2"
                 >
                   <span class="material-symbols-outlined text-sm">bolt</span> [Nút chờ]
@@ -700,6 +782,13 @@ const tabs = [
                 >
                   <span class="material-symbols-outlined text-sm">add</span>
                   Thêm suất chiếu
+                </button>
+                <button
+                  @click="handlePublish"
+                  class="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-500/20 hover:brightness-110 transition-all flex items-center gap-2"
+                >
+                  <span class="material-symbols-outlined text-sm">publish</span>
+                  Xuất bản
                 </button>
               </div>
             </header>
@@ -727,7 +816,7 @@ const tabs = [
                       <div
                         v-for="hour in 16"
                         :key="hour"
-                        class="col-span-4 border-r border-outline-variant/10 flex items-center justify-center text-[9px] font-black text-on-surface-variant/30"
+                        class="col-span-4 border-r border-outline-variant/10 flex items-center justify-start pl-2 text-[9px] font-black text-on-surface-variant/30"
                       >
                         {{ (hour + 7).toString().padStart(2, "0") }}:00
                       </div>
@@ -747,6 +836,17 @@ const tabs = [
                           : 'border-r border-outline-variant/5'
                       "
                       class="h-full"
+                    ></div>
+                  </div>
+                  
+                  <!-- Current Time Indicator -->
+                  <div
+                    v-if="isToday && currentMinuteOffset >= 0 && currentMinuteOffset <= 960"
+                    class="absolute top-10 bottom-0 left-48 right-0 pointer-events-none z-30"
+                  >
+                    <div
+                      class="absolute top-0 bottom-0 w-[1px] bg-primary/80"
+                      :style="{ left: currentTimeLeft }"
                     ></div>
                   </div>
 
@@ -785,6 +885,8 @@ const tabs = [
 
                       <!-- Showtime Container -->
                       <div
+                        @dragover.prevent
+                        @drop="onDrop($event, hall.id)"
                         class="flex-grow grid grid-cols-[repeat(64,minmax(0,1fr))] grid-rows-1 gap-x-0 relative p-0 items-center min-w-[2200px]"
                       >
                         <div
@@ -792,6 +894,8 @@ const tabs = [
                             (s) => s.roomId === hall.id,
                           )"
                           :key="show.id"
+                          draggable="true"
+                          @dragstart="onDragStart($event, show)"
                           :style="{
                             ...getGridStyle(show.startTime, show.duration),
                             backgroundColor: show.color + '33',
@@ -837,6 +941,13 @@ const tabs = [
                           <!-- Dynamic Glow -->
                           <div
                             class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none rounded-2xl"
+                          ></div>
+                          
+                          <!-- Cleaning Time Tail -->
+                          <div
+                            class="absolute top-0 bottom-0 left-[100%] bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(255,255,255,0.05)_4px,rgba(255,255,255,0.05)_8px)] border-y border-r border-white/5 rounded-r-lg pointer-events-none z-[-1]"
+                            :style="{ width: `${(selectedCinema.cleaningTime || 20) / show.duration * 100}%` }"
+                            title="Thời gian dọn dẹp"
                           ></div>
                         </div>
                       </div>
@@ -1545,6 +1656,26 @@ const tabs = [
       </div>
     </div>
     
+    <!-- Cleaning Settings Modal -->
+    <div v-if="showCleaningSettingsModal" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div class="bg-surface-container-low border border-outline-variant/10 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col slide-in-from-bottom-8">
+        <div class="px-6 py-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-high/30">
+          <h2 class="text-lg font-black uppercase tracking-widest text-primary flex items-center gap-2">
+            <span class="material-symbols-outlined">cleaning_services</span> Cài đặt dọn dẹp
+          </h2>
+        </div>
+        <div class="p-6 space-y-4">
+          <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Thời gian dọn dẹp (phút)</label>
+          <input v-model.number="tempCleaningTime" type="number" min="0" step="5" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 outline-none transition-all">
+          <p class="text-[9px] text-on-surface-variant italic">Áp dụng cho tất cả các phòng chiếu của cụm rạp {{ selectedCinema?.name }}.</p>
+        </div>
+        <div class="px-6 py-4 border-t border-outline-variant/10 bg-surface-container-high/10 flex justify-end gap-3">
+          <button @click="showCleaningSettingsModal = false" class="px-4 py-2 rounded-xl border border-white/10 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5">Hủy</button>
+          <button @click="selectedCinema.cleaningTime = tempCleaningTime; showCleaningSettingsModal = false" class="px-6 py-2 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:brightness-110 shadow-lg shadow-primary/20">Lưu</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Showtime Details Drawer -->
     <Transition name="fade">
       <div v-if="showDrawer" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" @click="closeDrawer"></div>

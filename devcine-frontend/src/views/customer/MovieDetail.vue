@@ -176,7 +176,7 @@ const uniqueDates = computed(() => {
           <div class="text-[15px] text-gray-300 space-y-1.5 mb-6 leading-relaxed">
             <p><span class="font-bold text-white">{{ movie.durationMins || 120 }} phút</span> &nbsp;|&nbsp; Đạo diễn: <span class="text-gray-400">{{ movie.director || 'Đang cập nhật' }}</span></p>
             <p>Diễn viên: <span class="text-gray-400">{{ movie.castMembers || 'Đang cập nhật' }}</span></p>
-            <p>Khởi chiếu: <span class="text-gray-400">{{ movie.releaseDate ? new Date(movie.releaseDate).toLocaleDateString('vi-VN') : 'Đang cập nhật' }}</span></p>
+            <p>Khởi chiếu: <span class="text-gray-400">{{ movie.startDate ? new Date(movie.startDate).toLocaleDateString('vi-VN') : 'Đang cập nhật' }}</span></p>
           </div>
           
           <p class="text-[15px] text-gray-300 leading-relaxed mb-6 line-clamp-4">

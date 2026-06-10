@@ -15,6 +15,7 @@ const filterCountry = ref("Tất cả quốc gia");
 const filterStatus = ref("Tất cả trạng thái");
 const filterRating = ref("Tất cả đánh giá");
 const filterAgeRating = ref("Tất cả độ tuổi");
+const filterGenre = ref("Tất cả phân loại");
 const genres = ref([]);
 const availableFormats = ref([]);
 const availableAgeRatings = ref([]);
@@ -171,6 +172,10 @@ const filteredMovies = computed(() => {
       filterAgeRating.value === "Tất cả độ tuổi" ||
       movie.ageRating === filterAgeRating.value;
 
+    const matchesGenre =
+      filterGenre.value === "Tất cả phân loại" ||
+      (movie.genres && movie.genres.some((g) => g.name === filterGenre.value));
+
     let matchesRating = true;
     if (filterRating.value === "4.5 - 5.0 sao")
       matchesRating = parseFloat(movie.rating) >= 4.5;
@@ -185,6 +190,7 @@ const filteredMovies = computed(() => {
       matchesCountry &&
       matchesStatus &&
       matchesAge &&
+      matchesGenre &&
       matchesRating
     );
   });
@@ -195,6 +201,7 @@ const clearFilters = () => {
   filterStatus.value = "Tất cả trạng thái";
   filterRating.value = "Tất cả đánh giá";
   filterAgeRating.value = "Tất cả độ tuổi";
+  filterGenre.value = "Tất cả phân loại";
   searchQuery.value = "";
 };
 
@@ -459,6 +466,7 @@ onMounted(() => {
               filterStatus !== 'Tất cả trạng thái' ||
               filterRating !== 'Tất cả đánh giá' ||
               filterAgeRating !== 'Tất cả độ tuổi' ||
+              filterGenre !== 'Tất cả phân loại' ||
               searchQuery
             "
             class="h-8 w-px bg-outline-variant/20 mx-2"
@@ -505,6 +513,19 @@ onMounted(() => {
             </div>
 
             <div
+              v-if="filterGenre !== 'Tất cả phân loại'"
+              class="px-3 py-1.5 bg-surface-container-highest/50 border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest text-on-surface flex items-center gap-3 rounded-sm group"
+            >
+              <span class="text-primary/60">Phân loại:</span>
+              {{ filterGenre }}
+              <span
+                @click="filterGenre = 'Tất cả phân loại'"
+                class="material-symbols-outlined text-[14px] cursor-pointer hover:text-red-500 transition-colors"
+                >close</span
+              >
+            </div>
+
+            <div
               v-if="filterRating !== 'Tất cả đánh giá'"
               class="px-3 py-1.5 bg-surface-container-highest/50 border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest text-on-surface flex items-center gap-3 rounded-sm group"
             >
@@ -542,7 +563,7 @@ onMounted(() => {
       <transition name="fade">
         <div
           v-if="isFilterOpen"
-          class="bg-surface-container-low border-x border-b border-outline-variant/10 p-10 grid grid-cols-1 md:grid-cols-5 gap-8 rounded-b-lg shadow-2xl relative z-20"
+          class="bg-surface-container-low border-x border-b border-outline-variant/10 p-10 grid grid-cols-1 md:grid-cols-6 gap-8 rounded-b-lg shadow-2xl relative z-20"
         >
           <div class="space-y-3">
             <label
@@ -603,6 +624,19 @@ onMounted(() => {
             >
               <option>Tất cả độ tuổi</option>
               <option v-for="rating in availableAgeRatings" :key="rating.code" :value="rating.code">{{ rating.code }}</option>
+            </select>
+          </div>
+          <div class="space-y-3">
+            <label
+              class="text-[9px] font-black uppercase tracking-[0.2em] text-white/30"
+              >Thể loại phim</label
+            >
+            <select
+              v-model="filterGenre"
+              class="w-full bg-surface-container-high border border-outline-variant/10 text-[11px] font-bold uppercase tracking-wider rounded-lg py-3 px-4 text-on-surface focus:border-primary transition-all outline-none appearance-none"
+            >
+              <option>Tất cả phân loại</option>
+              <option v-for="g in genres" :key="g.id" :value="g.name">{{ g.name }}</option>
             </select>
           </div>
           <div class="flex items-end">
@@ -1424,7 +1458,7 @@ onMounted(() => {
           <div
             class="px-16 py-10 flex justify-between items-center shrink-0 border-b border-white/5"
           >
-            <div class="flex items-center gap-8">
+            <div class="flex items-center gap-16">
               <div
                 v-for="(info, i) in [
                   {
@@ -1452,6 +1486,7 @@ onMounted(() => {
               </div>
             </div>
             <div class="flex gap-4">
+
               <button
                 @click="isDetailModalOpen = false"
                 class="w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"

@@ -99,12 +99,18 @@ onMounted(fetchData)
           Quản lý <span class="text-primary">Danh mục Phim</span>
         </h1>
         <p class="text-on-surface-variant text-xs mt-1 font-bold uppercase tracking-widest">
-          Khai báo Metadata, Định dạng & Kiểm duyệt
+          Thể loại, Định dạng & Kiểm duyệt
         </p>
       </div>
       <div class="flex gap-4">
         <AppButton variant="ghost" @click="seedData">Khởi tạo dữ liệu mẫu</AppButton>
-        <AppButton @click="openModal()">Thêm mới</AppButton>
+        <button
+          @click="openModal()"
+          class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
+        >
+          <span class="material-symbols-outlined text-sm">add</span>
+          Thêm mới
+        </button>
       </div>
     </header>
 
