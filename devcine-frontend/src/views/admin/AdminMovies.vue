@@ -300,32 +300,47 @@ const saveMovie = async () => {
     }
   }
 
-  try {
-    const payload = {
+  // Construct payload
+  const payload = {
       ...newMovie.value,
       durationMins: parseInt(newMovie.value.duration) || null,
       genres: selectedGenres.value,
-      format: selectedFormats.value.join(", "),
+      format: newMovie.value.format || selectedFormats.value.join(", ") || "2D",
       rating: newMovie.value.rating || "5.0",
       releaseDate:
         newMovie.value.releaseDate || new Date().toISOString().split("T")[0],
     };
 
+    // 1. OPTIMISTIC UI: Đóng modal ngay lập tức để người dùng không phải chờ
+    isAddModalOpen.value = false;
+
+    // 2. Cập nhật dữ liệu tạm thời trên giao diện (Cho trường hợp Edit)
     if (isEditing.value) {
-      await axios.put(
-        `${API_BASE_URL}/movies/${currentMovieId.value}`,
-        payload,
-      );
-    } else {
-      await axios.post(`${API_BASE_URL}/movies`, payload);
+      const index = movies.value.findIndex(m => m.id === currentMovieId.value);
+      if (index !== -1) {
+        movies.value[index] = { ...movies.value[index], ...payload };
+      }
     }
 
-    await fetchMovies();
-    isAddModalOpen.value = false;
-  } catch (error) {
-    console.error("Lỗi khi lưu phim:", error);
-    alert("Thao tác thất bại. Vui lòng kiểm tra lại kết nối!");
-  }
+    // 3. Tiến hành gọi API chạy ngầm phía sau
+    setTimeout(async () => {
+      try {
+        if (isEditing.value) {
+          await axios.put(
+            `${API_BASE_URL}/movies/${currentMovieId.value}`,
+            payload,
+          );
+        } else {
+          await axios.post(`${API_BASE_URL}/movies`, payload);
+        }
+
+        // Fetch lại toàn bộ danh sách ngầm để đảm bảo đồng bộ chuẩn với DB (VD lấy ID thật nếu là Add)
+        await fetchMovies();
+      } catch (error) {
+        console.error("Lỗi khi lưu phim ngầm:", error);
+        alert("Lưu dữ liệu thất bại. Vui lòng tải lại trang!");
+      }
+    }, 0);
 };
 
 const populateDemoData = async () => {

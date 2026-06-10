@@ -285,6 +285,7 @@ const getGridStyle = (startTime, duration) => {
   return {
     gridColumnStart: startUnit,
     gridColumnEnd: `span ${spanUnit}`,
+    gridRow: '1',
   };
 };
 
