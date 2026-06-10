@@ -1,4 +1,4 @@
-package com.devcine.backend.dto;
+package com.devcine.backend.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

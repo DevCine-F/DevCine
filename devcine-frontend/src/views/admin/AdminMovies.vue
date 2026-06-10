@@ -87,25 +87,46 @@ const triggerBannerInput = () => {
   bannerInput.value.click();
 };
 
-const onPosterChange = (e) => {
+const isUploadingPoster = ref(false);
+const isUploadingBanner = ref(false);
+
+const onPosterChange = async (e) => {
   const file = e.target.files[0];
   if (file) {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      newMovie.value.posterUrl = event.target.result;
-    };
-    reader.readAsDataURL(file);
+    isUploadingPoster.value = true;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      newMovie.value.posterUrl = response.data.url;
+    } catch (error) {
+      console.error("Lỗi upload ảnh:", error);
+      alert("Tải ảnh Poster lên Cloudinary thất bại!");
+    } finally {
+      isUploadingPoster.value = false;
+    }
   }
 };
 
-const onBannerChange = (e) => {
+const onBannerChange = async (e) => {
   const file = e.target.files[0];
   if (file) {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      newMovie.value.bannerUrl = event.target.result;
-    };
-    reader.readAsDataURL(file);
+    isUploadingBanner.value = true;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      newMovie.value.bannerUrl = response.data.url;
+    } catch (error) {
+      console.error("Lỗi upload ảnh:", error);
+      alert("Tải ảnh Banner lên Cloudinary thất bại!");
+    } finally {
+      isUploadingBanner.value = false;
+    }
   }
 };
 

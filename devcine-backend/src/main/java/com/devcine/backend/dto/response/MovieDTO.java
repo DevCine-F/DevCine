@@ -1,4 +1,4 @@
-package com.devcine.backend.dto;
+package com.devcine.backend.dto.response;
 
 import lombok.Data;
 import java.time.LocalDate;

@@ -1,4 +1,4 @@
-package com.devcine.backend.dto;
+package com.devcine.backend.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FnbSelectionDTO {
-    private Integer fnbItemId;
-    private Integer quantity;
+public class SystemSettingRequestDTO {
+    private String settingKey;
+    private String settingValue;
 }

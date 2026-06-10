@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
+import com.devcine.backend.dto.response.MovieSummaryDTO;
 @RestController
 @RequestMapping("/api/movies")
 @CrossOrigin("*") // Cho phép Frontend gọi API
@@ -17,7 +17,7 @@ public class MovieController {
     private MovieService movieService;
 
     @GetMapping
-    public List<Movie> getAllMovies() {
+    public List<MovieSummaryDTO> getAllMovies() {
         return movieService.getAllMovies();
     }
 

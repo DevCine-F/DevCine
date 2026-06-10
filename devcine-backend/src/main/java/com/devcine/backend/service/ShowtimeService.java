@@ -1,7 +1,7 @@
 package com.devcine.backend.service;
 
-import com.devcine.backend.dto.CinemaShowtimeDTO;
-import com.devcine.backend.dto.ShowtimeDTO;
+import com.devcine.backend.dto.response.CinemaShowtimeDTO;
+import com.devcine.backend.dto.response.ShowtimeDTO;
 import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.repository.CinemaRepository;
