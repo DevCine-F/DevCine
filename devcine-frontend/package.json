@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "cd ../devcine-backend && mvnw spring-boot:run",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -20,6 +22,7 @@
     "@tailwindcss/postcss": "^4.2.4",
     "@vitejs/plugin-vue": "^6.0.6",
     "autoprefixer": "^10.5.0",
+    "concurrently": "^10.0.3",
     "postcss": "^8.5.10",
     "tailwindcss": "^4.2.4",
     "vite": "^8.0.10"

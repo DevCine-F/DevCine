@@ -1,6 +1,6 @@
 package com.devcine.backend.controller;
 
-import com.devcine.backend.dto.CinemaShowtimeDTO;
+import com.devcine.backend.dto.response.CinemaShowtimeDTO;
 import com.devcine.backend.service.ShowtimeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

@@ -1,6 +1,6 @@
 package com.devcine.backend.controller;
 
-import com.devcine.backend.dto.SeatDTO;
+import com.devcine.backend.dto.response.SeatDTO;
 import com.devcine.backend.service.SeatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

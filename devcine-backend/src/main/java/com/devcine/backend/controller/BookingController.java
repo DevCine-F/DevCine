@@ -1,6 +1,6 @@
 package com.devcine.backend.controller;
 
-import com.devcine.backend.dto.BookingRequestDTO;
+import com.devcine.backend.dto.request.BookingRequestDTO;
 import com.devcine.backend.entity.Booking;
 import com.devcine.backend.service.BookingService;
 import lombok.RequiredArgsConstructor;

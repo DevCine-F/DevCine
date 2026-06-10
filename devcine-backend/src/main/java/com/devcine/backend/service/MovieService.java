@@ -6,19 +6,39 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-
+import java.util.stream.Collectors;
+import com.devcine.backend.dto.response.MovieSummaryDTO;
+import com.devcine.backend.dto.response.MovieSummaryDTO.CategorySummaryDTO;
 @Service
 public class MovieService {
 
     @Autowired
     private MovieRepository movieRepository;
 
-    public List<Movie> getAllMovies() {
-        return movieRepository.findAll();
+    public List<MovieSummaryDTO> getAllMovies() {
+        List<Movie> movies = movieRepository.findAllWithGenres();
+        return movies.stream().map(movie -> MovieSummaryDTO.builder()
+                .id(movie.getId())
+                .title(movie.getTitle())
+                .titleVietnamese(movie.getTitleVietnamese())
+                .durationMins(movie.getDurationMins())
+                .format(movie.getFormat())
+                .rating(movie.getRating())
+                .country(movie.getCountry())
+                .status(movie.getStatus())
+                .posterUrl(movie.getPosterUrl())
+                .genres(movie.getGenres() == null ? null : movie.getGenres().stream()
+                        .map(g -> CategorySummaryDTO.builder()
+                                .id(g.getId())
+                                .name(g.getName())
+                                .build())
+                        .collect(Collectors.toSet()))
+                .build()
+        ).collect(Collectors.toList());
     }
 
     public Movie getMovieById(Integer id) {
-        return movieRepository.findById(id).orElse(null);
+        return movieRepository.findByIdWithGenres(id).orElse(null);
     }
 
     public Movie createMovie(Movie movie) {

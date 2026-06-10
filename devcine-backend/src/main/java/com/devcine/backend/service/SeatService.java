@@ -1,6 +1,6 @@
 package com.devcine.backend.service;
 
-import com.devcine.backend.dto.SeatDTO;
+import com.devcine.backend.dto.response.SeatDTO;
 import com.devcine.backend.entity.BookingSeat;
 import com.devcine.backend.entity.Seat;
 import com.devcine.backend.repository.BookingSeatRepository;

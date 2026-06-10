@@ -1,4 +1,4 @@
-package com.devcine.backend.dto;
+package com.devcine.backend.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SystemSettingDTO {
+public class SystemSettingResponseDTO {
     private String settingKey;
     private String settingValue;
 }

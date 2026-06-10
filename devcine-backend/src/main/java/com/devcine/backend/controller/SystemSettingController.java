@@ -1,6 +1,7 @@
 package com.devcine.backend.controller;
 
-import com.devcine.backend.dto.SystemSettingDTO;
+import com.devcine.backend.dto.request.SystemSettingRequestDTO;
+import com.devcine.backend.dto.response.SystemSettingResponseDTO;
 import com.devcine.backend.service.SystemSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,13 +17,13 @@ public class SystemSettingController {
     private final SystemSettingService systemSettingService;
 
     @GetMapping
-    public ResponseEntity<List<SystemSettingDTO>> getAllSettings() {
+    public ResponseEntity<List<SystemSettingResponseDTO>> getAllSettings() {
         return ResponseEntity.ok(systemSettingService.getAllSettings());
     }
 
     @GetMapping("/{key}")
-    public ResponseEntity<SystemSettingDTO> getSettingByKey(@PathVariable String key) {
-        SystemSettingDTO dto = systemSettingService.getSettingByKey(key);
+    public ResponseEntity<SystemSettingResponseDTO> getSettingByKey(@PathVariable String key) {
+        SystemSettingResponseDTO dto = systemSettingService.getSettingByKey(key);
         if (dto == null) {
             return ResponseEntity.notFound().build();
         }
@@ -30,7 +31,7 @@ public class SystemSettingController {
     }
 
     @PostMapping
-    public ResponseEntity<SystemSettingDTO> saveOrUpdateSetting(@RequestBody SystemSettingDTO dto) {
+    public ResponseEntity<SystemSettingResponseDTO> saveOrUpdateSetting(@RequestBody SystemSettingRequestDTO dto) {
         return ResponseEntity.ok(systemSettingService.saveOrUpdateSetting(dto));
     }
 }

@@ -99,7 +99,7 @@ public class Movie {
     @Column(name = "rating_count")
     private Integer ratingCount;
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "movie_genre_mapping",
         joinColumns = @JoinColumn(name = "movie_id"),

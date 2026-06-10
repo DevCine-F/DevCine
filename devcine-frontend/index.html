@@ -8,9 +8,23 @@
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&family=Be+Vietnam+Pro:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet" />
   </head>
-  <body class="bg-surface text-on-surface">
+  <body class="bg-surface text-on-surface loading">
+    <!-- Global Pre-loader to prevent FOUT and improve UX -->
+    <div id="global-loader" style="position: fixed; inset: 0; z-index: 999999; display: flex; align-items: center; justify-content: center; background-color: #0a0a0a; transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s cubic-bezier(0.4, 0, 0.2, 1);">
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <img src="/src/assets/images/Logo_DevCine_Ngang_XoaNen.png" alt="DevCine Loading" style="height: 56px; animation: loaderPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; filter: drop-shadow(0 0 15px rgba(245, 197, 24, 0.3));" />
+      </div>
+      <style>
+        @keyframes loaderPulse {
+          0%, 100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 15px rgba(245, 197, 24, 0.4)); }
+          50% { opacity: 0.6; transform: scale(0.95); filter: drop-shadow(0 0 5px rgba(245, 197, 24, 0.1)); }
+        }
+        /* Lock scroll while loading */
+        body.loading { overflow: hidden; }
+      </style>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

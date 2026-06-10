@@ -1,7 +1,7 @@
 package com.devcine.backend.service;
 
-import com.devcine.backend.dto.BookingRequestDTO;
-import com.devcine.backend.dto.FnbSelectionDTO;
+import com.devcine.backend.dto.request.BookingRequestDTO;
+import com.devcine.backend.dto.request.FnbSelectionDTO;
 import com.devcine.backend.entity.*;
 import com.devcine.backend.repository.*;
 import lombok.RequiredArgsConstructor;

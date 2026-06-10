@@ -1,6 +1,7 @@
 package com.devcine.backend.service;
 
-import com.devcine.backend.dto.SystemSettingDTO;
+import com.devcine.backend.dto.request.SystemSettingRequestDTO;
+import com.devcine.backend.dto.response.SystemSettingResponseDTO;
 import com.devcine.backend.entity.SystemSetting;
 import com.devcine.backend.repository.SystemSettingRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,19 +16,19 @@ public class SystemSettingService {
 
     private final SystemSettingRepository systemSettingRepository;
 
-    public List<SystemSettingDTO> getAllSettings() {
+    public List<SystemSettingResponseDTO> getAllSettings() {
         return systemSettingRepository.findAll().stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
-    public SystemSettingDTO getSettingByKey(String key) {
+    public SystemSettingResponseDTO getSettingByKey(String key) {
         return systemSettingRepository.findById(key)
                 .map(this::mapToDTO)
                 .orElse(null);
     }
 
-    public SystemSettingDTO saveOrUpdateSetting(SystemSettingDTO dto) {
+    public SystemSettingResponseDTO saveOrUpdateSetting(SystemSettingRequestDTO dto) {
         SystemSetting setting = systemSettingRepository.findById(dto.getSettingKey())
                 .orElse(SystemSetting.builder().settingKey(dto.getSettingKey()).build());
         setting.setSettingValue(dto.getSettingValue());
@@ -36,8 +37,8 @@ public class SystemSettingService {
         return mapToDTO(saved);
     }
 
-    private SystemSettingDTO mapToDTO(SystemSetting setting) {
-        return SystemSettingDTO.builder()
+    private SystemSettingResponseDTO mapToDTO(SystemSetting setting) {
+        return SystemSettingResponseDTO.builder()
                 .settingKey(setting.getSettingKey())
                 .settingValue(setting.getSettingValue())
                 .build();
