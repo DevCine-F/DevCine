@@ -246,10 +246,18 @@ const fetchMovies = async () => {
   }
 };
 
-const openDetailModal = (movie) => {
-  selectedMovie.value = movie;
-  isDescriptionExpanded.value = false;
-  isDetailModalOpen.value = true;
+const openDetailModal = async (movieSummary) => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/movies/${movieSummary.id}`);
+    selectedMovie.value = res.data;
+    selectedMovie.value.genreDisplay = movieSummary.genreDisplay;
+    selectedMovie.value.duration = res.data.durationMins ? res.data.durationMins + " Phút" : "N/A";
+    isDescriptionExpanded.value = false;
+    isDetailModalOpen.value = true;
+  } catch (error) {
+    console.error("Lỗi khi lấy chi tiết phim:", error);
+    alert("Không thể tải thông tin chi tiết phim!");
+  }
 };
 
 const openAddModal = () => {
@@ -289,13 +297,20 @@ const openAddModal = () => {
   isAddModalOpen.value = true;
 };
 
-const openEditModal = (movie) => {
-  isEditing.value = true;
-  currentMovieId.value = movie.id;
-  selectedGenres.value = movie.genres ? [...movie.genres] : [];
-  selectedFormats.value = movie.format ? movie.format.split(", ") : [];
-  newMovie.value = { ...movie };
-  isAddModalOpen.value = true;
+const openEditModal = async (movieSummary) => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/movies/${movieSummary.id}`);
+    const movie = res.data;
+    isEditing.value = true;
+    currentMovieId.value = movie.id;
+    selectedGenres.value = movie.genres ? [...movie.genres] : [];
+    selectedFormats.value = movie.supportedFormats ? movie.supportedFormats.split(", ") : [];
+    newMovie.value = { ...movie, duration: movie.durationMins ? movie.durationMins.toString() : "" };
+    isAddModalOpen.value = true;
+  } catch (error) {
+    console.error("Lỗi khi lấy chi tiết phim:", error);
+    alert("Không thể tải thông tin chi tiết phim!");
+  }
 };
 
 const deleteMovie = async (id) => {
@@ -326,7 +341,8 @@ const saveMovie = async () => {
       ...newMovie.value,
       durationMins: parseInt(newMovie.value.duration) || null,
       genres: selectedGenres.value,
-      format: newMovie.value.format || selectedFormats.value.join(", ") || "2D",
+      format: newMovie.value.format || "2D",
+      supportedFormats: selectedFormats.value.join(", "),
       rating: newMovie.value.rating || "5.0",
       releaseDate:
         newMovie.value.releaseDate || new Date().toISOString().split("T")[0],
@@ -1688,9 +1704,15 @@ onMounted(() => {
                     </div>
                   </div>
                   <div>
-                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Định dạng chiếu</p>
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Định dạng chiếu chính</p>
                     <div class="flex flex-wrap gap-2">
-                      <span v-for="f in selectedMovie.format?.split(', ')" :key="f" class="px-3 py-1.5 bg-white border border-white text-[9px] font-black text-black uppercase tracking-widest rounded-lg shadow-[0_0_15px_rgba(255,255,255,0.2)]">{{ f }}</span>
+                      <span v-for="f in selectedMovie.format?.split(', ')" :key="f" class="px-3 py-1.5 bg-primary/10 border border-primary text-[9px] font-black text-primary uppercase tracking-widest rounded-lg shadow-[0_0_15px_rgba(245,197,24,0.2)]">{{ f }}</span>
+                    </div>
+                  </div>
+                  <div v-if="selectedMovie.supportedFormats">
+                    <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mt-6 mb-4">Định dạng hỗ trợ</p>
+                    <div class="flex flex-wrap gap-2">
+                      <span v-for="f in selectedMovie.supportedFormats?.split(', ')" :key="f" class="px-3 py-1.5 bg-white border border-white text-[9px] font-black text-black uppercase tracking-widest rounded-lg shadow-[0_0_15px_rgba(255,255,255,0.2)]">{{ f }}</span>
                     </div>
                   </div>
                 </section>

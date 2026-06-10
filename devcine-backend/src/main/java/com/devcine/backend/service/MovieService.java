@@ -23,6 +23,7 @@ public class MovieService {
                 .titleVietnamese(movie.getTitleVietnamese())
                 .durationMins(movie.getDurationMins())
                 .format(movie.getFormat())
+                .supportedFormats(movie.getSupportedFormats())
                 .rating(movie.getRating())
                 .country(movie.getCountry())
                 .status(movie.getStatus())
@@ -62,6 +63,7 @@ public class MovieService {
             existingMovie.setShowOnBanner(movieDetails.getShowOnBanner());
             existingMovie.setTrailerUrl(movieDetails.getTrailerUrl());
             existingMovie.setFormat(movieDetails.getFormat());
+            existingMovie.setSupportedFormats(movieDetails.getSupportedFormats());
             existingMovie.setTitleVietnamese(movieDetails.getTitleVietnamese());
             existingMovie.setProductionYear(movieDetails.getProductionYear());
             existingMovie.setLanguage(movieDetails.getLanguage());

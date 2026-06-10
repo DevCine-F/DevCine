@@ -20,6 +20,7 @@ public class MovieDTO {
     private Boolean showOnBanner;
     private String trailerUrl;
     private String format;
+    private String supportedFormats;
     private String titleVietnamese;
     private Integer productionYear;
     private String language;

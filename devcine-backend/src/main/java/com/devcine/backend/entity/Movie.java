@@ -60,6 +60,9 @@ public class Movie {
     @Column(length = 255)
     private String format;
 
+    @Column(name = "supported_formats", length = 255)
+    private String supportedFormats;
+
     @Column(name = "title_vietnamese")
     private String titleVietnamese;
 

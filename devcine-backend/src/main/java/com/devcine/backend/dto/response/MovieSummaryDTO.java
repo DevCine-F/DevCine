@@ -12,6 +12,7 @@ public class MovieSummaryDTO {
     private String titleVietnamese;
     private Integer durationMins;
     private String format;
+    private String supportedFormats;
     private String rating;
     private String country;
     private String status;
