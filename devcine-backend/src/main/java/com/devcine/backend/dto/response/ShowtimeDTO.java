@@ -20,4 +20,6 @@ public class ShowtimeDTO {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String status;
+    private String movie;
+    private Integer duration;
 }

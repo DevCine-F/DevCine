@@ -21,4 +21,15 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "WHERE s.movie.id = :movieId AND c.city = :city AND s.startTime >= :now " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimesByMovieIdAndCity(@Param("movieId") Integer movieId, @Param("city") String city, @Param("now") LocalDateTime now);
+
+    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH s.movie m JOIN FETCH s.format f " +
+           "WHERE r.cinema.id = :cinemaId " +
+           "ORDER BY s.startTime ASC")
+    List<Showtime> findByCinemaId(@Param("cinemaId") Integer cinemaId);
+
+    @Query("SELECT COUNT(s) > 0 FROM Showtime s WHERE s.room.id = :roomId " +
+           "AND s.startTime < :endTime AND s.endTime > :startTime")
+    boolean hasConflict(@Param("roomId") Integer roomId, 
+                        @Param("startTime") LocalDateTime startTime, 
+                        @Param("endTime") LocalDateTime endTime);
 }

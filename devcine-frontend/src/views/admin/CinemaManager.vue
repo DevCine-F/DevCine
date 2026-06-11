@@ -2,8 +2,9 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import axios from "axios";
 import SeatMapBuilder from "@/components/admin/SeatMapBuilder.vue";
+import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
 
-const API_BASE_URL = "http://localhost:8080/api/cinemas";
+const API_BASE_URL = "http://localhost:8080/api/v1/cinemas";
 
 const selectedCinema = ref(null);
 const activeTab = ref("infrastructure");
@@ -12,6 +13,9 @@ const viewingHall = ref(null);
 // Drawer state
 const selectedShowtime = ref(null);
 const showDrawer = ref(false);
+
+// Add Showtime Drawer State
+const showAddShowtimeDrawer = ref(false);
 
 const openShowtimeDetails = (show) => {
   selectedShowtime.value = show;
@@ -87,129 +91,137 @@ const newCinema = reactive({
   rooms: 1
 });
 
-const handleCreateCinema = () => {
-  if (!newCinema.name || !newCinema.address || !newCinema.hotline) {
+const handleCreateCinema = async () => {
+  if (!newCinema.name || !newCinema.address || !newCinema.rooms) {
     alert("Vui lòng điền đầy đủ các thông tin bắt buộc!");
     return;
   }
   
-  const id = cinemas.value.length + 1;
-  cinemas.value.push({
-    id: id,
-    name: newCinema.name,
-    address: newCinema.address,
-    rooms: newCinema.rooms,
-    type: newCinema.type,
-    hotline: newCinema.hotline,
-    stats: {
-      revenue: "0đ",
-      occupancy: "0%",
-      growth: "+0%",
-    },
-    halls: Array.from({ length: newCinema.rooms }, (_, i) => ({
-      id: `New_H${i+1}`,
-      name: `Phòng ${i+1}`,
-      type: "2D Standard",
-      rows: 10,
-      cols: 12,
-      status: "Active"
-    })),
-    staff: [],
-    inventory: [],
-    shows: []
-  });
-  
-  // Reset form
-  newCinema.name = '';
-  newCinema.address = '';
-  newCinema.hotline = '';
-  newCinema.type = 'Standard';
-  newCinema.rooms = 1;
-  showCreateModal.value = false;
+  try {
+    const res = await axios.post(API_BASE_URL, {
+      name: newCinema.name,
+      address: newCinema.address,
+      type: newCinema.type,
+      hotline: newCinema.hotline,
+      rooms: newCinema.rooms,
+      city: "Hồ Chí Minh" // Default for now
+    });
+    
+    // Add missing mock properties for UI since BE doesn't have them yet
+    const savedCinema = {
+      ...res.data,
+      stats: {
+        revenue: "0đ",
+        occupancy: "0%",
+        growth: "+0%",
+      },
+      halls: Array.from({ length: newCinema.rooms }, (_, i) => ({
+        id: `New_H${i+1}`,
+        name: `Phòng ${i+1}`,
+        type: "2D Standard",
+        rows: 10,
+        cols: 12,
+        status: "Active"
+      })),
+      staff: [],
+      inventory: [],
+      shows: []
+    };
+
+    cinemas.value.push(savedCinema);
+    
+    // Reset form
+    newCinema.name = '';
+    newCinema.address = '';
+    newCinema.hotline = '';
+    newCinema.type = 'Standard';
+    newCinema.rooms = 1;
+    showCreateModal.value = false;
+  } catch (error) {
+    console.error("Error creating cinema:", error);
+    alert("Lỗi khi thêm cụm rạp mới!");
+  }
 };
 
-const cinemas = ref([
-  {
-    id: 1,
-    name: "DevCine Landmark 81",
-    address: "Tầng B1, Vincom Landmark 81, Bình Thạnh, TP.HCM",
-    rooms: 8,
-    type: "Premium/IMAX",
-    hotline: "1900 1234",
-    stats: {
-      revenue: "850.000.000đ",
-      occupancy: "82%",
-      growth: "+12.5%",
-    },
-    halls: [
-      { id: "H1", name: "Phòng 01", type: "IMAX Laser", rows: 12, cols: 16, status: "Active" },
-      { id: "H2", name: "Phòng 02", type: "Gold Class", rows: 6, cols: 8, status: "Active" },
-      { id: "H3", name: "Phòng 03", type: "2D/3D Standard", rows: 10, cols: 14, status: "Maintenance" },
-      { id: "H4", name: "Phòng 04", type: "Dolby Atmos", rows: 10, cols: 12, status: "Active" },
-    ],
-    staff: [
-      { id: 1, name: "Quỳnh Anh", role: "Box Office", shift: "Morning", status: "On Duty", sales: 124 },
-      { id: 2, name: "Minh Khôi", role: "F&B", shift: "Afternoon", status: "On Duty", sales: 45 },
-    ],
-    inventory: [
-      { id: 1, name: "Bắp Rang Bơ (M)", category: "F&B", stock: "High", level: 85, trend: "up", minStock: 50, waste: 8 },
-    ],
-    cleaningTime: 20,
-    shows: [
-      { id: 1, roomId: "H1", movie: "OPPENHEIMER", format: "IMAX 2D", startTime: "09:30", duration: 180, color: "#4A0E0E", status: "past", price: 150000 },
-      { id: 2, roomId: "H2", movie: "DORAEMON", format: "2D Lồng tiếng", startTime: "13:00", duration: 90, color: "#0E3A2F", status: "ongoing", price: 95000 },
-    ],
-  },
-  {
-    id: 2,
-    name: "DevCine Bitexco",
-    address: "Tầng 3, Bitexco Financial Tower, Quận 1, TP.HCM",
-    rooms: 5,
-    type: "Standard/Sweetbox",
-    hotline: "1900 5678",
-    stats: {
-      revenue: "420.000.000đ",
-      occupancy: "65%",
-      growth: "+5.2%",
-    },
-    halls: [
-      { id: "B1", name: "Phòng Cinema 01", type: "2D Standard", rows: 8, cols: 12, status: "Active" },
-    ],
-    staff: [
-      { id: 4, name: "Hoàng Nam", role: "Manager", shift: "Evening", status: "On Duty" },
-    ],
-    inventory: [],
-    cleaningTime: 15,
-    shows: [],
-  },
-]);
+const cinemas = ref([]);
+
 
 const fetchCinemas = async () => {
   try {
     const res = await axios.get(API_BASE_URL);
     if (res.data && res.data.length > 0) {
-      cinemas.value = res.data.map((c, index) => ({
-        ...c,
-        cleaningTime: 20,
-        stats: {
-          revenue: (Math.random() * 500 + 300).toFixed(0) + ".000.000đ",
-          occupancy: (Math.random() * 20 + 70).toFixed(0) + "%",
-          growth: "+" + (Math.random() * 15).toFixed(1) + "%",
-        },
-        halls: index === 0 ? [
-          { id: "H1", name: "Phòng 01", type: "IMAX Laser", rows: 12, cols: 16, status: "Active" },
-          { id: "H2", name: "Phòng 02", type: "Gold Class", rows: 6, cols: 8, status: "Active" }
-        ] : [
-          { id: "B1", name: "Phòng Cinema 01", type: "2D Standard", rows: 8, cols: 12, status: "Active" }
-        ],
-        staff: [
-          { id: index + 10, name: "Nhân viên " + (index + 1), role: "Box Office", shift: "Morning", status: "On Duty", sales: 124 }
-        ],
-        inventory: [
-          { id: index + 100, name: "Bắp Rang Bơ (M)", category: "F&B", stock: "High", level: 85, trend: "up" }
-        ],
-        shows: []
+      const cinemaList = res.data;
+      const enrichedCinemas = await Promise.all(cinemaList.map(async (c) => {
+        // Fetch rooms for this cinema
+        let halls = [];
+        try {
+            const roomsRes = await axios.get(`http://localhost:8080/api/rooms/cinema/${c.id}`);
+            halls = roomsRes.data.map(r => ({
+                id: r.id,
+                name: r.name,
+                type: r.type,
+                rows: 10, // Mocked for now since DB doesn't have rows/cols
+                cols: 16,
+                status: r.status
+            }));
+        } catch(e) { console.error(e); }
+        
+        // Fetch shows for this cinema
+        let shows = [];
+        try {
+            const showsRes = await axios.get(`http://localhost:8080/api/showtimes/cinema/${c.id}`);
+            shows = showsRes.data.map(s => {
+                let st = s.startTime;
+                let startTimeStr = "00:00";
+                let dateStr = "";
+                if (Array.isArray(st)) {
+                    // [year, month, day, hour, minute]
+                    startTimeStr = `${st[3].toString().padStart(2, '0')}:${st[4].toString().padStart(2, '0')}`;
+                    dateStr = `${st[2].toString().padStart(2, '0')}/${st[1].toString().padStart(2, '0')}`;
+                } else if (typeof st === 'string') {
+                    // "2026-06-11T13:00:00" -> "13:00"
+                    startTimeStr = st.substring(11, 16);
+                    const parts = st.split('T')[0].split('-');
+                    dateStr = `${parts[2]}/${parts[1]}`;
+                }
+
+                return {
+                    id: s.id,
+                    roomId: s.roomId,
+                    movie: s.movie,
+                    format: s.formatName,
+                    startTime: startTimeStr,
+                    date: dateStr,
+                    duration: s.duration || 120,
+                    status: s.status,
+                    price: 120000, // Default mock price
+                    color: "#f5c518" // Default mock color (yellow)
+                };
+            });
+        } catch(e) { console.error(e); }
+
+        return {
+          ...c,
+          cleaningTime: 15,
+          stats: {
+            revenue: (Math.random() * 500 + 300).toFixed(0) + ".000.000đ",
+            occupancy: (Math.random() * 20 + 70).toFixed(0) + "%",
+            growth: "+" + (Math.random() * 15).toFixed(1) + "%",
+          },
+          halls: halls,
+          shows: shows,
+          staff: [],
+          inventory: []
+        };
       }));
+      cinemas.value = enrichedCinemas;
+      
+      // If a cinema is currently selected, update it
+      if (selectedCinema.value) {
+          selectedCinema.value = enrichedCinemas.find(c => c.id === selectedCinema.value.id) || enrichedCinemas[0];
+      } else {
+          selectedCinema.value = enrichedCinemas[0];
+      }
     }
   } catch (error) {
     console.error("Error fetching cinemas:", error);
@@ -231,8 +243,8 @@ const updateCurrentTime = () => {
 };
 
 let timeInterval;
-onMounted(() => {
-  fetchCinemas();
+onMounted(async () => {
+  await fetchCinemas();
   if (cinemas.value.length > 0) {
     selectedCinema.value = cinemas.value[0];
   }
@@ -779,6 +791,7 @@ const tabs = [
                   <span class="material-symbols-outlined text-sm">bolt</span> [Nút chờ]
                 </button>
                 <button
+                  @click="showAddShowtimeDrawer = true"
                   class="bg-primary text-on-primary px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:brightness-110 transition-all flex items-center gap-2"
                 >
                   <span class="material-symbols-outlined text-sm">add</span>
@@ -892,7 +905,7 @@ const tabs = [
                       >
                         <div
                           v-for="show in selectedCinema.shows.filter(
-                            (s) => s.roomId === hall.id,
+                            (s) => s.roomId === hall.id && s.date === selectedDate
                           )"
                           :key="show.id"
                           draggable="true"
@@ -1884,6 +1897,14 @@ const tabs = [
         </div>
       </div>
     </Transition>
+
+    <!-- Add Showtime Drawer -->
+    <ShowtimeDrawer 
+      :is-open="showAddShowtimeDrawer" 
+      :cinema-id="selectedCinema?.id" 
+      @close="showAddShowtimeDrawer = false" 
+      @saved="fetchCinemas" 
+    />
 </template>
 
 <style scoped>
