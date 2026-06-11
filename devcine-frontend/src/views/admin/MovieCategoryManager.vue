@@ -70,23 +70,6 @@ const deleteItem = async (id) => {
   }
 }
 
-// Seed initial data if empty
-const seedData = async () => {
-  const demoGenres = ['Hành động', 'Viễn tưởng', 'Kịch tính', 'Hoạt hình', 'Kinh dị']
-  const demoFormats = ['2D', '3D', 'IMAX', '4DX']
-  const demoRatings = [
-    { code: 'P', name: 'Mọi đối tượng' },
-    { code: 'T13', name: 'Trên 13 tuổi' },
-    { code: 'T16', name: 'Trên 16 tuổi' },
-    { code: 'T18', name: 'Trên 18 tuổi' }
-  ]
-
-  for (const name of demoGenres) await axios.post(`${API_BASE_URL}/genres`, { name })
-  for (const name of demoFormats) await axios.post(`${API_BASE_URL}/formats`, { name })
-  for (const r of demoRatings) await axios.post(`${API_BASE_URL}/age-ratings`, r)
-  
-  await fetchData()
-}
 
 onMounted(fetchData)
 </script>
@@ -103,7 +86,6 @@ onMounted(fetchData)
         </p>
       </div>
       <div class="flex gap-4">
-        <AppButton variant="ghost" @click="seedData">Khởi tạo dữ liệu mẫu</AppButton>
         <button
           @click="openModal()"
           class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"

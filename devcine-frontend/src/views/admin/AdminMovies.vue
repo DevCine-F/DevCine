@@ -16,6 +16,7 @@ const filterStatus = ref("Tất cả trạng thái");
 const filterRating = ref("Tất cả đánh giá");
 const filterAgeRating = ref("Tất cả độ tuổi");
 const filterGenre = ref("Tất cả phân loại");
+const filterFormat = ref("Tất cả định dạng");
 const genres = ref([]);
 const availableFormats = ref([]);
 const availableAgeRatings = ref([]);
@@ -143,6 +144,14 @@ const toggleFormat = (format) => {
 };
 
 const isEditing = ref(false);
+
+const optimizeCloudinaryUrl = (url) => {
+  if (!url) return '';
+  if (url.includes('cloudinary.com') && url.includes('/upload/') && !url.includes('f_auto')) {
+    return url.replace('/upload/', '/upload/f_auto,q_auto/');
+  }
+  return url;
+};
 const currentMovieId = ref(null);
 
 const newMovie = ref({
@@ -197,6 +206,11 @@ const filteredMovies = computed(() => {
       filterGenre.value === "Tất cả phân loại" ||
       (movie.genres && movie.genres.some((g) => g.name === filterGenre.value));
 
+    const matchesFormat =
+      filterFormat.value === "Tất cả định dạng" ||
+      (movie.format && movie.format === filterFormat.value) ||
+      (movie.supportedFormats && movie.supportedFormats.split(", ").includes(filterFormat.value));
+
     let matchesRating = true;
     if (filterRating.value === "4.5 - 5.0 sao")
       matchesRating = parseFloat(movie.rating) >= 4.5;
@@ -212,6 +226,7 @@ const filteredMovies = computed(() => {
       matchesStatus &&
       matchesAge &&
       matchesGenre &&
+      matchesFormat &&
       matchesRating
     );
   });
@@ -223,6 +238,7 @@ const clearFilters = () => {
   filterRating.value = "Tất cả đánh giá";
   filterAgeRating.value = "Tất cả độ tuổi";
   filterGenre.value = "Tất cả phân loại";
+  filterFormat.value = "Tất cả định dạng";
   searchQuery.value = "";
 };
 
@@ -519,6 +535,7 @@ onMounted(() => {
               filterRating !== 'Tất cả đánh giá' ||
               filterAgeRating !== 'Tất cả độ tuổi' ||
               filterGenre !== 'Tất cả phân loại' ||
+              filterFormat !== 'Tất cả định dạng' ||
               searchQuery
             "
             class="h-8 w-px bg-outline-variant/20 mx-2"
@@ -578,6 +595,19 @@ onMounted(() => {
             </div>
 
             <div
+              v-if="filterFormat !== 'Tất cả định dạng'"
+              class="px-3 py-1.5 bg-surface-container-highest/50 border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest text-on-surface flex items-center gap-3 rounded-sm group"
+            >
+              <span class="text-primary/60">Định dạng:</span>
+              {{ filterFormat }}
+              <span
+                @click="filterFormat = 'Tất cả định dạng'"
+                class="material-symbols-outlined text-[14px] cursor-pointer hover:text-red-500 transition-colors"
+                >close</span
+              >
+            </div>
+
+            <div
               v-if="filterRating !== 'Tất cả đánh giá'"
               class="px-3 py-1.5 bg-surface-container-highest/50 border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest text-on-surface flex items-center gap-3 rounded-sm group"
             >
@@ -615,7 +645,7 @@ onMounted(() => {
       <transition name="fade">
         <div
           v-if="isFilterOpen"
-          class="bg-surface-container-low border-x border-b border-outline-variant/10 p-10 grid grid-cols-1 md:grid-cols-6 gap-8 rounded-b-lg shadow-2xl relative z-20"
+          class="bg-surface-container-low border-x border-b border-outline-variant/10 p-10 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-8 rounded-b-lg shadow-2xl relative z-20"
         >
           <div class="space-y-3">
             <label
@@ -691,6 +721,19 @@ onMounted(() => {
               <option v-for="g in genres" :key="g.id" :value="g.name">{{ g.name }}</option>
             </select>
           </div>
+          <div class="space-y-3">
+            <label
+              class="text-[9px] font-black uppercase tracking-[0.2em] text-white/30"
+              >Định dạng chiếu</label
+            >
+            <select
+              v-model="filterFormat"
+              class="w-full bg-surface-container-high border border-outline-variant/10 text-[11px] font-bold uppercase tracking-wider rounded-lg py-3 px-4 text-on-surface focus:border-primary transition-all outline-none appearance-none"
+            >
+              <option>Tất cả định dạng</option>
+              <option v-for="f in availableFormats" :key="f.name || f" :value="f.name || f">{{ f.name || f }}</option>
+            </select>
+          </div>
           <div class="flex items-end">
             <button
               @click="clearFilters"
@@ -713,6 +756,7 @@ onMounted(() => {
           <tr
             class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant border-b border-outline-variant/10 bg-surface-container-high/30"
           >
+            <th class="px-8 py-6 w-24">ID</th>
             <th class="px-8 py-6">Bộ phim</th>
             <th class="px-8 py-6">Phân loại</th>
             <th class="px-8 py-6">Đánh giá</th>
@@ -728,15 +772,23 @@ onMounted(() => {
             @click="openDetailModal(movie)"
             class="group hover:bg-white/5 transition-all text-on-surface cursor-pointer"
           >
+            <td class="px-8 py-5 text-[11px] font-black text-white/40 tracking-widest">#{{ movie.id }}</td>
             <td class="px-8 py-5">
               <div class="flex items-center gap-6">
                 <div
                   class="w-14 h-20 bg-surface-container-highest overflow-hidden rounded-sm relative border border-outline-variant/10"
                 >
                   <img
-                    :src="movie.posterUrl || '/images/Hopper.webp'"
+                    v-if="movie.posterUrl"
+                    :src="optimizeCloudinaryUrl(movie.posterUrl)"
                     class="w-full h-full object-cover transition-all duration-700"
                   />
+                  <div
+                    v-else
+                    class="w-full h-full flex items-center justify-center bg-surface-container-highest text-on-surface-variant/30"
+                  >
+                    <span class="material-symbols-outlined text-2xl">image</span>
+                  </div>
                   <div
                     class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
                   ></div>
@@ -1266,7 +1318,7 @@ onMounted(() => {
                 >
                   <img
                     v-if="newMovie.bannerUrl"
-                    :src="newMovie.bannerUrl"
+                    :src="optimizeCloudinaryUrl(newMovie.bannerUrl)"
                     class="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-20 transition-opacity"
                   />
                   <span
@@ -1331,7 +1383,7 @@ onMounted(() => {
             >
               <img
                 v-if="newMovie.posterUrl"
-                :src="newMovie.posterUrl"
+                :src="optimizeCloudinaryUrl(newMovie.posterUrl)"
                 class="w-full h-full object-cover transition-transform group-hover:scale-105"
                 @error="newMovie.posterUrl = ''"
               />
@@ -1423,9 +1475,10 @@ onMounted(() => {
         <div
           class="w-full md:w-[480px] h-full relative shrink-0 overflow-hidden"
         >
-          <div class="absolute inset-0 z-0">
+          <div class="absolute inset-0 z-0 bg-surface-container-highest">
             <img
-              :src="selectedMovie.posterUrl || '/images/Hopper.webp'"
+              v-if="selectedMovie.posterUrl"
+              :src="optimizeCloudinaryUrl(selectedMovie.posterUrl)"
               class="w-full h-full object-cover scale-110 blur-2xl opacity-30"
             />
           </div>
@@ -1436,9 +1489,17 @@ onMounted(() => {
               class="aspect-[2/3] w-full rounded-[32px] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border border-white/10 group cursor-pointer relative"
             >
               <img
-                :src="selectedMovie.posterUrl || '/images/Hopper.webp'"
+                v-if="selectedMovie.posterUrl"
+                :src="optimizeCloudinaryUrl(selectedMovie.posterUrl)"
                 class="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
               />
+              <div
+                v-else
+                class="w-full h-full flex flex-col items-center justify-center bg-surface-container-highest text-on-surface-variant/40"
+              >
+                <span class="material-symbols-outlined text-5xl">movie</span>
+                <span class="text-[10px] font-bold tracking-widest mt-4 uppercase">Chưa có ảnh bìa</span>
+              </div>
               <div
                 class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center"
               >
