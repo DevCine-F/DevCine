@@ -17,15 +17,14 @@ const formatDateForUI = (dateString) => {
   const d = new Date(dateString)
   if (isNaN(d.getTime())) {
     // fallback if dateString is not parseable
-    return { month: 'Th. 01', day: '01', weekday: 'Thứ hai' }
+    return { weekday: 'Thứ Hai', dateStr: '01/01' }
   }
-  const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy']
+  const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
   const month = (d.getMonth() + 1).toString().padStart(2, '0')
   const day = d.getDate().toString().padStart(2, '0')
   return {
-    month: `Th. ${month}`,
-    day: day,
-    weekday: days[d.getDay()]
+    weekday: days[d.getDay()],
+    dateStr: `${day}/${month}`
   }
 }
 
@@ -85,6 +84,19 @@ const uniqueDates = computed(() => {
   })
   return Array.from(dates).sort()
 })
+
+const groupShowtimesByFormat = (showtimes) => {
+  if (!showtimes) return {}
+  const groups = {}
+  showtimes.forEach(st => {
+    const format = st.formatName || '2D Phụ Đề'
+    if (!groups[format]) {
+      groups[format] = []
+    }
+    groups[format].push(st)
+  })
+  return groups
+}
 </script>
 
 <template>
@@ -201,61 +213,69 @@ const uniqueDates = computed(() => {
     </section>
 
     <!-- Date & Showtimes Section -->
-    <section class="bg-[#1a1a1a] min-h-[400px]">
-      <!-- Date Picker Bar -->
-      <div class="bg-[#111] border-y border-white/5">
-        <div class="max-w-[1200px] mx-auto px-6 flex overflow-x-auto no-scrollbar items-center justify-center md:justify-start gap-2">
-          <button 
-            v-for="date in uniqueDates" 
-            :key="date"
-            @click="activeDateStr = date"
-            :class="[
-              'flex flex-col items-center justify-center min-w-[100px] py-4 px-4 transition-colors cursor-pointer border-t-[3px]',
-              activeDateStr === date ? 'bg-[#ff3b30] text-white border-transparent' : 'text-gray-400 hover:text-white border-transparent hover:bg-white/5'
-            ]"
-          >
-            <span class="text-[11px] font-medium">{{ formatDateForUI(date).month }}</span>
-            <span class="text-2xl font-bold my-0.5">{{ formatDateForUI(date).day }}</span>
-            <span class="text-[11px] font-medium">{{ formatDateForUI(date).weekday }}</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Cinemas & Showtimes -->
+    <section class="bg-[#111111] min-h-[500px] text-gray-200 font-sans border-t border-white/5">
       <div class="max-w-[1200px] mx-auto px-6 py-10">
-        <div class="mb-8 flex justify-end">
-           <select v-model="store.selectedCity" @change="onCityChange" class="w-full md:w-[250px] py-2.5 px-4 bg-[#222] border border-white/10 text-white rounded-md outline-none focus:border-[#ff3b30] text-sm">
-            <option value="">Toàn quốc</option>
-            <option v-for="city in store.cities" :key="city" :value="city">{{ city }}</option>
-          </select>
+        
+        <!-- Top Control Bar: Dates & Filters -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-0 mb-8 gap-4">
+          <!-- Date Picker -->
+          <div class="flex overflow-x-auto no-scrollbar gap-2 pb-0">
+            <button 
+              v-for="date in uniqueDates" 
+              :key="date"
+              @click="activeDateStr = date"
+              :class="[
+                'flex flex-col items-center justify-center min-w-[100px] py-3 px-4 rounded-t-md transition-colors cursor-pointer border-b-2',
+                activeDateStr === date ? 'bg-transparent text-[#ff3b30] border-[#ff3b30]' : 'bg-transparent text-gray-400 border-transparent hover:text-white hover:border-white/30'
+              ]"
+            >
+              <span class="text-[14px] font-medium mb-1">{{ formatDateForUI(date).weekday }}</span>
+              <span class="text-[14px] font-bold">{{ formatDateForUI(date).dateStr }}</span>
+            </button>
+          </div>
+          
+          <!-- Filters -->
+          <div class="flex gap-4 w-full md:w-auto pb-3">
+             <select v-model="store.selectedCity" @change="onCityChange" class="w-full md:w-[150px] py-2 px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-[14px] transition-colors">
+              <option value="">Toàn quốc</option>
+              <option v-for="city in store.cities" :key="city" :value="city">{{ city }}</option>
+            </select>
+             <select class="w-full md:w-[150px] py-2 px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-[14px] transition-colors">
+              <option value="">Tất cả rạp</option>
+            </select>
+          </div>
         </div>
 
         <div v-if="store.cinemaShowtimes.length === 0" class="text-center text-gray-500 py-10">
           Chưa có lịch chiếu cho phim này.
         </div>
         
-        <div class="space-y-8" v-else>
-          <div v-for="cinema in store.cinemaShowtimes" :key="cinema.cinemaId">
-            <!-- Only show cinema if it has showtimes for active date -->
-            <div v-if="cinema.showtimesByDate[activeDateStr]" class="flex flex-col md:flex-row gap-6 items-start border-b border-white/5 pb-8 last:border-0">
-              <div class="w-full md:w-[300px]">
-                <h3 class="font-bold text-lg text-white mb-1.5">{{ cinema.cinemaName }}</h3>
-                <p class="text-[13px] text-gray-500 leading-relaxed">{{ cinema.address }}</p>
-              </div>
-              <div class="flex-1">
-                <div class="flex flex-wrap gap-3">
+        <div class="space-y-0" v-else>
+          <!-- Using a variable to handle zebra striping only for visible items -->
+          <template v-for="(cinema, index) in store.cinemaShowtimes" :key="cinema.cinemaId">
+            <div v-if="cinema.showtimesByDate[activeDateStr]" :class="['py-8 px-6 -mx-6 border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#1a1a1a]' : 'bg-transparent']">
+              <h3 class="font-bold text-[18px] text-white mb-6">{{ cinema.cinemaName }}</h3>
+              
+              <div v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" :key="format" class="flex flex-col md:flex-row gap-4 md:gap-8 items-start mt-6 first:mt-0">
+                <!-- Left: Format -->
+                <div class="w-full md:w-[150px] flex-shrink-0 text-[14px] text-gray-400 font-medium whitespace-pre-line leading-relaxed">
+                  {{ format.replace(' Lồng', '\nLồng').replace(' Phụ', '\nPhụ') }}
+                </div>
+                
+                <!-- Right: Times -->
+                <div class="flex-1 flex flex-wrap gap-3">
                   <button 
-                    v-for="st in cinema.showtimesByDate[activeDateStr]" 
+                    v-for="st in sts" 
                     :key="st.id" 
                     @click="selectShowtime(st, cinema)" 
-                    class="bg-[#2a2a2a] border border-white/10 text-gray-300 hover:bg-[#ff3b30] hover:text-white hover:border-transparent transition-colors px-6 py-2.5 rounded font-semibold text-[15px]"
+                    class="bg-[#1a1a1a] border border-white/20 text-gray-300 hover:border-[#ff3b30] hover:text-[#ff3b30] transition-colors px-6 py-2 rounded text-[14px] font-medium min-w-[80px]"
                   >
                     {{ new Date(st.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+          </template>
         </div>
       </div>
     </section>
