@@ -254,21 +254,21 @@ const groupShowtimesByFormat = (showtimes) => {
           <!-- Using a variable to handle zebra striping only for visible items -->
           <template v-for="(cinema, index) in store.cinemaShowtimes" :key="cinema.cinemaId">
             <div v-if="cinema.showtimesByDate[activeDateStr]" :class="['py-8 px-6 -mx-6 border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#1a1a1a]' : 'bg-transparent']">
-              <h3 class="font-bold text-[18px] text-white mb-6">{{ cinema.cinemaName }}</h3>
+              <h3 class="font-bold text-[18px] text-white mb-4">{{ cinema.cinemaName }}</h3>
               
-              <div v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" :key="format" class="flex flex-col md:flex-row gap-4 md:gap-8 items-start mt-6 first:mt-0">
-                <!-- Left: Format -->
-                <div class="w-full md:w-[150px] flex-shrink-0 text-[14px] text-gray-400 font-medium whitespace-pre-line leading-relaxed">
-                  {{ format.replace(' Lồng', '\nLồng').replace(' Phụ', '\nPhụ') }}
+              <div v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" :key="format" class="flex flex-col md:flex-row md:items-center gap-4 mt-6 first:mt-0">
+                <!-- Left: Format (15-20% width) -->
+                <div class="w-full md:w-[150px] lg:w-[180px] flex-shrink-0">
+                  <span class="text-[14px] text-gray-400 font-bold whitespace-pre-line leading-relaxed">{{ format.replace(' Lồng', '\nLồng').replace(' Phụ', '\nPhụ') }}</span>
                 </div>
                 
                 <!-- Right: Times -->
-                <div class="flex-1 flex flex-wrap gap-3">
+                <div class="flex-1 flex flex-wrap items-center gap-3">
                   <button 
                     v-for="st in sts" 
                     :key="st.id" 
                     @click="selectShowtime(st, cinema)" 
-                    class="bg-[#1a1a1a] border border-white/20 text-gray-300 hover:border-[#ff3b30] hover:text-[#ff3b30] transition-colors px-6 py-2 rounded text-[14px] font-medium min-w-[80px]"
+                    class="bg-[#262626] border border-[#444444] text-gray-200 hover:border-[#f5c518] hover:text-[#f5c518] transition-all px-5 py-2 rounded-[6px] text-[15px] font-bold min-w-[80px]"
                   >
                     {{ new Date(st.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}
                   </button>
