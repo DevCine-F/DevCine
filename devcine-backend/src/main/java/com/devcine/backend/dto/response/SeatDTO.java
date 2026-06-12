@@ -18,4 +18,6 @@ public class SeatDTO {
     private String seatType; // e.g., NORMAL, VIP, SWEETBOX
     private BigDecimal price;
     private String status; // AVAILABLE, HOLD, SOLD
+    private Integer gridRow;
+    private Integer gridCol;
 }

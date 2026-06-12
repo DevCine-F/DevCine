@@ -6,6 +6,7 @@ import CustomSelect from './CustomSelect.vue';
 const props = defineProps({
   isOpen: Boolean,
   cinemaId: Number,
+  selectedDate: String
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -16,7 +17,8 @@ const form = reactive({
   movieId: '',
   roomId: '',
   formatId: '',
-  startTime: '',
+  startHour: '',
+  startMinute: '',
   cleaningTime: 15
 });
 
@@ -35,7 +37,35 @@ const roomOptions = computed(() => {
 });
 
 const formatOptions = computed(() => {
-  return formats.value.map(f => ({ value: f.id, label: f.name }));
+  if (!form.movieId) return []; // Require movie selection first
+  
+  const selectedMovie = movies.value.find(m => m.id === form.movieId);
+  if (!selectedMovie) return [];
+
+  const supportedFormatsStr = selectedMovie.supportedFormats || selectedMovie.format || "";
+  if (!supportedFormatsStr) {
+    // Fallback if no format info is provided
+    return formats.value.map(f => ({ value: f.id, label: f.name }));
+  }
+
+  const supportedList = supportedFormatsStr.split(',').map(s => s.trim().toUpperCase());
+  
+  const filteredFormats = formats.value.filter(f => {
+    const fName = f.name.toUpperCase();
+    return supportedList.some(sup => fName.includes(sup));
+  });
+
+  return filteredFormats.map(f => ({ value: f.id, label: f.name }));
+});
+
+const hourOptions = Array.from({ length: 24 }, (_, i) => {
+  const val = i.toString().padStart(2, '0');
+  return { value: val, label: val };
+});
+
+const minuteOptions = Array.from({ length: 12 }, (_, i) => {
+  const val = (i * 5).toString().padStart(2, '0');
+  return { value: val, label: val };
 });
 
 const fetchOptions = async () => {
@@ -61,6 +91,11 @@ const fetchRooms = async (cinemaId) => {
   }
 };
 
+watch(() => form.movieId, () => {
+  // Reset format selection when movie changes
+  form.formatId = '';
+});
+
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     fetchOptions();
@@ -70,23 +105,29 @@ watch(() => props.isOpen, (newVal) => {
     form.movieId = '';
     form.roomId = '';
     form.formatId = '';
-    form.startTime = '';
+    form.startHour = '';
+    form.startMinute = '';
   }
 });
 
 const handleSave = async () => {
-  if (!form.movieId || !form.roomId || !form.formatId || !form.startTime) {
+  if (!form.movieId || !form.roomId || !form.formatId || !form.startHour || !form.startMinute) {
     errorMsg.value = "Vui lòng nhập đầy đủ thông tin.";
     return;
   }
   
   try {
-    errorMsg.value = '';
+    // Combine selectedDate (e.g. "12/06") and time (e.g. "14" + "30")
+    // Assuming current year for mock API
+    const year = new Date().getFullYear();
+    const [day, month] = props.selectedDate.split('/');
+    const formattedStartTime = `${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`;
+
     await axios.post(`${API_BASE_URL}/showtimes`, {
       movieId: parseInt(form.movieId),
       roomId: parseInt(form.roomId),
       formatId: parseInt(form.formatId),
-      startTime: form.startTime,
+      startTime: formattedStartTime,
       cleaningTime: parseInt(form.cleaningTime)
     });
     
@@ -154,8 +195,25 @@ const handleSave = async () => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Thời gian bắt đầu</label>
-          <input type="datetime-local" v-model="form.startTime" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+            Thời gian bắt đầu <span class="text-primary font-medium lowercase tracking-normal">(Suất chiếu cho ngày {{ selectedDate }}/{{ new Date().getFullYear() }})</span>
+          </label>
+          <div class="flex gap-4">
+            <div class="flex-1">
+              <CustomSelect 
+                v-model="form.startHour" 
+                :options="hourOptions" 
+                placeholder="Giờ" 
+              />
+            </div>
+            <div class="flex-1">
+              <CustomSelect 
+                v-model="form.startMinute" 
+                :options="minuteOptions" 
+                placeholder="Phút" 
+              />
+            </div>
+          </div>
         </div>
 
         <div>

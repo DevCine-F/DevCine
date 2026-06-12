@@ -8,6 +8,8 @@ import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.MovieFormatRepository;
 import com.devcine.backend.repository.RoomRepository;
+import com.devcine.backend.repository.SeatTypeRepository;
+import com.devcine.backend.entity.SeatType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -26,7 +28,8 @@ public class DataSeeder {
             CinemaRepository cinemaRepository,
             MovieRepository movieRepository,
             MovieFormatRepository formatRepository,
-            RoomRepository roomRepository) {
+            RoomRepository roomRepository,
+            SeatTypeRepository seatTypeRepository) {
         return args -> {
             if (roomRepository.count() == 0) {
                 // To avoid duplicating cinemas if they already exist, let's fetch them first or create if missing
@@ -79,6 +82,13 @@ public class DataSeeder {
                 formatRepository.save(format3);
 
                 System.out.println("Đã thêm dữ liệu giả lập cho Cụm rạp, Phòng chiếu, Phim, và Định dạng thành công!");
+            }
+
+            if (seatTypeRepository.count() == 0) {
+                seatTypeRepository.save(SeatType.builder().name("NORMAL").priceModifier(new BigDecimal("0")).build());
+                seatTypeRepository.save(SeatType.builder().name("VIP").priceModifier(new BigDecimal("20000")).build());
+                seatTypeRepository.save(SeatType.builder().name("SWEETBOX").priceModifier(new BigDecimal("50000")).build());
+                System.out.println("Đã thêm dữ liệu giả lập cho SeatType thành công!");
             }
             
             // Temporary fix for previously seeded movies with wrong status

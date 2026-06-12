@@ -12,6 +12,8 @@ export const useBookingStore = defineStore('booking', {
     bookingId: null,
     bookingCode: null,
     availableSeats: [],
+    matrixRow: 9,
+    matrixCol: 10,
     availableFnbs: [],
     cities: [],
     selectedCity: '',
@@ -38,7 +40,14 @@ export const useBookingStore = defineStore('booking', {
       if (!this.selectedShowtime) return;
       try {
         const { data } = await seatApi.getForShowtime(this.selectedShowtime.id);
-        this.availableSeats = data;
+        if (data && data.seats) {
+          this.matrixRow = data.matrixRow;
+          this.matrixCol = data.matrixCol;
+          this.availableSeats = data.seats;
+        } else {
+          // Fallback if backend hasn't been updated yet or returned an array directly
+          this.availableSeats = Array.isArray(data) ? data : [];
+        }
       } catch (err) {
         console.error('Failed to fetch seats', err);
       }

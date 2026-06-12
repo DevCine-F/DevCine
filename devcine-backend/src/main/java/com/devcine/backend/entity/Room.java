@@ -31,4 +31,10 @@ public class Room {
 
     @Column(name = "turnaround_time_mins")
     private Integer turnaroundTimeMins;
+
+    @Column(name = "matrix_row")
+    private Integer matrixRow;
+
+    @Column(name = "matrix_col")
+    private Integer matrixCol;
 }

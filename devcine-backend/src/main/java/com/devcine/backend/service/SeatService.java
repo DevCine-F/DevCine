@@ -1,13 +1,21 @@
 package com.devcine.backend.service;
 
 import com.devcine.backend.dto.response.SeatDTO;
+import com.devcine.backend.dto.response.ShowtimeSeatResponse;
 import com.devcine.backend.entity.BookingSeat;
 import com.devcine.backend.entity.Seat;
+import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.repository.SeatRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.devcine.backend.dto.request.SeatLayoutRequest;
+import com.devcine.backend.entity.Room;
+import com.devcine.backend.entity.SeatType;
+import com.devcine.backend.repository.RoomRepository;
+import com.devcine.backend.repository.SeatTypeRepository;
 
 import java.util.List;
 import java.util.Set;
@@ -20,9 +28,11 @@ public class SeatService {
     private final SeatRepository seatRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final ShowtimeRepository showtimeRepository;
+    private final RoomRepository roomRepository;
+    private final SeatTypeRepository seatTypeRepository;
 
-    public List<SeatDTO> getSeatsForShowtime(Integer showtimeId) {
-        var showtime = showtimeRepository.findById(showtimeId)
+    public ShowtimeSeatResponse getSeatsForShowtime(Integer showtimeId) {
+        Showtime showtime = showtimeRepository.findById(showtimeId)
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
 
         Integer roomId = showtime.getRoom().getId();
@@ -40,7 +50,7 @@ public class SeatService {
                 .map(bs -> bs.getSeat().getId())
                 .collect(Collectors.toSet());
 
-        return allSeats.stream().map(seat -> {
+        List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> {
             String status = "AVAILABLE";
             if (soldSeatIds.contains(seat.getId())) {
                 status = "SOLD";
@@ -57,7 +67,74 @@ public class SeatService {
                     .seatType(seat.getSeatType().getName())
                     .price(seat.getSeatType().getPriceModifier())
                     .status(status)
+                    .gridRow(seat.getGridRow())
+                    .gridCol(seat.getGridCol())
                     .build();
         }).collect(Collectors.toList());
+
+        return ShowtimeSeatResponse.builder()
+                .matrixRow(showtime.getRoom().getMatrixRow() != null ? showtime.getRoom().getMatrixRow() : 9)
+                .matrixCol(showtime.getRoom().getMatrixCol() != null ? showtime.getRoom().getMatrixCol() : 10)
+                .seats(seatDTOs)
+                .build();
+    }
+
+    public ShowtimeSeatResponse getSeatsForRoom(Integer roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
+
+        List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> SeatDTO.builder()
+                .seatId(seat.getId())
+                .rowChar(seat.getRowChar())
+                .colNum(seat.getColNum())
+                .seatType(seat.getSeatType().getName())
+                .price(seat.getSeatType().getPriceModifier())
+                .status("AVAILABLE")
+                .gridRow(seat.getGridRow())
+                .gridCol(seat.getGridCol())
+                .build()).collect(Collectors.toList());
+
+        return ShowtimeSeatResponse.builder()
+                .matrixRow(room.getMatrixRow() != null ? room.getMatrixRow() : 9)
+                .matrixCol(room.getMatrixCol() != null ? room.getMatrixCol() : 10)
+                .seats(seatDTOs)
+                .build();
+    }
+
+    @Transactional
+    public void saveSeatLayout(Integer roomId, SeatLayoutRequest request) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        room.setMatrixRow(request.getMatrixRow());
+        room.setMatrixCol(request.getMatrixCol());
+        roomRepository.save(room);
+
+        List<Seat> existingSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
+        seatRepository.deleteAll(existingSeats);
+
+        List<Seat> newSeats = request.getSeats().stream().map(def -> {
+            String backendType = def.getType().toUpperCase();
+            if ("STANDARD".equals(backendType)) backendType = "NORMAL";
+            else if ("DOUBLE".equals(backendType)) backendType = "SWEETBOX";
+
+            String finalBackendType = backendType;
+            SeatType seatType = seatTypeRepository.findByName(backendType)
+                    .orElseThrow(() -> new RuntimeException("SeatType not found: " + finalBackendType + " (original: " + def.getType() + ")"));
+
+            return Seat.builder()
+                    .room(room)
+                    .rowChar(def.getRowChar())
+                    .colNum(def.getColNum())
+                    .gridRow(def.getGridRow())
+                    .gridCol(def.getGridCol())
+                    .seatType(seatType)
+                    .isActive(true)
+                    .build();
+        }).collect(Collectors.toList());
+
+        seatRepository.saveAll(newSeats);
     }
 }

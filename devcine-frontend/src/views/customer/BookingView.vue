@@ -24,7 +24,23 @@ const handleSeatClick = (seat) => {
 }
 
 const isSeatSelected = (seat) => {
+  if (!seat) return false
   return store.selectedSeats.some(s => s.seatId === seat.seatId)
+}
+
+const getSeatAt = (row, col) => {
+  return store.availableSeats.find(s => s.gridRow === row && s.gridCol === col)
+}
+
+const getRowChar = (row) => {
+  const seat = store.availableSeats.find(s => s.gridRow === row)
+  return seat ? seat.rowChar : ''
+}
+
+const isHiddenBecauseSweetbox = (row, col) => {
+  if (col === 0) return false;
+  const prevSeat = getSeatAt(row, col - 1);
+  return prevSeat && prevSeat.seatType === 'SWEETBOX';
 }
 
 const proceedToPayment = async () => {
@@ -66,28 +82,34 @@ const proceedToPayment = async () => {
           <p class="text-center text-label-sm font-bold uppercase tracking-[0.3em] text-outline-variant mb-16">Màn Hình / Screen</p>
           
           <!-- Seats Grid -->
-          <div class="seat-grid max-w-2xl mx-auto flex flex-col gap-3 mb-16" v-if="store.availableSeats.length">
-            <div v-for="rowChar in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J']" :key="rowChar" class="flex items-center gap-2 justify-center">
-              <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ rowChar }}</div>
-              
-              <template v-for="col in 10" :key="col">
-                <div v-if="store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)"
-                     @click="handleSeatClick(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col))"
-                     :class="[
-                       'aspect-square w-8 flex items-center justify-center text-[10px] font-bold cursor-pointer transition-colors',
-                       store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).status === 'AVAILABLE' && !isSeatSelected(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)) ? 
-                         (store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).seatType === 'VIP' ? 'border-2 border-primary-container/60 bg-primary-container/10 hover:bg-primary-container/30' : 
-                          store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).seatType === 'SWEETBOX' ? 'border-2 border-pink-500/50 bg-pink-500/10 rounded-t-xl hover:bg-pink-500/20' : 
-                          'border border-outline-variant/30 hover:border-primary-container') : '',
-                       store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col).status !== 'AVAILABLE' ? 'bg-surface-variant/30 cursor-not-allowed opacity-50' : '',
-                       isSeatSelected(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)) ? 'bg-primary-container text-on-primary border-primary-container' : ''
-                     ]">
-                  {{ isSeatSelected(store.availableSeats.find(s => s.rowChar === rowChar && s.colNum === col)) ? rowChar + col : '' }}
-                </div>
-                <div v-else class="aspect-square w-8 opacity-0"></div>
-              </template>
+          <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-16" v-if="store.availableSeats.length">
+            <div class="flex flex-col gap-3 mx-auto min-w-max pb-4">
+              <div v-for="row in store.matrixRow" :key="row" class="flex items-center gap-2 justify-center">
+                <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ getRowChar(row - 1) }}</div>
+                
+                <template v-for="col in store.matrixCol" :key="col">
+                  <template v-if="getSeatAt(row - 1, col - 1)">
+                    <div @click="handleSeatClick(getSeatAt(row - 1, col - 1))"
+                         :class="[
+                           'aspect-square w-8 flex items-center justify-center text-[10px] font-bold cursor-pointer transition-colors',
+                           getSeatAt(row - 1, col - 1).status === 'AVAILABLE' && !isSeatSelected(getSeatAt(row - 1, col - 1)) ? 
+                             (getSeatAt(row - 1, col - 1).seatType === 'VIP' ? 'border-2 border-primary-container/60 bg-primary-container/10 hover:bg-primary-container/30' : 
+                              getSeatAt(row - 1, col - 1).seatType === 'SWEETBOX' ? 'border-2 border-pink-500/50 bg-pink-500/10 rounded-t-xl hover:bg-pink-500/20' : 
+                              'border border-outline-variant/30 hover:border-primary-container') : '',
+                           getSeatAt(row - 1, col - 1).status !== 'AVAILABLE' ? 'bg-surface-variant/30 cursor-not-allowed opacity-50' : '',
+                           isSeatSelected(getSeatAt(row - 1, col - 1)) ? 'bg-primary-container text-on-primary border-primary-container' : '',
+                           getSeatAt(row - 1, col - 1).seatType === 'SWEETBOX' ? 'w-[4.5rem]' : ''
+                         ]">
+                      {{ isSeatSelected(getSeatAt(row - 1, col - 1)) ? getSeatAt(row - 1, col - 1).rowChar + getSeatAt(row - 1, col - 1).colNum : '' }}
+                    </div>
+                  </template>
+                  <template v-else-if="!isHiddenBecauseSweetbox(row - 1, col - 1)">
+                    <div class="aspect-square w-8 opacity-0"></div>
+                  </template>
+                </template>
 
-              <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ rowChar }}</div>
+                <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ getRowChar(row - 1) }}</div>
+              </div>
             </div>
           </div>
           

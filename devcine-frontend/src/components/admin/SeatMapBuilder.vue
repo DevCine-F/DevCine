@@ -194,11 +194,9 @@ onUnmounted(() => {
     <div class="flex-grow bg-surface-container-low/80 backdrop-blur-md border border-outline-variant/10 rounded-3xl flex flex-col overflow-hidden relative shadow-2xl items-center justify-center p-6">
       <!-- Screen -->
       <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8">
-        <div class="absolute top-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_rgba(6,182,212,0.1)_0%,_transparent_70%)] pointer-events-none"></div>
-        <div class="w-2/3 h-2 bg-gradient-to-r from-cyan-900/20 via-cyan-400 to-cyan-900/20 rounded-full shadow-[0_5px_25px_rgba(6,182,212,0.5)] mb-3 relative">
-            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-6 bg-cyan-400/20 blur-xl"></div>
-        </div>
-        <p class="text-[9px] font-black uppercase tracking-[0.8em] text-cyan-400/80 animate-pulse relative z-10 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">MÀN HÌNH CHÍNH</p>
+        <div class="absolute top-0 w-full h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
+        <div class="w-2/3 h-1.5 bg-primary/70 rounded-full shadow-[0_2px_15px_rgba(245,197,24,0.2)] mb-4 border border-primary/20"></div>
+        <p class="text-[9px] font-bold uppercase tracking-[0.6em] text-primary/50 relative z-10">MÀN HÌNH CHÍNH</p>
       </div>
 
       <!-- Grid with Labels -->
@@ -327,12 +325,10 @@ onUnmounted(() => {
     <!-- Canvas Area -->
     <section class="flex-grow bg-surface-container-low/80 backdrop-blur-md border border-outline-variant/10 rounded-3xl flex flex-col overflow-hidden relative shadow-2xl">
       <!-- Screen -->
-      <div class="flex flex-col items-center flex-shrink-0 relative py-8">
-        <div class="absolute top-0 w-full h-[150px] bg-[radial-gradient(ellipse_at_top,_rgba(6,182,212,0.1)_0%,_transparent_70%)] pointer-events-none"></div>
-        <div class="w-3/4 h-2 bg-gradient-to-r from-cyan-900/20 via-cyan-400 to-cyan-900/20 rounded-full shadow-[0_5px_30px_rgba(6,182,212,0.6)] mb-5 relative">
-            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-8 bg-cyan-400/20 blur-xl"></div>
-        </div>
-        <p class="text-[9px] font-black uppercase tracking-[0.8em] text-cyan-400/80 animate-pulse relative z-10 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">MÀN HÌNH CHÍNH</p>
+      <div class="flex flex-col items-center flex-shrink-0 relative py-8 w-full">
+        <div class="absolute top-0 w-full h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
+        <div class="w-3/4 h-1.5 bg-primary/70 rounded-full shadow-[0_2px_15px_rgba(245,197,24,0.2)] mb-4 border border-primary/20"></div>
+        <p class="text-[9px] font-bold uppercase tracking-[0.6em] text-primary/50 relative z-10">MÀN HÌNH CHÍNH</p>
       </div>
 
       <!-- Grid with Labels -->

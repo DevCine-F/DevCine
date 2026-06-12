@@ -33,4 +33,10 @@ public class Seat {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Column(name = "grid_row")
+    private Integer gridRow;
+
+    @Column(name = "grid_col")
+    private Integer gridCol;
 }

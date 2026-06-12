@@ -218,9 +218,7 @@ const fetchCinemas = async () => {
       
       // If a cinema is currently selected, update it
       if (selectedCinema.value) {
-          selectedCinema.value = enrichedCinemas.find(c => c.id === selectedCinema.value.id) || enrichedCinemas[0];
-      } else {
-          selectedCinema.value = enrichedCinemas[0];
+          selectedCinema.value = enrichedCinemas.find(c => c.id === selectedCinema.value.id) || null;
       }
     }
   } catch (error) {
@@ -245,9 +243,6 @@ const updateCurrentTime = () => {
 let timeInterval;
 onMounted(async () => {
   await fetchCinemas();
-  if (cinemas.value.length > 0) {
-    selectedCinema.value = cinemas.value[0];
-  }
   updateCurrentTime();
   timeInterval = setInterval(updateCurrentTime, 60000);
 });
@@ -357,17 +352,54 @@ const closeDetail = () => {
   viewingHall.value = null;
 };
 
-const openHallDetail = (hall) => {
+const openHallDetail = async (hall) => {
   viewingHall.value = hall;
-  tempRows.value = hall.rows;
-  tempCols.value = hall.cols;
+  tempRows.value = hall.rows || 10;
+  tempCols.value = hall.cols || 16;
+  
+  try {
+    const res = await axios.get(`${API_BASE_URL}/seats/room/${hall.id}`);
+    if (res.data && res.data.seats && res.data.seats.length > 0) {
+      tempRows.value = res.data.matrixRow || hall.rows;
+      tempCols.value = res.data.matrixCol || hall.cols;
+      
+      const map = {};
+      // Fill empty standard map first based on matrix size
+      for (let r = 0; r < tempRows.value; r++) {
+        for (let c = 0; c < tempCols.value; c++) {
+          map[`${r}-${c}`] = {
+            type: "hidden", // Default to hidden, so only valid seats show
+            label: "",
+          };
+        }
+      }
+      
+      // Override with actual fetched seats
+      res.data.seats.forEach(seat => {
+        let seatType = "standard";
+        if (seat.seatType === "VIP") seatType = "vip";
+        if (seat.seatType === "SWEETBOX") seatType = "double";
+        if (seat.seatType === "PAVE") seatType = "aisle"; // Assuming we map pave to aisle
+
+        map[`${seat.gridRow}-${seat.gridCol}`] = {
+          type: seatType,
+          label: `${seat.rowChar}${seat.colNum}`
+        };
+      });
+      currentSeatMap.value = map;
+      return;
+    }
+  } catch (error) {
+    console.error("Failed to load saved seat layout, initializing default:", error);
+  }
+  
   initializeSeatMap(hall);
 };
 
 const initializeSeatMap = (hall) => {
   const map = {};
-  for (let r = 0; r < hall.rows; r++) {
-    for (let c = 0; c < hall.cols; c++) {
+  for (let r = 0; r < tempRows.value; r++) {
+    for (let c = 0; c < tempCols.value; c++) {
       map[`${r}-${c}`] = {
         type: "standard",
         label: `${String.fromCharCode(65 + r)}${c + 1}`,
@@ -387,6 +419,59 @@ const regenerateGrid = () => {
 const resetMap = () => {
   if (!viewingHall.value) return;
   initializeSeatMap(viewingHall.value);
+};
+
+const isSavingLayout = ref(false);
+
+const saveSeatLayout = async () => {
+  if (!viewingHall.value) return;
+  
+  isSavingLayout.value = true;
+  try {
+    const seatsList = [];
+    Object.entries(currentSeatMap.value).forEach(([key, seatData]) => {
+      if (seatData.type && seatData.type !== 'hidden' && seatData.type !== 'aisle') {
+        const [gridRowStr, gridColStr] = key.split('-');
+        const gridRow = parseInt(gridRowStr);
+        const gridCol = parseInt(gridColStr);
+        
+        let rowChar = '';
+        let colNum = 1;
+        
+        if (seatData.label) {
+          // Parse label like "A1", "A10"
+          const match = seatData.label.match(/^([A-Z]+)(\d+)$/);
+          if (match) {
+            rowChar = match[1];
+            colNum = parseInt(match[2]);
+          }
+        }
+        
+        seatsList.push({
+          rowChar,
+          colNum,
+          gridRow,
+          gridCol,
+          type: seatData.type,
+          label: seatData.label
+        });
+      }
+    });
+
+    const payload = {
+      matrixRow: tempRows.value,
+      matrixCol: tempCols.value,
+      seats: seatsList
+    };
+
+    await axios.post(`http://localhost:8080/api/seats/layout/${viewingHall.value.id}`, payload);
+    alert('Lưu cấu trúc ghế thành công!');
+  } catch (error) {
+    console.error('Error saving seat layout:', error);
+    alert('Có lỗi xảy ra khi lưu cấu trúc ghế.');
+  } finally {
+    isSavingLayout.value = false;
+  }
 };
 
 const toggleSeat = (r, c) => {
@@ -1579,10 +1664,14 @@ const tabs = [
               Đặt lại
             </button>
             <button
-              class="px-8 py-2.5 rounded-lg bg-primary text-on-primary text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center gap-2"
+              @click="saveSeatLayout"
+              :disabled="isSavingLayout"
+              class="px-8 py-2.5 rounded-lg bg-primary text-on-primary text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center gap-2 disabled:opacity-50"
             >
-              <span class="material-symbols-outlined text-sm">save</span>
-              Lưu Cấu Trúc
+              <span class="material-symbols-outlined text-sm">
+                {{ isSavingLayout ? 'hourglass_empty' : 'save' }}
+              </span>
+              {{ isSavingLayout ? 'Đang lưu...' : 'Lưu Cấu Trúc' }}
             </button>
           </div>
         </header>
@@ -1901,7 +1990,8 @@ const tabs = [
     <!-- Add Showtime Drawer -->
     <ShowtimeDrawer 
       :is-open="showAddShowtimeDrawer" 
-      :cinema-id="selectedCinema?.id" 
+      :cinema-id="selectedCinema?.id"
+      :selected-date="selectedDate"
       @close="showAddShowtimeDrawer = false" 
       @saved="fetchCinemas" 
     />
