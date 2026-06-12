@@ -99,26 +99,31 @@ const handleMouseUp = () => {
 }
 
 const getSeatClass = (type, r, c) => {
-  if (!type) return 'bg-white/[0.02] border-white/5 text-transparent hover:bg-white/[0.05] hover:border-primary/30 transition-colors'
+  const baseClasses = 'shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)] transition-all duration-200'
+  
+  if (!type) return 'bg-white/[0.02] border border-white/5 text-transparent hover:bg-white/[0.05] hover:border-primary/30 transition-colors rounded-lg'
   
   // Mock logic: nếu đang ở mode readonly thì giả lập một số ghế đã bị đặt (dựa trên tọa độ cố định để khỏi bị giật)
   const isSold = props.readonly && type !== 'aisle' && type !== 'remove' && ((r * 7 + c * 3) % 5 === 0);
   
   if (isSold) {
-    return type === 'double' ? 'col-span-2 bg-white/5 border-white/10 text-white/20 cursor-not-allowed pointer-events-none' : 'bg-white/5 border-white/10 text-white/20 cursor-not-allowed pointer-events-none';
+    const doubleClass = type === 'double' ? 'col-span-2 rounded-xl' : 'rounded-lg';
+    return `${doubleClass} bg-surface-container-high border border-white/5 text-white/20 cursor-not-allowed pointer-events-none opacity-50`;
   }
 
   switch (type) {
-    case 'standard': return 'bg-surface-container-highest border-outline-variant/30 text-on-surface-variant shadow-inner'
-    case 'vip': return 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_15px_rgba(245,197,24,0.1)]'
-    case 'double': return 'bg-red-500/20 border-red-500/50 text-red-400 col-span-2 shadow-[0_0_20px_rgba(239,68,68,0.1)]'
-    case 'aisle': return 'bg-transparent border-dashed border-outline-variant/10 text-transparent opacity-20 pointer-events-none'
-    default: return ''
+    case 'standard': return `${baseClasses} rounded-lg bg-slate-800/80 border border-slate-600/50 text-slate-300 hover:brightness-125 hover:-translate-y-0.5 hover:shadow-lg`
+    case 'vip': return `${baseClasses} rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 text-red-100 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 hover:brightness-110`
+    case 'double': return `${baseClasses} col-span-2 rounded-t-2xl rounded-b-lg bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 text-purple-100 shadow-[0_0_15px_rgba(147,51,234,0.2)] hover:shadow-[0_0_20px_rgba(147,51,234,0.4)] hover:-translate-y-0.5 hover:brightness-110`
+    case 'aisle': return 'bg-transparent border border-dashed border-white/10 text-transparent opacity-20 pointer-events-none rounded-lg'
+    default: return 'rounded-lg'
   }
 }
 
 const getToolClass = (tool) => {
-  return selectedTool.value === tool ? 'bg-primary text-on-primary ring-4 ring-primary/10 shadow-lg scale-105' : 'bg-surface-container-high text-on-surface-variant border border-outline-variant/10 hover:bg-white/5'
+  return selectedTool.value === tool 
+    ? 'bg-gradient-to-br from-primary to-amber-600 text-on-primary shadow-[0_0_20px_rgba(245,197,24,0.3)] scale-[1.02] border-none' 
+    : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-white/10 hover:border-white/20 hover:scale-[1.01]'
 }
 
 onMounted(() => {
@@ -186,19 +191,23 @@ onUnmounted(() => {
     </div>
 
     <!-- Bottom: Seat Map Canvas -->
-    <div class="flex-grow bg-surface-container-low border border-outline-variant/10 rounded-2xl flex flex-col overflow-hidden relative shadow-2xl items-center justify-center p-6">
+    <div class="flex-grow bg-surface-container-low/80 backdrop-blur-md border border-outline-variant/10 rounded-3xl flex flex-col overflow-hidden relative shadow-2xl items-center justify-center p-6">
       <!-- Screen -->
-      <div class="w-full flex flex-col items-center flex-shrink-0 bg-surface-container-high/20 py-4 rounded-t-xl mb-4">
-        <div class="w-2/3 h-1.5 bg-primary rounded-full mb-3 shadow-[0_0_50px_rgba(245,197,24,0.6)]"></div>
-        <p class="text-[8px] font-black uppercase tracking-[0.6em] text-primary/40 animate-pulse">MÀN HÌNH CHÍNH</p>
+      <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8">
+        <div class="absolute top-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_rgba(6,182,212,0.1)_0%,_transparent_70%)] pointer-events-none"></div>
+        <div class="w-2/3 h-2 bg-gradient-to-r from-cyan-900/20 via-cyan-400 to-cyan-900/20 rounded-full shadow-[0_5px_25px_rgba(6,182,212,0.5)] mb-3 relative">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-6 bg-cyan-400/20 blur-xl"></div>
+        </div>
+        <p class="text-[9px] font-black uppercase tracking-[0.8em] text-cyan-400/80 animate-pulse relative z-10 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">MÀN HÌNH CHÍNH</p>
       </div>
 
       <!-- Grid with Labels -->
-      <div class="w-full flex-grow overflow-auto p-4 flex items-center justify-center bg-[radial-gradient(circle_at_center,_rgba(245,197,24,0.03)_0%,_transparent_70%)] scrollbar-hide">
-        <div class="flex flex-col gap-2.5">
+      <div class="w-full flex-grow overflow-auto p-4 flex items-center justify-center relative scrollbar-hide">
+        <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
+        <div class="relative z-10 flex flex-col gap-2.5 bg-black/40 backdrop-blur-sm p-6 rounded-3xl border border-white/5 shadow-2xl">
            <!-- Column Labels -->
            <div class="flex gap-2.5 pl-8 mb-1">
-              <div v-for="c in cols" :key="c" class="w-9 text-center text-[9px] font-black text-outline-variant/40">{{ c }}</div>
+              <div v-for="c in cols" :key="c" class="w-9 text-center text-[9px] font-black text-outline-variant/40 shrink-0">{{ c }}</div>
            </div>
 
            <div class="flex gap-3">
@@ -210,18 +219,17 @@ onUnmounted(() => {
               </div>
 
               <!-- Matrix -->
-              <div class="grid gap-2.5" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }">
-                <div v-for="r in rows" :key="r" class="contents">
-                  <div v-for="c in cols" :key="c">
+              <div class="flex flex-col gap-2.5">
+                <div v-for="r in rows" :key="r" class="flex gap-2.5">
+                  <template v-for="c in cols" :key="c">
                     <div v-if="!isOccupiedByDouble(r-1, c-1)"
-                      :class="getSeatClass(seatMap[`${r-1}-${c-1}`]?.type, r-1, c-1)" 
-                      class="w-9 h-9 border rounded-sm flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative cursor-default">
+                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`]?.type, r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[82px]' : 'w-9', 'h-9 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative cursor-default shrink-0']">
                     {{ seatMap[`${r-1}-${c-1}`]?.label }}
                     <div v-if="!seatMap[`${r-1}-${c-1}`]?.type || seatMap[`${r-1}-${c-1}`]?.type === 'aisle'" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                        <div class="w-1 h-1 bg-white/10 rounded-full"></div>
                     </div>
                     </div>
-                  </div>
+                  </template>
                 </div>
               </div>
            </div>
@@ -229,23 +237,23 @@ onUnmounted(() => {
       </div>
 
       <!-- Legend -->
-      <div class="w-full flex justify-center mt-6">
-        <div class="flex items-center gap-6 px-6 py-3 bg-surface-container-high rounded-full border border-white/5 shadow-xl flex-wrap justify-center">
+      <div class="w-full flex justify-center mt-6 relative z-10">
+        <div class="flex items-center gap-6 px-6 py-3 bg-surface-container-high/80 backdrop-blur-md rounded-full border border-white/5 shadow-xl flex-wrap justify-center">
           <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded bg-surface-container-highest border-outline-variant/30 border"></div>
+            <div class="w-3.5 h-3.5 rounded bg-slate-800/80 border border-slate-600/50"></div>
             <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế trống</span>
           </div>
           <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded bg-primary/20 border border-primary/50"></div>
+            <div class="w-3.5 h-3.5 rounded bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50"></div>
             <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế VIP</span>
           </div>
           <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded bg-red-500/20 border border-red-500/50"></div>
+            <div class="w-3.5 h-3.5 rounded-t-lg rounded-b-sm bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50"></div>
             <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế Đôi</span>
           </div>
           <div class="h-3.5 w-px bg-white/10 mx-1 hidden sm:block"></div>
           <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[7px] text-white/20">X</div>
+            <div class="w-3.5 h-3.5 rounded bg-surface-container-high border border-white/5 flex items-center justify-center text-[7px] text-white/20">X</div>
             <span class="text-[9px] font-bold text-white/40 uppercase tracking-widest">Đã đặt</span>
           </div>
         </div>
@@ -256,55 +264,60 @@ onUnmounted(() => {
   <!-- IF EDITABLE (Horizontal builder view) -->
   <div v-else class="flex gap-8 flex-grow overflow-hidden h-full">
     <!-- Toolbar / Sidebar -->
-    <aside class="w-80 space-y-6 flex-shrink-0 overflow-y-auto pr-2 pb-10 no-scrollbar">
-      <div class="bg-surface-container-low border border-outline-variant/10 p-6 rounded-lg shadow-sm">
-        <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6">Cấu hình Ma trận</h3>
+    <aside class="w-80 space-y-6 flex-shrink-0 overflow-y-auto pr-2 pb-10 no-scrollbar relative z-20">
+      <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6 flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">grid_on</span> Cấu hình Ma trận
+        </h3>
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Hàng (Rows)</label>
-            <input v-model.number="rows" @change="initializeMap" type="number" min="1" max="26" class="w-full bg-surface-container-high border-none text-sm rounded py-2 px-3 text-on-surface focus:ring-1 focus:ring-primary outline-none transition-all">
+            <input v-model.number="rows" @change="initializeMap" type="number" min="1" max="26" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
           </div>
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Cột (Cols)</label>
-            <input v-model.number="cols" @change="initializeMap" type="number" min="1" max="25" class="w-full bg-surface-container-high border-none text-sm rounded py-2 px-3 text-on-surface focus:ring-1 focus:ring-primary outline-none transition-all">
+            <input v-model.number="cols" @change="initializeMap" type="number" min="1" max="25" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
           </div>
         </div>
       </div>
 
-      <div class="bg-surface-container-low border border-outline-variant/10 p-6 rounded-lg shadow-sm">
-        <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6">Công cụ thiết kế</h3>
+      <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6 flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">design_services</span> Công cụ thiết kế
+        </h3>
         <div class="space-y-3">
           <button v-for="tool in [
-            { id: 'standard', label: 'Ghế Thường', icon: 'chair', color: 'text-on-surface' },
-            { id: 'vip', label: 'Ghế VIP', icon: 'diamond', color: 'text-primary' },
-            { id: 'double', label: 'Ghế Đôi', icon: 'favorite', color: 'text-pink-400' },
+            { id: 'standard', label: 'Ghế Thường', icon: 'chair', color: 'text-slate-400' },
+            { id: 'vip', label: 'Ghế VIP', icon: 'diamond', color: 'text-red-500' },
+            { id: 'double', label: 'Ghế Đôi', icon: 'favorite', color: 'text-purple-400' },
             { id: 'aisle', label: 'Lối đi', icon: 'pave_list', color: 'text-blue-400' },
-            { id: 'remove', label: 'Xóa ô', icon: 'ink_eraser', color: 'text-red-500' }
-          ]" :key="tool.id" @click="toggleTool(tool.id)" :class="getToolClass(tool.id)" class="w-full flex items-center gap-4 p-4 rounded-lg transition-all text-left">
-            <span class="material-symbols-outlined" :class="tool.color">{{ tool.icon }}</span>
-            <p class="text-[10px] font-bold uppercase tracking-widest">{{ tool.label }}</p>
+            { id: 'remove', label: 'Xóa ô', icon: 'ink_eraser', color: 'text-orange-500' }
+          ]" :key="tool.id" @click="toggleTool(tool.id)" :class="getToolClass(tool.id)" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-left group relative overflow-hidden">
+            <div v-if="selectedTool === tool.id" class="absolute inset-0 bg-white/10"></div>
+            <span class="material-symbols-outlined relative z-10" :class="selectedTool === tool.id ? 'text-white' : tool.color">{{ tool.icon }}</span>
+            <p class="text-[10px] font-bold uppercase tracking-widest relative z-10" :class="selectedTool === tool.id ? 'text-white' : ''">{{ tool.label }}</p>
           </button>
         </div>
       </div>
 
-      <div class="bg-surface-container-low border border-outline-variant/10 p-6 rounded-lg shadow-sm">
+      <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6 flex items-center gap-2">
           <span class="material-symbols-outlined text-sm">bar_chart</span>
           Thông số Phòng chiếu
         </h3>
         <div class="space-y-3">
-          <div class="flex justify-between items-center p-3 bg-surface-container-high rounded-xl border border-white/5">
-            <span class="text-[8px] font-bold opacity-40 uppercase">Sức chứa</span>
-            <span class="text-sm font-black text-primary">{{ totalSeats }} ghế</span>
+          <div class="flex justify-between items-center p-4 bg-black/40 rounded-xl border border-white/5">
+            <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Sức chứa</span>
+            <span class="text-base font-black text-primary">{{ totalSeats }} ghế</span>
           </div>
-          <div class="grid grid-cols-2 gap-2">
-            <div class="p-3 bg-surface-container-high rounded-xl border border-white/5">
-              <p class="text-[7px] font-bold opacity-30 uppercase mb-0.5">VIP</p>
-              <p class="text-xs font-black">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
+              <p class="text-[8px] font-bold text-primary opacity-70 uppercase tracking-widest mb-1">VIP</p>
+              <p class="text-sm font-black">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</p>
             </div>
-            <div class="p-3 bg-surface-container-high rounded-xl border border-white/5">
-              <p class="text-[7px] font-bold opacity-30 uppercase mb-0.5">Double</p>
-              <p class="text-xs font-black">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</p>
+            <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
+              <p class="text-[8px] font-bold text-pink-400 opacity-70 uppercase tracking-widest mb-1">Double</p>
+              <p class="text-sm font-black">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</p>
             </div>
           </div>
         </div>
@@ -312,19 +325,25 @@ onUnmounted(() => {
     </aside>
 
     <!-- Canvas Area -->
-    <section class="flex-grow bg-surface-container-low border border-outline-variant/10 rounded-lg flex flex-col overflow-hidden relative shadow-2xl">
+    <section class="flex-grow bg-surface-container-low/80 backdrop-blur-md border border-outline-variant/10 rounded-3xl flex flex-col overflow-hidden relative shadow-2xl">
       <!-- Screen -->
-      <div class="p-8 flex flex-col items-center flex-shrink-0 bg-surface-container-high/20">
-        <div class="w-3/4 h-1.5 bg-primary rounded-full mb-4 shadow-[0_0_50px_rgba(245,197,24,0.6)]"></div>
-        <p class="text-[9px] font-black uppercase tracking-[0.6em] text-primary/40 animate-pulse">MÀN HÌNH CHÍNH</p>
+      <div class="flex flex-col items-center flex-shrink-0 relative py-8">
+        <div class="absolute top-0 w-full h-[150px] bg-[radial-gradient(ellipse_at_top,_rgba(6,182,212,0.1)_0%,_transparent_70%)] pointer-events-none"></div>
+        <div class="w-3/4 h-2 bg-gradient-to-r from-cyan-900/20 via-cyan-400 to-cyan-900/20 rounded-full shadow-[0_5px_30px_rgba(6,182,212,0.6)] mb-5 relative">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-8 bg-cyan-400/20 blur-xl"></div>
+        </div>
+        <p class="text-[9px] font-black uppercase tracking-[0.8em] text-cyan-400/80 animate-pulse relative z-10 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">MÀN HÌNH CHÍNH</p>
       </div>
 
       <!-- Grid with Labels -->
-      <div class="flex-grow overflow-auto p-12 flex items-start justify-center bg-[radial-gradient(circle_at_center,_rgba(245,197,24,0.03)_0%,_transparent_70%)] scrollbar-hide">
-        <div class="flex flex-col gap-3">
+      <div class="flex-grow overflow-auto p-12 flex items-start justify-center relative scrollbar-hide">
+        <!-- Dot matrix background overlay -->
+        <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
+        
+        <div class="relative z-10 flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-8 rounded-[2rem] border border-white/5 shadow-2xl">
            <!-- Column Labels -->
            <div class="flex gap-3 pl-10 mb-2">
-              <div v-for="c in cols" :key="c" class="w-10 text-center text-[10px] font-black text-outline-variant/40">{{ c }}</div>
+              <div v-for="c in cols" :key="c" class="w-10 text-center text-[10px] font-black text-outline-variant/40 shrink-0">{{ c }}</div>
            </div>
 
            <div class="flex gap-4">
@@ -336,22 +355,21 @@ onUnmounted(() => {
               </div>
 
               <!-- Matrix -->
-              <div class="grid gap-3" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }">
-                <div v-for="r in rows" :key="r" class="contents">
-                  <div v-for="c in cols" :key="c">
+              <div class="flex flex-col gap-3">
+                <div v-for="r in rows" :key="r" class="flex gap-3">
+                  <template v-for="c in cols" :key="c">
                     <div v-if="!isOccupiedByDouble(r-1, c-1)"
                       @mousedown="handleMouseDown($event, r-1, c-1)"
                       @mouseenter="handleMouseEnter(r-1, c-1)"
-                      :class="getSeatClass(seatMap[`${r-1}-${c-1}`]?.type, r-1, c-1)" 
-                      class="w-10 h-10 border rounded-sm flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative"
+                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`]?.type, r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[92px]' : 'w-10', 'h-10 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative select-none shrink-0']"
                       style="cursor: pointer">
                     {{ seatMap[`${r-1}-${c-1}`]?.label }}
                     <!-- Placeholder dot for empty or aisle spaces -->
                     <div v-if="!seatMap[`${r-1}-${c-1}`]?.type || seatMap[`${r-1}-${c-1}`]?.type === 'aisle'" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                       <div class="w-1 h-1 bg-white/10 rounded-full group-hover:bg-primary/50 transition-colors"></div>
+                       <div class="w-1.5 h-1.5 bg-white/10 rounded-full group-hover:bg-primary/50 transition-colors"></div>
                     </div>
                     </div>
-                  </div>
+                  </template>
                 </div>
               </div>
            </div>
