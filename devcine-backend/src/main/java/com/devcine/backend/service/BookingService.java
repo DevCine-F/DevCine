@@ -40,6 +40,11 @@ public class BookingService {
         List<BookingSeat> existingReservedSeats = bookingSeatRepository.findReservedSeatsByShowtime(request.getShowtimeId());
         for (BookingSeat reserved : existingReservedSeats) {
             if (request.getSeatIds().contains(reserved.getSeat().getId())) {
+                // If it's on HOLD but older than 10 minutes, we can override it (pretend it's free)
+                if ("HOLD".equals(reserved.getStatus()) && 
+                    reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(10))) {
+                    continue; 
+                }
                 throw new RuntimeException("Seat " + reserved.getSeat().getId() + " is already taken or on hold.");
             }
         }

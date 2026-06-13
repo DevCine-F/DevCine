@@ -73,6 +73,7 @@ const onCityChange = async () => {
 }
 
 const selectShowtime = (showtime, cinema) => {
+  store.setMovie(movie.value)
   store.setShowtime(showtime, cinema)
   router.push('/booking')
 }
