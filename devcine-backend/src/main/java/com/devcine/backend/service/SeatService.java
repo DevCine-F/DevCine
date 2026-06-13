@@ -17,6 +17,10 @@ import com.devcine.backend.entity.SeatType;
 import com.devcine.backend.repository.RoomRepository;
 import com.devcine.backend.repository.SeatTypeRepository;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,6 +34,7 @@ public class SeatService {
     private final ShowtimeRepository showtimeRepository;
     private final RoomRepository roomRepository;
     private final SeatTypeRepository seatTypeRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public ShowtimeSeatResponse getSeatsForShowtime(Integer showtimeId) {
         Showtime showtime = showtimeRepository.findById(showtimeId)
@@ -112,29 +117,41 @@ public class SeatService {
         room.setMatrixCol(request.getMatrixCol());
         roomRepository.save(room);
 
-        List<Seat> existingSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
-        seatRepository.deleteAll(existingSeats);
+        seatRepository.deleteByRoomId(roomId);
 
-        List<Seat> newSeats = request.getSeats().stream().map(def -> {
-            String backendType = def.getType().toUpperCase();
-            if ("STANDARD".equals(backendType)) backendType = "NORMAL";
-            else if ("DOUBLE".equals(backendType)) backendType = "SWEETBOX";
+        java.util.Map<String, SeatType> seatTypeMap = seatTypeRepository.findAll().stream()
+                .collect(Collectors.toMap(SeatType::getName, type -> type));
 
-            String finalBackendType = backendType;
-            SeatType seatType = seatTypeRepository.findByName(backendType)
-                    .orElseThrow(() -> new RuntimeException("SeatType not found: " + finalBackendType + " (original: " + def.getType() + ")"));
+        List<com.devcine.backend.dto.request.SeatLayoutRequest.SeatDefinition> seatDefs = request.getSeats();
+        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        
+        jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                var def = seatDefs.get(i);
+                String backendType = def.getType().toUpperCase();
+                if ("STANDARD".equals(backendType)) backendType = "NORMAL";
+                else if ("DOUBLE".equals(backendType)) backendType = "SWEETBOX";
 
-            return Seat.builder()
-                    .room(room)
-                    .rowChar(def.getRowChar())
-                    .colNum(def.getColNum())
-                    .gridRow(def.getGridRow())
-                    .gridCol(def.getGridCol())
-                    .seatType(seatType)
-                    .isActive(true)
-                    .build();
-        }).collect(Collectors.toList());
+                String finalBackendType = backendType;
+                SeatType seatType = seatTypeMap.get(finalBackendType);
+                if (seatType == null) {
+                    throw new RuntimeException("SeatType not found: " + finalBackendType);
+                }
 
-        seatRepository.saveAll(newSeats);
+                ps.setInt(1, roomId);
+                ps.setString(2, def.getRowChar());
+                ps.setInt(3, def.getColNum());
+                ps.setInt(4, def.getGridRow());
+                ps.setInt(5, def.getGridCol());
+                ps.setInt(6, seatType.getId());
+                ps.setBoolean(7, true);
+            }
+
+            @Override
+            public int getBatchSize() {
+                return seatDefs.size();
+            }
+        });
     }
 }

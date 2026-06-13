@@ -353,26 +353,16 @@ const closeDetail = () => {
 };
 
 const openHallDetail = async (hall) => {
-  viewingHall.value = hall;
   tempRows.value = hall.rows || 10;
   tempCols.value = hall.cols || 16;
   
   try {
-    const res = await axios.get(`${API_BASE_URL}/seats/room/${hall.id}`);
+    const res = await axios.get(`http://localhost:8080/api/seats/room/${hall.id}?t=${Date.now()}`);
     if (res.data && res.data.seats && res.data.seats.length > 0) {
       tempRows.value = res.data.matrixRow || hall.rows;
       tempCols.value = res.data.matrixCol || hall.cols;
       
       const map = {};
-      // Fill empty standard map first based on matrix size
-      for (let r = 0; r < tempRows.value; r++) {
-        for (let c = 0; c < tempCols.value; c++) {
-          map[`${r}-${c}`] = {
-            type: "hidden", // Default to hidden, so only valid seats show
-            label: "",
-          };
-        }
-      }
       
       // Override with actual fetched seats
       res.data.seats.forEach(seat => {
@@ -387,6 +377,7 @@ const openHallDetail = async (hall) => {
         };
       });
       currentSeatMap.value = map;
+      viewingHall.value = hall;
       return;
     }
   } catch (error) {
@@ -394,6 +385,7 @@ const openHallDetail = async (hall) => {
   }
   
   initializeSeatMap(hall);
+  viewingHall.value = hall;
 };
 
 const initializeSeatMap = (hall) => {

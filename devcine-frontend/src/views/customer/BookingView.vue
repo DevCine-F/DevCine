@@ -43,6 +43,37 @@ const isHiddenBecauseSweetbox = (row, col) => {
   return prevSeat && prevSeat.seatType === 'SWEETBOX';
 }
 
+const getBookingSeatClass = (seat) => {
+  const isSelected = isSeatSelected(seat);
+  const isAvailable = seat.status === 'AVAILABLE';
+  const type = seat.seatType; 
+  
+  const baseClasses = 'flex items-center justify-center text-[10px] font-bold transition-all duration-200';
+  const shadowClasses = 'shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]';
+  const standardSize = 'aspect-square w-10';
+  const doubleSize = 'h-10 w-[5.5rem]'; // w-10 (40px) * 2 + gap-2 (8px) = 88px = 5.5rem
+  
+  if (!isAvailable) {
+    const sizeClass = type === 'SWEETBOX' ? `${doubleSize} rounded-xl` : `${standardSize} rounded-lg`;
+    return `${baseClasses} ${sizeClass} bg-surface-container-high border border-white/5 text-white/20 cursor-not-allowed pointer-events-none opacity-50`;
+  }
+  
+  if (isSelected) {
+     const sizeClass = type === 'SWEETBOX' ? `${doubleSize} rounded-t-2xl rounded-b-lg` : `${standardSize} rounded-lg`;
+     return `${baseClasses} ${sizeClass} bg-gradient-to-br from-primary to-amber-600 text-on-primary shadow-[0_0_20px_rgba(245,197,24,0.3)] scale-[1.02] border-none cursor-pointer`;
+  }
+  
+  // Available and Not Selected
+  switch (type) {
+    case 'VIP': 
+      return `${baseClasses} ${standardSize} ${shadowClasses} rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 text-red-100 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 hover:brightness-110 cursor-pointer`;
+    case 'SWEETBOX': 
+      return `${baseClasses} ${doubleSize} ${shadowClasses} rounded-t-2xl rounded-b-lg bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 text-purple-100 shadow-[0_0_15px_rgba(147,51,234,0.2)] hover:shadow-[0_0_20px_rgba(147,51,234,0.4)] hover:-translate-y-0.5 hover:brightness-110 cursor-pointer`;
+    default: // STANDARD
+      return `${baseClasses} ${standardSize} ${shadowClasses} rounded-lg bg-slate-800/80 border border-slate-600/50 text-slate-300 hover:brightness-125 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer`;
+  }
+}
+
 const proceedToPayment = async () => {
   const success = await store.holdSeatsAndProceed()
   if (success) {
@@ -77,34 +108,28 @@ const proceedToPayment = async () => {
         </div>
         <div class="relative glass-card glass-shine-edge p-12 overflow-hidden rounded-3xl">
           <!-- Screen -->
-          <div class="w-full h-2 bg-gradient-to-r from-transparent via-primary-container to-transparent opacity-50 mb-4 blur-sm"></div>
-          <div class="w-full h-1 bg-primary-container mb-20 screen-curve rounded-[50%_/_10%]"></div>
-          <p class="text-center text-label-sm font-bold uppercase tracking-[0.3em] text-outline-variant mb-16">Màn Hình / Screen</p>
+          <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8 mb-12">
+            <div class="absolute top-0 w-full h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
+            <div class="w-2/3 h-1.5 bg-primary/70 rounded-full shadow-[0_2px_15px_rgba(245,197,24,0.2)] mb-4 border border-primary/20"></div>
+            <p class="text-[9px] font-bold uppercase tracking-[0.6em] text-primary/50 relative z-10">MÀN HÌNH / SCREEN</p>
+          </div>
           
           <!-- Seats Grid -->
-          <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-16" v-if="store.availableSeats.length">
-            <div class="flex flex-col gap-3 mx-auto min-w-max pb-4">
+          <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-16 relative" v-if="store.availableSeats.length">
+            <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
+            <div class="relative z-10 flex flex-col gap-3 mx-auto min-w-max pb-4 bg-black/40 backdrop-blur-sm p-8 rounded-3xl border border-white/5 shadow-2xl">
               <div v-for="row in store.matrixRow" :key="row" class="flex items-center gap-2 justify-center">
                 <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ getRowChar(row - 1) }}</div>
                 
                 <template v-for="col in store.matrixCol" :key="col">
                   <template v-if="getSeatAt(row - 1, col - 1)">
                     <div @click="handleSeatClick(getSeatAt(row - 1, col - 1))"
-                         :class="[
-                           'aspect-square w-8 flex items-center justify-center text-[10px] font-bold cursor-pointer transition-colors',
-                           getSeatAt(row - 1, col - 1).status === 'AVAILABLE' && !isSeatSelected(getSeatAt(row - 1, col - 1)) ? 
-                             (getSeatAt(row - 1, col - 1).seatType === 'VIP' ? 'border-2 border-primary-container/60 bg-primary-container/10 hover:bg-primary-container/30' : 
-                              getSeatAt(row - 1, col - 1).seatType === 'SWEETBOX' ? 'border-2 border-pink-500/50 bg-pink-500/10 rounded-t-xl hover:bg-pink-500/20' : 
-                              'border border-outline-variant/30 hover:border-primary-container') : '',
-                           getSeatAt(row - 1, col - 1).status !== 'AVAILABLE' ? 'bg-surface-variant/30 cursor-not-allowed opacity-50' : '',
-                           isSeatSelected(getSeatAt(row - 1, col - 1)) ? 'bg-primary-container text-on-primary border-primary-container' : '',
-                           getSeatAt(row - 1, col - 1).seatType === 'SWEETBOX' ? 'w-[4.5rem]' : ''
-                         ]">
-                      {{ isSeatSelected(getSeatAt(row - 1, col - 1)) ? getSeatAt(row - 1, col - 1).rowChar + getSeatAt(row - 1, col - 1).colNum : '' }}
+                         :class="getBookingSeatClass(getSeatAt(row - 1, col - 1))">
+                      {{ getSeatAt(row - 1, col - 1).rowChar + getSeatAt(row - 1, col - 1).colNum }}
                     </div>
                   </template>
                   <template v-else-if="!isHiddenBecauseSweetbox(row - 1, col - 1)">
-                    <div class="aspect-square w-8 opacity-0"></div>
+                    <div class="aspect-square w-10 opacity-0"></div>
                   </template>
                 </template>
 
@@ -116,32 +141,32 @@ const proceedToPayment = async () => {
           <!-- Legend -->
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 border-t border-outline-variant/10 pt-10">
             <div class="flex items-center gap-3">
-              <div class="w-5 h-5 border border-outline-variant/40"></div>
+              <div class="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
               <div class="flex flex-col">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Standard</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300">Standard</span>
                 <span class="text-[10px] text-on-surface-variant">110.000 VNĐ</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="w-5 h-5 border-2 border-primary-container/60 bg-primary-container/10"></div>
+              <div class="w-8 h-8 rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(220,38,38,0.2)]"></div>
               <div class="flex flex-col">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-primary-container">VIP</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-red-400">VIP</span>
                 <span class="text-[10px] text-on-surface-variant">150.000 VNĐ</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="w-10 h-5 border-2 border-pink-500/50 bg-pink-500/10 rounded-t-lg"></div>
+              <div class="w-12 h-8 rounded-t-xl rounded-b-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(147,51,234,0.2)]"></div>
               <div class="flex flex-col">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-pink-400">Sweetbox</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400">Sweetbox</span>
                 <span class="text-[10px] text-on-surface-variant">300.000 VNĐ</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="w-5 h-5 bg-primary-container"></div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Đang chọn</span>
+              <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-amber-600 shadow-[0_0_20px_rgba(245,197,24,0.3)]"></div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-primary">Đang chọn</span>
             </div>
             <div class="flex items-center gap-3">
-              <div class="w-5 h-5 bg-surface-variant/30"></div>
+              <div class="w-8 h-8 rounded-lg bg-surface-container-high border border-white/5 opacity-50"></div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Đã đặt</span>
             </div>
           </div>

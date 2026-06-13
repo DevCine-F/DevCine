@@ -66,6 +66,12 @@ const emitUpdate = () => {
 
 const applyTool = (r, c) => {
   if (!selectedTool.value) return
+  
+  // Không cho phép đặt ghế đôi ở cột cuối cùng vì nó cần 2 ô
+  if (selectedTool.value === 'double' && c === cols.value - 1) {
+    return
+  }
+  
   const key = `${r}-${c}`
   if (selectedTool.value === 'remove') {
     delete seatMap[key]
@@ -74,7 +80,7 @@ const applyTool = (r, c) => {
       type: selectedTool.value, 
       label: `${String.fromCharCode(65 + r)}${c + 1}` 
     }
-    // Nếu là ghế đôi, tự động dọn dẹp ô bên phải để tránh xung đột layout
+    // Nếu là ghế đôi, xóa ghế bên phải nếu có để tránh xung đột layout
     if (selectedTool.value === 'double' && c < cols.value - 1) {
       delete seatMap[`${r}-${c+1}`]
     }
@@ -115,7 +121,7 @@ const getSeatClass = (type, r, c) => {
     case 'standard': return `${baseClasses} rounded-lg bg-slate-800/80 border border-slate-600/50 text-slate-300 hover:brightness-125 hover:-translate-y-0.5 hover:shadow-lg`
     case 'vip': return `${baseClasses} rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 text-red-100 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 hover:brightness-110`
     case 'double': return `${baseClasses} col-span-2 rounded-t-2xl rounded-b-lg bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 text-purple-100 shadow-[0_0_15px_rgba(147,51,234,0.2)] hover:shadow-[0_0_20px_rgba(147,51,234,0.4)] hover:-translate-y-0.5 hover:brightness-110`
-    case 'aisle': return 'bg-transparent border border-dashed border-white/10 text-transparent opacity-20 pointer-events-none rounded-lg'
+    case 'aisle': return 'bg-transparent border border-dashed border-white/10 text-transparent opacity-20 rounded-lg hover:opacity-50 hover:border-primary/50'
     default: return 'rounded-lg'
   }
 }
