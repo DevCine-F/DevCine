@@ -1,6 +1,7 @@
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
+import { paymentApi } from '@/api/customer'
 import { computed, onMounted, ref } from 'vue'
 
 const store = useBookingStore()
@@ -77,11 +78,26 @@ const getBookingSeatClass = (seat) => {
 const proceedToPayment = async () => {
   const success = await store.holdSeatsAndProceed()
   if (success) {
-    const paid = await store.confirmPayment(paymentMethod.value)
-    if (paid) {
-      router.push('/success')
+    if (paymentMethod.value === 'VNPAY') {
+      try {
+        const { data } = await paymentApi.createPayment(store.totalPrice, store.bookingId);
+        if (data.code === '00') {
+          sessionStorage.setItem('bookingState', JSON.stringify(store.$state));
+          window.location.href = data.data; // Redirect to VNPAY Sandbox
+        } else {
+          alert('Failed to get payment URL');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Error creating payment');
+      }
     } else {
-      alert('Payment failed')
+      const paid = await store.confirmPayment(paymentMethod.value)
+      if (paid) {
+        router.push('/success')
+      } else {
+        alert('Payment failed')
+      }
     }
   } else {
     alert('Failed to hold seats. They might have been taken.')

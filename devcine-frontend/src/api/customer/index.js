@@ -24,3 +24,9 @@ export const bookingApi = {
   completePayment: (bookingId, paymentMethod) => api.post(`/bookings/${bookingId}/payment/complete`, null, { params: { paymentMethod } }),
   getHistory: () => api.get('/bookings/history'),
 };
+
+export const paymentApi = {
+  createPayment: (amount, bookingId) => api.post('/payment/create_payment', null, { params: { amount, bookingId } }),
+  vnpayReturn: (queryString) => api.get(`/payment/vnpay_return?${queryString}`),
+};
+
