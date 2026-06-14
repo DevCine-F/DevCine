@@ -4,7 +4,7 @@ import axios from 'axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
 
-const API_BASE_URL = 'http://localhost:8080/api/inventory'
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/inventory'
 
 const items = ref([])
 const transactions = ref([])
@@ -84,7 +84,7 @@ const saveAudit = async () => {
 
 const seedInitialItems = async () => {
   try {
-    await axios.post(`http://localhost:8080/api/system/seed-all`);
+    await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/system/seed-all`);
     alert('Dữ liệu mẫu kho bãi đã được khởi tạo!');
     await fetchData();
   } catch (error) {

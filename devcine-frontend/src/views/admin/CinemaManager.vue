@@ -4,7 +4,7 @@ import axios from "axios";
 import SeatMapBuilder from "@/components/admin/SeatMapBuilder.vue";
 import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
 
-const API_BASE_URL = "http://localhost:8080/api/v1/cinemas";
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api/v1/cinemas";
 
 const selectedCinema = ref(null);
 const activeTab = ref("infrastructure");
@@ -155,7 +155,7 @@ const fetchCinemas = async () => {
         // Fetch rooms for this cinema
         let halls = [];
         try {
-            const roomsRes = await axios.get(`http://localhost:8080/api/rooms/cinema/${c.id}`);
+            const roomsRes = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/rooms/cinema/${c.id}`);
             halls = roomsRes.data.map(r => ({
                 id: r.id,
                 name: r.name,
@@ -169,7 +169,7 @@ const fetchCinemas = async () => {
         // Fetch shows for this cinema
         let shows = [];
         try {
-            const showsRes = await axios.get(`http://localhost:8080/api/showtimes/cinema/${c.id}`);
+            const showsRes = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/showtimes/cinema/${c.id}`);
             shows = showsRes.data.map(s => {
                 let st = s.startTime;
                 let startTimeStr = "00:00";
@@ -357,7 +357,7 @@ const openHallDetail = async (hall) => {
   tempCols.value = hall.cols || 16;
   
   try {
-    const res = await axios.get(`http://localhost:8080/api/seats/room/${hall.id}?t=${Date.now()}`);
+    const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/seats/room/${hall.id}?t=${Date.now()}`);
     if (res.data && res.data.seats && res.data.seats.length > 0) {
       tempRows.value = res.data.matrixRow || hall.rows;
       tempCols.value = res.data.matrixCol || hall.cols;
@@ -456,7 +456,7 @@ const saveSeatLayout = async () => {
       seats: seatsList
     };
 
-    await axios.post(`http://localhost:8080/api/seats/layout/${viewingHall.value.id}`, payload);
+    await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/seats/layout/${viewingHall.value.id}`, payload);
     alert('Lưu cấu trúc ghế thành công!');
   } catch (error) {
     console.error('Error saving seat layout:', error);
