@@ -159,23 +159,26 @@ const groupedData = computed(() => {
 <template>
   <main class="pt-32 pb-20 max-w-[1440px] mx-auto px-10">
     <!-- Page Title -->
-    <header class="mb-12">
-      <h1 class="font-headline text-5xl font-extrabold tracking-tight text-on-surface mb-2">Lịch Chiếu</h1>
-      <p class="text-on-surface-variant font-medium">Khám phá các suất chiếu đặc sắc tại hệ thống DevCine hôm nay.</p>
+    <header class="mb-12 text-center flex flex-col items-center">
+      <div class="inline-flex flex-col items-center">
+        <h1 class="font-headline text-5xl font-extrabold tracking-tight text-on-surface mb-5">Phim đang chiếu</h1>
+        <!-- Sophisticated Thin Gradient Divider -->
+        <div class="w-3/4 h-[1px] bg-gradient-to-r from-transparent via-[#f5c518]/50 to-transparent"></div>
+      </div>
     </header>
     
     <!-- Date Selector -->
     <section class="mb-12 flex justify-center">
-      <div class="flex space-x-3 overflow-x-auto no-scrollbar pb-2">
+      <div class="flex space-x-3 overflow-x-auto no-scrollbar pt-3 pb-4 px-2">
         <button 
           v-for="d in availableDates" 
           :key="d.dateStr"
           @click="selectedDate = d.dateStr"
           :class="[
-            'flex-shrink-0 px-6 py-2 rounded-lg transition-all duration-200 border text-sm font-bold tracking-wider',
+            'flex flex-shrink-0 items-center justify-center h-[38px] px-6 rounded-lg transition-all duration-300 border text-sm font-bold tracking-wider relative overflow-hidden leading-none',
             selectedDate === d.dateStr 
-              ? 'bg-error text-white border-error shadow-lg shadow-error/20' 
-              : 'bg-surface-container-low text-white border-outline-variant/30 hover:border-error/50 hover:bg-surface-container-high'
+              ? 'bg-[#f5c518]/15 text-[#f5c518] border-[#f5c518] shadow-[0_0_15px_rgba(245,197,24,0.15)]' 
+              : 'bg-surface-container-low text-on-surface/80 border-outline-variant/30 hover:border-[#f5c518]/50 hover:text-[#f5c518] hover:bg-[#f5c518]/5 hover:shadow-[0_4px_12px_rgba(245,197,24,0.1)] hover:-translate-y-0.5'
           ]"
         >
           {{ String(d.dateNum).padStart(2, '0') }}-{{ d.dateStr.split('-')[1] }}-{{ d.dateStr.split('-')[0] }}
