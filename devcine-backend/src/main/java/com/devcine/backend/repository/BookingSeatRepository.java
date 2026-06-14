@@ -11,7 +11,7 @@ import java.util.List;
 @Repository
 public interface BookingSeatRepository extends JpaRepository<BookingSeat, Integer> {
     
-    @Query("SELECT bs FROM BookingSeat bs JOIN bs.booking b " +
+    @Query("SELECT bs FROM BookingSeat bs JOIN bs.booking b JOIN FETCH bs.seat " +
            "WHERE b.showtime.id = :showtimeId AND (bs.status = 'SOLD' OR bs.status = 'HOLD')")
     List<BookingSeat> findReservedSeatsByShowtime(@Param("showtimeId") Integer showtimeId);
 

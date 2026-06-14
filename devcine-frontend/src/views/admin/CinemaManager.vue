@@ -61,6 +61,7 @@ const onDrop = (event, hallId) => {
   
   show.roomId = hallId;
   show.startTime = newStartTime;
+  show.isDirty = true;
   
   if (checkConflict(hallId, show)) {
     show.roomId = originalRoomId;
@@ -71,8 +72,43 @@ const onDrop = (event, hallId) => {
   draggedShow.value = null;
 };
 
-const handlePublish = () => {
-  alert("Lịch chiếu đã được xuất bản thành công!");
+const handlePublish = async () => {
+  if (!selectedCinema.value) return;
+  const dirtyShows = selectedCinema.value.shows.filter(s => s.isDirty);
+  if (dirtyShows.length === 0) {
+    alert("Không có lịch chiếu nào thay đổi để xuất bản!");
+    return;
+  }
+  
+  try {
+    for (const show of dirtyShows) {
+      const [newHour, newMin] = show.startTime.split(':').map(Number);
+      
+      let baseDate = new Date(show.fullDateTime);
+      // setHours will correctly advance the day if newHour >= 24
+      baseDate.setHours(newHour);
+      baseDate.setMinutes(newMin);
+      
+      const year = baseDate.getFullYear();
+      const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+      const date = String(baseDate.getDate()).padStart(2, '0');
+      const hour = String(baseDate.getHours()).padStart(2, '0');
+      const minute = String(baseDate.getMinutes()).padStart(2, '0');
+      const localIsoString = `${year}-${month}-${date}T${hour}:${minute}:00`;
+      
+      await axios.patch(`http://localhost:8080/api/showtimes/${show.id}`, {
+        roomId: show.roomId,
+        startTime: localIsoString
+      });
+      
+      show.isDirty = false;
+      show.fullDateTime = localIsoString;
+    }
+    alert("Lịch chiếu đã được xuất bản thành công vào Database!");
+  } catch (err) {
+    console.error(err);
+    alert("Có lỗi xảy ra khi lưu lịch chiếu!");
+  }
 };
 
 // Helper function for mocking sold tickets based on movie
@@ -173,16 +209,19 @@ const fetchCinemas = async () => {
             shows = showsRes.data.map(s => {
                 let st = s.startTime;
                 let startTimeStr = "00:00";
+                let fullDateTimeStr = "";
                 let dateStr = "";
                 if (Array.isArray(st)) {
                     // [year, month, day, hour, minute]
                     startTimeStr = `${st[3].toString().padStart(2, '0')}:${st[4].toString().padStart(2, '0')}`;
                     dateStr = `${st[2].toString().padStart(2, '0')}/${st[1].toString().padStart(2, '0')}`;
+                    fullDateTimeStr = `${st[0]}-${st[1].toString().padStart(2, '0')}-${st[2].toString().padStart(2, '0')}T${startTimeStr}:00`;
                 } else if (typeof st === 'string') {
                     // "2026-06-11T13:00:00" -> "13:00"
                     startTimeStr = st.substring(11, 16);
                     const parts = st.split('T')[0].split('-');
                     dateStr = `${parts[2]}/${parts[1]}`;
+                    fullDateTimeStr = st;
                 }
 
                 return {
@@ -195,7 +234,9 @@ const fetchCinemas = async () => {
                     duration: s.duration || 120,
                     status: s.status,
                     price: 120000, // Default mock price
-                    color: "#f5c518" // Default mock color (yellow)
+                    color: "#f5c518", // Default mock color (yellow)
+                    fullDateTime: fullDateTimeStr,
+                    isDirty: false
                 };
             });
         } catch(e) { console.error(e); }
@@ -228,7 +269,7 @@ const fetchCinemas = async () => {
 
 const currentMinuteOffset = ref(0);
 const currentTimeLeft = computed(() => {
-  const totalMinutes = 16 * 60; // 16 hours from 8:00 to 24:00
+  const totalMinutes = 18 * 60; // 18 hours from 8:00 to 02:00
   const offset = Math.max(0, Math.min(currentMinuteOffset.value, totalMinutes));
   return `${(offset / totalMinutes) * 100}%`;
 });
@@ -254,8 +295,9 @@ onUnmounted(() => {
 const getEndTime = (startTime, duration = 120) => {
   const [hour, minute] = startTime.split(":").map(Number);
   const totalMinutes = hour * 60 + minute + duration;
-  const endHour = Math.floor(totalMinutes / 60);
+  const endHourRaw = Math.floor(totalMinutes / 60);
   const endMin = totalMinutes % 60;
+  const endHour = endHourRaw >= 24 ? endHourRaw - 24 : endHourRaw;
   return `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
 };
 
@@ -300,7 +342,7 @@ const getGridStyle = (startTime, duration) => {
 const checkConflict = (hallId, show) => {
   if (!selectedCinema.value) return false;
   const hallShows = selectedCinema.value.shows.filter(
-    (s) => s.roomId === hallId && s.id !== show.id,
+    (s) => s.roomId === hallId && s.date === selectedDate.value && s.id !== show.id,
   );
   const CLEANING_TIME = selectedCinema.value.cleaningTime || 20;
 
@@ -902,24 +944,24 @@ const tabs = [
                       Room \ Time
                     </div>
                     <div
-                      class="flex-grow grid grid-cols-[repeat(64,minmax(0,1fr))] relative h-10"
+                      class="flex-grow grid grid-cols-[repeat(72,minmax(0,1fr))] relative h-10"
                     >
                       <div
-                        v-for="hour in 16"
+                        v-for="hour in 18"
                         :key="hour"
                         class="col-span-4 border-r border-outline-variant/10 flex items-center justify-start pl-2 text-[9px] font-black text-on-surface-variant/30"
                       >
-                        {{ (hour + 7).toString().padStart(2, "0") }}:00
+                        {{ ((hour + 7) % 24).toString().padStart(2, "0") }}:00
                       </div>
                     </div>
                   </div>
 
                   <!-- Vertical Grid Lines -->
                   <div
-                    class="absolute inset-0 top-10 grid grid-cols-[repeat(64,minmax(0,1fr))] pointer-events-none pl-48 z-0"
+                    class="absolute inset-0 top-10 grid grid-cols-[repeat(72,minmax(0,1fr))] pointer-events-none pl-48 z-0"
                   >
                     <div
-                      v-for="i in 64"
+                      v-for="i in 72"
                       :key="i"
                       :class="
                         i % 4 === 0
@@ -978,7 +1020,7 @@ const tabs = [
                       <div
                         @dragover.prevent
                         @drop="onDrop($event, hall.id)"
-                        class="flex-grow grid grid-cols-[repeat(64,minmax(0,1fr))] grid-rows-1 gap-x-0 relative p-0 items-center min-w-[2200px]"
+                        class="flex-grow grid grid-cols-[repeat(72,minmax(0,1fr))] grid-rows-1 gap-x-0 relative p-0 items-center min-w-[2200px]"
                       >
                         <div
                           v-for="show in selectedCinema.shows.filter(

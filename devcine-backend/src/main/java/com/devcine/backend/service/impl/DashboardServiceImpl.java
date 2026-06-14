@@ -7,6 +7,7 @@ import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
@@ -26,6 +27,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final ShowtimeRepository showtimeRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats() {
         LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         LocalDateTime endOfMonth = LocalDate.now().plusMonths(1).withDayOfMonth(1).atStartOfDay().minusSeconds(1);
@@ -68,11 +70,17 @@ public class DashboardServiceImpl implements DashboardService {
         BigDecimal maxRevenue = BigDecimal.ONE;
         long maxTickets = 1;
 
+        BigDecimal[] dayRevenues = new BigDecimal[7];
+        long[] dayTicketsArr = new long[7];
+
         for (int i = 6; i >= 0; i--) {
             LocalDateTime start = startOfToday.minusDays(i);
             LocalDateTime end = endOfToday.minusDays(i);
             BigDecimal dayRevenue = bookingRepository.sumRevenueByDateRange(start, end);
             long dayTickets = bookingRepository.countTicketsByDateRange(start, end);
+
+            dayRevenues[6 - i] = dayRevenue;
+            dayTicketsArr[6 - i] = dayTickets;
 
             if (dayRevenue.compareTo(maxRevenue) > 0) maxRevenue = dayRevenue;
             if (dayTickets > maxTickets) maxTickets = dayTickets;
@@ -85,15 +93,10 @@ public class DashboardServiceImpl implements DashboardService {
             chartDataList.add(data);
         }
         
-        for (int i = 6; i >= 0; i--) {
-            LocalDateTime start = startOfToday.minusDays(i);
-            LocalDateTime end = endOfToday.minusDays(i);
-            BigDecimal dayRevenue = bookingRepository.sumRevenueByDateRange(start, end);
-            long dayTickets = bookingRepository.countTicketsByDateRange(start, end);
-
-            DashboardStatsResponse.ChartData data = chartDataList.get(6 - i);
-            data.setRevenuePercentage(dayRevenue.doubleValue() / maxRevenue.doubleValue() * 100);
-            data.setTicketPercentage((double) dayTickets / maxTickets * 100);
+        for (int i = 0; i < 7; i++) {
+            DashboardStatsResponse.ChartData data = chartDataList.get(i);
+            data.setRevenuePercentage(dayRevenues[i].doubleValue() / maxRevenue.doubleValue() * 100);
+            data.setTicketPercentage((double) dayTicketsArr[i] / maxTickets * 100);
         }
 
         // Top Movies

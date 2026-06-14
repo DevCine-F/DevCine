@@ -24,6 +24,11 @@ public class ShowtimeController {
         return ResponseEntity.ok(showtimeService.getAllCities());
     }
 
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<com.devcine.backend.dto.response.PublicShowtimeDTO>> getAllUpcomingShowtimes() {
+        return ResponseEntity.ok(showtimeService.getAllUpcomingShowtimes());
+    }
+
     @GetMapping("/movie/{movieId}")
     public ResponseEntity<List<CinemaShowtimeDTO>> getShowtimesForMovie(
             @PathVariable Integer movieId,
@@ -44,6 +49,16 @@ public class ShowtimeController {
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<?> updateShowtime(@PathVariable Integer id, @RequestBody java.util.Map<String, Object> updates) {
+        try {
+            showtimeService.updateShowtime(id, updates);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }

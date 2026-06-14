@@ -35,6 +35,34 @@ public class ShowtimeService {
         return cinemaRepository.findAllCities();
     }
 
+    public List<com.devcine.backend.dto.response.PublicShowtimeDTO> getAllUpcomingShowtimes() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Showtime> showtimes = showtimeRepository.findUpcomingShowtimes(now);
+        return showtimes.stream().map(s -> com.devcine.backend.dto.response.PublicShowtimeDTO.builder()
+                .id(s.getId())
+                .startTime(s.getStartTime())
+                .endTime(s.getEndTime())
+                .status(s.getStatus())
+                .cinemaId(s.getRoom().getCinema().getId())
+                .cinemaName(s.getRoom().getCinema().getName())
+                .cinemaAddress(s.getRoom().getCinema().getAddress())
+                .movieId(s.getMovie().getId())
+                .movieTitle(s.getMovie().getTitle())
+                .movieTitleVietnamese(s.getMovie().getTitleVietnamese())
+                .movieDurationMins(s.getMovie().getDurationMins())
+                .moviePosterUrl(s.getMovie().getPosterUrl())
+                .movieAgeRating(s.getMovie().getAgeRating())
+                .movieCountry(s.getMovie().getCountry())
+                .movieReleaseDate(s.getMovie().getReleaseDate())
+                .movieGenres(s.getMovie().getGenres() != null ? 
+                    s.getMovie().getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new java.util.HashSet<>())
+                .formatId(s.getFormat().getId())
+                .formatName(s.getFormat().getName())
+                .roomId(s.getRoom().getId())
+                .roomName(s.getRoom().getName())
+                .build()).collect(Collectors.toList());
+    }
+
     public List<CinemaShowtimeDTO> getShowtimesForMovie(Integer movieId, String city) {
         LocalDateTime now = LocalDateTime.now();
         List<Showtime> showtimes;
@@ -149,5 +177,30 @@ public class ShowtimeService {
                 .movie(movie.getTitle())
                 .duration(movie.getDurationMins())
                 .build();
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void updateShowtime(Integer id, java.util.Map<String, Object> updates) {
+        Showtime showtime = showtimeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Showtime not found"));
+
+        if (updates.containsKey("roomId")) {
+            Integer roomId = (Integer) updates.get("roomId");
+            Room room = roomRepository.findById(roomId)
+                    .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+            showtime.setRoom(room);
+        }
+
+        if (updates.containsKey("startTime")) {
+            LocalDateTime startTime = LocalDateTime.parse((String) updates.get("startTime"));
+            int duration = showtime.getMovie().getDurationMins();
+            int cleaningTime = updates.containsKey("cleaningTime") ? (Integer) updates.get("cleaningTime") : 15;
+            LocalDateTime endTime = startTime.plusMinutes(duration).plusMinutes(cleaningTime);
+
+            showtime.setStartTime(startTime);
+            showtime.setEndTime(endTime);
+        }
+
+        showtimeRepository.save(showtime);
     }
 }

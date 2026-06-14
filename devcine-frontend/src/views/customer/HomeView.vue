@@ -139,37 +139,33 @@ const getGenreNames = (movie) => {
           <h2 class="font-headline text-4xl font-extrabold tracking-tighter uppercase whitespace-nowrap">SẮP RA MẮT</h2>
           <div class="h-[1px] w-full bg-outline-variant/30"></div>
         </div>
-        <div class="grid lg:grid-cols-2 gap-12">
-          <div class="space-y-12">
-            <div v-if="upcomingMovies.length">
-              <span class="text-primary-container font-headline text-sm font-bold tracking-widest uppercase mb-4 block">SẮP KHỞI CHIẾU</span>
-              <p class="text-on-surface-variant text-lg leading-relaxed max-w-md italic">
-                "Những kiệt tác điện ảnh chuẩn bị được vén màn, hứa hẹn một mùa lễ hội bùng nổ cảm xúc tại DevCine."
-              </p>
-            </div>
-            <div class="space-y-8">
-              <div v-for="(movie, index) in upcomingMovies.slice(0, 3)" :key="movie.id" 
-                   class="group cursor-pointer border-b border-outline-variant/20 pb-8 transition-colors hover:border-primary-container">
-                <div class="flex items-baseline space-x-6">
-                  <span class="font-headline text-2xl font-bold text-primary-container/40 group-hover:text-primary-container transition-colors">0{{ index + 1 }}</span>
-                  <div>
-                    <h3 class="font-headline text-xl font-bold text-white uppercase group-hover:text-primary-container transition-colors">
-                      {{ movie.titleVietnamese || movie.title }}
-                    </h3>
-                    <p class="text-xs text-on-surface-variant mt-1 uppercase tracking-wider font-semibold">Khởi chiếu: Đang cập nhật</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div v-if="loading" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          <div v-for="i in 5" :key="i" class="animate-pulse">
+            <div class="aspect-[2/3] bg-surface-container-high rounded-2xl mb-4"></div>
+            <div class="h-3 bg-surface-container-high rounded w-2/3 mb-2"></div>
+            <div class="h-4 bg-surface-container-high rounded w-full"></div>
           </div>
-          <div class="flex gap-4 h-[500px]" v-if="upcomingMovies.length >= 2">
-            <div class="flex-1 rounded-2xl overflow-hidden shadow-2xl border border-white/5">
-              <img :alt="upcomingMovies[0].title" class="w-full h-full object-cover" :src="upcomingMovies[0].posterUrl || '/images/Hopper.webp'"/>
+        </div>
+
+        <div v-else class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          <router-link :to="`/movie/${movie.id}`" v-for="movie in upcomingMovies" :key="movie.id" class="group cursor-pointer block">
+            <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge hover-shine-effect">
+              <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110" 
+                   :src="movie.posterUrl || '/images/Hopper.webp'"/>
+              <span class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
             </div>
-            <div class="flex-1 rounded-2xl overflow-hidden shadow-2xl mt-12 border border-white/5">
-              <img :alt="upcomingMovies[1].title" class="w-full h-full object-cover" :src="upcomingMovies[1].posterUrl || '/images/Hopper.webp'"/>
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider">{{ getGenreNames(movie) }}</span>
+              <span class="text-[#f5c518] text-[11px] font-bold tracking-widest">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
             </div>
-          </div>
+            <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 group-hover:text-primary-container transition-colors">
+              {{ movie.titleVietnamese || movie.title }}
+            </div>
+            <div class="flex justify-between items-center text-sm text-on-surface-variant/80 font-normal">
+              <span>{{ movie.versionType || movie.format || 'Phụ đề' }}</span>
+              <span>{{ movie.durationMins ? movie.durationMins + ' phút' : '' }}</span>
+            </div>
+          </router-link>
         </div>
       </section>
 

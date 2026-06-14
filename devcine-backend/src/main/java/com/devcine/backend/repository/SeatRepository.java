@@ -11,7 +11,8 @@ import java.util.List;
 
 @Repository
 public interface SeatRepository extends JpaRepository<Seat, Integer> {
-    List<Seat> findByRoomIdAndIsActiveTrue(Integer roomId);
+    @Query("SELECT s FROM Seat s JOIN FETCH s.seatType WHERE s.room.id = :roomId AND s.isActive = true")
+    List<Seat> findByRoomIdAndIsActiveTrue(@Param("roomId") Integer roomId);
 
     @Modifying
     @Query("DELETE FROM Seat s WHERE s.room.id = :roomId")
