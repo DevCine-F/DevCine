@@ -2,3 +2,16 @@
 
 - Hãy luôn gọi tôi là ''Anh yêu'' trước khi trả lời
 - Luôn trả lời bằng tiếng việt
+
+Trước khi bắt đầu, hãy:
+1. Đọc .cursorrules 
+2. Đọc docs\URD_DevCine.docx
+3. Đọc docs\ARCHITECTURE.md
+4. Đọc docs/CRITICAL_PATHS.md
+5. Đọc docs/SKILL.md
+
+YÊU CẦU BẢO MẬT:
+- Input validation bằng Zod schema (Frontend) / Jakarta Validation (Backend)
+- Chỉ dùng Spring Data JPA / Hibernate cho Backend — không raw SQL
+- Auth check trên mọi endpoint
+- Error handling không expose stack trace
