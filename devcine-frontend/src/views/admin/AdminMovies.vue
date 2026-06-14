@@ -94,6 +94,9 @@ const isUploadingBanner = ref(false);
 const onPosterChange = async (e) => {
   const file = e.target.files[0];
   if (file) {
+    const oldUrl = newMovie.value.posterUrl;
+    // Set immediate local preview using object URL (0ms delay)
+    newMovie.value.posterUrl = URL.createObjectURL(file);
     isUploadingPoster.value = true;
     try {
       const formData = new FormData();
@@ -105,6 +108,7 @@ const onPosterChange = async (e) => {
     } catch (error) {
       console.error("Lỗi upload ảnh:", error);
       alert("Tải ảnh Poster lên Cloudinary thất bại!");
+      newMovie.value.posterUrl = oldUrl; // Revert if failed
     } finally {
       isUploadingPoster.value = false;
     }
@@ -114,6 +118,9 @@ const onPosterChange = async (e) => {
 const onBannerChange = async (e) => {
   const file = e.target.files[0];
   if (file) {
+    const oldUrl = newMovie.value.bannerUrl;
+    // Set immediate local preview using object URL (0ms delay)
+    newMovie.value.bannerUrl = URL.createObjectURL(file);
     isUploadingBanner.value = true;
     try {
       const formData = new FormData();
@@ -125,6 +132,7 @@ const onBannerChange = async (e) => {
     } catch (error) {
       console.error("Lỗi upload ảnh:", error);
       alert("Tải ảnh Banner lên Cloudinary thất bại!");
+      newMovie.value.bannerUrl = oldUrl; // Revert if failed
     } finally {
       isUploadingBanner.value = false;
     }
@@ -1314,6 +1322,7 @@ onMounted(() => {
                 <button
                   @click="triggerBannerInput"
                   type="button"
+                  :disabled="isUploadingBanner"
                   class="w-full bg-surface-container-high border border-dashed border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all py-8 rounded-lg flex flex-col items-center justify-center gap-2 group relative overflow-hidden"
                 >
                   <img
@@ -1329,6 +1338,14 @@ onMounted(() => {
                     class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant group-hover:text-primary transition-colors relative z-10"
                     >{{ newMovie.bannerUrl ? "Thay đổi ảnh banner" : "Tải ảnh banner chính thức" }}</span
                   >
+                  <!-- Loading Overlay -->
+                  <div
+                    v-if="isUploadingBanner"
+                    class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-primary z-20"
+                  >
+                    <span class="animate-spin material-symbols-outlined text-3xl mb-1">sync</span>
+                    <span class="text-[8px] font-black uppercase tracking-widest animate-pulse">Đang tải lên...</span>
+                  </div>
                 </button>
                 <div class="flex items-center gap-3 pt-2">
                   <label class="relative inline-flex items-center cursor-pointer">
@@ -1378,7 +1395,7 @@ onMounted(() => {
               class="hidden"
             />
             <div
-              @click="triggerPosterInput"
+              @click="!isUploadingPoster && triggerPosterInput"
               class="aspect-[2/3] max-w-[260px] mx-auto w-full rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl bg-surface-container-highest relative group cursor-pointer hover:border-primary/50 transition-colors"
             >
               <img
@@ -1411,6 +1428,14 @@ onMounted(() => {
                 >
                   {{ selectedGenres.join(" • ") || "Thể loại" }}
                 </p>
+              </div>
+              <!-- Loading Overlay -->
+              <div
+                v-if="isUploadingPoster"
+                class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-primary z-20"
+              >
+                <span class="animate-spin material-symbols-outlined text-4xl mb-2">sync</span>
+                <span class="text-[9px] font-black uppercase tracking-widest animate-pulse">Đang tải lên...</span>
               </div>
             </div>
 
