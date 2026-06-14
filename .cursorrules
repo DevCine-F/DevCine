@@ -5,13 +5,19 @@
 
 Trước khi bắt đầu, hãy:
 1. Đọc .cursorrules 
-2. Đọc docs\URD_DevCine.docx
-3. Đọc docs\ARCHITECTURE.md
-4. Đọc docs/CRITICAL_PATHS.md
-5. Đọc docs/SKILL.md
+2. Đọc docs\CHANGELOG.md
+3. Đọc docs\SECURITY.md
+4. Đọc docs\URD_DevCine.docx
+5. Đọc docs\ARCHITECTURE.md
+6. Đọc docs/CRITICAL_PATHS.md
+7. Đọc docs/SKILL.md
 
 YÊU CẦU BẢO MẬT:
 - Input validation bằng Zod schema (Frontend) / Jakarta Validation (Backend)
 - Chỉ dùng Spring Data JPA / Hibernate cho Backend — không raw SQL
 - Auth check trên mọi endpoint
 - Error handling không expose stack trace
+- Query đảm bảo không bị N+1
+
+NÂNG CAO
+Khi tôi có ý định commit, hãy nghĩ cho tôi 3 title commit (best, short, detailed) dựa vào git status, khi nào tôi chọn và Acceept mới đươc phép commit
