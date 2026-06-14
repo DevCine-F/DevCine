@@ -111,14 +111,14 @@ const getGenreNames = (movie) => {
             <h2 class="font-headline text-lg font-bold tracking-tight mb-8 border-l-4 border-primary-container pl-4 uppercase">KHUYẾN MẠI</h2>
             <div class="space-y-6">
               <div class="group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
-                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" src="https://files.betacinemas.vn/files/media/images/2024/05/10/banner-web-le-hoi-102555-100524.jpg"/>
+                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" src="/images/Hopper.webp"/>
                 <div class="p-2.5">
                   <h4 class="font-headline font-bold text-white uppercase mb-1 text-[9px] leading-tight">COMBO HÈ RỰC RỠ</h4>
                   <p class="text-on-surface-variant text-[8px] leading-snug">Giảm ngay 20% khi mua kèm 2 vé xem phim.</p>
                 </div>
               </div>
               <div class="group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge" style="animation-delay: 4s">
-                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" src="https://files.betacinemas.vn/files/media/images/2024/04/24/banner-web-hoc-sinh-113522-240424.jpg"/>
+                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" src="/images/Hopper.webp"/>
                 <div class="p-2.5">
                   <h4 class="font-headline font-bold text-white uppercase mb-1 text-[9px] leading-tight">ƯU ĐÃI HỌC SINH</h4>
                   <p class="text-on-surface-variant text-[8px] leading-snug">Đồng giá vé chỉ 45k cho HSSV vào ngày thường.</p>
