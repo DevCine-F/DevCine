@@ -81,7 +81,9 @@ const posterInput = ref(null);
 const bannerInput = ref(null);
 
 const triggerPosterInput = () => {
-  posterInput.value.click();
+  if (!isUploadingPoster.value) {
+    posterInput.value.click();
+  }
 };
 
 const triggerBannerInput = () => {
@@ -1395,7 +1397,7 @@ onMounted(() => {
               class="hidden"
             />
             <div
-              @click="!isUploadingPoster && triggerPosterInput"
+              @click="triggerPosterInput"
               class="aspect-[2/3] max-w-[260px] mx-auto w-full rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl bg-surface-container-highest relative group cursor-pointer hover:border-primary/50 transition-colors"
             >
               <img
