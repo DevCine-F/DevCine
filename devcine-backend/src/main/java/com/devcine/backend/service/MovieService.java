@@ -29,6 +29,7 @@ public class MovieService {
                 .status(movie.getStatus())
                 .posterUrl(movie.getPosterUrl())
                 .releaseDate(movie.getReleaseDate())
+                .ageRating(movie.getAgeRating())
                 .genres(movie.getGenres() == null ? null : movie.getGenres().stream()
                         .map(g -> CategorySummaryDTO.builder()
                                 .id(g.getId())

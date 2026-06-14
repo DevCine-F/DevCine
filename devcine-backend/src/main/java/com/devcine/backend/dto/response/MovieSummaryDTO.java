@@ -18,6 +18,7 @@ public class MovieSummaryDTO {
     private String status;
     private String posterUrl;
     private java.time.LocalDate releaseDate;
+    private String ageRating;
     private Set<CategorySummaryDTO> genres;
 
     @Data

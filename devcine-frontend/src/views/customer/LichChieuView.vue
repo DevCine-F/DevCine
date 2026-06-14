@@ -253,10 +253,6 @@ const groupedData = computed(() => {
                 * Phim được phổ biến đến người xem từ độ tuổi {{ movie.ageRating.replace('T', '') }} trở lên
               </p>
 
-              <!-- Movie Description with line-clamp -->
-              <p v-if="movie.description" class="text-sm text-on-surface-variant mb-5 line-clamp-3 leading-relaxed">
-                {{ movie.description }}
-              </p>
               
               <!-- Showtimes -->
               <div class="mt-auto border-t border-outline-variant/10 pt-4">

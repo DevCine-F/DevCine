@@ -87,7 +87,7 @@ const getGenreNames = (movie) => {
                 <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge hover-shine-effect">
                   <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110" 
                        :src="movie.posterUrl || '/images/Hopper.webp'"/>
-                  <span class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
+                  <span v-if="movie.ageRating" class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
                 </div>
                 <div class="flex justify-between items-center mb-1">
                   <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider">{{ getGenreNames(movie) }}</span>
@@ -152,7 +152,7 @@ const getGenreNames = (movie) => {
             <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge hover-shine-effect">
               <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110" 
                    :src="movie.posterUrl || '/images/Hopper.webp'"/>
-              <span class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
+              <span v-if="movie.ageRating" class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
             </div>
             <div class="flex justify-between items-center mb-1">
               <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider">{{ getGenreNames(movie) }}</span>
