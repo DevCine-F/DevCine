@@ -4,7 +4,7 @@ import axios from 'axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
 
-const API_BASE_URL = 'http://localhost:8080/api/staff'
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/staff'
 
 const staffList = ref([])
 const shifts = ref([])
@@ -74,7 +74,7 @@ const rejectShift = async (id) => {
 
 const seedDemoData = async () => {
   try {
-    await axios.post(`http://localhost:8080/api/system/seed-all`);
+    await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/system/seed-all`);
     alert('Dữ liệu mẫu nhân sự đã được khởi tạo!');
     await fetchData();
   } catch (error) {

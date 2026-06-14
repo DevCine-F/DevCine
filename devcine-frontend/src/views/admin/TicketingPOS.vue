@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import AppButton from '../../components/common/AppButton.vue'
 
-const API_BASE_URL = 'http://localhost:8080/api/ticketing'
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/ticketing'
 
 const currentStep = ref(1) // 1: Movie, 2: Seats, 3: Types, 4: F&B, 5: Payment, 6: Completion
 const showtimes = ref([])
@@ -111,7 +111,7 @@ const resetPOS = () => {
 
 const seedData = async () => {
   try {
-    await axios.post(`http://localhost:8080/api/system/seed-all`);
+    await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/system/seed-all`);
     alert('Đã khởi tạo dữ liệu mẫu toàn hệ thống!');
     await fetchData();
   } catch (error) {

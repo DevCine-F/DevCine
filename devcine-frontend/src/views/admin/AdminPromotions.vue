@@ -19,7 +19,7 @@ const cinemasList = ref([])
 const promotions = ref([])
 const combos = ref([])
 
-const API_BASE_URL = 'http://localhost:8080/api/marketing'
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/marketing'
 
 const isVoucherDrawerOpen = ref(false)
 const isComboDrawerOpen = ref(false)
@@ -154,7 +154,7 @@ const fetchMarketingData = async () => {
 onMounted(async () => {
   fetchMarketingData()
   try {
-    const response = await axios.get('http://localhost:8080/api/cinemas')
+    const response = await axios.get((import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/cinemas')
     cinemasList.value = response.data
   } catch (error) {
     console.error('Error fetching cinemas:', error)

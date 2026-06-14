@@ -9,7 +9,7 @@ const isLoading = ref(true);
 const globalSeed = async () => {
   isSeeding.value = true;
   try {
-    const res = await axios.post("http://localhost:8080/api/system/seed-all");
+    const res = await axios.post((import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api/system/seed-all");
     alert(res.data);
     window.location.reload(); // Reload to see new data
   } catch (error) {
@@ -62,7 +62,7 @@ const occupancyRate = ref("0%");
 
 const fetchDashboardStats = async () => {
   try {
-    const res = await axios.get("http://localhost:8080/api/dashboard/stats");
+    const res = await axios.get((import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api/dashboard/stats");
     const data = res.data;
     
     stats.value[0].value = data.revenueMonthly.value;
