@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Maintain dependencies for Maven (Spring Boot Backend)
+  - package-ecosystem: "maven"
+    directory: "/devcine-backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Maintain dependencies for npm (Vue.js Frontend)
+  - package-ecosystem: "npm"
+    directory: "/devcine-frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
