@@ -8,7 +8,6 @@ import StarryBackground from '@/components/common/StarryBackground.vue'
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
-const isDev = import.meta.env.DEV
 
 const loginAsAdmin = async (e) => {
   if (e && e.preventDefault) e.preventDefault()
@@ -84,7 +83,7 @@ const loginAsAdmin = async (e) => {
     </div>
 
     <!-- Quick Access (Dev Only) -->
-    <div v-if="isDev" class="absolute bottom-4 right-4 z-50">
+    <div class="absolute bottom-4 right-4 z-50">
       <button type="button" @click="loginAsAdmin" class="text-white/30 hover:text-[#f5c518] transition-colors p-2" title="Dev Mode: Truy cập nhanh">
         <span class="material-symbols-outlined text-sm">vpn_key</span>
       </button>
