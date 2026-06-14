@@ -116,6 +116,7 @@ const groupedData = computed(() => {
         ageRating: s.movieAgeRating,
         country: s.movieCountry,
         releaseDate: s.movieReleaseDate,
+        description: s.movieDescription,
         formats: new Map()
       })
     }
@@ -246,10 +247,15 @@ const groupedData = computed(() => {
                 <p>Xuất xứ: <span class="text-on-surface">{{ movie.country || 'Đang cập nhật' }}</span></p>
                 <p>Khởi chiếu: <span class="text-on-surface">{{ movie.releaseDate ? new Date(movie.releaseDate).toLocaleDateString('vi-VN') : 'Đang cập nhật' }}</span></p>
               </div>
-              
+
               <!-- Age Rating Warning -->
               <p v-if="movie.ageRating" class="text-xs text-error mb-5 italic">
                 * Phim được phổ biến đến người xem từ độ tuổi {{ movie.ageRating.replace('T', '') }} trở lên
+              </p>
+
+              <!-- Movie Description with line-clamp -->
+              <p v-if="movie.description" class="text-sm text-on-surface-variant mb-5 line-clamp-3 leading-relaxed">
+                {{ movie.description }}
               </p>
               
               <!-- Showtimes -->

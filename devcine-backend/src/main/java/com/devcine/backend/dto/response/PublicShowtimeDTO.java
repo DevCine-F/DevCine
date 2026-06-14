@@ -32,6 +32,7 @@ public class PublicShowtimeDTO {
     private String movieAgeRating;
     private String movieCountry;
     private java.time.LocalDate movieReleaseDate;
+    private String movieDescription;
     private Set<String> movieGenres;
     
     // Format & Room info

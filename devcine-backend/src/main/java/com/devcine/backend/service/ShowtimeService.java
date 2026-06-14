@@ -54,6 +54,7 @@ public class ShowtimeService {
                 .movieAgeRating(s.getMovie().getAgeRating())
                 .movieCountry(s.getMovie().getCountry())
                 .movieReleaseDate(s.getMovie().getReleaseDate())
+                .movieDescription(s.getMovie().getDescription())
                 .movieGenres(s.getMovie().getGenres() != null ? 
                     s.getMovie().getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new java.util.HashSet<>())
                 .formatId(s.getFormat().getId())
