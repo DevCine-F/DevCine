@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import axios from "axios";
 
 const isMonthlyRevenue = ref(false);
 const isSeeding = ref(false);
+const isLoading = ref(true);
 
 const globalSeed = async () => {
   isSeeding.value = true;
@@ -23,68 +24,74 @@ const stats = ref([
   {
     id: "revenue",
     label: "Doanh thu tháng",
-    value: "1.240.000.000đ",
-    trend: "+15%",
+    value: "0đ",
+    trend: "+0%",
     icon: "payments",
     color: "primary",
-    daily: { label: "Doanh thu ngày", value: "45.000.000đ", trend: "+5.2%" },
+    daily: { label: "Doanh thu ngày", value: "0đ", trend: "+0%" },
   },
   {
     id: "tickets",
     label: "Vé đã bán",
-    value: "12.450",
-    trend: "+8.2%",
+    value: "0",
+    trend: "+0%",
     icon: "confirmation_number",
     color: "blue",
   },
   {
     id: "users",
     label: "Người dùng mới",
-    value: "1.420",
-    trend: "+12.5%",
+    value: "0",
+    trend: "+0%",
     icon: "person_add",
     color: "purple",
   },
   {
     id: "occupancy",
     label: "Tỷ lệ lấp đầy",
-    value: "74.2%",
-    trend: "+4.1%",
+    value: "0%",
+    trend: "+0%",
     icon: "chair",
     color: "orange",
   },
 ]);
 
-const topMovies = ref([
-  {
-    title: "The Silent Witness",
-    revenue: "450.000.000đ",
-    tickets: "4.500",
-    occupancy: "88%",
-    trend: "up",
-  },
-  {
-    title: "Neon Forest",
-    revenue: "320.000.000đ",
-    tickets: "3.200",
-    occupancy: "76%",
-    trend: "up",
-  },
-  {
-    title: "Shadow Protocol",
-    revenue: "210.000.000đ",
-    tickets: "2.100",
-    occupancy: "62%",
-    trend: "down",
-  },
-  {
-    title: "Ethereal Soul",
-    revenue: "180.000.000đ",
-    tickets: "1.800",
-    occupancy: "58%",
-    trend: "stable",
-  },
-]);
+const topMovies = ref([]);
+const businessPerformance = ref([]);
+const occupancyRate = ref("0%");
+
+const fetchDashboardStats = async () => {
+  try {
+    const res = await axios.get("http://localhost:8080/api/dashboard/stats");
+    const data = res.data;
+    
+    stats.value[0].value = data.revenueMonthly.value;
+    stats.value[0].trend = data.revenueMonthly.trend;
+    stats.value[0].daily.value = data.revenueDaily.value;
+    stats.value[0].daily.trend = data.revenueDaily.trend;
+    
+    stats.value[1].value = data.tickets.value;
+    stats.value[1].trend = data.tickets.trend;
+    
+    stats.value[2].value = data.newUsers.value;
+    stats.value[2].trend = data.newUsers.trend;
+    
+    stats.value[3].value = data.occupancy.value;
+    stats.value[3].trend = data.occupancy.trend;
+    
+    occupancyRate.value = data.occupancy.value;
+    topMovies.value = data.topMovies;
+    businessPerformance.value = data.businessPerformance;
+  } catch (error) {
+    console.error("Failed to fetch dashboard stats", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchDashboardStats();
+});
 </script>
 
 <template>
@@ -351,28 +358,28 @@ const topMovies = ref([
           </div>
 
           <div
-            v-for="(h, i) in [45, 78, 52, 92, 64, 85, 70]"
+            v-for="(item, i) in businessPerformance"
             :key="i"
             class="flex-grow flex items-end gap-1.5 h-full relative group"
           >
             <div
               class="w-full bg-primary/20 rounded-t-sm hover:bg-primary transition-all duration-500 cursor-pointer"
-              :style="{ height: h + '%' }"
+              :style="{ height: item.revenuePercentage + '%' }"
             >
               <div
                 class="absolute -top-12 left-1/2 -translate-x-1/2 bg-surface-container-highest p-2 rounded text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20"
               >
-                {{ h * 5 }}tr VNĐ
+                {{ item.revenueLabel }}
               </div>
             </div>
             <div
               class="w-full bg-blue-500/20 rounded-t-sm hover:bg-blue-500 transition-all duration-500 cursor-pointer"
-              :style="{ height: h * 0.7 + '%' }"
+              :style="{ height: item.ticketPercentage + '%' }"
             >
               <div
                 class="absolute -top-12 left-1/2 -translate-x-1/2 bg-surface-container-highest p-2 rounded text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20"
               >
-                {{ Math.round(h * 15) }} vé
+                {{ item.ticketLabel }}
               </div>
             </div>
           </div>
@@ -382,9 +389,9 @@ const topMovies = ref([
           class="flex justify-between mt-8 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant border-t border-outline-variant/10 pt-6"
         >
           <span
-            v-for="day in ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']"
-            :key="day"
-            >{{ day }}</span
+            v-for="item in businessPerformance"
+            :key="item.day"
+            >{{ item.day }}</span
           >
         </div>
       </div>
@@ -475,7 +482,7 @@ const topMovies = ref([
               <div
                 class="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
               >
-                74%
+                {{ occupancyRate }}
               </div>
             </div>
             <div>
