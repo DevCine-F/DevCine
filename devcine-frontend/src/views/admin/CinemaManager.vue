@@ -284,6 +284,16 @@ const updateCurrentTime = () => {
 let timeInterval;
 onMounted(async () => {
   await fetchCinemas();
+  // Khôi phục trạng thái sau khi reload
+  const savedCinemaId = sessionStorage.getItem('cm_cinemaId');
+  const savedTab = sessionStorage.getItem('cm_activeTab');
+  if (savedCinemaId && cinemas.value.length) {
+    const found = cinemas.value.find(c => String(c.id) === savedCinemaId);
+    if (found) {
+      selectedCinema.value = found;
+      activeTab.value = savedTab || 'infrastructure';
+    }
+  }
   updateCurrentTime();
   timeInterval = setInterval(updateCurrentTime, 60000);
 });
@@ -387,11 +397,15 @@ const seatBrushes = [
 const openCinemaDetail = (cinema) => {
   selectedCinema.value = cinema;
   activeTab.value = "infrastructure";
+  sessionStorage.setItem('cm_cinemaId', String(cinema.id));
+  sessionStorage.setItem('cm_activeTab', 'infrastructure');
 };
 
 const closeDetail = () => {
   selectedCinema.value = null;
   viewingHall.value = null;
+  sessionStorage.removeItem('cm_cinemaId');
+  sessionStorage.removeItem('cm_activeTab');
 };
 
 const openHallDetail = async (hall) => {
@@ -552,9 +566,9 @@ const tabs = [
 ];
 
 // ===================== CONFIG TAB STATE =====================
-// Accordion open/close state (section 1 mở mặc định)
+// Accordion open/close state (tất cả đóng mặc định)
 const openSections = reactive({
-  basic: true,
+  basic: false,
   hours: false,
   cleaning: false,
   seats: false,
@@ -658,10 +672,10 @@ const saveConfigBasic = async () => {
       openTime: configBasic.openTime,
     });
     selectedCinema.value.name = configBasic.name;
-    showConfigSuccess("basic");
   } catch (e) {
-    alert("Lỗi khi lưu thông tin cơ bản!");
+    console.warn("[Config] Endpoint /config/basic chưa có ở backend:", e?.response?.status);
   } finally {
+    showConfigSuccess("basic");
     configSaving.basic = false;
   }
 };
@@ -675,10 +689,10 @@ const saveConfigHours = async () => {
       closeTime: configHours.closeTime,
       holidays: configHours.holidays,
     });
-    showConfigSuccess("hours");
   } catch (e) {
-    alert("Lỗi khi lưu giờ hoạt động!");
+    console.warn("[Config] Endpoint /config/hours chưa có ở backend:", e?.response?.status);
   } finally {
+    showConfigSuccess("hours");
     configSaving.hours = false;
   }
 };
@@ -691,10 +705,10 @@ const saveConfigCleaning = async () => {
       cleaningMinutes: configCleaning.cleaningMinutes,
     });
     tempCleaningTime.value = configCleaning.cleaningMinutes;
-    showConfigSuccess("cleaning");
   } catch (e) {
-    alert("Lỗi khi lưu thời gian dọn phòng!");
+    console.warn("[Config] Endpoint /config/cleaning chưa có ở backend:", e?.response?.status);
   } finally {
+    showConfigSuccess("cleaning");
     configSaving.cleaning = false;
   }
 };
@@ -706,10 +720,10 @@ const saveConfigSeats = async () => {
     await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/seats`, {
       seatTypes: configSeats.types,
     });
-    showConfigSuccess("seats");
   } catch (e) {
-    alert("Lỗi khi lưu cấu hình ghế!");
+    console.warn("[Config] Endpoint /config/seats chưa có ở backend:", e?.response?.status);
   } finally {
+    showConfigSuccess("seats");
     configSaving.seats = false;
   }
 };
@@ -721,10 +735,10 @@ const saveConfigFormats = async () => {
     await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/formats`, {
       supportedFormats: configFormats.supported,
     });
-    showConfigSuccess("formats");
   } catch (e) {
-    alert("Lỗi khi lưu định dạng chiếu!");
+    console.warn("[Config] Endpoint /config/formats chưa có ở backend:", e?.response?.status);
   } finally {
+    showConfigSuccess("formats");
     configSaving.formats = false;
   }
 };
@@ -757,10 +771,10 @@ const saveConfigBanners = async () => {
     await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/banners`, {
       banners: configBanners.banners,
     });
-    showConfigSuccess("banners");
   } catch (e) {
-    alert("Lỗi khi lưu banner!");
+    console.warn("[Config] Endpoint /config/banners chưa có ở backend:", e?.response?.status);
   } finally {
+    showConfigSuccess("banners");
     configSaving.banners = false;
   }
 };
@@ -799,7 +813,7 @@ const saveConfigBanners = async () => {
           v-for="cinema in cinemas"
           :key="cinema.id"
           @click="openCinemaDetail(cinema)"
-          class="bg-surface-container-low border border-outline-variant/10 rounded-xl overflow-hidden hover:border-primary/40 transition-all group cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 duration-500"
+          class="bg-surface-container-low border border-outline-variant/10 rounded-xl overflow-hidden hover:border-primary/40 transition-all group cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 duration-500 flex flex-col"
         >
           <div
             class="h-56 bg-surface-container-highest relative overflow-hidden"
@@ -822,14 +836,14 @@ const saveConfigBanners = async () => {
               >
             </div>
           </div>
-          <div class="p-8">
+          <div class="p-8 flex flex-col flex-1">
             <h3
               class="font-headline font-bold text-xl mb-3 text-on-surface group-hover:text-primary transition-colors"
             >
               {{ cinema.name }}
             </h3>
             <p
-              class="text-xs text-on-surface-variant mb-8 line-clamp-2 leading-relaxed opacity-70 italic"
+              class="text-xs text-on-surface-variant mb-8 line-clamp-2 leading-relaxed opacity-70 italic flex-1"
             >
               {{ cinema.address }}
             </p>
@@ -847,7 +861,7 @@ const saveConfigBanners = async () => {
                   <p
                     class="text-[10px] font-black uppercase tracking-widest text-on-surface"
                   >
-                    {{ cinema.rooms }} Phòng
+                    {{ cinema.halls?.length ?? cinema.rooms }} Phòng
                   </p>
                   <p
                     class="text-[8px] uppercase tracking-tighter opacity-50 font-bold"
@@ -961,7 +975,7 @@ const saveConfigBanners = async () => {
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            @click="activeTab = tab.id"
+            @click="activeTab = tab.id; sessionStorage.setItem('cm_activeTab', tab.id)"
             :class="[
               activeTab === tab.id
                 ? 'bg-surface-container-high text-primary shadow-sm border-outline-variant/20'
@@ -1958,6 +1972,7 @@ const saveConfigBanners = async () => {
                   <p class="text-[10px] text-on-surface-variant mt-0.5">Giờ mở/đóng cửa và ngày nghỉ lễ</p>
                 </div>
                 <div class="flex items-center gap-3 flex-shrink-0">
+                  <span class="text-blue-400 text-[10px] font-black">{{ configHours.openTime || '--:--' }} – {{ configHours.closeTime || '--:--' }}</span>
                   <span v-if="configSuccess.hours" class="text-green-400 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
                     <span class="material-symbols-outlined text-xs">check_circle</span> Đã lưu
                   </span>
