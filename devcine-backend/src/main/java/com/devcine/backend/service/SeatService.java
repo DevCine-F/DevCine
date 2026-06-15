@@ -117,7 +117,7 @@ public class SeatService {
         room.setMatrixCol(request.getMatrixCol());
         roomRepository.save(room);
 
-        seatRepository.deleteByRoomId(roomId);
+        seatRepository.deactivateByRoomId(roomId);
 
         java.util.Map<String, SeatType> seatTypeMap = seatTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(SeatType::getName, type -> type));

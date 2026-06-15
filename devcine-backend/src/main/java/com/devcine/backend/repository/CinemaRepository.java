@@ -12,4 +12,7 @@ public interface CinemaRepository extends JpaRepository<Cinema, Integer> {
 
     @Query("SELECT DISTINCT c.city FROM Cinema c WHERE c.city IS NOT NULL")
     List<String> findAllCities();
+
+    @Query("SELECT c FROM Cinema c LEFT JOIN FETCH c.manager m LEFT JOIN FETCH m.user")
+    List<Cinema> findAllWithManager();
 }

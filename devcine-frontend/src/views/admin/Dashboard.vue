@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import axios from "axios";
+import axios from "@/api/axios";
 
 const isMonthlyRevenue = ref(false);
 const isSeeding = ref(false);
@@ -62,7 +62,7 @@ const occupancyRate = ref("0%");
 
 const fetchDashboardStats = async () => {
   try {
-    const res = await axios.get((import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api/dashboard/stats");
+    const res = await axios.get("/dashboard/stats");
     const data = res.data;
     
     stats.value[0].value = data.revenueMonthly.value;
