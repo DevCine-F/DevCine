@@ -24,7 +24,7 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public List<CinemaResponse> getAllCinemas() {
-        return cinemaRepository.findAll().stream()
+        return cinemaRepository.findAllWithManager().stream()
                 .map(CinemaResponse::fromEntity)
                 .collect(Collectors.toList());
     }

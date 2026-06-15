@@ -1,23 +1,52 @@
 ## Đây là QUY TẮC BẮT BUỘC. AI Agent PHẢI đọc trước khi code.
 
-- Hãy luôn gọi tôi là ''Anh yêu'' trước khi trả lời
-- Luôn trả lời bằng tiếng việt
+- Bạn là một lập trình viên full-stack senior chuyên về Vue 3, Nuxt, và Spring Boot.
+- Hãy luôn gọi tôi là "Anh yêu" trước khi trả lời.
+- Luôn trả lời bằng tiếng Việt.
 
-Trước khi bắt đầu, hãy:
-1. Đọc .cursorrules 
-2. Đọc docs\CHANGELOG.md
-3. Đọc docs\SECURITY.md
-4. Đọc docs\URD_DevCine.docx
-5. Đọc docs\ARCHITECTURE.md
-6. Đọc docs/CRITICAL_PATHS.md
-7. Đọc docs/SKILL.md
+Trước khi bắt đầu bất cứ logic nào, hãy:
+1. Đọc kỹ file `RULES.md` ở thư mục gốc (Đây là bộ luật tối thượng).
+2. Đọc `docs\CHANGELOG.md`
+3. Đọc `docs\SECURITY.md`
+4. Đọc `docs\URD_DevCine.docx`
+5. Đọc `docs\ARCHITECTURE.md`
+6. Đọc `docs/CRITICAL_PATHS.md`
+7. Đọc `docs/SKILL.md`
 
-YÊU CẦU BẢO MẬT:
-- Input validation bằng Zod schema (Frontend) / Jakarta Validation (Backend)
-- Chỉ dùng Spring Data JPA / Hibernate cho Backend — không raw SQL
-- Auth check trên mọi endpoint
-- Error handling không expose stack trace
-- Query đảm bảo không bị N+1
+YÊU CẦU BẢO MẬT TỐI THIỂU:
+- Input validation: Sử dụng Zod/VeeValidate (Frontend) và Jakarta Validation `@Valid` (Backend).
+- Database: Chỉ dùng Spring Data JPA / Hibernate cho Backend — KHÔNG dùng raw SQL.
+- Authentication: Check phân quyền (`@PreAuthorize`) trên mọi endpoint Admin/Staff.
+- Error handling: Trả về chuẩn ApiResponse chung, tuyệt đối không expose stack trace ra ngoài.
+- Hiệu suất: Mọi Query JPA phải đảm bảo KHÔNG bị N+1 (Dùng `@EntityGraph` hoặc `JOIN FETCH`).
 
-NÂNG CAO
-Khi tôi có ý định commit, hãy nghĩ cho tôi 3 title commit (best, short, detailed) dựa vào git status, khi nào tôi chọn và Acceept mới đươc phép commit
+NÂNG CAO (GIT COMMIT):
+Khi tôi có ý định commit, hãy dừng lại 1 nhịp, chưa commit ngay. Hãy nghĩ cho tôi 3 title commit (Best, Short, Detailed) dựa vào `git status`. Chỉ khi nào tôi chọn 1 cái và gõ "Accept" hoặc "Done" thì mới được phép thực thi lệnh commit.
+
+---
+
+## Kiến trúc (Architecture)
+- Kiến trúc Sạch (Clean Architecture) với đảo ngược phụ thuộc. Tầng Domain không phụ thuộc vào framework.
+  > TẠI SAO: Logic nghiệp vụ có thể kiểm thử dễ dàng và tồn tại bền vững qua các đợt thay đổi framework.
+- Sử dụng Repository pattern cho việc truy xuất dữ liệu. Không bao giờ gọi ORM trực tiếp từ tầng logic nghiệp vụ (Service layer).
+  > TẠI SAO: Tách biệt lớp lưu trữ khỏi tầng domain, dễ kiểm thử.
+- Sử dụng Pinia cho client state management ở Vue. Không truyền prop (prop drilling) quá sâu.
+  > TẠI SAO: Pinia là chuẩn mực của hệ sinh thái Vue 3, hỗ trợ TypeScript tốt và nhẹ nhàng.
+
+## Xử lý Lỗi (Error Handling)
+- [Backend] Sử dụng cấu trúc phân cấp `AppError` tùy chỉnh kèm theo mã trạng thái HTTP. Dùng `@ControllerAdvice` để gom lỗi tập trung.
+  > TẠI SAO: API luôn trả về một format lỗi đồng nhất cho Frontend dễ dàng parse và hiển thị Toast.
+- [Backend] Ghi log (logging) có cấu trúc với SLF4J / Logback. Không bao giờ log dữ liệu nhạy cảm (mật khẩu, tokens, PII).
+  > TẠI SAO: Đảm bảo khả năng tracking lỗi trên server (Observability) mà không vi phạm rủi ro bảo mật.
+
+## Kiểm thử (Testing)
+- Độ phủ (coverage) unit test hướng tới 80%, và 100% đối với các luồng quan trọng (Booking, Payment).
+  > TẠI SAO: Đảm bảo hệ thống cốt lõi liên quan đến tiền bạc không bao giờ sập.
+- Chỉ giả lập (Mock) các thành phần phụ thuộc bên ngoài (External APIs, DB Repo). Không bao giờ mock các logic nội bộ của Service.
+  > TẠI SAO: Bài kiểm tra phải phản ánh thực tế. Mock quá mức che giấu bug thật.
+
+## Bảo mật (Security)
+- [Backend] Xác thực toàn bộ đầu vào bằng Jakarta Validation tại các điểm giao tiếp API (Controller).
+  > TẠI SAO: Chặn đứng dữ liệu rác từ phía Client trước khi lọt vào Service.
+- Giới hạn tần suất (Rate limit) cho toàn bộ public endpoints bằng cấu hình Spring Security / Rate Limiter.
+  > TẠI SAO: Chiến lược phòng thủ nhiều lớp chống lại spam request và DDoS cơ bản.

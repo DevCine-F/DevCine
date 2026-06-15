@@ -12,12 +12,12 @@ import java.util.List;
 @Repository
 public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     
-    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c " +
+    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
            "WHERE s.movie.id = :movieId AND s.startTime >= :now " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimesByMovieId(@Param("movieId") Integer movieId, @Param("now") LocalDateTime now);
     
-    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c " +
+    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
            "WHERE s.movie.id = :movieId AND c.city = :city AND s.startTime >= :now " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimesByMovieIdAndCity(@Param("movieId") Integer movieId, @Param("city") String city, @Param("now") LocalDateTime now);

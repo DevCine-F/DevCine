@@ -15,6 +15,6 @@ public interface SeatRepository extends JpaRepository<Seat, Integer> {
     List<Seat> findByRoomIdAndIsActiveTrue(@Param("roomId") Integer roomId);
 
     @Modifying
-    @Query("DELETE FROM Seat s WHERE s.room.id = :roomId")
-    void deleteByRoomId(@Param("roomId") Integer roomId);
+    @Query("UPDATE Seat s SET s.isActive = false WHERE s.room.id = :roomId")
+    void deactivateByRoomId(@Param("roomId") Integer roomId);
 }
