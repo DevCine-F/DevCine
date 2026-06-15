@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import axios from "axios";
 import SeatMapBuilder from "@/components/admin/SeatMapBuilder.vue";
 import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
@@ -7,12 +7,17 @@ import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api/v1/cinemas";
 
 const selectedCinema = ref(null);
-const activeTab = ref("infrastructure");
+const activeTab = ref("analytics");
 const viewingHall = ref(null);
 
 // Drawer state
 const selectedShowtime = ref(null);
 const showDrawer = ref(false);
+
+// Watch activeTab to save state
+watch(activeTab, (newVal) => {
+  sessionStorage.setItem('cm_activeTab', newVal);
+});
 
 // Add Showtime Drawer State
 const showAddShowtimeDrawer = ref(false);
@@ -150,6 +155,8 @@ const handleCreateCinema = async () => {
         revenue: "0đ",
         occupancy: "0%",
         growth: "+0%",
+        admissions: "0",
+        facility: "100%"
       },
       halls: Array.from({ length: newCinema.rooms }, (_, i) => ({
         id: `New_H${i+1}`,
@@ -246,8 +253,9 @@ const fetchCinemas = async () => {
           cleaningTime: 15,
           stats: {
             revenue: (Math.random() * 500 + 300).toFixed(0) + ".000.000đ",
+            admissions: Math.floor(Math.random() * 5000 + 5000).toLocaleString("vi-VN"),
             occupancy: (Math.random() * 20 + 70).toFixed(0) + "%",
-            growth: "+" + (Math.random() * 15).toFixed(1) + "%",
+            facility: (Math.random() * 5 > 4) ? "95% Active" : "100% Active",
           },
           halls: halls,
           shows: shows,
@@ -291,7 +299,7 @@ onMounted(async () => {
     const found = cinemas.value.find(c => String(c.id) === savedCinemaId);
     if (found) {
       selectedCinema.value = found;
-      activeTab.value = savedTab || 'infrastructure';
+      activeTab.value = savedTab || 'analytics';
     }
   }
   updateCurrentTime();
@@ -396,9 +404,9 @@ const seatBrushes = [
 
 const openCinemaDetail = (cinema) => {
   selectedCinema.value = cinema;
-  activeTab.value = "infrastructure";
+  activeTab.value = "analytics";
   sessionStorage.setItem('cm_cinemaId', String(cinema.id));
-  sessionStorage.setItem('cm_activeTab', 'infrastructure');
+  sessionStorage.setItem('cm_activeTab', 'analytics');
 };
 
 const closeDetail = () => {
@@ -557,11 +565,11 @@ const toggleSeat = (r, c) => {
 };
 
 const tabs = [
+  { id: "analytics", label: "Thống kê", icon: "analytics" },
   { id: "infrastructure", label: "Cơ sở vật chất", icon: "domain" },
   { id: "showtimes", label: "Lịch chiếu", icon: "schedule" },
   { id: "staff", label: "Nhân sự", icon: "badge" },
   { id: "fnb", label: "Dịch vụ Bắp nước", icon: "fastfood" },
-  { id: "analytics", label: "Báo cáo", icon: "analytics" },
   { id: "config", label: "Cấu hình", icon: "settings" },
 ];
 
@@ -930,7 +938,7 @@ const saveConfigBanners = async () => {
       </header>
 
       <!-- Stats Bar -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <div
           v-for="(val, key) in selectedCinema.stats"
           :key="key"
@@ -945,7 +953,9 @@ const saveConfigBanners = async () => {
                   ? "Doanh thu tháng"
                   : key === "occupancy"
                     ? "Tỷ lệ lấp đầy"
-                    : "Tăng trưởng"
+                    : key === "admissions"
+                      ? "Tổng lượt khách"
+                      : "Cơ sở vật chất"
               }}
             </p>
             <h4 class="text-2xl font-black text-on-surface">{{ val }}</h4>
@@ -958,7 +968,9 @@ const saveConfigBanners = async () => {
                 ? "payments"
                 : key === "occupancy"
                   ? "chair"
-                  : "trending_up"
+                  : key === "admissions"
+                    ? "local_activity"
+                    : "build"
             }}</span>
           </div>
         </div>
@@ -975,7 +987,7 @@ const saveConfigBanners = async () => {
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            @click="activeTab = tab.id; sessionStorage.setItem('cm_activeTab', tab.id)"
+            @click="activeTab = tab.id"
             :class="[
               activeTab === tab.id
                 ? 'bg-surface-container-high text-primary shadow-sm border-outline-variant/20'
@@ -1695,7 +1707,96 @@ const saveConfigBanners = async () => {
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <!-- Heatmap Doanh thu (Mockup) -->
+              <!-- ROW 1: INSIGHT NHANH -->
+              <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Cơ cấu Doanh thu -->
+                <div class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden group hover:border-primary/30 transition-all">
+                  <div class="flex justify-between items-start mb-6">
+                    <div>
+                      <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">Tài chính</p>
+                      <h4 class="text-lg font-bold text-on-surface uppercase tracking-tight">Cơ cấu Doanh thu</h4>
+                    </div>
+                    <span class="material-symbols-outlined text-primary/50 text-2xl">pie_chart</span>
+                  </div>
+                  <div class="flex items-center justify-center h-32 relative">
+                    <!-- Placeholder cho Biểu đồ Donut -->
+                    <div class="w-24 h-24 rounded-full border-8 border-primary border-t-orange-500 border-r-orange-500 relative flex items-center justify-center shadow-[0_0_15px_rgba(245,197,24,0.2)]">
+                      <span class="text-xs font-black">100%</span>
+                    </div>
+                  </div>
+                  <div class="flex justify-between mt-4 text-[10px] font-bold uppercase tracking-widest">
+                    <div class="flex items-center gap-2"><div class="w-2 h-2 bg-primary rounded-full"></div>Vé (60%)</div>
+                    <div class="flex items-center gap-2"><div class="w-2 h-2 bg-orange-500 rounded-full"></div>F&B (40%)</div>
+                  </div>
+                </div>
+
+                <!-- ARPU & Dòng tiền -->
+                <div class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden group hover:border-primary/30 transition-all">
+                  <div class="flex justify-between items-start mb-6">
+                    <div>
+                      <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">Trung bình</p>
+                      <h4 class="text-lg font-bold text-on-surface uppercase tracking-tight">ARPU & Dòng tiền</h4>
+                    </div>
+                    <span class="material-symbols-outlined text-primary/50 text-2xl">account_balance_wallet</span>
+                  </div>
+                  <div class="mb-4">
+                    <p class="text-[9px] font-black text-on-surface-variant uppercase tracking-widest">ARPU F&B / Khách</p>
+                    <h2 class="text-3xl font-black text-primary mt-1">65.000<span class="text-sm">đ</span></h2>
+                  </div>
+                  <div class="space-y-3">
+                    <div class="flex items-center gap-3">
+                      <span class="text-[9px] font-bold uppercase w-12 text-on-surface-variant">Thẻ</span>
+                      <div class="flex-1 h-2 bg-white/5 rounded-full overflow-hidden"><div class="h-full bg-blue-500 w-[50%]"></div></div>
+                      <span class="text-[9px] font-bold">50%</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-[9px] font-bold uppercase w-12 text-on-surface-variant">Ví ĐT</span>
+                      <div class="flex-1 h-2 bg-white/5 rounded-full overflow-hidden"><div class="h-full bg-purple-500 w-[35%]"></div></div>
+                      <span class="text-[9px] font-bold">35%</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-[9px] font-bold uppercase w-12 text-on-surface-variant">Tiền mặt</span>
+                      <div class="flex-1 h-2 bg-white/5 rounded-full overflow-hidden"><div class="h-full bg-green-500 w-[15%]"></div></div>
+                      <span class="text-[9px] font-bold">15%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Khách hàng & Suất chiếu -->
+                <div class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden group hover:border-primary/30 transition-all">
+                  <div class="flex justify-between items-start mb-6">
+                    <div>
+                      <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">Insight</p>
+                      <h4 class="text-lg font-bold text-on-surface uppercase tracking-tight">Khách hàng & Suất</h4>
+                    </div>
+                    <span class="material-symbols-outlined text-primary/50 text-2xl">groups</span>
+                  </div>
+                  <div class="flex justify-between items-center mb-6">
+                    <div class="text-center">
+                      <div class="w-16 h-16 rounded-full border-4 border-primary border-l-white/10 flex items-center justify-center mb-2 mx-auto">
+                        <span class="text-sm font-black">60%</span>
+                      </div>
+                      <p class="text-[9px] font-bold uppercase text-primary">Loyalty</p>
+                    </div>
+                    <div class="text-center">
+                      <div class="w-16 h-16 rounded-full border-4 border-white/20 border-r-white/50 flex items-center justify-center mb-2 mx-auto">
+                        <span class="text-sm font-black">40%</span>
+                      </div>
+                      <p class="text-[9px] font-bold uppercase text-on-surface-variant">Vãng lai</p>
+                    </div>
+                  </div>
+                  <div class="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
+                    <p class="text-[9px] font-black uppercase text-green-500 tracking-widest mb-1">Thực hiện suất chiếu</p>
+                    <div class="flex justify-between items-end">
+                      <span class="text-xl font-black text-white">98%</span>
+                      <span class="text-[9px] font-bold text-on-surface-variant mb-1">2% Hủy</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ROW 2: BIỂU ĐỒ CỐT LÕI -->
+              <!-- Heatmap Doanh thu -->
               <div
                 class="lg:col-span-2 bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden"
               >
@@ -1763,7 +1864,7 @@ const saveConfigBanners = async () => {
                 </div>
               </div>
 
-              <!-- Waste & Cost Optimization -->
+              <!-- Báo cáo phế phẩm -->
               <div
                 class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl"
               >
@@ -1818,15 +1919,126 @@ const saveConfigBanners = async () => {
                 </div>
               </div>
 
-              <!-- Room Occupancy Detailed -->
+              <!-- ROW 3: LẤP ĐẦY & VẬN HÀNH -->
+              <!-- Biểu đồ lấp đầy theo khung giờ -->
+              <div class="lg:col-span-2 bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden">
+                <div class="flex justify-between items-center mb-8">
+                  <div>
+                    <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">Vận hành</p>
+                    <h4 class="text-xl font-bold text-on-surface uppercase tracking-tight">Biểu đồ Lấp đầy theo khung giờ</h4>
+                  </div>
+                  <button class="text-[10px] font-black text-on-surface-variant hover:text-primary uppercase tracking-widest flex items-center gap-1 transition-colors">
+                    Hôm nay <span class="material-symbols-outlined text-sm">expand_more</span>
+                  </button>
+                </div>
+                <div class="h-48 flex items-end justify-between gap-2 px-2 relative">
+                  <!-- Trục Y -->
+                  <div class="absolute left-0 top-0 bottom-6 w-full flex flex-col justify-between opacity-10 pointer-events-none">
+                    <div class="border-b border-white w-full"></div>
+                    <div class="border-b border-white w-full"></div>
+                    <div class="border-b border-white w-full"></div>
+                    <div class="border-b border-white w-full"></div>
+                  </div>
+                  <!-- Cột -->
+                  <div v-for="h in [8,10,12,14,16,18,20,22,24]" :key="h" class="flex flex-col items-center gap-2 z-10 group flex-1">
+                    <div class="w-full max-w-[24px] bg-primary/20 hover:bg-primary/50 transition-all rounded-t-sm relative flex items-end justify-center" :style="{height: (Math.random()*60 + 20) + '%'}">
+                      <div class="absolute -top-6 text-[8px] font-black text-white opacity-0 group-hover:opacity-100">{{ Math.floor(Math.random()*80 + 20) }}%</div>
+                      <div class="w-1/2 bg-primary rounded-t-sm" :style="{height: (Math.random()*70 + 30) + '%'}"></div>
+                    </div>
+                    <span class="text-[9px] font-bold text-on-surface-variant">{{ h }}h</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cơ sở vật chất -->
+              <div class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden">
+                <div class="flex justify-between items-center mb-6">
+                  <div>
+                    <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">Thiết bị</p>
+                    <h4 class="text-xl font-bold text-on-surface uppercase tracking-tight">Cơ sở vật chất</h4>
+                  </div>
+                  <span class="material-symbols-outlined text-red-500 animate-pulse">warning</span>
+                </div>
+                <div class="space-y-4">
+                  <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex gap-3 items-start">
+                    <span class="material-symbols-outlined text-red-500 text-lg">videocam_off</span>
+                    <div>
+                      <p class="text-[10px] font-black text-red-500 uppercase">Phòng 3</p>
+                      <p class="text-[10px] text-on-surface-variant">Bảo trì máy chiếu</p>
+                    </div>
+                  </div>
+                  <div class="p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl flex gap-3 items-start">
+                    <span class="material-symbols-outlined text-orange-500 text-lg">chair_alt</span>
+                    <div>
+                      <p class="text-[10px] font-black text-orange-500 uppercase">Phòng 1</p>
+                      <p class="text-[10px] text-on-surface-variant">Hỏng ghế E4, E5</p>
+                    </div>
+                  </div>
+                  <div class="p-3 bg-green-500/10 border border-green-500/20 rounded-xl flex gap-3 items-center">
+                    <span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>
+                    <p class="text-[10px] font-black text-green-500 uppercase">Các phòng còn lại tốt</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ROW 4: PHÂN TÍCH PHIM & PHÒNG -->
+              <!-- Top 5 Phim -->
+              <div class="lg:col-span-2 bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl relative overflow-hidden">
+                <div class="flex justify-between items-center mb-8">
+                  <div>
+                    <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">BXH Phim</p>
+                    <h4 class="text-xl font-bold text-on-surface uppercase tracking-tight">Top 5 Phim Ăn Khách Nhất</h4>
+                  </div>
+                  <div class="flex gap-2">
+                    <span class="px-3 py-1.5 bg-primary/20 text-primary text-[9px] font-black uppercase tracking-widest rounded-lg border border-primary/20">Tuần này</span>
+                  </div>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse">
+                    <thead>
+                      <tr class="border-b border-white/5 text-[9px] uppercase tracking-widest text-on-surface-variant font-black">
+                        <th class="pb-4 pl-2">Hạng</th>
+                        <th class="pb-4">Phim</th>
+                        <th class="pb-4 text-right">Lượt xem (Admissions)</th>
+                        <th class="pb-4 text-right">Doanh thu vé</th>
+                        <th class="pb-4 text-right pr-2">Lấp đầy TB</th>
+                      </tr>
+                    </thead>
+                    <tbody class="text-sm">
+                      <tr v-for="(movie, index) in [
+                        {name: 'Lật Mặt 7', views: '12,450', rev: '1.2 Tỷ', occ: '85%'},
+                        {name: 'Dune: Part Two', views: '8,320', rev: '850 Tr', occ: '72%'},
+                        {name: 'Kung Fu Panda 4', views: '6,100', rev: '520 Tr', occ: '68%'},
+                        {name: 'Exhuma', views: '4,500', rev: '380 Tr', occ: '60%'},
+                        {name: 'Godzilla x Kong', views: '3,200', rev: '290 Tr', occ: '55%'}
+                      ]" :key="index" class="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                        <td class="py-4 pl-2 font-black" :class="index < 3 ? 'text-primary' : 'text-on-surface-variant'">#{{ index + 1 }}</td>
+                        <td class="py-4 font-bold text-on-surface">{{ movie.name }}</td>
+                        <td class="py-4 text-right text-on-surface-variant">{{ movie.views }}</td>
+                        <td class="py-4 text-right font-black text-green-400">{{ movie.rev }}</td>
+                        <td class="py-4 text-right pr-2">
+                          <div class="flex items-center justify-end gap-2">
+                            <div class="w-16 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                              <div class="h-full bg-primary" :style="{width: movie.occ}"></div>
+                            </div>
+                            <span class="text-[10px] font-bold">{{ movie.occ }}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Room Occupancy Detailed (Legacy) -->
               <div
-                class="lg:col-span-3 bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl"
+                class="lg:col-span-1 bg-surface-container-high border border-outline-variant/10 p-8 rounded-3xl overflow-hidden flex flex-col"
               >
-                <div class="flex justify-between items-center mb-10">
+                <div class="flex flex-col mb-8">
                   <h4
-                    class="text-xl font-bold text-on-surface uppercase tracking-tight"
+                    class="text-xl font-bold text-on-surface uppercase tracking-tight leading-tight mb-2"
                   >
-                    Hiệu suất lấp đầy chi tiết (Occupancy Rate)
+                    Hiệu suất lấp đầy
                   </h4>
                   <div
                     class="text-[10px] font-black text-primary uppercase tracking-widest italic flex items-center gap-2"
@@ -1839,14 +2051,14 @@ const saveConfigBanners = async () => {
                   </div>
                 </div>
                 <div
-                  class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                  class="flex-1 space-y-4 overflow-y-auto pr-2 custom-scrollbar"
                 >
                   <div
                     v-for="hall in selectedCinema.halls"
                     :key="hall.id"
-                    class="p-6 bg-black/20 rounded-2xl border border-white/5 group hover:border-primary/40 transition-all"
+                    class="p-4 bg-black/20 rounded-2xl border border-white/5 group hover:border-primary/40 transition-all"
                   >
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-2">
                       <span
                         class="text-[10px] font-black text-white/40 uppercase"
                         >{{ hall.name }}</span
