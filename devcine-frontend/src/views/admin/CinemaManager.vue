@@ -312,7 +312,7 @@ onUnmounted(() => {
 
 const getEndTime = (startTime, duration = 120) => {
   const [hour, minute] = startTime.split(":").map(Number);
-  const totalMinutes = hour * 60 + minute + duration;
+  const totalMinutes = hour * 60 + minute + Number(duration);
   const endHourRaw = Math.floor(totalMinutes / 60);
   const endMin = totalMinutes % 60;
   const endHour = endHourRaw >= 24 ? endHourRaw - 24 : endHourRaw;
@@ -365,11 +365,11 @@ const checkConflict = (hallId, show) => {
   const CLEANING_TIME = selectedCinema.value.cleaningTime || 20;
 
   const showStart = timeToMinutes(show.startTime);
-  const showEnd = showStart + show.duration + CLEANING_TIME;
+  const showEnd = showStart + Number(show.duration) + CLEANING_TIME;
 
   return hallShows.some((other) => {
     const otherStart = timeToMinutes(other.startTime);
-    const otherEnd = otherStart + other.duration + CLEANING_TIME;
+    const otherEnd = otherStart + Number(other.duration) + CLEANING_TIME;
     return showStart < otherEnd && showEnd > otherStart;
   });
 };
