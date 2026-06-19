@@ -89,6 +89,11 @@ export default [
         component: () => import('../views/admin/AdminProfile.vue')
       },
       {
+        path: 'bookings',
+        name: 'admin-bookings',
+        component: () => import('../views/admin/AdminBookings.vue')
+      },
+      {
         path: 'ticketing',
         name: 'admin-ticketing',
         component: () => import('../views/admin/TicketingPOS.vue')

@@ -61,6 +61,11 @@ export const fnbApi = {
   delete: (id) => api.delete(`/fnbs/${id}`),
 };
 
+export const bookingAdminApi = {
+  list: (params) => api.get('/admin/bookings', { params }),
+  detail: (id) => api.get(`/admin/bookings/${id}`),
+};
+
 export const ticketingApi = {
   getShowtimes: () => api.get('/ticketing/showtimes'),
   getSeats: (showtimeId) => api.get(`/seats/showtime/${showtimeId}`),

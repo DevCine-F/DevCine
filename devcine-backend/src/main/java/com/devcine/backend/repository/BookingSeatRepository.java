@@ -16,4 +16,8 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
     List<BookingSeat> findReservedSeatsByShowtime(@Param("showtimeId") Integer showtimeId);
 
     List<BookingSeat> findAllByBookingId(Integer bookingId);
+
+    @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.seat s LEFT JOIN FETCH s.seatType " +
+           "WHERE bs.booking.id = :bookingId ORDER BY s.rowChar, s.colNum")
+    List<BookingSeat> findAllByBookingIdWithSeat(@Param("bookingId") Integer bookingId);
 }

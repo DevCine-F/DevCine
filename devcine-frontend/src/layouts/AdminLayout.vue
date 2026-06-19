@@ -42,7 +42,12 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="font-semibold text-sm">Kiểm soát vé</span>
         </router-link>
 
-        
+        <router-link to="/admin/bookings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">receipt_long</span>
+          <span class="font-semibold text-sm">Hoá đơn</span>
+        </router-link>
+
+
         <router-link to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
           <span class="font-semibold text-sm">Tổng quan</span>
