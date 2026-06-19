@@ -1,9 +1,21 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
+import { ref, computed } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
+import { useAuthStore } from '../stores/auth'
 import logo from '../assets/images/Logo_DevCine_Ngang_XoaNen.png'
 
 const { isLightMode, toggleTheme } = useTheme()
+const router = useRouter()
+const authStore = useAuthStore()
+
+const isAccountOpen = ref(false)
+const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Quản trị viên')
+const accountRole = computed(() => (authStore.role === 'admin' ? 'Quản trị cấp cao' : 'Nhân viên'))
+
+const goProfile = () => { isAccountOpen.value = false; router.push('/profile') }
+const goHome = () => { isAccountOpen.value = false; router.push('/') }
+const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); router.push('/admin/login') }
 </script>
 
 <template>
@@ -187,14 +199,51 @@ const { isLightMode, toggleTheme } = useTheme()
           </div>
 
           <!-- Account Area -->
-          <div class="flex items-center gap-3 pl-6 border-l border-outline-variant/10 cursor-pointer hover:opacity-80 transition-opacity">
-            <div class="text-right hidden md:block">
-               <p class="text-[10px] font-black text-on-surface uppercase tracking-wider">Nguyen Admin</p>
-               <p class="text-[8px] text-primary uppercase tracking-widest italic font-bold">Quản trị cấp cao</p>
-            </div>
-            <div class="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-               <span class="material-symbols-outlined text-primary text-sm">shield_person</span>
-            </div>
+          <div class="relative">
+            <button @click="isAccountOpen = !isAccountOpen"
+                    class="flex items-center gap-3 pl-6 border-l border-outline-variant/10 cursor-pointer hover:opacity-80 transition-opacity">
+              <div class="text-right hidden md:block">
+                 <p class="text-[10px] font-black text-on-surface uppercase tracking-wider">{{ displayName }}</p>
+                 <p class="text-[8px] text-primary uppercase tracking-widest italic font-bold">{{ accountRole }}</p>
+              </div>
+              <div class="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
+                 <span class="material-symbols-outlined text-primary text-sm">shield_person</span>
+              </div>
+              <span class="material-symbols-outlined text-on-surface-variant text-base transition-transform duration-200" :class="{ 'rotate-180': isAccountOpen }">expand_more</span>
+            </button>
+
+            <!-- Backdrop đóng dropdown khi click ra ngoài -->
+            <div v-if="isAccountOpen" class="fixed inset-0 z-[105]" @click="isAccountOpen = false"></div>
+
+            <!-- Account Dropdown -->
+            <transition name="dropdown">
+              <div v-if="isAccountOpen" class="absolute right-0 mt-3 w-60 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_10px_40px_-10px_var(--shadow-color)] z-[110] overflow-hidden">
+                <div class="p-4 border-b border-outline-variant/10 bg-surface-container-lowest flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-primary text-base">shield_person</span>
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs font-black text-on-surface truncate">{{ displayName }}</p>
+                    <p class="text-[9px] text-primary uppercase tracking-widest font-bold">{{ accountRole }}</p>
+                  </div>
+                </div>
+                <div class="py-2">
+                  <button @click="goProfile" class="w-full flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors text-left">
+                    <span class="material-symbols-outlined text-lg">account_circle</span>
+                    <span class="text-sm font-semibold">Tài khoản</span>
+                  </button>
+                  <button @click="goHome" class="w-full flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors text-left">
+                    <span class="material-symbols-outlined text-lg">home</span>
+                    <span class="text-sm font-semibold">Về trang chủ</span>
+                  </button>
+                  <div class="my-1 border-t border-outline-variant/10"></div>
+                  <button @click="handleLogout" class="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 transition-colors text-left">
+                    <span class="material-symbols-outlined text-lg">logout</span>
+                    <span class="text-sm font-semibold">Đăng xuất</span>
+                  </button>
+                </div>
+              </div>
+            </transition>
           </div>
         </div>
       </header>
@@ -216,5 +265,14 @@ const { isLightMode, toggleTheme } = useTheme()
 }
 .active-nav .material-symbols-outlined {
   font-variation-settings: 'FILL' 1;
+}
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>
