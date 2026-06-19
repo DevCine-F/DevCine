@@ -16,7 +16,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -38,17 +40,31 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDateTime startOfYesterday = startOfToday.minusDays(1);
         LocalDateTime endOfYesterday = endOfToday.minusDays(1);
 
-        // Revenue
+        // Gộp doanh thu + vé theo ngày cho 7 ngày gần nhất (2 query thay vì 14 query trong vòng lặp)
+        LocalDateTime chartStart = startOfToday.minusDays(6);
+        Map<LocalDate, BigDecimal> revByDay = new HashMap<>();
+        for (Object[] r : bookingRepository.sumRevenueGroupedByDay(chartStart, endOfToday)) {
+            revByDay.put(toLocalDate(r[0]), r[1] != null ? new BigDecimal(r[1].toString()) : BigDecimal.ZERO);
+        }
+        Map<LocalDate, Long> ticketsByDay = new HashMap<>();
+        for (Object[] r : bookingRepository.countTicketsGroupedByDay(chartStart, endOfToday)) {
+            ticketsByDay.put(toLocalDate(r[0]), ((Number) r[1]).longValue());
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate yesterday = today.minusDays(1);
+
+        // Revenue (hôm nay/hôm qua lấy lại từ map đã gộp — không query thêm)
         BigDecimal revenueMonthly = bookingRepository.sumRevenueByDateRange(startOfMonth, endOfMonth);
-        BigDecimal revenueToday = bookingRepository.sumRevenueByDateRange(startOfToday, endOfToday);
-        BigDecimal revenueYesterday = bookingRepository.sumRevenueByDateRange(startOfYesterday, endOfYesterday);
+        BigDecimal revenueToday = revByDay.getOrDefault(today, BigDecimal.ZERO);
+        BigDecimal revenueYesterday = revByDay.getOrDefault(yesterday, BigDecimal.ZERO);
 
         String monthlyRevenueTrend = calculateTrend(revenueMonthly, bookingRepository.sumRevenueByDateRange(startOfMonth.minusMonths(1), startOfMonth.minusSeconds(1)));
         String dailyRevenueTrend = calculateTrend(revenueToday, revenueYesterday);
 
-        // Tickets
-        long ticketsToday = bookingRepository.countTicketsByDateRange(startOfToday, endOfToday);
-        long ticketsYesterday = bookingRepository.countTicketsByDateRange(startOfYesterday, endOfYesterday);
+        // Tickets (lấy lại từ map đã gộp)
+        long ticketsToday = ticketsByDay.getOrDefault(today, 0L);
+        long ticketsYesterday = ticketsByDay.getOrDefault(yesterday, 0L);
         String ticketsTrend = calculateTrend(BigDecimal.valueOf(ticketsToday), BigDecimal.valueOf(ticketsYesterday));
 
         // New Users
@@ -75,16 +91,16 @@ public class DashboardServiceImpl implements DashboardService {
 
         for (int i = 6; i >= 0; i--) {
             LocalDateTime start = startOfToday.minusDays(i);
-            LocalDateTime end = endOfToday.minusDays(i);
-            BigDecimal dayRevenue = bookingRepository.sumRevenueByDateRange(start, end);
-            long dayTickets = bookingRepository.countTicketsByDateRange(start, end);
+            LocalDate day = today.minusDays(i);
+            BigDecimal dayRevenue = revByDay.getOrDefault(day, BigDecimal.ZERO);
+            long dayTickets = ticketsByDay.getOrDefault(day, 0L);
 
             dayRevenues[6 - i] = dayRevenue;
             dayTicketsArr[6 - i] = dayTickets;
 
             if (dayRevenue.compareTo(maxRevenue) > 0) maxRevenue = dayRevenue;
             if (dayTickets > maxTickets) maxTickets = dayTickets;
-            
+
             DashboardStatsResponse.ChartData data = new DashboardStatsResponse.ChartData();
             data.setDay(start.format(dayFormatter));
             data.setRevenueLabel(formatCurrency(dayRevenue));
@@ -123,6 +139,14 @@ public class DashboardServiceImpl implements DashboardService {
                 .businessPerformance(chartDataList)
                 .topMovies(topMovies)
                 .build();
+    }
+
+    // CAST(... AS date) có thể trả java.sql.Date, LocalDate hoặc LocalDateTime tuỳ driver — chuẩn hoá về LocalDate
+    private LocalDate toLocalDate(Object o) {
+        if (o instanceof LocalDate ld) return ld;
+        if (o instanceof java.sql.Date d) return d.toLocalDate();
+        if (o instanceof LocalDateTime dt) return dt.toLocalDate();
+        return LocalDate.parse(o.toString().substring(0, 10));
     }
 
     private String calculateTrend(BigDecimal current, BigDecimal previous) {
