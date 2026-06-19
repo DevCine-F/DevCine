@@ -12,6 +12,7 @@ const themeStore = useThemeStore()
 
 const username = ref('')
 const password = ref('')
+const showPassword = ref(false)
 const isLoading = ref(false)
 const errorMsg = ref('')
 
@@ -19,7 +20,7 @@ const loginAsAdmin = async (e) => {
   if (e && e.preventDefault) e.preventDefault()
 
   const user = username.value || 'admin'
-  const pass = password.value || 'Admin@123'
+  const pass = password.value || '123'
 
   isLoading.value = true
   errorMsg.value = ''
@@ -78,8 +79,12 @@ const loginAsAdmin = async (e) => {
 
           <!-- Password Input -->
           <div class="relative z-0 w-full group">
-            <input v-model="password" type="password" id="admin_password" class="block py-3 px-0 w-full text-base text-white bg-transparent border-0 border-b border-white/30 appearance-none focus:outline-none focus:ring-0 focus:border-[#f5c518] peer transition-colors" placeholder=" " required />
+            <input v-model="password" :type="showPassword ? 'text' : 'password'" id="admin_password" class="block py-3 px-0 pr-10 w-full text-base text-white bg-transparent border-0 border-b border-white/30 appearance-none focus:outline-none focus:ring-0 focus:border-[#f5c518] peer transition-colors" placeholder=" " required />
             <label for="admin_password" class="peer-focus:font-bold absolute text-base text-white/50 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-[#f5c518] peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6">Mật khẩu</label>
+            <button type="button" @click="showPassword = !showPassword" :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+                    class="absolute right-0 top-2.5 text-white/40 hover:text-[#f5c518] transition-colors p-1">
+              <span class="material-symbols-outlined text-xl">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+            </button>
           </div>
 
           <div class="flex justify-between items-center pt-2">
