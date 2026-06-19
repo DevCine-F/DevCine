@@ -129,7 +129,7 @@ const showCleaningSettingsModal = ref(false);
 </script>
 
 <template>
-  <div class="min-h-screen bg-surface font-sans text-on-surface overflow-x-hidden selection:bg-primary/30 selection:text-primary">
+  <div class="min-h-screen p-10 bg-surface font-sans text-on-surface overflow-x-hidden selection:bg-primary/30 selection:text-primary">
     <!-- List of Cinemas -->
     <div v-if="!selectedCinema" class="animate-in fade-in duration-500">
       <header class="flex justify-between items-center mb-12">
