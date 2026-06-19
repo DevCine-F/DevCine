@@ -892,7 +892,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
     <!-- Modal: Chuyển khoản QR (VietQR) -->
     <transition name="fade">
       <div v-if="showQrModal" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showQrModal = false">
-        <div class="w-full max-w-md bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
+        <div class="w-full max-w-lg bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
           <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center gap-3">
             <span class="material-symbols-outlined text-primary">qr_code_2</span>
             <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Chuyển khoản QR</h3>
@@ -906,10 +906,10 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 
           <div v-else class="p-7 space-y-5">
             <div class="flex flex-col items-center gap-3">
-              <div class="w-52 h-52 rounded-2xl bg-white p-2 flex items-center justify-center">
+              <div class="w-80 h-80 max-w-full rounded-2xl bg-white p-3 flex items-center justify-center shadow-lg">
                 <img :src="vietQrUrl" alt="VietQR" class="w-full h-full object-contain" />
               </div>
-              <p class="text-[11px] text-on-surface-variant text-center">Khách dùng app ngân hàng quét mã — số tiền &amp; nội dung tự điền.</p>
+              <p class="text-xs text-on-surface-variant text-center">Khách dùng app ngân hàng quét mã — số tiền &amp; nội dung tự điền.</p>
             </div>
             <div class="space-y-2.5 text-sm">
               <div class="flex justify-between"><span class="text-on-surface-variant">Ngân hàng</span><span class="font-bold text-on-surface">{{ bankInfo.name }}</span></div>
