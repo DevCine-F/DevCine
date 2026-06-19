@@ -1,7 +1,7 @@
 # DevCine — Project Context
 
 > File ngữ cảnh tổng hợp để đính kèm vào đầu mỗi phiên chat mới, giúp AI nắm nhanh dự án mà không phải đọc lại toàn bộ lịch sử hội thoại.
-> Cập nhật lần cuối: 18/06/2026
+> Cập nhật lần cuối: 19/06/2026
 
 ---
 
@@ -97,6 +97,16 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 - **Tự trừ kho theo định mức (BOM):** `InventoryService.deductForSale` chạy trong `BookingService.completePayment`; quản lý định mức qua `/api/bom`.
 - **Bàn giao ca:** `/api/staff/handovers` (tạo + liệt kê, tự tính chênh lệch tiền quỹ).
 - **Lưu ý Spng Boot 4:** Jackson 3 → import `tools.jackson.*` (không phải `com.fasterxml.jackson.*`).
+- **Bảo mật cấu hình:** secret VNPAY (`tmnCode`/`hashSecret`) tách khỏi `application.properties` sang env `${VNPAY_TMN_CODE}`/`${VNPAY_HASH_SECRET}` (`.env` gitignore). ⚠️ Secret cũ đã lộ trong git history → cần rotate trên VNPAY.
+
+### 4.2.1 Hoàn thiện đợt 19/06/2026 (FE↔BE↔DB thật)
+- **POS Bán vé (TicketingPOS):** rewrite hoàn chỉnh — dùng `ticketingApi` (axios có token), ghế thật từ `/api/seats/showtime/{id}`, combo thật từ `/api/fnbs`, tra cứu thành viên để tích điểm, CASH/CARD, tái dùng `BookingService.holdSeats`+`completePayment` (tạo booking CONFIRMED, trừ kho BOM). Đã verify 1 đơn thật.
+- **Thực đơn F&B/Combo:** `FnbItem` thêm `imageUrl/description/isActive`; `FnbController` CRUD đầy đủ (`/api/fnbs` công khai active, ghi bảo vệ bằng method security `pos_inventory`). Admin UI mới `FnbMenuManager.vue` (`/admin/fnb`). Booking thêm bước chọn combo có ảnh/mô tả.
+- **Voucher & Loyalty:** "Voucher của tôi" (`VouchersView`) nối API thật + tab "Đổi điểm lấy ưu đãi" (`VoucherService.redeemWithPoints`); nhập/tra cứu mã (`/api/vouchers/lookup` + `/claim`); áp voucher ở checkout (`/api/vouchers/apply`); sửa bug giảm-giá-2-lần ở VNPAY (tách `finalPrice` khỏi `totalPrice`). Phân tách voucher công khai (đổi điểm) vs mã bí mật (tự nhập).
+- **Admin Khuyến mãi (`AdminPromotions`):** nối API thật tab Voucher (CRUD Promotion + phát voucher cho khách). Thêm cột `Promotion.allowPointRedemption`.
+- **Quản lý khách hàng (mới):** `AdminCustomers.vue` (`/admin/customers`) + `GET /api/customers` (JOIN FETCH, hiển thị hạng/điểm).
+- **Vé QR trong Lịch sử đặt vé:** modal render QR từ `qrCodes` BE trả; sửa N+1 trong `getBookingHistory`.
+- **Seed dữ liệu thật:** 6 phim curated + lịch 3 ngày × 3 phòng × 5 suất = 45 suất; sửa giá ghế NORMAL 110k/VIP 150k/SWEETBOX 300k (cờ `DEMO_SCHEDULE_SEEDED` chạy 1 lần).
 
 ### 4.3 CHƯA hoàn thiện (còn lại)
 1. **Màn admin UI cho BOM (định mức) & Bàn giao ca** — backend API đã sẵn, chưa có giao diện riêng.
