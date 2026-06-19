@@ -2,6 +2,7 @@
 import { RouterLink, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { paymentApi, walletApi, voucherApi } from '@/api/customer'
+import { settingsApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { computed, onMounted, ref, watch } from 'vue'
 
@@ -11,6 +12,61 @@ const authStore = useAuthStore()
 
 const paymentMethod = ref('VNPAY')
 const walletBalance = ref(0)
+
+// ===== Điều hướng wizard từng bước =====
+const currentStep = ref(1)
+const steps = [
+  { id: 1, label: 'Chọn ghế', icon: 'event_seat' },
+  { id: 2, label: 'Combo', icon: 'fastfood' },
+  { id: 3, label: 'Ưu đãi', icon: 'local_activity' },
+  { id: 4, label: 'Thanh toán', icon: 'payments' },
+]
+
+// Tiêu đề + mô tả của từng bước (render ở header chung phía trên)
+const stepMeta = computed(() => ({
+  1: { title: '01. Chọn Chỗ Ngồi', desc: '' },
+  2: { title: '02. Combo - Đồ Ăn & Nước Uống', desc: 'Chọn combo bắp nước & đồ ăn kèm cho buổi xem phim (không bắt buộc)' },
+  3: { title: '03. Ưu Đãi / Mã Giảm Giá', desc: 'Chọn voucher sẵn có hoặc nhập mã giảm giá' },
+  4: { title: '04. Phương Thức Thanh Toán', desc: 'Chọn phương thức thanh toán phù hợp nhất' },
+}[currentStep.value]))
+
+// Chỉ cho rời bước 1 khi đã chọn ít nhất 1 ghế; các bước sau không bắt buộc
+const canProceed = computed(() => {
+  if (currentStep.value === 1) return store.selectedSeats.length > 0
+  return true
+})
+
+const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+
+const goNext = () => {
+  if (currentStep.value < steps.length && canProceed.value) {
+    currentStep.value++
+    scrollTop()
+  }
+}
+const goBack = () => {
+  if (currentStep.value > 1) {
+    currentStep.value--
+    scrollTop()
+  }
+}
+const goToStep = (id) => {
+  // Cho phép quay lại bất kỳ bước trước; chỉ chặn nhảy tới khi chưa chọn ghế
+  if (id > currentStep.value && store.selectedSeats.length === 0) return
+  currentStep.value = id
+  scrollTop()
+}
+
+// ===== Phân trang danh sách combo / F&B (6 món = 2 cột x 3 hàng / trang) =====
+const fnbPage = ref(1)
+const fnbPageSize = 6
+const fnbTotalPages = computed(() => Math.max(1, Math.ceil(store.availableFnbs.length / fnbPageSize)))
+const pagedFnbs = computed(() => {
+  const start = (fnbPage.value - 1) * fnbPageSize
+  return store.availableFnbs.slice(start, start + fnbPageSize)
+})
+// Kẹp lại số trang nếu danh sách thay đổi (vd sau khi tải xong)
+watch(fnbTotalPages, (total) => { if (fnbPage.value > total) fnbPage.value = total })
 const vouchers = ref([])
 const voucherCode = ref('')
 const voucherError = ref('')
@@ -23,6 +79,63 @@ const finalPaymentPrice = computed(() => {
   return final < 0 ? 0 : final
 })
 
+// ===== Thanh toán chuyển khoản (VietQR tự sinh — giống POS) =====
+const bankInfo = ref({ code: '', name: '', accountNo: '', accountName: '' })
+
+const removeDiacritics = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+
+const transferContent = computed(() => {
+  const seats = store.selectedSeats.map(s => s.rowChar + s.colNum).join('')
+  return removeDiacritics(`DevCine ve ${seats}`).slice(0, 50)
+})
+
+const crc16 = (str) => {
+  let crc = 0xFFFF
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1)
+      crc &= 0xFFFF
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0')
+}
+
+const buildVietQrPayload = () => {
+  const b = bankInfo.value
+  if (!b.code || !b.accountNo) return ''
+  const tlv = (id, val) => id + String(val.length).padStart(2, '0') + val
+  const acquirer = tlv('00', b.code) + tlv('01', b.accountNo)
+  const f38 = tlv('38', tlv('00', 'A000000727') + tlv('01', acquirer) + tlv('02', 'QRIBFTTA'))
+  const amount = Math.round(finalPaymentPrice.value || 0)
+  const f54 = amount > 0 ? tlv('54', String(amount)) : ''
+  const f62 = transferContent.value ? tlv('62', tlv('08', transferContent.value)) : ''
+  const partial = tlv('00', '01') + tlv('01', '11') + f38 + tlv('53', '704') + f54 + tlv('58', 'VN') + f62 + '6304'
+  return partial + crc16(partial)
+}
+
+const transferQrUrl = computed(() => {
+  const payload = buildVietQrPayload()
+  if (!payload) return ''
+  return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&margin=0&ecc=M&data=${encodeURIComponent(payload)}`
+})
+
+const loadBankInfo = async () => {
+  try {
+    const { data } = await settingsApi.getAll()
+    const map = {}
+    data.forEach(s => { map[s.settingKey] = s.settingValue })
+    bankInfo.value = {
+      code: map.PAYMENT_BANK_CODE || '',
+      name: map.PAYMENT_BANK_NAME || '',
+      accountNo: map.PAYMENT_ACCOUNT_NO || '',
+      accountName: map.PAYMENT_ACCOUNT_NAME || ''
+    }
+  } catch (err) {
+    // Không chặn luồng đặt vé nếu lỗi — phần QR sẽ báo chưa cấu hình
+  }
+}
+
 onMounted(async () => {
   if (!store.selectedShowtime) {
     // If accessed directly without a showtime, redirect back
@@ -31,7 +144,8 @@ onMounted(async () => {
   }
   await store.fetchSeats()
   await store.fetchFnbs()
-  
+  loadBankInfo()
+
   if (authStore.isAuthenticated && authStore.user?.id) {
     // Fetch wallet info
     try {
@@ -221,21 +335,71 @@ const proceedToPayment = async () => {
 </script>
 
 <template>
-  <main class="pt-32 pb-20 max-w-[1440px] mx-auto px-10 flex flex-col lg:flex-row gap-12">
+  <main class="pt-32 pb-20 max-w-[1440px] mx-auto px-10">
+    <!-- Stepper / Thanh tiến trình các bước -->
+    <div class="mb-12">
+      <div class="flex items-center justify-between max-w-3xl mx-auto">
+        <template v-for="(s, idx) in steps" :key="s.id">
+          <button
+            type="button"
+            @click="goToStep(s.id)"
+            class="flex flex-col items-center gap-2 group flex-shrink-0"
+          >
+            <div
+              :class="currentStep === s.id
+                ? 'bg-primary text-on-primary border-primary shadow-[0_0_20px_rgba(245,197,24,0.4)] scale-110'
+                : currentStep > s.id
+                  ? 'bg-primary/20 text-primary border-primary/40'
+                  : 'bg-surface-container-high text-on-surface-variant border-outline-variant/20'"
+              class="w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all duration-300"
+            >
+              <span v-if="currentStep > s.id" class="material-symbols-outlined">check</span>
+              <span v-else class="material-symbols-outlined">{{ s.icon }}</span>
+            </div>
+            <span
+              :class="currentStep === s.id ? 'text-primary' : 'text-on-surface-variant'"
+              class="text-[10px] font-bold uppercase tracking-widest transition-colors"
+            >
+              {{ s.id }}. {{ s.label }}
+            </span>
+          </button>
+          <div
+            v-if="idx < steps.length - 1"
+            :class="currentStep > s.id ? 'bg-primary/50' : 'bg-outline-variant/20'"
+            class="flex-grow h-0.5 mx-2 -mt-6 transition-colors duration-300"
+          ></div>
+        </template>
+      </div>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-12">
     <!-- Main Content Area -->
-    <div class="flex-grow space-y-16">
-      <!-- Section 1: Seat Selection -->
-      <section>
-        <div class="mb-12">
-          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">01. Chọn Chỗ Ngồi</h1>
-          <div class="flex items-center gap-4 text-on-surface-variant" v-if="store.selectedShowtime">
+    <div class="flex-grow min-w-0">
+      <!-- Header chung của bước hiện tại (trong cột trái để card tóm tắt căn ngang title/mô tả) -->
+      <div class="mb-10 flex items-start justify-between gap-4">
+        <div>
+          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">{{ stepMeta.title }}</h1>
+          <div class="flex items-center gap-4 text-on-surface-variant" v-if="currentStep === 1 && store.selectedShowtime">
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">location_on</span> {{ store.selectedShowtime.cinema?.cinemaName }}</span>
             <span class="w-1 h-1 rounded-full bg-outline-variant"></span>
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">calendar_today</span> {{ new Date(store.selectedShowtime.startTime).toLocaleDateString() }}</span>
             <span class="w-1 h-1 rounded-full bg-outline-variant"></span>
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">schedule</span> {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</span>
           </div>
+          <p v-else class="text-sm text-on-surface-variant">{{ stepMeta.desc }}</p>
         </div>
+        <!-- Nút Quay lại đặt ở góc phải tiêu đề -->
+        <button
+          v-if="currentStep > 1"
+          @click="goBack"
+          class="flex-shrink-0 px-5 py-2.5 rounded-xl border border-outline-variant/30 text-on-surface-variant font-bold text-xs uppercase tracking-widest hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2"
+        >
+          <span class="material-symbols-outlined text-lg">arrow_back</span> Quay lại
+        </button>
+      </div>
+
+      <!-- Section 1: Seat Selection -->
+      <section v-show="currentStep === 1">
         <div class="relative glass-card glass-shine-edge p-12 overflow-hidden rounded-3xl">
           <!-- Screen -->
           <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8 mb-12">
@@ -304,12 +468,7 @@ const proceedToPayment = async () => {
       </section>
       
       <!-- Section 2: Combo / F&B Selection -->
-      <section>
-        <div class="mb-8">
-          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">02. Combo - Đồ Ăn & Nước Uống</h1>
-          <p class="text-sm text-on-surface-variant">Chọn combo bắp nước & đồ ăn kèm cho buổi xem phim (không bắt buộc)</p>
-        </div>
-
+      <section v-show="currentStep === 2">
         <!-- Empty state khi rạp chưa có combo -->
         <div v-if="store.availableFnbs.length === 0" class="glass-card p-10 rounded-2xl text-center">
           <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">fastfood</span>
@@ -317,7 +476,7 @@ const proceedToPayment = async () => {
         </div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="glass-card p-6 flex gap-6 hover:border-primary-container/30 transition-all group rounded-2xl" v-for="fnb in store.availableFnbs" :key="fnb.id">
+          <div class="glass-card p-6 flex gap-6 hover:border-primary-container/30 transition-all group rounded-2xl" v-for="fnb in pagedFnbs" :key="fnb.id">
             <div class="w-28 h-28 flex-shrink-0 bg-black overflow-hidden relative rounded-xl">
               <img :src="fnb.imageUrl || '/images/Hopper.webp'" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-500"/>
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
@@ -338,13 +497,37 @@ const proceedToPayment = async () => {
             </div>
           </div>
         </div>
-        
-        <!-- Add Voucher Input & List -->
-        <div class="mt-16 mb-8 border-t border-outline-variant/10 pt-16">
-          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">03. Ưu Đãi / Mã Giảm Giá</h1>
-          <p class="text-sm text-on-surface-variant">Chọn voucher sẵn có hoặc nhập mã giảm giá</p>
+
+        <!-- Phân trang combo / F&B -->
+        <div v-if="store.availableFnbs.length > 0 && fnbTotalPages > 1" class="flex items-center justify-center gap-2 mt-8">
+          <button
+            @click="fnbPage > 1 && (fnbPage--)"
+            :disabled="fnbPage === 1"
+            class="w-10 h-10 flex items-center justify-center rounded-xl border border-outline-variant/20 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg">chevron_left</span>
+          </button>
+          <button
+            v-for="p in fnbTotalPages"
+            :key="p"
+            @click="fnbPage = p"
+            :class="fnbPage === p ? 'bg-primary text-on-primary border-primary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/40'"
+            class="w-10 h-10 flex items-center justify-center rounded-xl border text-sm font-bold transition-all"
+          >
+            {{ p }}
+          </button>
+          <button
+            @click="fnbPage < fnbTotalPages && (fnbPage++)"
+            :disabled="fnbPage === fnbTotalPages"
+            class="w-10 h-10 flex items-center justify-center rounded-xl border border-outline-variant/20 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg">chevron_right</span>
+          </button>
         </div>
-        
+      </section>
+
+      <!-- Section 3: Voucher / Khuyến mãi -->
+      <section v-show="currentStep === 3">
         <div class="glass-card p-6 rounded-2xl space-y-6">
           <!-- Code input -->
           <div class="flex flex-col sm:flex-row gap-4">
@@ -387,26 +570,53 @@ const proceedToPayment = async () => {
           </div>
         </div>
 
-        <div class="mt-16 mb-8 border-t border-outline-variant/10 pt-16">
-          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">04. Phương Thức Thanh Toán</h1>
-          <p class="text-sm text-on-surface-variant">Chọn phương thức thanh toán phù hợp nhất</p>
-        </div>
+      </section>
+
+      <!-- Section 4: Payment -->
+      <section v-show="currentStep === 4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'VNPAY'}">
                 <input type="radio" value="VNPAY" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
+                <span class="material-symbols-outlined text-primary-container">credit_card</span>
                 <span class="font-bold">Thanh toán qua VNPAY</span>
             </label>
             <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'TRANSFER'}">
                 <input type="radio" value="TRANSFER" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
-                <span class="font-bold">Chuyển khoản thủ công</span>
+                <span class="material-symbols-outlined text-primary-container">qr_code_2</span>
+                <span class="font-bold">Thanh toán bằng chuyển khoản</span>
             </label>
+        </div>
+
+        <!-- Khối QR chuyển khoản (VietQR tự sinh, giống POS) -->
+        <div v-if="paymentMethod === 'TRANSFER'" class="glass-card p-8 rounded-2xl">
+          <div v-if="transferQrUrl" class="flex flex-col md:flex-row gap-8 items-center">
+            <div class="w-56 h-56 bg-white rounded-2xl p-3 flex-shrink-0">
+              <img :src="transferQrUrl" alt="VietQR chuyển khoản" class="w-full h-full object-contain" />
+            </div>
+            <div class="flex-grow space-y-3 w-full">
+              <h3 class="font-headline font-bold text-lg uppercase tracking-tight text-primary-container">Quét mã để chuyển khoản</h3>
+              <p class="text-xs text-on-surface-variant">Dùng app ngân hàng/ví quét mã VietQR — số tiền & nội dung đã điền sẵn.</p>
+              <div class="space-y-2 pt-2 border-t border-outline-variant/10">
+                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Ngân hàng</span><span class="font-bold">{{ bankInfo.name || bankInfo.code }}</span></div>
+                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Số tài khoản</span><span class="font-bold font-mono">{{ bankInfo.accountNo }}</span></div>
+                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Chủ tài khoản</span><span class="font-bold uppercase">{{ bankInfo.accountName }}</span></div>
+                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Số tiền</span><span class="font-bold text-primary-container">{{ finalPaymentPrice.toLocaleString('vi-VN') }} VNĐ</span></div>
+                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Nội dung</span><span class="font-bold font-mono text-xs">{{ transferContent }}</span></div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant/70 italic pt-2">Sau khi chuyển khoản, bấm "Xác nhận thanh toán" để hoàn tất đặt vé.</p>
+            </div>
+          </div>
+          <div v-else class="text-center py-8">
+            <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">account_balance</span>
+            <p class="text-sm text-on-surface-variant">Rạp chưa cấu hình tài khoản nhận chuyển khoản. Vui lòng chọn VNPAY.</p>
+          </div>
         </div>
       </section>
     </div>
 
     <!-- Persistent Sidebar Summary -->
-    <aside class="w-full lg:w-[400px]">
-      <div class="glass-card glass-shine-edge sticky top-28 shadow-2xl overflow-hidden rounded-3xl">
+    <aside class="w-full lg:w-[400px] lg:self-start">
+      <div class="glass-card glass-shine-edge shadow-2xl rounded-3xl">
         <!-- Movie Header -->
         <div class="p-8 pb-6 border-b border-outline-variant/10">
           <div class="flex gap-6">
@@ -466,17 +676,29 @@ const proceedToPayment = async () => {
               <p class="text-[10px] text-outline-variant text-right italic">(VAT & Phí dịch vụ đã bao gồm)</p>
             </div>
           </div>
-          <!-- Action Button -->
-          <button @click="proceedToPayment" :disabled="store.selectedSeats.length === 0" class="w-full bg-primary-container text-on-primary py-4 rounded-xl font-headline font-extrabold tracking-[0.2em] hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed">
-            XÁC NHẬN THANH TOÁN
-            <span class="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+          <!-- Action Button (theo bước hiện tại) -->
+          <button
+            v-if="currentStep < steps.length"
+            @click="goNext"
+            :disabled="!canProceed"
+            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-4 rounded-2xl font-headline font-extrabold text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 disabled:grayscale disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
+          >
+            Tiếp tục
+            <span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
           </button>
-          <p class="text-[10px] text-center text-on-surface-variant/40 leading-relaxed uppercase tracking-tighter">
-            Thanh toán an toàn qua Cổng liên kết quốc tế
-          </p>
+          <button
+            v-else
+            @click="proceedToPayment"
+            :disabled="store.selectedSeats.length === 0"
+            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-4 rounded-2xl font-headline font-extrabold text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 disabled:grayscale disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-xl">lock</span>
+            Xác nhận thanh toán
+          </button>
         </div>
       </div>
     </aside>
+    </div>
   </main>
 </template>
 

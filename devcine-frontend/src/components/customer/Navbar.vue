@@ -129,7 +129,7 @@ const viewNotification = (notif) => {
             <div class="flex flex-col">
               <span class="text-[10px] text-neutral-500 font-bold uppercase tracking-widest leading-none mb-0.5">Prestige User</span>
               <span class="text-xs font-bold text-white tracking-tight leading-none truncate max-w-[80px]">
-                {{ authStore.user?.name || 'Thành viên' }}
+                {{ authStore.user?.username || 'Thành viên' }}
               </span>
             </div>
             
