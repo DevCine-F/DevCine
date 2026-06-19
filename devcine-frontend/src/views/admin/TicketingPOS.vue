@@ -483,7 +483,7 @@ const buildQrPageHtml = () => {
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Inter',system-ui,Arial,sans-serif;background:#efe8da;color:#26221b;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{width:100%;max-width:480px;background:#fffdf8;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(40,34,22,.2);border:1px solid #ece3d0}
+  .card{width:100%;max-width:580px;background:#fffdf8;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(40,34,22,.2);border:1px solid #ece3d0}
   .head{background:linear-gradient(160deg,#211d16,#14110c);color:#f3ecdc;padding:24px 30px;display:flex;align-items:center;gap:14px;position:relative}
   .head::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#b8902f,#e6c878,#b8902f)}
   .mono{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#e9cd80,#b8902f);display:flex;align-items:center;justify-content:center;font-size:27px;font-weight:900;color:#1c1a17;font-family:'Playfair Display',serif;flex:none}
@@ -491,7 +491,7 @@ const buildQrPageHtml = () => {
   .brand .g{color:#e6c878}
   .brand small{display:block;font-size:9px;letter-spacing:.28em;color:#a89c81;margin-top:6px;font-weight:600;text-transform:uppercase}
   .body{padding:28px 30px 32px;text-align:center}
-  .qr{width:340px;max-width:100%;aspect-ratio:1;margin:0 auto;background:#fff;border-radius:18px;padding:10px;border:1px solid #eee}
+  .qr{width:460px;max-width:100%;aspect-ratio:1;margin:0 auto;background:#fff;border-radius:18px;padding:12px;border:1px solid #eee}
   .qr img{width:100%;height:100%;object-fit:contain}
   .hint{font-size:13px;color:#8c836d;margin:16px 0 22px}
   .rows{text-align:left;border-top:1px solid #efe6d3;padding-top:18px}
