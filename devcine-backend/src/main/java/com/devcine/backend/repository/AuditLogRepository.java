@@ -8,22 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
-
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, Integer> {
 
-    @Query(value = "SELECT a FROM AuditLog a LEFT JOIN FETCH a.user u LEFT JOIN FETCH u.role WHERE " +
-           "(:action IS NULL OR a.action = :action) AND " +
-           "(:from IS NULL OR a.timestamp >= :from) AND " +
-           "(:to IS NULL OR a.timestamp <= :to) " +
-           "ORDER BY a.timestamp DESC",
-           countQuery = "SELECT COUNT(a) FROM AuditLog a WHERE " +
-           "(:action IS NULL OR a.action = :action) AND " +
-           "(:from IS NULL OR a.timestamp >= :from) AND " +
-           "(:to IS NULL OR a.timestamp <= :to)")
-    Page<AuditLog> findWithFilters(@Param("action") String action,
-                                   @Param("from") LocalDateTime from,
-                                   @Param("to") LocalDateTime to,
-                                   Pageable pageable);
+    // Tách 2 query: tránh param null (:action IS NULL OR ...) gây lỗi type trên Postgres. JOIN FETCH user+role tránh N+1.
+    @Query(value = "SELECT a FROM AuditLog a LEFT JOIN FETCH a.user u LEFT JOIN FETCH u.role ORDER BY a.timestamp DESC",
+           countQuery = "SELECT COUNT(a) FROM AuditLog a")
+    Page<AuditLog> findAllWithUser(Pageable pageable);
+
+    @Query(value = "SELECT a FROM AuditLog a LEFT JOIN FETCH a.user u LEFT JOIN FETCH u.role WHERE a.action = :action ORDER BY a.timestamp DESC",
+           countQuery = "SELECT COUNT(a) FROM AuditLog a WHERE a.action = :action")
+    Page<AuditLog> findByActionWithUser(@Param("action") String action, Pageable pageable);
 }
