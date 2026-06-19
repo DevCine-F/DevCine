@@ -13,7 +13,7 @@ const isAccountOpen = ref(false)
 const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Quản trị viên')
 const accountRole = computed(() => (authStore.role === 'admin' ? 'Quản trị cấp cao' : 'Nhân viên'))
 
-const goProfile = () => { isAccountOpen.value = false; router.push('/profile') }
+const goProfile = () => { isAccountOpen.value = false; router.push('/admin/account') }
 const goHome = () => { isAccountOpen.value = false; router.push('/') }
 const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); router.push('/admin/login') }
 </script>

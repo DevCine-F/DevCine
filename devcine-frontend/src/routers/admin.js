@@ -84,6 +84,11 @@ export default [
         component: () => import('../views/admin/StaffShiftManagement.vue')
       },
       {
+        path: 'account',
+        name: 'admin-account',
+        component: () => import('../views/admin/AdminProfile.vue')
+      },
+      {
         path: 'ticketing',
         name: 'admin-ticketing',
         component: () => import('../views/admin/TicketingPOS.vue')

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -106,6 +107,45 @@ public class AuthService {
                         "role", role
                 )
         );
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getProfile(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+        return profileMap(user);
+    }
+
+    @Transactional
+    public Map<String, Object> updateProfile(Integer userId, String fullName, String email, String phone) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+
+        if (email != null && !email.isBlank() && !email.equalsIgnoreCase(user.getEmail())) {
+            if (userRepository.existsByEmail(email)) {
+                throw new RuntimeException("Email đã được sử dụng");
+            }
+            user.setEmail(email);
+        }
+        if (fullName != null && !fullName.isBlank()) user.setFullName(fullName);
+        if (phone != null) user.setPhone(phone);
+
+        userRepository.save(user);
+        log.info("Profile updated for user: {}", user.getUsername());
+        return profileMap(user);
+    }
+
+    private Map<String, Object> profileMap(User user) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", user.getId());
+        m.put("username", user.getUsername());
+        m.put("email", user.getEmail());
+        m.put("fullName", user.getFullName());
+        m.put("phone", user.getPhone() != null ? user.getPhone() : "");
+        m.put("role", user.getRole() != null ? user.getRole().getName() : "");
+        m.put("isActive", Boolean.TRUE.equals(user.getIsActive()));
+        m.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+        return m;
     }
 
     @Transactional

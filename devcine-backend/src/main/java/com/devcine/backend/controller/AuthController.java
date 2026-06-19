@@ -42,6 +42,26 @@ public class AuthController {
         }
     }
 
+    @GetMapping("/profile/{userId}")
+    public ResponseEntity<?> getProfile(@PathVariable Integer userId) {
+        try {
+            return ResponseEntity.ok(Map.of("success", true, "data", authService.getProfile(userId)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> body) {
+        try {
+            Integer userId = Integer.valueOf(body.get("userId"));
+            var data = authService.updateProfile(userId, body.get("fullName"), body.get("email"), body.get("phone"));
+            return ResponseEntity.ok(Map.of("success", true, "data", data));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
     @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody Map<String, String> body) {
         try {
