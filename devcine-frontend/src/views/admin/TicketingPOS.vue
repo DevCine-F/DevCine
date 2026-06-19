@@ -152,10 +152,35 @@ const transferContent = computed(() => {
   const seats = selectedSeats.value.map(s => s.rowChar + s.colNum).join('')
   return removeDiacritics(`DevCine ve ${seats}`).slice(0, 50)
 })
-const vietQrUrl = computed(() => {
+
+// Tự dựng payload VietQR/napas247 (EMVCo) để render QR THUẦN, không logo ở giữa
+const crc16 = (str) => {
+  let crc = 0xFFFF
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1)
+      crc &= 0xFFFF
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0')
+}
+const buildVietQrPayload = () => {
   const b = bankInfo.value
   if (!b.code || !b.accountNo) return ''
-  return `https://img.vietqr.io/image/${b.code}-${b.accountNo}-compact2.png?amount=${totalPrice.value}&addInfo=${encodeURIComponent(transferContent.value)}&accountName=${encodeURIComponent(b.accountName || '')}`
+  const tlv = (id, val) => id + String(val.length).padStart(2, '0') + val
+  const acquirer = tlv('00', b.code) + tlv('01', b.accountNo)
+  const f38 = tlv('38', tlv('00', 'A000000727') + tlv('01', acquirer) + tlv('02', 'QRIBFTTA'))
+  const amount = Math.round(totalPrice.value || 0)
+  const f54 = amount > 0 ? tlv('54', String(amount)) : ''
+  const f62 = transferContent.value ? tlv('62', tlv('08', transferContent.value)) : ''
+  const partial = tlv('00', '01') + tlv('01', '11') + f38 + tlv('53', '704') + f54 + tlv('58', 'VN') + f62 + '6304'
+  return partial + crc16(partial)
+}
+const cleanQrUrl = computed(() => {
+  const payload = buildVietQrPayload()
+  if (!payload) return ''
+  return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&margin=0&ecc=M&data=${encodeURIComponent(payload)}`
 })
 
 const loadBankInfo = async () => {
@@ -474,12 +499,6 @@ const printInvoice = () => {
 }
 
 // ===== Hiển thị mã QR toàn màn hình (tab mới) cho khách quét — chỉ mã, không thông tin =====
-const qrOnlyUrl = computed(() => {
-  const b = bankInfo.value
-  if (!b.code || !b.accountNo) return ''
-  return `https://img.vietqr.io/image/${b.code}-${b.accountNo}-qr_only.png?amount=${totalPrice.value}&addInfo=${encodeURIComponent(transferContent.value)}`
-})
-
 const buildQrPageHtml = () => {
   return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -510,7 +529,7 @@ const buildQrPageHtml = () => {
       <div class="brand">DEV<span class="g">CINE</span><small>Quét mã để chuyển khoản</small></div>
     </div>
     <div class="body">
-      <div class="qr"><img src="${qrOnlyUrl.value}" alt="VietQR" /></div>
+      <div class="qr"><img src="${cleanQrUrl.value}" alt="VietQR" /></div>
       <p class="hint">Mở app ngân hàng → quét mã. Số tiền &amp; nội dung tự điền.</p>
       <div class="amount"><span>Số tiền</span><b>${fmt(totalPrice.value)}đ</b></div>
     </div>
@@ -519,7 +538,7 @@ const buildQrPageHtml = () => {
 }
 
 const openQrFullscreen = () => {
-  if (!qrOnlyUrl.value) return
+  if (!cleanQrUrl.value) return
   const win = window.open('', '_blank')
   if (!win) {
     showToast('Trình duyệt đã chặn cửa sổ. Hãy cho phép pop-up để hiển thị mã.', 'error')
@@ -955,7 +974,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
             <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Chuyển khoản QR</h3>
           </div>
 
-          <div v-if="!vietQrUrl" class="p-10 text-center space-y-3">
+          <div v-if="!cleanQrUrl" class="p-10 text-center space-y-3">
             <span class="material-symbols-outlined text-5xl text-on-surface-variant/40">account_balance</span>
             <p class="text-sm font-bold text-on-surface">Chưa cấu hình tài khoản nhận tiền.</p>
             <p class="text-xs text-on-surface-variant">Vào <b class="text-on-surface">Cài đặt → Tài khoản nhận tiền</b> để thêm Ngân hàng + STK.</p>
@@ -964,7 +983,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
           <div v-else class="p-7 space-y-5">
             <div class="flex flex-col items-center gap-3">
               <div class="w-80 h-80 max-w-full rounded-2xl bg-white p-3 flex items-center justify-center shadow-lg">
-                <img :src="vietQrUrl" alt="VietQR" class="w-full h-full object-contain" />
+                <img :src="cleanQrUrl" alt="VietQR" class="w-full h-full object-contain" />
               </div>
               <p class="text-xs text-on-surface-variant text-center">Khách dùng app ngân hàng quét mã — số tiền &amp; nội dung tự điền.</p>
               <button @click="openQrFullscreen"
@@ -983,7 +1002,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 
           <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
             <AppButton variant="ghost" class="flex-1" @click="showQrModal = false">Hủy</AppButton>
-            <AppButton variant="primary" class="flex-1" :disabled="!vietQrUrl || isPaying" @click="processPayment('TRANSFER')">
+            <AppButton variant="primary" class="flex-1" :disabled="!cleanQrUrl || isPaying" @click="processPayment('TRANSFER')">
               {{ isPaying ? 'Đang xử lý...' : 'Xác nhận đã chuyển khoản' }}
             </AppButton>
           </div>
