@@ -26,4 +26,7 @@ public interface MovieRepository extends JpaRepository<Movie, Integer> {
            "LOWER(m.director) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "ORDER BY m.id DESC")
     List<Movie> searchMovies(@Param("keyword") String keyword);
+
+    /** Đếm số phim đang gắn 1 thể loại — chặn xoá thể loại đang được sử dụng. */
+    long countByGenres_Id(Integer categoryId);
 }

@@ -1,35 +1,62 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import api from '@/api/axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/categories'
 
 const genres = ref([])
 const formats = ref([])
 const ageRatings = ref([])
 
-const activeTab = ref('genres') // 'genres', 'formats', 'age-ratings'
+const activeTab = ref('genres') // 'genres' | 'formats' | 'age-ratings'
 
 const isLoading = ref(false)
+const loadError = ref('')
+const isSaving = ref(false)
 const isModalOpen = ref(false)
 const editingItem = ref(null)
 const newItem = ref({ name: '', code: '', description: '' })
 
+// Toast phản hồi thao tác
+const toast = ref({ show: false, type: 'success', message: '' })
+let toastTimer = null
+const showToast = (message, type = 'success') => {
+  toast.value = { show: true, type, message }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
+}
+
+const errMessage = (error, fallback) =>
+  error?.response?.data?.message || error?.response?.data?.error || fallback
+
+// Danh sách đang hiển thị theo tab
+const currentList = computed(() =>
+  activeTab.value === 'genres' ? genres.value
+    : activeTab.value === 'formats' ? formats.value
+      : ageRatings.value
+)
+
+const tabLabel = computed(() =>
+  activeTab.value === 'genres' ? 'thể loại'
+    : activeTab.value === 'formats' ? 'định dạng'
+      : 'mục kiểm duyệt'
+)
+
 const fetchData = async () => {
   isLoading.value = true
+  loadError.value = ''
   try {
     const [genresRes, formatsRes, ageRatingsRes] = await Promise.all([
-      axios.get(`${API_BASE_URL}/genres`),
-      axios.get(`${API_BASE_URL}/formats`),
-      axios.get(`${API_BASE_URL}/age-ratings`)
+      api.get('/categories/genres'),
+      api.get('/categories/formats'),
+      api.get('/categories/age-ratings')
     ])
     genres.value = genresRes.data
     formats.value = formatsRes.data
     ageRatings.value = ageRatingsRes.data
   } catch (error) {
-    console.error('Error fetching categories:', error)
+    console.error('Lỗi khi tải danh mục:', error)
+    loadError.value = errMessage(error, 'Không thể tải danh mục. Vui lòng thử lại.')
   } finally {
     isLoading.value = false
   }
@@ -38,7 +65,7 @@ const fetchData = async () => {
 const openModal = (item = null) => {
   editingItem.value = item
   if (item) {
-    newItem.value = { ...item }
+    newItem.value = { name: item.name || '', code: item.code || '', description: item.description || '' }
   } else {
     newItem.value = { name: '', code: '', description: '' }
   }
@@ -46,32 +73,53 @@ const openModal = (item = null) => {
 }
 
 const saveItem = async () => {
+  // Validate phía client trước khi gọi API
+  if (activeTab.value === 'age-ratings' && !newItem.value.code.trim()) {
+    showToast('Vui lòng nhập mã kiểm duyệt', 'error')
+    return
+  }
+  if (!newItem.value.name.trim()) {
+    showToast('Vui lòng nhập tên danh mục', 'error')
+    return
+  }
+
+  const payload = activeTab.value === 'age-ratings'
+    ? { code: newItem.value.code.trim(), name: newItem.value.name.trim(), description: newItem.value.description }
+    : { name: newItem.value.name.trim(), description: newItem.value.description }
+
+  isSaving.value = true
   try {
-    const endpoint = `${API_BASE_URL}/${activeTab.value}`
     if (editingItem.value) {
-      await axios.post(endpoint, newItem.value) // Simplified for mock, assuming save works
+      await api.put(`/categories/${activeTab.value}/${editingItem.value.id}`, payload)
+      showToast('Đã cập nhật ' + tabLabel.value)
     } else {
-      await axios.post(endpoint, newItem.value)
+      await api.post(`/categories/${activeTab.value}`, payload)
+      showToast('Đã thêm ' + tabLabel.value + ' mới')
     }
     await fetchData()
     isModalOpen.value = false
   } catch (error) {
-    console.error('Error saving item:', error)
+    console.error('Lỗi khi lưu danh mục:', error)
+    showToast(errMessage(error, 'Lưu thất bại. Vui lòng thử lại.'), 'error')
+  } finally {
+    isSaving.value = false
   }
 }
 
-const deleteItem = async (id) => {
-  if (!confirm('Bạn có chắc muốn xóa danh mục này?')) return
+const deleteItem = async (item) => {
+  if (!confirm(`Bạn có chắc muốn xóa ${tabLabel.value} "${item.code || item.name}"?`)) return
   try {
-    await axios.delete(`${API_BASE_URL}/${activeTab.value}/${id}`)
+    await api.delete(`/categories/${activeTab.value}/${item.id}`)
+    showToast('Đã xóa ' + tabLabel.value)
     await fetchData()
   } catch (error) {
-    console.error('Error deleting item:', error)
+    console.error('Lỗi khi xóa danh mục:', error)
+    showToast(errMessage(error, 'Xóa thất bại. Vui lòng thử lại.'), 'error')
   }
 }
 
-
 onMounted(fetchData)
+onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>
 
 <template>
@@ -98,7 +146,7 @@ onMounted(fetchData)
 
     <!-- Tabs -->
     <div class="flex gap-4 mb-8 bg-surface-container-low p-1 rounded-xl w-fit">
-      <button 
+      <button
         v-for="tab in [{id: 'genres', label: 'Thể loại'}, {id: 'formats', label: 'Định dạng'}, {id: 'age-ratings', label: 'Kiểm duyệt'}]"
         :key="tab.id"
         @click="activeTab = tab.id"
@@ -123,7 +171,38 @@ onMounted(fetchData)
           </tr>
         </thead>
         <tbody class="divide-y divide-outline-variant/10">
-          <tr v-for="item in (activeTab === 'genres' ? genres : activeTab === 'formats' ? formats : ageRatings)" 
+          <!-- Loading -->
+          <tr v-if="isLoading">
+            <td colspan="4" class="px-8 py-16 text-center">
+              <span class="animate-pulse text-xs font-bold uppercase tracking-widest text-primary">Đang tải dữ liệu...</span>
+            </td>
+          </tr>
+          <!-- Error -->
+          <tr v-else-if="loadError">
+            <td colspan="4" class="px-8 py-16 text-center">
+              <div class="flex flex-col items-center gap-4">
+                <span class="material-symbols-outlined text-4xl text-red-500/70">error</span>
+                <p class="text-xs font-bold text-on-surface-variant max-w-sm">{{ loadError }}</p>
+                <button @click="fetchData" class="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
+                  Thử lại
+                </button>
+              </div>
+            </td>
+          </tr>
+          <!-- Empty -->
+          <tr v-else-if="currentList.length === 0">
+            <td colspan="4" class="px-8 py-16 text-center">
+              <div class="flex flex-col items-center gap-3">
+                <span class="material-symbols-outlined text-4xl text-on-surface-variant/30">category</span>
+                <p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Chưa có {{ tabLabel }} nào</p>
+                <button @click="openModal()" class="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
+                  Thêm mới ngay
+                </button>
+              </div>
+            </td>
+          </tr>
+          <!-- Success / data rows -->
+          <tr v-else v-for="item in currentList"
               :key="item.id" class="group hover:bg-white/5 transition-colors">
             <td class="px-8 py-4 text-xs font-mono text-on-surface-variant">#{{ item.id }}</td>
             <td class="px-8 py-4">
@@ -141,15 +220,10 @@ onMounted(fetchData)
                 <button @click="openModal(item)" class="p-2 hover:text-primary transition-colors">
                   <span class="material-symbols-outlined text-lg">edit</span>
                 </button>
-                <button @click="deleteItem(item.id)" class="p-2 hover:text-red-500 transition-colors">
+                <button @click="deleteItem(item)" class="p-2 hover:text-red-500 transition-colors">
                   <span class="material-symbols-outlined text-lg">delete</span>
                 </button>
               </div>
-            </td>
-          </tr>
-          <tr v-if="isLoading">
-            <td colspan="4" class="px-8 py-10 text-center">
-              <span class="animate-pulse text-xs font-bold uppercase tracking-widest text-primary">Đang tải dữ liệu...</span>
             </td>
           </tr>
         </tbody>
@@ -161,24 +235,38 @@ onMounted(fetchData)
       <div class="space-y-6 pt-4">
         <div v-if="activeTab === 'age-ratings'" class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã kiểm duyệt (Code)</label>
-          <input v-model="newItem.code" placeholder="P, T13, T16..." 
+          <input v-model="newItem.code" placeholder="P, T13, T16..." @keyup.enter="saveItem"
                  class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm" />
         </div>
         <div class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tên danh mục</label>
-          <input v-model="newItem.name" placeholder="Nhập tên..." 
+          <input v-model="newItem.name" placeholder="Nhập tên..." @keyup.enter="saveItem"
                  class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm" />
         </div>
         <div class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mô tả</label>
-          <textarea v-model="newItem.description" rows="3" placeholder="Ghi chú thêm..." 
+          <textarea v-model="newItem.description" rows="3" placeholder="Ghi chú thêm..."
                     class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm resize-none"></textarea>
         </div>
         <div class="flex gap-4 pt-4">
-          <AppButton variant="ghost" class="flex-1" @click="isModalOpen = false">Hủy</AppButton>
-          <AppButton class="flex-1" @click="saveItem">Lưu thay đổi</AppButton>
+          <AppButton variant="ghost" class="flex-1" @click="isModalOpen = false" :disabled="isSaving">Hủy</AppButton>
+          <AppButton class="flex-1" @click="saveItem" :disabled="isSaving">
+            {{ isSaving ? 'Đang lưu...' : 'Lưu thay đổi' }}
+          </AppButton>
         </div>
       </div>
     </AppModal>
+
+    <!-- Toast -->
+    <transition name="fade">
+      <div v-if="toast.show"
+           :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
+           class="fixed bottom-8 right-8 z-[200] px-6 py-4 rounded-xl shadow-2xl text-white flex items-center gap-3 max-w-sm">
+        <span class="material-symbols-outlined text-lg">
+          {{ toast.type === 'error' ? 'error' : 'check_circle' }}
+        </span>
+        <span class="text-sm font-bold">{{ toast.message }}</span>
+      </div>
+    </transition>
   </div>
 </template>
