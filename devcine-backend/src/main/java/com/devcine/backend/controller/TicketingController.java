@@ -28,6 +28,7 @@ public class TicketingController {
     private final CustomerRepository customerRepository;
     private final BookingService bookingService;
     private final BookingRepository bookingRepository;
+    private final TicketRepository ticketRepository;
 
     // Suất chiếu cho POS: từ đầu ngày hôm nay trở đi (chưa diễn ra hoặc đang trong ngày), sắp xếp tăng dần
     @GetMapping("/showtimes")
@@ -112,11 +113,24 @@ public class TicketingController {
             Booking booking = bookingService.holdSeats(req);
             bookingService.completePayment(booking.getId(), paymentMethod);
 
+            // Vé đã được sinh trong completePayment — lấy QR + nhãn ghế để in hoá đơn/soát vé tại cổng
+            List<Map<String, Object>> tickets = ticketRepository.findAllByBookingIdWithSeat(booking.getId())
+                    .stream()
+                    .map(t -> {
+                        Seat seat = t.getBookingSeat().getSeat();
+                        return Map.<String, Object>of(
+                                "seatLabel", seat.getRowChar() + seat.getColNum(),
+                                "qrCode", t.getQrCode()
+                        );
+                    })
+                    .collect(Collectors.toList());
+
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "bookingId", booking.getId(),
                     "bookingCode", booking.getBookingCode(),
-                    "message", "Thanh toán thành công"
+                    "message", "Thanh toán thành công",
+                    "tickets", tickets
             ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
