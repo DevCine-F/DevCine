@@ -1,13 +1,53 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { settingsApi } from '@/api/admin'
+
+// Danh sách ngân hàng hỗ trợ VietQR (mã = BIN napas247)
+const BANKS = [
+  { code: '970436', name: 'Vietcombank' },
+  { code: '970407', name: 'Techcombank' },
+  { code: '970418', name: 'BIDV' },
+  { code: '970415', name: 'VietinBank' },
+  { code: '970422', name: 'MB Bank' },
+  { code: '970416', name: 'ACB' },
+  { code: '970432', name: 'VPBank' },
+  { code: '970423', name: 'TPBank' },
+  { code: '970403', name: 'Sacombank' },
+  { code: '970405', name: 'Agribank' },
+  { code: '970441', name: 'VIB' },
+  { code: '970443', name: 'SHB' },
+  { code: '970437', name: 'HDBank' },
+  { code: '970448', name: 'OCB' },
+  { code: '970426', name: 'MSB' },
+  { code: '970431', name: 'Eximbank' },
+  { code: '970449', name: 'LPBank' },
+  { code: '970440', name: 'SeABank' },
+  { code: '970412', name: 'PVcomBank' },
+  { code: '970419', name: 'NCB' }
+]
 
 const settings = ref({
   siteName: 'DevCine Editorial Cinema',
   contactEmail: 'contact@devcine.com',
   baseTicketPrice: '110.000',
   pointConversionRate: 1000,
-  maintenanceMode: false
+  maintenanceMode: false,
+  bankCode: '',
+  bankName: '',
+  accountNo: '',
+  accountName: ''
+})
+
+const onBankChange = () => {
+  const bank = BANKS.find(b => b.code === settings.value.bankCode)
+  settings.value.bankName = bank ? bank.name : ''
+}
+
+// Xem trước mã VietQR của tài khoản nhận tiền (số tiền để trống → khách tự nhập / sẽ điền ở POS)
+const qrPreviewUrl = computed(() => {
+  const { bankCode, accountNo, accountName } = settings.value
+  if (!bankCode || !accountNo) return ''
+  return `https://img.vietqr.io/image/${bankCode}-${accountNo}-compact2.png?accountName=${encodeURIComponent(accountName || '')}`
 })
 
 const isLoading = ref(false)
@@ -30,6 +70,10 @@ const loadSettings = async () => {
       else if (item.settingKey === 'BASE_TICKET_PRICE') settings.value.baseTicketPrice = item.settingValue
       else if (item.settingKey === 'LOYALTY_POINT_RATE') settings.value.pointConversionRate = parseInt(item.settingValue) || 1000
       else if (item.settingKey === 'MAINTENANCE_MODE') settings.value.maintenanceMode = item.settingValue === 'true'
+      else if (item.settingKey === 'PAYMENT_BANK_CODE') settings.value.bankCode = item.settingValue || ''
+      else if (item.settingKey === 'PAYMENT_BANK_NAME') settings.value.bankName = item.settingValue || ''
+      else if (item.settingKey === 'PAYMENT_ACCOUNT_NO') settings.value.accountNo = item.settingValue || ''
+      else if (item.settingKey === 'PAYMENT_ACCOUNT_NAME') settings.value.accountName = item.settingValue || ''
     })
   } catch (err) {
     console.error('Failed to load settings', err)
@@ -47,7 +91,11 @@ const saveSettings = async () => {
       settingsApi.save({ settingKey: 'CONTACT_EMAIL', settingValue: settings.value.contactEmail }),
       settingsApi.save({ settingKey: 'BASE_TICKET_PRICE', settingValue: settings.value.baseTicketPrice }),
       settingsApi.save({ settingKey: 'LOYALTY_POINT_RATE', settingValue: settings.value.pointConversionRate.toString() }),
-      settingsApi.save({ settingKey: 'MAINTENANCE_MODE', settingValue: settings.value.maintenanceMode.toString() })
+      settingsApi.save({ settingKey: 'MAINTENANCE_MODE', settingValue: settings.value.maintenanceMode.toString() }),
+      settingsApi.save({ settingKey: 'PAYMENT_BANK_CODE', settingValue: settings.value.bankCode }),
+      settingsApi.save({ settingKey: 'PAYMENT_BANK_NAME', settingValue: settings.value.bankName }),
+      settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NO', settingValue: settings.value.accountNo }),
+      settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NAME', settingValue: settings.value.accountName })
     ])
     showNotification('Cấu hình hệ thống đã được lưu thành công!')
   } catch (err) {
@@ -163,6 +211,53 @@ onMounted(() => {
             <p class="text-xs text-on-surface-variant mt-4 italic opacity-75 relative z-10 border-t border-outline-variant/10 pt-4">
               <span class="text-primary font-bold">Ví dụ:</span> Nếu cấu hình {{ settings.pointConversionRate?.toLocaleString() }} VNĐ, một hoá đơn 85.000 VNĐ sẽ được cộng {{ Math.floor(85000 / (settings.pointConversionRate || 1000)) }} điểm (Hệ thống tự động làm tròn xuống phần dư).
             </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Payment / Bank Account Settings -->
+      <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8">
+        <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-2 flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">qr_code_2</span>
+          Tài khoản nhận tiền (QR chuyển khoản)
+        </h3>
+        <p class="text-xs text-on-surface-variant mb-8">Thông tin này dùng để sinh mã VietQR ở bước thanh toán tại quầy (POS). Khách quét mã sẽ tự điền số tiền &amp; nội dung đơn hàng.</p>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngân hàng</label>
+              <select v-model="settings.bankCode" @change="onBankChange" :disabled="isLoading" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
+                <option value="">— Chọn ngân hàng —</option>
+                <option v-for="b in BANKS" :key="b.code" :value="b.code">{{ b.name }}</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số tài khoản (STK)</label>
+                <input v-model.trim="settings.accountNo" :disabled="isLoading" type="text" inputmode="numeric" placeholder="VD: 0123456789" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
+              </div>
+              <div class="space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Chủ tài khoản</label>
+                <input v-model.trim="settings.accountName" :disabled="isLoading" type="text" placeholder="VD: NGUYEN VAN A" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface uppercase">
+              </div>
+            </div>
+            <p class="text-xs text-on-surface-variant italic opacity-75 border-t border-outline-variant/10 pt-4">
+              <span class="text-primary font-bold">Mẹo:</span> Tên chủ tài khoản nên viết IN HOA không dấu để khớp hiển thị trên app ngân hàng.
+            </p>
+          </div>
+
+          <!-- QR Preview -->
+          <div class="flex flex-col items-center justify-center gap-3 p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Xem trước mã QR</p>
+            <div class="w-44 h-44 rounded-xl bg-white flex items-center justify-center overflow-hidden">
+              <img v-if="qrPreviewUrl" :src="qrPreviewUrl" alt="VietQR preview" class="w-full h-full object-contain" />
+              <div v-else class="text-center text-surface-container-highest px-4">
+                <span class="material-symbols-outlined text-5xl text-gray-300">qr_code_2</span>
+                <p class="text-[10px] font-bold text-gray-400 mt-1">Nhập NH &amp; STK để xem QR</p>
+              </div>
+            </div>
+            <p v-if="settings.bankName" class="text-xs font-bold text-on-surface text-center">{{ settings.bankName }}<br><span class="text-on-surface-variant font-mono">{{ settings.accountNo }}</span></p>
           </div>
         </div>
       </section>

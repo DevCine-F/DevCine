@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { ticketingApi } from '@/api/admin/index'
+import { ticketingApi, settingsApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
@@ -23,6 +23,12 @@ const cardError = ref('')
 const paymentMethod = ref('CASH')
 const isPaying = ref(false)
 const completedBooking = ref(null)
+
+// Thanh toán: tài khoản nhận tiền (QR) + modal tiền mặt / QR
+const bankInfo = ref({ code: '', name: '', accountNo: '', accountName: '' })
+const showCashModal = ref(false)
+const showQrModal = ref(false)
+const cashGiven = ref(0)
 
 const error = ref('')
 
@@ -129,6 +135,55 @@ const seatTypeBreakdown = computed(() => {
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 
+// ---- Thanh toán tiền mặt ----
+const changeDue = computed(() => Math.max(0, Number(cashGiven.value || 0) - totalPrice.value))
+const canConfirmCash = computed(() => Number(cashGiven.value || 0) >= totalPrice.value && totalPrice.value > 0)
+const cashSuggestions = computed(() => {
+  const t = totalPrice.value
+  if (t <= 0) return []
+  const set = new Set([t])
+  for (const note of [50000, 100000, 200000, 500000]) set.add(Math.ceil(t / note) * note)
+  return Array.from(set).filter(v => v >= t).sort((a, b) => a - b).slice(0, 5)
+})
+
+// ---- Thanh toán QR (VietQR) ----
+const removeDiacritics = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+const transferContent = computed(() => {
+  const seats = selectedSeats.value.map(s => s.rowChar + s.colNum).join('')
+  return removeDiacritics(`DevCine ve ${seats}`).slice(0, 50)
+})
+const vietQrUrl = computed(() => {
+  const b = bankInfo.value
+  if (!b.code || !b.accountNo) return ''
+  return `https://img.vietqr.io/image/${b.code}-${b.accountNo}-compact2.png?amount=${totalPrice.value}&addInfo=${encodeURIComponent(transferContent.value)}&accountName=${encodeURIComponent(b.accountName || '')}`
+})
+
+const loadBankInfo = async () => {
+  try {
+    const { data } = await settingsApi.getAll()
+    const map = {}
+    data.forEach(s => { map[s.settingKey] = s.settingValue })
+    bankInfo.value = {
+      code: map.PAYMENT_BANK_CODE || '',
+      name: map.PAYMENT_BANK_NAME || '',
+      accountNo: map.PAYMENT_ACCOUNT_NO || '',
+      accountName: map.PAYMENT_ACCOUNT_NAME || ''
+    }
+  } catch (err) {
+    // Không chặn POS nếu lỗi — modal QR sẽ báo "chưa cấu hình"
+  }
+}
+
+const openCashModal = () => {
+  if (selectedSeats.value.length === 0) { showToast('Chưa chọn ghế.', 'error'); return }
+  cashGiven.value = 0
+  showCashModal.value = true
+}
+const openQrModal = () => {
+  if (selectedSeats.value.length === 0) { showToast('Chưa chọn ghế.', 'error'); return }
+  showQrModal.value = true
+}
+
 const checkMemberCard = async () => {
   cardError.value = ''
   if (!cardNumberInput.value.trim()) return
@@ -163,6 +218,8 @@ const processPayment = async (method) => {
     const { data } = await ticketingApi.pay(payload)
     if (data.success) {
       completedBooking.value = data
+      showCashModal.value = false
+      showQrModal.value = false
       currentStep.value = 6
     } else {
       showToast(data.message || 'Thanh toán thất bại.', 'error')
@@ -177,7 +234,7 @@ const processPayment = async (method) => {
 // ===== In hoá đơn (mở tab mới: hoá đơn + vé QR soát cổng) =====
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(code)}`
-const paymentLabel = (m) => ({ CASH: 'Tiền mặt', CARD: 'Thẻ / QR', WALLET: 'Ví điện tử' }[m] || m)
+const paymentLabel = (m) => ({ CASH: 'Tiền mặt', CARD: 'Thẻ / QR', TRANSFER: 'Chuyển khoản QR', WALLET: 'Ví điện tử' }[m] || m)
 
 const buildInvoiceHtml = () => {
   const st = selectedShowtime.value
@@ -426,10 +483,13 @@ const resetPOS = () => {
   cardNumberInput.value = ''
   cardError.value = ''
   completedBooking.value = null
+  showCashModal.value = false
+  showQrModal.value = false
+  cashGiven.value = 0
   fetchData()
 }
 
-onMounted(fetchData)
+onMounted(() => { fetchData(); loadBankInfo() })
 onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>
 
@@ -698,11 +758,11 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
               </div>
 
               <div class="grid grid-cols-2 gap-4">
-                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="processPayment('CASH')" :disabled="isPaying">
+                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openCashModal" :disabled="isPaying">
                   <span class="material-symbols-outlined">payments</span> Tiền mặt
                 </AppButton>
-                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="processPayment('CARD')" :disabled="isPaying">
-                  <span class="material-symbols-outlined">qr_code_2</span> Thẻ / QR
+                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openQrModal" :disabled="isPaying">
+                  <span class="material-symbols-outlined">qr_code_2</span> Chuyển khoản QR
                 </AppButton>
               </div>
               <p v-if="isPaying" class="text-center text-xs text-on-surface-variant">Đang xử lý thanh toán...</p>
@@ -791,6 +851,84 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         </div>
       </div>
     </main>
+
+    <!-- Modal: Thanh toán tiền mặt -->
+    <transition name="fade">
+      <div v-if="showCashModal" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showCashModal = false">
+        <div class="w-full max-w-md bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
+          <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary">payments</span>
+            <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Thanh toán tiền mặt</h3>
+          </div>
+          <div class="p-7 space-y-6">
+            <div class="flex justify-between items-end">
+              <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tổng phải trả</span>
+              <span class="text-3xl font-black italic text-primary tracking-tighter">{{ fmt(totalPrice) }}đ</span>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiền khách đưa</label>
+              <input v-model.number="cashGiven" type="number" min="0" placeholder="0"
+                     class="w-full bg-surface-container-high border border-outline-variant/10 rounded-2xl py-3.5 px-5 text-on-surface text-xl font-black outline-none focus:border-primary/50 tabular-nums" />
+              <div class="flex flex-wrap gap-2 pt-1">
+                <button v-for="s in cashSuggestions" :key="s" @click="cashGiven = s"
+                        class="px-3 py-1.5 rounded-lg bg-surface-container-high border border-outline-variant/10 text-[11px] font-bold text-on-surface hover:border-primary/40 hover:text-primary transition-all tabular-nums">{{ fmt(s) }}đ</button>
+              </div>
+            </div>
+            <div class="flex justify-between items-center p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
+              <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiền trả lại</span>
+              <span class="text-2xl font-black italic tracking-tighter" :class="changeDue > 0 ? 'text-green-400' : 'text-on-surface'">{{ fmt(changeDue) }}đ</span>
+            </div>
+          </div>
+          <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
+            <AppButton variant="ghost" class="flex-1" @click="showCashModal = false">Hủy</AppButton>
+            <AppButton variant="primary" class="flex-1" :disabled="!canConfirmCash || isPaying" @click="processPayment('CASH')">
+              {{ isPaying ? 'Đang xử lý...' : 'Xác nhận thanh toán' }}
+            </AppButton>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Modal: Chuyển khoản QR (VietQR) -->
+    <transition name="fade">
+      <div v-if="showQrModal" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showQrModal = false">
+        <div class="w-full max-w-md bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
+          <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary">qr_code_2</span>
+            <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Chuyển khoản QR</h3>
+          </div>
+
+          <div v-if="!vietQrUrl" class="p-10 text-center space-y-3">
+            <span class="material-symbols-outlined text-5xl text-on-surface-variant/40">account_balance</span>
+            <p class="text-sm font-bold text-on-surface">Chưa cấu hình tài khoản nhận tiền.</p>
+            <p class="text-xs text-on-surface-variant">Vào <b class="text-on-surface">Cài đặt → Tài khoản nhận tiền</b> để thêm Ngân hàng + STK.</p>
+          </div>
+
+          <div v-else class="p-7 space-y-5">
+            <div class="flex flex-col items-center gap-3">
+              <div class="w-52 h-52 rounded-2xl bg-white p-2 flex items-center justify-center">
+                <img :src="vietQrUrl" alt="VietQR" class="w-full h-full object-contain" />
+              </div>
+              <p class="text-[11px] text-on-surface-variant text-center">Khách dùng app ngân hàng quét mã — số tiền &amp; nội dung tự điền.</p>
+            </div>
+            <div class="space-y-2.5 text-sm">
+              <div class="flex justify-between"><span class="text-on-surface-variant">Ngân hàng</span><span class="font-bold text-on-surface">{{ bankInfo.name }}</span></div>
+              <div class="flex justify-between"><span class="text-on-surface-variant">Số tài khoản</span><span class="font-bold text-on-surface font-mono">{{ bankInfo.accountNo }}</span></div>
+              <div class="flex justify-between"><span class="text-on-surface-variant">Chủ tài khoản</span><span class="font-bold text-on-surface uppercase">{{ bankInfo.accountName }}</span></div>
+              <div class="flex justify-between"><span class="text-on-surface-variant">Số tiền</span><span class="font-black text-primary italic">{{ fmt(totalPrice) }}đ</span></div>
+              <div class="flex justify-between"><span class="text-on-surface-variant">Nội dung</span><span class="font-bold text-on-surface">{{ transferContent }}</span></div>
+            </div>
+          </div>
+
+          <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
+            <AppButton variant="ghost" class="flex-1" @click="showQrModal = false">Hủy</AppButton>
+            <AppButton variant="primary" class="flex-1" :disabled="!vietQrUrl || isPaying" @click="processPayment('TRANSFER')">
+              {{ isPaying ? 'Đang xử lý...' : 'Xác nhận đã chuyển khoản' }}
+            </AppButton>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- Toast -->
     <transition name="fade">
