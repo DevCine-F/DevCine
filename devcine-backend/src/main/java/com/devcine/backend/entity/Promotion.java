@@ -41,4 +41,9 @@ public class Promotion {
     @Column(name = "points_required")
     @Builder.Default
     private Integer pointsRequired = 0;
+
+    /** Cho phép khách tự đổi điểm tích luỹ lấy voucher này (true) hay chỉ admin phát thủ công (false). */
+    @Column(name = "allow_point_redemption", columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean allowPointRedemption = false;
 }

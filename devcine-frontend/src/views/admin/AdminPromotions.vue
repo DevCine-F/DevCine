@@ -1,6 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
+import api from '@/api/axios'
+import { marketingApi, customerApi } from '@/api/admin/index'
 import CustomSelect from '@/components/common/CustomSelect.vue'
 
 const filterStatus = ref('all')
@@ -103,8 +105,28 @@ const removeComboItem = (index) => {
   newCombo.value.items.splice(index, 1)
 }
 
+const editingVoucherId = ref(null)
+const isSavingVoucher = ref(false)
+
 const openVoucherDrawer = () => {
+  editingVoucherId.value = null
   newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', cinemaMode: 'all', selectedCinemas: [] }
+  isVoucherDrawerOpen.value = true
+}
+
+// Mở drawer ở chế độ chỉnh sửa, đổ dữ liệu promotion thật vào form
+const openEditVoucher = (promo) => {
+  editingVoucherId.value = promo.id
+  newVoucher.value = {
+    code: promo.code || '',
+    type: promo.discountType || 'PERCENTAGE',
+    value: promo.discountValue != null ? Number(promo.discountValue) : null,
+    allowPointExchange: !!promo.allowPointRedemption,
+    pointsRequired: promo.pointsRequired || null,
+    title: '', description: '',
+    expiry: promo.endDate ? String(promo.endDate).slice(0, 10) : '',
+    cinemaMode: 'all', selectedCinemas: []
+  }
   isVoucherDrawerOpen.value = true
 }
 
@@ -117,27 +139,144 @@ const toggleStatus = (item) => {
   item.status = item.status === 'Active' || item.status === 'active' ? 'inactive' : 'active'
 }
 
-const fetchMarketingData = async () => {
+// Toast
+const toast = ref({ show: false, type: 'success', message: '' })
+let toastTimer = null
+const showToast = (message, type = 'success') => {
+  toast.value = { show: true, type, message }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
+}
+
+// Lưu (tạo / cập nhật) voucher (promotion) thật
+const handleSaveVoucher = async () => {
+  if (!newVoucher.value.code?.trim() || newVoucher.value.value == null) {
+    showToast('Vui lòng nhập mã code và giá trị giảm.', 'error')
+    return
+  }
+  isSavingVoucher.value = true
   try {
-    const [pRes, cRes] = await Promise.all([
-      axios.get(`${API_BASE_URL}/promotions`),
-      axios.get(`${API_BASE_URL}/combos`)
-    ])
-    
-    // Map backend Promotion to frontend UI
-    promotions.value = pRes.data.map(p => ({
+    const payload = {
+      code: newVoucher.value.code.trim().toUpperCase(),
+      discountType: newVoucher.value.type,
+      discountValue: Number(newVoucher.value.value),
+      endDate: newVoucher.value.expiry ? `${newVoucher.value.expiry}T23:59:59` : null,
+      allowPointRedemption: !!newVoucher.value.allowPointExchange,
+      pointsRequired: newVoucher.value.allowPointExchange ? Number(newVoucher.value.pointsRequired || 0) : 0
+    }
+    if (editingVoucherId.value) {
+      await marketingApi.updatePromotion(editingVoucherId.value, payload)
+      showToast('Cập nhật voucher thành công.')
+    } else {
+      await marketingApi.createPromotion(payload)
+      showToast('Tạo voucher thành công.')
+    }
+    isVoucherDrawerOpen.value = false
+    await fetchMarketingData()
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Lưu voucher thất bại.', 'error')
+  } finally {
+    isSavingVoucher.value = false
+  }
+}
+
+// Xoá voucher với xác nhận
+const deleteTarget = ref(null)
+const isDeleting = ref(false)
+const askDeleteVoucher = (promo) => { deleteTarget.value = promo }
+const confirmDeleteVoucher = async () => {
+  if (!deleteTarget.value) return
+  isDeleting.value = true
+  try {
+    await marketingApi.deletePromotion(deleteTarget.value.id)
+    showToast('Đã xoá voucher.')
+    deleteTarget.value = null
+    await fetchMarketingData()
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Xoá thất bại.', 'error')
+  } finally {
+    isDeleting.value = false
+  }
+}
+
+// Phát voucher cho khách
+const issueTarget = ref(null) // promotion đang phát
+const customerResults = ref([])
+const customerSearch = ref('')
+const isSearchingCustomer = ref(false)
+const isIssuing = ref(false)
+let customerSearchTimer = null
+
+const openIssueModal = (promo) => {
+  issueTarget.value = promo
+  customerSearch.value = ''
+  customerResults.value = []
+  fetchCustomers()
+}
+const closeIssueModal = () => { issueTarget.value = null }
+
+const fetchCustomers = async () => {
+  isSearchingCustomer.value = true
+  try {
+    const { data } = await customerApi.list(customerSearch.value)
+    customerResults.value = data.data ?? data
+  } catch (err) {
+    customerResults.value = []
+  } finally {
+    isSearchingCustomer.value = false
+  }
+}
+const handleCustomerSearchInput = () => {
+  if (customerSearchTimer) clearTimeout(customerSearchTimer)
+  customerSearchTimer = setTimeout(fetchCustomers, 400)
+}
+
+const handleIssueVoucher = async (customer) => {
+  if (!issueTarget.value) return
+  isIssuing.value = true
+  try {
+    await marketingApi.issueVoucher(issueTarget.value.id, customer.userId)
+    showToast(`Đã phát voucher ${issueTarget.value.code} cho ${customer.fullName || 'khách'}.`)
+    issueTarget.value = null
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Phát voucher thất bại.', 'error')
+  } finally {
+    isIssuing.value = false
+  }
+}
+
+// Trạng thái hiệu lực suy ra từ ngày kết thúc
+const promoStatus = (promo) => {
+  if (!promo.endDate) return 'active'
+  return new Date(promo.endDate) >= new Date() ? 'active' : 'expired'
+}
+const formatPromoDate = (iso) => {
+  if (!iso) return 'Không giới hạn'
+  return new Date(iso).toLocaleDateString('vi-VN')
+}
+
+const fetchMarketingData = async () => {
+  // Tải voucher (promotions) độc lập với combo để một bên lỗi không làm hỏng bên kia
+  try {
+    const { data } = await marketingApi.getPromotions()
+    // Promotion entity: code, discountType, discountValue, startDate, endDate, isStackable, pointsRequired, allowPointRedemption
+    promotions.value = data.map(p => ({
       id: p.id,
       code: p.code,
-      title: p.title, // Corrected from p.name
-      description: p.description,
-      type: p.type === 'VOUCHER' ? 'FIXED_AMOUNT' : 'PERCENTAGE',
-      value: p.value, // Corrected from p.discountValue
-      expiry: p.endDate,
-      status: p.isActive ? 'active' : 'inactive',
-      applicableCinemas: p.applicableScope || 'Toàn hệ thống'
+      discountType: p.discountType,
+      discountValue: p.discountValue,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      pointsRequired: p.pointsRequired,
+      allowPointRedemption: p.allowPointRedemption
     }))
+  } catch (error) {
+    showToast('Không thể tải danh sách voucher.', 'error')
+  }
 
-    combos.value = cRes.data.map(c => ({
+  try {
+    const { data } = await api.get('/marketing/combos')
+    combos.value = data.map(c => ({
       id: c.id,
       name: c.name,
       price: c.price,
@@ -147,22 +286,26 @@ const fetchMarketingData = async () => {
       image: '/images/Combo.webp' // Default image
     }))
   } catch (error) {
-    console.error("Error fetching marketing data:", error)
+    // Combo chưa có dữ liệu/endpoint — không chặn tab Voucher
   }
 }
 
 onMounted(async () => {
   fetchMarketingData()
   try {
-    const response = await axios.get((import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/cinemas')
+    const response = await api.get('/v1/cinemas')
     cinemasList.value = response.data
   } catch (error) {
-    console.error('Error fetching cinemas:', error)
     cinemasList.value = [
       { id: 1, name: 'DevCine Landmark 81' },
       { id: 2, name: 'DevCine Bitexco' }
     ]
   }
+})
+
+onUnmounted(() => {
+  if (toastTimer) clearTimeout(toastTimer)
+  if (customerSearchTimer) clearTimeout(customerSearchTimer)
 })
 </script>
 
@@ -203,41 +346,52 @@ onMounted(async () => {
     </div>
 
     <!-- Vouchers View -->
-    <div v-if="activeTab === 'vouchers'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div v-for="promo in promotions" :key="promo.id" class="relative group">
-        <div class="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-purple-500/50 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-        <div class="relative bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden shadow-xl">
-          <div class="p-6">
-            <div class="flex justify-between items-start mb-6">
-              <div class="px-4 py-2 bg-primary/10 rounded-xl border border-primary/20">
-                <span class="font-black text-xl tracking-widest text-primary font-mono uppercase">{{ promo.code }}</span>
+    <div v-if="activeTab === 'vouchers'">
+      <div v-if="promotions.length === 0" class="py-24 text-center border border-dashed border-outline-variant/20 rounded-2xl">
+        <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4">sell</span>
+        <p class="text-on-surface-variant font-semibold">Chưa có voucher nào. Bấm "Tạo Voucher" để thêm mới.</p>
+      </div>
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div v-for="promo in promotions" :key="promo.id" class="relative group">
+          <div class="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-purple-500/50 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+          <div class="relative bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden shadow-xl">
+            <div class="p-6">
+              <div class="flex justify-between items-start mb-6">
+                <div class="px-4 py-2 bg-primary/10 rounded-xl border border-primary/20">
+                  <span class="font-black text-xl tracking-widest text-primary font-mono uppercase">{{ promo.code }}</span>
+                </div>
+                <span :class="promoStatus(promo) === 'active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'" class="text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-widest">
+                  {{ promoStatus(promo) === 'active' ? 'Đang chạy' : 'Hết hạn' }}
+                </span>
               </div>
-              <button @click="toggleStatus(promo)" :class="promo.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'" class="material-symbols-outlined text-3xl">
-                {{ promo.status === 'active' ? 'toggle_on' : 'toggle_off' }}
-              </button>
+
+              <div class="space-y-3 pt-2">
+                <div class="flex justify-between items-center">
+                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mức giảm</span>
+                  <span class="text-sm font-black text-primary">{{ promo.discountType === 'PERCENTAGE' ? Number(promo.discountValue) + '%' : Number(promo.discountValue).toLocaleString() + 'đ' }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Hết hạn</span>
+                  <span class="text-[10px] font-black text-red-400 uppercase italic">{{ formatPromoDate(promo.endDate) }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Đổi điểm</span>
+                  <span v-if="promo.allowPointRedemption" class="text-[10px] font-black text-amber-400 uppercase">{{ Number(promo.pointsRequired).toLocaleString() }} điểm</span>
+                  <span v-else class="text-[10px] font-black text-on-surface-variant/60 uppercase">Tắt</span>
+                </div>
+              </div>
             </div>
-            
-            <h3 class="text-lg font-black text-on-surface mb-1 uppercase italic tracking-tight">{{ promo.title }}</h3>
-            <p class="text-xs text-on-surface-variant mb-4 font-medium leading-relaxed">{{ promo.description }}</p>
-            
-            <div class="space-y-3 pt-4 border-t border-outline-variant/5">
-              <div class="flex justify-between items-center">
-                <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mức giảm</span>
-                <span class="text-sm font-black text-primary">{{ promo.type === 'PERCENTAGE' ? promo.value + '%' : promo.value.toLocaleString() + 'đ' }}</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Áp dụng</span>
-                <span class="text-[10px] font-black text-on-surface uppercase">{{ promo.applicableCinemas }}</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Hết hạn</span>
-                <span class="text-[10px] font-black text-red-400 uppercase italic">{{ promo.expiry }}</span>
-              </div>
+            <div class="bg-primary/5 p-3 flex justify-end items-center gap-2">
+               <button @click="openIssueModal(promo)" class="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest hover:text-white px-2 py-1.5 rounded transition-colors">
+                 <span class="material-symbols-outlined text-sm">card_giftcard</span> Phát cho khách
+               </button>
+               <button @click="openEditVoucher(promo)" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
+                 <span class="material-symbols-outlined text-sm">edit</span>
+               </button>
+               <button @click="askDeleteVoucher(promo)" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
+                 <span class="material-symbols-outlined text-sm">delete</span>
+               </button>
             </div>
-          </div>
-          <div class="bg-primary/5 p-4 flex justify-between items-center">
-             <span class="text-[9px] font-black text-primary uppercase tracking-widest">Usage: 142/500</span>
-             <button class="text-[9px] font-black text-on-surface-variant uppercase tracking-widest hover:text-white transition-colors">Edit Details</button>
           </div>
         </div>
       </div>
@@ -354,8 +508,8 @@ onMounted(async () => {
         <!-- Drawer Header -->
         <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
           <div>
-            <h3 class="font-headline font-black uppercase italic text-primary text-xl">Tạo Voucher</h3>
-            <p class="text-xs text-on-surface-variant mt-1 uppercase tracking-widest font-bold">Thêm mã giảm giá mới</p>
+            <h3 class="font-headline font-black uppercase italic text-primary text-xl">{{ editingVoucherId ? 'Cập nhật Voucher' : 'Tạo Voucher' }}</h3>
+            <p class="text-xs text-on-surface-variant mt-1 uppercase tracking-widest font-bold">{{ editingVoucherId ? 'Chỉnh sửa mã giảm giá' : 'Thêm mã giảm giá mới' }}</p>
           </div>
           <button @click="isVoucherDrawerOpen = false" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
             <span class="material-symbols-outlined">close</span>
@@ -443,7 +597,7 @@ onMounted(async () => {
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
           <button @click="isVoucherDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Voucher</button>
+          <button @click="handleSaveVoucher" :disabled="isSavingVoucher" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-60">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
         </div>
       </div>
     </div>
@@ -619,6 +773,66 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    <!-- Issue voucher to customer modal -->
+    <div v-if="issueTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeIssueModal"></div>
+      <div class="relative w-full max-w-lg bg-surface-container-low border border-outline-variant/20 rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+          <div>
+            <h3 class="font-headline font-black uppercase italic text-primary text-lg">Phát voucher cho khách</h3>
+            <p class="text-xs text-on-surface-variant mt-1 font-bold">Mã: <span class="font-mono text-primary">{{ issueTarget.code }}</span></p>
+          </div>
+          <button @click="closeIssueModal" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="p-6 pb-3">
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
+            <input v-model="customerSearch" @input="handleCustomerSearchInput" type="text" placeholder="Tìm khách theo tên, email, SĐT..." class="w-full bg-surface-container-highest border-none rounded-lg pl-10 pr-4 py-2.5 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none" />
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto px-6 pb-6 space-y-2 scrollbar-custom">
+          <div v-if="isSearchingCustomer" class="space-y-2">
+            <div v-for="i in 4" :key="i" class="h-14 bg-surface-container-high rounded-lg animate-pulse"></div>
+          </div>
+          <div v-else-if="customerResults.length === 0" class="py-10 text-center text-on-surface-variant text-sm">Không tìm thấy khách hàng.</div>
+          <div v-else v-for="c in customerResults" :key="c.userId" class="flex items-center justify-between gap-3 bg-surface-container-high rounded-lg p-3 border border-white/5">
+            <div class="min-w-0">
+              <p class="text-sm font-bold text-on-surface truncate">{{ c.fullName || 'Khách hàng' }}</p>
+              <p class="text-[11px] text-on-surface-variant truncate">{{ c.email }} · {{ c.phone || 'N/A' }}</p>
+            </div>
+            <button @click="handleIssueVoucher(c)" :disabled="isIssuing" class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-3 py-2 bg-primary text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60">Phát</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete confirm modal -->
+    <div v-if="deleteTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="deleteTarget = null"></div>
+      <div class="relative w-full max-w-sm bg-surface-container-low border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
+        <span class="material-symbols-outlined text-4xl text-red-400 mb-3">warning</span>
+        <h3 class="text-lg font-bold font-headline text-white mb-2">Xoá voucher?</h3>
+        <p class="text-sm text-on-surface-variant">Bạn chắc chắn muốn xoá mã <span class="font-mono font-bold text-primary">{{ deleteTarget.code }}</span>? Hành động này không thể hoàn tác.</p>
+        <div class="flex gap-3 mt-6">
+          <button @click="deleteTarget = null" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>
+          <button @click="confirmDeleteVoucher" :disabled="isDeleting" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-60">{{ isDeleting ? 'Đang xoá...' : 'Xoá' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <transition name="fade">
+      <div v-if="toast.show" :class="[
+        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
+        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
+      ]">
+        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
+        {{ toast.message }}
+      </div>
+    </transition>
   </div>
 </template>
 

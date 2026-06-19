@@ -1,27 +1,23 @@
 package com.devcine.backend.config;
 
-import com.devcine.backend.entity.Cinema;
-import com.devcine.backend.entity.Movie;
-import com.devcine.backend.entity.MovieFormat;
-import com.devcine.backend.entity.Room;
-import com.devcine.backend.repository.CinemaRepository;
-import com.devcine.backend.repository.MovieRepository;
-import com.devcine.backend.repository.MovieFormatRepository;
-import com.devcine.backend.repository.RoomRepository;
-import com.devcine.backend.repository.SeatTypeRepository;
-import com.devcine.backend.entity.SeatType;
+import com.devcine.backend.entity.*;
+import com.devcine.backend.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
 public class DataSeeder {
+
+    private final PasswordEncoder passwordEncoder;
 
     @Bean
     public CommandLineRunner initData(
@@ -29,8 +25,160 @@ public class DataSeeder {
             MovieRepository movieRepository,
             MovieFormatRepository formatRepository,
             RoomRepository roomRepository,
-            SeatTypeRepository seatTypeRepository) {
+            SeatTypeRepository seatTypeRepository,
+            SystemSettingRepository systemSettingRepository,
+            RoleRepository roleRepository,
+            UserRepository userRepository,
+            CustomerRepository customerRepository,
+            WalletRepository walletRepository,
+            FnbItemRepository fnbItemRepository,
+            ShowtimeRepository showtimeRepository) {
         return args -> {
+            if (systemSettingRepository.findById("LOYALTY_POINT_RATE").isEmpty()) {
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("LOYALTY_POINT_RATE")
+                        .settingValue("1000")
+                        .build());
+                System.out.println("Đã cấu hình mặc định LOYALTY_POINT_RATE = 1000 VNĐ = 1 điểm.");
+            }
+
+            // Seed roles
+            Role adminRole = roleRepository.findByName("ADMIN").orElseGet(() ->
+                    roleRepository.save(Role.builder().name("ADMIN").build()));
+            Role staffRole = roleRepository.findByName("STAFF").orElseGet(() ->
+                    roleRepository.save(Role.builder().name("STAFF").build()));
+            Role customerRole = roleRepository.findByName("CUSTOMER").orElseGet(() ->
+                    roleRepository.save(Role.builder().name("CUSTOMER").build()));
+
+            // Seed ma trận phân quyền mặc định (chỉ set khi chưa có cấu hình)
+            if (adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+                adminRole.setPermissionsMatrix("{"
+                        + "\"dashboard_stats\":[\"view\",\"export\"],"
+                        + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"schedules\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"banners\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"promotions\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pricing\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"cinemas\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"staff_management\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pos_ticketing\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pos_inventory\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"support\":[\"view\",\"edit\",\"delete\"],"
+                        + "\"settings\":[\"view\",\"edit\"]}");
+                roleRepository.save(adminRole);
+            }
+            if (staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+                staffRole.setPermissionsMatrix("{"
+                        + "\"dashboard_stats\":[\"view\"],"
+                        + "\"movies\":[\"view\"],"
+                        + "\"schedules\":[\"view\"],"
+                        + "\"pos_ticketing\":[\"view\",\"add\",\"edit\"],"
+                        + "\"pos_inventory\":[\"view\",\"edit\"],"
+                        + "\"support\":[\"view\",\"edit\"]}");
+                roleRepository.save(staffRole);
+                System.out.println("Đã cấu hình ma trận phân quyền mặc định cho STAFF.");
+            }
+
+            // Seed admin user
+            if (!userRepository.existsByUsername("admin")) {
+                User adminUser = User.builder()
+                        .username("admin")
+                        .email("admin@devcine.com")
+                        .passwordHash(passwordEncoder.encode("Admin@123"))
+                        .fullName("Quản trị viên")
+                        .role(adminRole)
+                        .isActive(true)
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                userRepository.save(adminUser);
+                System.out.println("Đã tạo tài khoản admin mặc định (admin / Admin@123)");
+            }
+
+            // Seed customer demo
+            if (!userRepository.existsByUsername("khachhang")) {
+                User demoUser = User.builder()
+                        .username("khachhang")
+                        .email("khachhang@devcine.com")
+                        .passwordHash(passwordEncoder.encode("Khach@123"))
+                        .fullName("Nguyễn Văn An")
+                        .phone("0901234567")
+                        .role(customerRole)
+                        .isActive(true)
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                userRepository.save(demoUser);
+                Customer demoCustomer = Customer.builder()
+                        .userId(demoUser.getId())
+                        .user(demoUser)
+                        .membershipTier("SILVER")
+                        .loyaltyPoints(500)
+                        .build();
+                customerRepository.save(demoCustomer);
+                walletRepository.save(Wallet.builder()
+                        .customer(demoCustomer)
+                        .balance(new BigDecimal("500000"))
+                        .status("ACTIVE")
+                        .build());
+                System.out.println("Đã tạo tài khoản demo khách hàng (khachhang / Khach@123)");
+            }
+
+            // Backfill: đảm bảo mọi user vai trò CUSTOMER đều có bản ghi Customer
+            // (dữ liệu cũ tạo trước khi có logic seed Customer có thể bị thiếu -> /api/customers/{id} 404).
+            java.util.Set<Integer> existingCustomerIds = customerRepository.findAll().stream()
+                    .map(Customer::getUserId)
+                    .collect(java.util.stream.Collectors.toSet());
+            List<User> missingCustomerUsers = userRepository.findAllByRoleName("CUSTOMER").stream()
+                    .filter(u -> !existingCustomerIds.contains(u.getId()))
+                    .toList();
+            for (User u : missingCustomerUsers) {
+                // KHÔNG set userId thủ công: @MapsId tự lấy id từ user; để @Id null giúp Spring Data
+                // dùng persist (entity mới) thay vì merge (gây AssertionFailure với @MapsId).
+                customerRepository.save(Customer.builder()
+                        .user(u)
+                        .membershipTier("BRONZE")
+                        .loyaltyPoints(0)
+                        .build());
+            }
+            if (!missingCustomerUsers.isEmpty()) {
+                System.out.println("Đã bổ sung " + missingCustomerUsers.size() + " bản ghi Customer còn thiếu.");
+            }
+
+            // Seed thực đơn F&B / Combo mẫu (combo bắp nước, đồ uống, đồ ăn vặt thường gặp ở rạp)
+            if (fnbItemRepository.count() == 0) {
+                List<FnbItem> menu = List.of(
+                        FnbItem.builder().name("Combo Solo").type("COMBO").price(new BigDecimal("89000"))
+                                .description("1 bắp ngọt lớn + 1 nước ngọt lớn").isActive(true).build(),
+                        FnbItem.builder().name("Combo Couple").type("COMBO").price(new BigDecimal("129000"))
+                                .description("1 bắp ngọt lớn + 2 nước ngọt lớn").isActive(true).build(),
+                        FnbItem.builder().name("Combo Nhóm (Party)").type("COMBO").price(new BigDecimal("219000"))
+                                .description("2 bắp ngọt lớn + 4 nước ngọt").isActive(true).build(),
+                        FnbItem.builder().name("Combo Bắp Phô Mai").type("COMBO").price(new BigDecimal("109000"))
+                                .description("1 bắp phô mai lớn + 1 nước ngọt lớn").isActive(true).build(),
+                        FnbItem.builder().name("Bắp Ngọt (Lớn)").type("POPCORN").price(new BigDecimal("55000"))
+                                .description("Bắp rang bơ vị ngọt size lớn").isActive(true).build(),
+                        FnbItem.builder().name("Bắp Phô Mai (Lớn)").type("POPCORN").price(new BigDecimal("65000"))
+                                .description("Bắp rang phủ phô mai size lớn").isActive(true).build(),
+                        FnbItem.builder().name("Bắp Caramel (Lớn)").type("POPCORN").price(new BigDecimal("65000"))
+                                .description("Bắp rang caramel giòn ngọt size lớn").isActive(true).build(),
+                        FnbItem.builder().name("Coca-Cola (Lớn)").type("DRINK").price(new BigDecimal("35000"))
+                                .description("Nước ngọt có ga Coca-Cola ly lớn").isActive(true).build(),
+                        FnbItem.builder().name("Pepsi (Lớn)").type("DRINK").price(new BigDecimal("35000"))
+                                .description("Nước ngọt có ga Pepsi ly lớn").isActive(true).build(),
+                        FnbItem.builder().name("Sprite (Lớn)").type("DRINK").price(new BigDecimal("35000"))
+                                .description("Nước ngọt có ga Sprite ly lớn").isActive(true).build(),
+                        FnbItem.builder().name("Nước Suối Aquafina").type("DRINK").price(new BigDecimal("20000"))
+                                .description("Nước tinh khiết Aquafina 500ml").isActive(true).build(),
+                        FnbItem.builder().name("Khoai Tây Chiên").type("SNACK").price(new BigDecimal("45000"))
+                                .description("Khoai tây chiên giòn kèm sốt").isActive(true).build(),
+                        FnbItem.builder().name("Xúc Xích (Hotdog)").type("SNACK").price(new BigDecimal("49000"))
+                                .description("Bánh mì kẹp xúc xích nóng").isActive(true).build(),
+                        FnbItem.builder().name("Snack Khoai Tây").type("SNACK").price(new BigDecimal("25000"))
+                                .description("Gói snack ăn vặt giòn rụm").isActive(true).build()
+                );
+                fnbItemRepository.saveAll(menu);
+                System.out.println("Đã tạo " + menu.size() + " món F&B/combo mẫu.");
+            }
+
             if (roomRepository.count() == 0) {
                 // To avoid duplicating cinemas if they already exist, let's fetch them first or create if missing
                 Cinema cinema1 = cinemaRepository.findById(1).orElse(null);
@@ -91,6 +239,122 @@ public class DataSeeder {
                 System.out.println("Đã thêm dữ liệu giả lập cho SeatType thành công!");
             }
             
+            // Cập nhật giá ghế thực tế (seed cũ để NORMAL = 0đ). Khớp với chú thích giá ở giao diện khách.
+            SeatType normalType = seatTypeRepository.findAll().stream()
+                    .filter(t -> "NORMAL".equalsIgnoreCase(t.getName())).findFirst().orElse(null);
+            if (normalType != null && (normalType.getPriceModifier() == null
+                    || normalType.getPriceModifier().compareTo(BigDecimal.ZERO) == 0)) {
+                for (SeatType t : seatTypeRepository.findAll()) {
+                    if ("NORMAL".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("110000"));
+                    else if ("VIP".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("150000"));
+                    else if ("SWEETBOX".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("300000"));
+                    seatTypeRepository.save(t);
+                }
+                System.out.println("Đã cập nhật giá ghế thực tế (Thường 110k / VIP 150k / Sweetbox 300k).");
+            }
+
+            // Seed phim thật (thêm theo slug nếu chưa có — không trùng phim cũ)
+            {
+                List<Movie> seedMovies = List.of(
+                        Movie.builder().title("Mai").slug("mai-2024").durationMins(131).ageRating("T18")
+                                .status("active").country("Việt Nam").language("Tiếng Việt").director("Trấn Thành")
+                                .releaseDate(LocalDate.now().minusDays(20)).productionYear(2024)
+                                .description("Chuyện đời của Mai — một người phụ nữ với quá khứ nhiều biến cố, đi tìm hạnh phúc và sự bình yên cho riêng mình.")
+                                .build(),
+                        Movie.builder().title("Lật Mặt 7: Một Điều Ước").slug("lat-mat-7-mot-dieu-uoc").durationMins(132).ageRating("T16")
+                                .status("active").country("Việt Nam").language("Tiếng Việt").director("Lý Hải")
+                                .releaseDate(LocalDate.now().minusDays(10)).productionYear(2024)
+                                .description("Câu chuyện cảm động về tình mẫu tử và hành trình gắn kết của một gia đình nhiều thế hệ.")
+                                .build(),
+                        Movie.builder().title("Đào, Phở Và Piano").slug("dao-pho-va-piano").durationMins(100).ageRating("T13")
+                                .status("active").country("Việt Nam").language("Tiếng Việt").director("Phi Tiến Sơn")
+                                .releaseDate(LocalDate.now().minusDays(30)).productionYear(2024)
+                                .description("Bức tranh lãng mạn và bi tráng về Hà Nội mùa đông năm 1946 qua những con người bình dị.")
+                                .build(),
+                        Movie.builder().title("Dune: Hành Tinh Cát - Phần Hai").slug("dune-part-two").durationMins(166).ageRating("T13")
+                                .status("active").country("Mỹ").language("Tiếng Anh").director("Denis Villeneuve")
+                                .releaseDate(LocalDate.now().minusDays(15)).productionYear(2024)
+                                .description("Paul Atreides liên kết cùng người Fremen để báo thù và ngăn chặn tương lai khủng khiếp mà chỉ mình anh thấy trước.")
+                                .build(),
+                        Movie.builder().title("Kung Fu Panda 4").slug("kung-fu-panda-4").durationMins(94).ageRating("P")
+                                .status("active").country("Mỹ").language("Lồng tiếng").director("Mike Mitchell")
+                                .releaseDate(LocalDate.now().minusDays(5)).productionYear(2024)
+                                .description("Po phải tìm và huấn luyện Thần Long Đại Hiệp kế nhiệm trong khi đối đầu với một phù thủy quyền năng.")
+                                .build(),
+                        Movie.builder().title("Godzilla x Kong: Đế Chế Mới").slug("godzilla-x-kong").durationMins(115).ageRating("T13")
+                                .status("active").country("Mỹ").language("Tiếng Anh").director("Adam Wingard")
+                                .releaseDate(LocalDate.now().minusDays(3)).productionYear(2024)
+                                .description("Godzilla và Kong buộc phải bắt tay chống lại một mối đe dọa khổng lồ ẩn sâu trong lòng Trái Đất.")
+                                .build()
+                );
+                List<Movie> toAdd = seedMovies.stream()
+                        .filter(m -> movieRepository.findBySlug(m.getSlug()).isEmpty())
+                        .toList();
+                if (!toAdd.isEmpty()) {
+                    movieRepository.saveAll(toAdd);
+                    System.out.println("Đã tạo " + toAdd.size() + " phim mẫu.");
+                }
+            }
+
+            // Seed lịch chiếu mẫu MỘT LẦN (cờ DEMO_SCHEDULE_SEEDED) — dùng riêng các phim mẫu,
+            // dọn các suất sắp tới cũ (dữ liệu test lẫn lộn) rồi tạo lịch 3 ngày sạch sẽ.
+            boolean demoScheduleSeeded = systemSettingRepository.findById("DEMO_SCHEDULE_SEEDED").isPresent();
+            if (!demoScheduleSeeded) {
+                List<String> curatedSlugs = List.of(
+                        "mai-2024", "lat-mat-7-mot-dieu-uoc", "dao-pho-va-piano",
+                        "dune-part-two", "kung-fu-panda-4", "godzilla-x-kong");
+                List<Movie> movies = curatedSlugs.stream()
+                        .map(slug -> movieRepository.findBySlug(slug).orElse(null))
+                        .filter(m -> m != null)
+                        .toList();
+                List<Room> rooms = roomRepository.findAll();
+                List<MovieFormat> formats = formatRepository.findAll();
+
+                // Xoá các suất chiếu từ hôm nay trở đi (lịch demo cũ/lẫn lộn) để tạo lại sạch
+                List<Showtime> upcomingOld = showtimeRepository.findAll().stream()
+                        .filter(s -> s.getStartTime() != null
+                                && !s.getStartTime().isBefore(LocalDate.now().atStartOfDay()))
+                        .toList();
+                if (!upcomingOld.isEmpty()) {
+                    showtimeRepository.deleteAll(upcomingOld);
+                }
+
+                if (!movies.isEmpty() && !rooms.isEmpty() && !formats.isEmpty()) {
+                    MovieFormat imaxFmt = formats.stream()
+                            .filter(f -> f.getName() != null && f.getName().toUpperCase().contains("IMAX"))
+                            .findFirst().orElse(formats.get(0));
+                    MovieFormat stdFmt = formats.stream()
+                            .filter(f -> f.getName() != null && f.getName().contains("2D"))
+                            .findFirst().orElse(formats.get(0));
+
+                    int[][] slots = { {9, 0}, {12, 30}, {16, 0}, {19, 30}, {22, 0} };
+                    List<Showtime> showtimes = new java.util.ArrayList<>();
+                    int movieIdx = 0;
+                    for (int day = 0; day < 3; day++) {
+                        LocalDate date = LocalDate.now().plusDays(day);
+                        for (Room room : rooms) {
+                            MovieFormat fmt = (room.getType() != null && room.getType().toUpperCase().contains("IMAX"))
+                                    ? imaxFmt : stdFmt;
+                            for (int[] slot : slots) {
+                                Movie m = movies.get(movieIdx % movies.size());
+                                movieIdx++;
+                                LocalDateTime start = date.atTime(slot[0], slot[1]);
+                                int dur = m.getDurationMins() != null ? m.getDurationMins() : 120;
+                                LocalDateTime end = start.plusMinutes(dur + 15);
+                                showtimes.add(Showtime.builder()
+                                        .movie(m).room(room).format(fmt)
+                                        .startTime(start).endTime(end)
+                                        .status("SCHEDULED").build());
+                            }
+                        }
+                    }
+                    showtimeRepository.saveAll(showtimes);
+                    System.out.println("Đã tạo " + showtimes.size() + " suất chiếu mẫu cho 3 ngày.");
+                }
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("DEMO_SCHEDULE_SEEDED").settingValue("true").build());
+            }
+
             // Temporary fix for previously seeded movies with wrong status
             List<Movie> allMovies = movieRepository.findAll();
             boolean updated = false;

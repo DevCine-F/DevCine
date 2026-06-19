@@ -1,61 +1,174 @@
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { bookingApi } from '@/api/customer/index'
+
+const authStore = useAuthStore()
+const bookings = ref([])
+const isLoading = ref(false)
+const error = ref('')
+const activeFilter = ref('all')
+
+const filteredBookings = computed(() => {
+  if (activeFilter.value === 'upcoming') {
+    return bookings.value.filter(b => new Date(b.showtime?.startTime) > new Date())
+  }
+  if (activeFilter.value === 'past') {
+    return bookings.value.filter(b => new Date(b.showtime?.startTime) <= new Date())
+  }
+  return bookings.value
+})
+
+const fetchHistory = async () => {
+  if (!authStore.isAuthenticated || !authStore.user?.id) return
+  isLoading.value = true
+  error.value = ''
+  try {
+    const { data } = await bookingApi.getHistory(authStore.user.id)
+    bookings.value = data
+  } catch (err) {
+    error.value = 'Không thể tải lịch sử đặt vé. Vui lòng thử lại.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const formatDate = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+const formatPrice = (n) => n != null ? Number(n).toLocaleString('vi-VN') + 'đ' : ''
+
+const statusLabel = (s) => ({ CONFIRMED: 'Đã xác nhận', HOLD: 'Chờ thanh toán', CANCELLED: 'Đã huỷ' }[s] || s)
+const statusClass = (s) => ({
+  CONFIRMED: 'bg-green-500/10 text-green-400',
+  HOLD: 'bg-yellow-500/10 text-yellow-400',
+  CANCELLED: 'bg-red-500/10 text-red-400'
+}[s] || 'bg-white/10 text-on-surface-variant')
+
+// Vé QR
+const qrBooking = ref(null)
+const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(code)}`
+const openTickets = (b) => { qrBooking.value = b }
+const closeTickets = () => { qrBooking.value = null }
+
+onMounted(fetchHistory)
+</script>
+
 <template>
   <section>
     <div class="flex flex-col md:flex-row justify-between items-baseline mb-8 gap-4">
       <h2 class="text-2xl font-bold tracking-tight font-headline">Lịch sử đặt vé</h2>
       <div class="flex gap-4">
-        <button class="text-xs font-bold uppercase tracking-widest border-b-2 border-primary-container pb-1 text-primary-container">Tất cả</button>
-        <button class="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-on-surface transition-colors pb-1 border-b-2 border-transparent">Sắp diễn ra</button>
-        <button class="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-on-surface transition-colors pb-1 border-b-2 border-transparent">Đã xem</button>
+        <button @click="activeFilter = 'all'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'all' ? 'border-primary-container text-primary-container' : 'text-neutral-500 hover:text-on-surface border-transparent']">Tất cả</button>
+        <button @click="activeFilter = 'upcoming'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'upcoming' ? 'border-primary-container text-primary-container' : 'text-neutral-500 hover:text-on-surface border-transparent']">Sắp diễn ra</button>
+        <button @click="activeFilter = 'past'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'past' ? 'border-primary-container text-primary-container' : 'text-neutral-500 hover:text-on-surface border-transparent']">Đã xem</button>
       </div>
     </div>
-    
-    <div class="grid grid-cols-1 gap-4">
-      <!-- Record 1 (Upcoming) -->
-      <div class="group relative bg-surface-container-high hover:bg-surface-bright transition-all duration-300 p-1 flex flex-col md:flex-row gap-6 items-stretch">
+
+    <!-- Loading -->
+    <div v-if="isLoading" class="flex flex-col gap-4">
+      <div v-for="i in 3" :key="i" class="bg-surface-container-high animate-pulse h-32 rounded"></div>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">{{ error }}</div>
+
+    <!-- Empty -->
+    <div v-else-if="filteredBookings.length === 0" class="flex flex-col items-center justify-center py-24 text-center">
+      <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">confirmation_number</span>
+      <p class="text-on-surface-variant font-semibold">Chưa có lịch sử đặt vé</p>
+      <p class="text-sm text-outline-variant mt-1">Các vé bạn đã đặt sẽ xuất hiện ở đây</p>
+    </div>
+
+    <!-- List -->
+    <div v-else class="grid grid-cols-1 gap-4">
+      <div v-for="b in filteredBookings" :key="b.bookingId"
+           class="group relative bg-surface-container-high hover:bg-surface-bright transition-all duration-300 p-1 flex flex-col md:flex-row gap-6 items-stretch">
         <div class="w-full md:w-24 h-36 md:h-auto overflow-hidden shrink-0">
-          <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/images/Hopper.webp"/>
+          <img v-if="b.showtime?.moviePosterUrl"
+               :src="b.showtime.moviePosterUrl"
+               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
+          <div v-else class="w-full h-full bg-surface-container-highest flex items-center justify-center">
+            <span class="material-symbols-outlined text-3xl text-outline-variant">movie</span>
+          </div>
         </div>
         <div class="flex-grow flex flex-col justify-center py-4">
           <div class="flex items-center gap-2 mb-1">
-            <span class="bg-error-container text-on-error-container text-[9px] font-bold px-1.5 py-0.5 rounded-sm">T16</span>
-            <span class="text-primary-container text-[9px] font-bold uppercase tracking-widest">Sắp diễn ra</span>
+            <span :class="['text-[9px] font-bold px-1.5 py-0.5 rounded-sm', statusClass(b.status)]">{{ statusLabel(b.status) }}</span>
           </div>
-          <h3 class="text-xl font-bold mb-3 group-hover:text-primary-container transition-colors uppercase font-headline">Dune: Hành tinh cát - Phần 2</h3>
+          <h3 class="text-xl font-bold mb-3 group-hover:text-primary-container transition-colors uppercase font-headline">
+            {{ b.showtime?.movieTitle }}
+          </h3>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Phim / Rạp</p>
-              <p class="text-xs font-semibold truncate">DevCine Vincom Center</p>
+              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Mã đặt vé</p>
+              <p class="text-xs font-semibold font-mono">{{ b.bookingCode }}</p>
             </div>
             <div>
               <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Suất chiếu</p>
-              <p class="text-xs font-semibold">19:30 • 25/10/2024</p>
+              <p class="text-xs font-semibold">{{ formatDate(b.showtime?.startTime) }}</p>
             </div>
             <div>
-              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Số ghế</p>
-              <p class="text-xs font-semibold text-primary-container">V.I.P J-12, J-13</p>
+              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Ghế</p>
+              <p class="text-xs font-semibold text-primary-container">{{ b.seats || '—' }}</p>
             </div>
             <div>
               <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Tổng tiền</p>
-              <p class="text-xs font-semibold">240.000đ</p>
+              <p class="text-xs font-semibold">{{ formatPrice(b.finalPrice) }}</p>
             </div>
           </div>
         </div>
-        <div class="flex flex-col justify-center gap-2 py-4 px-4 md:pr-6">
-          <button class="bg-white/5 hover:bg-white/10 text-[10px] font-bold uppercase tracking-widest px-4 py-2 transition-colors border border-white/5">
-            Chi tiết vé
-          </button>
-          <button class="text-[9px] font-bold uppercase tracking-widest text-primary-container/80 hover:text-primary-container underline underline-offset-4 decoration-1">
-            Hủy vé
+        <!-- Action: xem vé QR (chỉ với vé đã xác nhận và có mã QR) -->
+        <div v-if="b.status === 'CONFIRMED' && b.qrCodes && b.qrCodes.length" class="flex items-center px-4 py-4 md:py-0 shrink-0">
+          <button @click="openTickets(b)" class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-4 py-2.5 bg-primary-container/10 text-primary-container border border-primary-container/30 rounded-sm hover:bg-primary-container/20 transition-colors">
+            <span class="material-symbols-outlined text-base">qr_code_2</span> Xem vé QR
           </button>
         </div>
       </div>
     </div>
-    
-    <div class="mt-8 flex justify-center">
-      <router-link to="/profile/history" class="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant hover:text-primary-container transition-colors cursor-pointer">
-        Xem thêm lịch sử
-        <span class="material-symbols-outlined text-sm transition-transform group-hover:translate-y-1">expand_more</span>
-      </router-link>
+
+    <!-- QR Ticket Modal -->
+    <div v-if="qrBooking" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="closeTickets"></div>
+      <div class="relative w-full max-w-md bg-surface-container-low border border-white/10 rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
+        <div class="flex justify-between items-center p-6 border-b border-white/5 sticky top-0 bg-surface-container-low">
+          <div>
+            <h3 class="text-lg font-bold font-headline text-white uppercase">{{ qrBooking.showtime?.movieTitle }}</h3>
+            <p class="text-xs text-on-surface-variant mt-1">Mã đặt vé: <span class="font-mono font-bold text-primary-container">{{ qrBooking.bookingCode }}</span></p>
+          </div>
+          <button @click="closeTickets" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="p-6 space-y-3">
+          <div class="grid grid-cols-2 gap-3 text-xs mb-4">
+            <div>
+              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Suất chiếu</p>
+              <p class="font-semibold">{{ formatDate(qrBooking.showtime?.startTime) }}</p>
+            </div>
+            <div>
+              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Ghế</p>
+              <p class="font-semibold text-primary-container">{{ qrBooking.seats || '—' }}</p>
+            </div>
+          </div>
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Vé điện tử ({{ qrBooking.qrCodes.length }})</p>
+          <div class="grid grid-cols-1 gap-4">
+            <div v-for="(code, i) in qrBooking.qrCodes" :key="i" class="flex items-center gap-4 bg-surface-container-high rounded-xl p-4 border border-white/5">
+              <div class="p-2 bg-white rounded-lg shrink-0">
+                <img :src="qrUrl(code)" class="w-24 h-24" :alt="`QR vé ${i + 1}`" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-1">Vé {{ i + 1 }}</p>
+                <p class="text-xs font-mono font-semibold text-white break-all">{{ code }}</p>
+                <p class="text-[10px] text-on-surface-variant mt-2 leading-relaxed">Xuất trình mã này tại quầy để check-in.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </template>

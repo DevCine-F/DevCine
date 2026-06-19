@@ -16,8 +16,22 @@ public class MovieService {
     private MovieRepository movieRepository;
 
     public List<MovieSummaryDTO> getAllMovies() {
-        List<Movie> movies = movieRepository.findAllWithGenres();
-        return movies.stream().map(movie -> MovieSummaryDTO.builder()
+        return movieRepository.findAllWithGenres().stream()
+                .map(this::toSummary)
+                .collect(Collectors.toList());
+    }
+
+    public List<MovieSummaryDTO> searchMovies(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+        return movieRepository.searchMovies(keyword.trim()).stream()
+                .map(this::toSummary)
+                .collect(Collectors.toList());
+    }
+
+    private MovieSummaryDTO toSummary(Movie movie) {
+        return MovieSummaryDTO.builder()
                 .id(movie.getId())
                 .title(movie.getTitle())
                 .titleVietnamese(movie.getTitleVietnamese())
@@ -36,8 +50,7 @@ public class MovieService {
                                 .name(g.getName())
                                 .build())
                         .collect(Collectors.toSet()))
-                .build()
-        ).collect(Collectors.toList());
+                .build();
     }
 
     public Movie getMovieById(Integer id) {

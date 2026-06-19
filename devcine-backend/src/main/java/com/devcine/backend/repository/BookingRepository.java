@@ -26,4 +26,8 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "GROUP BY m.id, m.title " +
            "ORDER BY COALESCE(SUM(b.finalPrice), 0) DESC")
     List<Object[]> findTopMoviesByRevenue();
+
+    @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie " +
+           "WHERE b.customer.userId = :customerId ORDER BY b.createdAt DESC")
+    List<Booking> findByCustomerIdWithDetails(@Param("customerId") Integer customerId);
 }

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +25,13 @@ public class BookingService {
     private final FnbItemRepository fnbItemRepository;
     private final ShowtimeRepository showtimeRepository;
     private final CustomerRepository customerRepository;
+    private final VoucherRepository voucherRepository;
+    private final TicketRepository ticketRepository;
+    private final WalletRepository walletRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
+    private final SystemSettingRepository systemSettingRepository;
+    private final NotificationService notificationService;
+    private final InventoryService inventoryService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -101,10 +109,40 @@ public class BookingService {
         }
 
         booking.setTotalPrice(totalPrice);
-        booking.setFinalPrice(totalPrice); // Apply voucher logic later
-        bookingRepository.save(booking);
         
-        // TODO: Schedule a task to release the seats after X minutes if not paid
+        // Process Voucher
+        BigDecimal finalPrice = totalPrice;
+        if (request.getVoucherId() != null) {
+            Voucher voucher = voucherRepository.findById(request.getVoucherId())
+                    .orElseThrow(() -> new RuntimeException("Voucher not found"));
+            
+            if (voucher.getIsUsed()) {
+                throw new RuntimeException("Voucher has already been used");
+            }
+            if (voucher.getValidUntil().isBefore(LocalDateTime.now())) {
+                throw new RuntimeException("Voucher has expired");
+            }
+            if (customer == null || !voucher.getCustomer().getUserId().equals(customer.getUserId())) {
+                throw new RuntimeException("Voucher does not belong to this customer");
+            }
+
+            Promotion promotion = voucher.getPromotion();
+            BigDecimal discount = BigDecimal.ZERO;
+            if ("PERCENTAGE".equalsIgnoreCase(promotion.getDiscountType())) {
+                discount = totalPrice.multiply(promotion.getDiscountValue()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            } else if ("FIXED_AMOUNT".equalsIgnoreCase(promotion.getDiscountType())) {
+                discount = promotion.getDiscountValue();
+            }
+            
+            finalPrice = totalPrice.subtract(discount);
+            if (finalPrice.compareTo(BigDecimal.ZERO) < 0) {
+                finalPrice = BigDecimal.ZERO;
+            }
+            booking.setVoucher(voucher);
+        }
+        
+        booking.setFinalPrice(finalPrice);
+        bookingRepository.save(booking);
         
         return booking;
     }
@@ -114,6 +152,74 @@ public class BookingService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
                 
+        if ("CONFIRMED".equals(booking.getStatus())) {
+            return; // Already processed
+        }
+        
+        // If paid with wallet, deduct balance
+        if ("WALLET".equalsIgnoreCase(paymentMethod)) {
+            if (booking.getCustomer() == null) {
+                throw new RuntimeException("Guest booking cannot pay with Wallet");
+            }
+            Wallet wallet = walletRepository.findByCustomerUserId(booking.getCustomer().getUserId())
+                    .orElseThrow(() -> new RuntimeException("Wallet not found for customer"));
+            
+            if (wallet.getBalance().compareTo(booking.getFinalPrice()) < 0) {
+                throw new RuntimeException("Insufficient wallet balance");
+            }
+            
+            // Deduct balance
+            wallet.setBalance(wallet.getBalance().subtract(booking.getFinalPrice()));
+            walletRepository.save(wallet);
+            
+            // Create Transaction Log
+            WalletTransaction wt = WalletTransaction.builder()
+                    .wallet(wallet)
+                    .type("PAYMENT")
+                    .amount(booking.getFinalPrice().negate())
+                    .description("Thanh toán đơn vé: " + booking.getBookingCode())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            walletTransactionRepository.save(wt);
+        }
+
+        // Loyalty points and membership tiers update
+        if (booking.getCustomer() != null) {
+            Customer customer = booking.getCustomer();
+            
+            BigDecimal pointRate = BigDecimal.valueOf(1000); // Mặc định 1000 VNĐ = 1 điểm
+            try {
+                SystemSetting setting = systemSettingRepository.findById("LOYALTY_POINT_RATE").orElse(null);
+                if (setting != null && setting.getSettingValue() != null) {
+                    BigDecimal parsed = new BigDecimal(setting.getSettingValue());
+                    if (parsed.compareTo(BigDecimal.ZERO) > 0) {
+                        pointRate = parsed;
+                    }
+                }
+            } catch (Exception ex) {
+                // Bỏ qua, dùng mặc định
+            }
+
+            int earnedPoints = booking.getFinalPrice().divide(pointRate, 0, RoundingMode.DOWN).intValue();
+            if (earnedPoints > 0) {
+                customer.setLoyaltyPoints(customer.getLoyaltyPoints() + earnedPoints);
+                
+                // Update membership tier based on points
+                int points = customer.getLoyaltyPoints();
+                String newTier = "BRONZE";
+                if (points >= 10000) {
+                    newTier = "PLATINUM";
+                } else if (points >= 5000) {
+                    newTier = "GOLD";
+                } else if (points >= 2000) {
+                    newTier = "SILVER";
+                }
+                
+                customer.setMembershipTier(newTier);
+                customerRepository.save(customer);
+            }
+        }
+        
         booking.setStatus("CONFIRMED");
         booking.setPaymentMethod(paymentMethod);
         bookingRepository.save(booking);
@@ -123,6 +229,43 @@ public class BookingService {
         for (BookingSeat bs : seats) {
             bs.setStatus("SOLD");
             bookingSeatRepository.save(bs);
+            
+            // Generate Ticket and QR code
+            Ticket ticket = Ticket.builder()
+                    .bookingSeat(bs)
+                    .qrCode("DEVCINE-T-" + bs.getId() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                    .isCheckedIn(false)
+                    .isAgeVerified(false)
+                    .build();
+            ticketRepository.save(ticket);
+        }
+        
+        // Mark voucher as used
+        if (booking.getVoucher() != null) {
+            Voucher v = booking.getVoucher();
+            v.setIsUsed(true);
+            voucherRepository.save(v);
+        }
+
+        // Tự trừ tồn kho F&B theo định mức nguyên liệu (BOM) của rạp tương ứng
+        if (booking.getShowtime() != null && booking.getShowtime().getRoom() != null
+                && booking.getShowtime().getRoom().getCinema() != null) {
+            Integer cinemaId = booking.getShowtime().getRoom().getCinema().getId();
+            for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(bookingId)) {
+                inventoryService.deductForSale(cinemaId, bf.getFnbItem().getId(), bf.getQuantity());
+            }
+        }
+
+        // Tạo thông báo "đặt vé thành công" cho khách hàng
+        if (booking.getCustomer() != null) {
+            String movieTitle = booking.getShowtime() != null && booking.getShowtime().getMovie() != null
+                    ? booking.getShowtime().getMovie().getTitle() : "phim";
+            notificationService.notifyCustomer(
+                    booking.getCustomer().getUserId(),
+                    "Đặt vé thành công",
+                    "Bạn đã đặt vé xem phim \"" + movieTitle + "\" thành công. Mã đặt vé: " + booking.getBookingCode(),
+                    "BOOKING");
         }
     }
 }
+

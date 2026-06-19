@@ -1,0 +1,104 @@
+========================================================================
+                 BÁO CÁO CÁC CHỨC NĂNG ĐÃ HOÀN THIỆN
+                           DỰ ÁN DEVCINE
+========================================================================
+
+Dưới đây là chi tiết các chức năng quan trọng thuộc nhóm ĐỘ ƯU TIÊN CAO 
+đã được phát triển, tích hợp và biên dịch thành công 100% trong dự án DevCine.
+
+------------------------------------------------------------------------
+1. HỆ THỐNG VÉ & KIỂM SOÁT QR CODE (CHECK-IN)
+------------------------------------------------------------------------
+* Tự động sinh vé: 
+  - Khi thanh toán thành công (qua VNPay hoặc Chuyển khoản), hệ thống 
+    tự động cập nhật trạng thái ghế sang "SOLD".
+  - Tự động tạo bản ghi "Ticket" cho từng ghế đã chọn kèm theo một 
+    mã QR định danh duy nhất có định dạng: DEVCINE-T-{seatId}-{UUID}.
+  - Khóa voucher đã áp dụng (nếu có).
+
+* API Check-in (POST /api/tickets/check-in):
+  - Xác thực mã QR được quét vào hệ thống.
+  - Kiểm tra tính hợp lệ của vé: vé tồn tại? đã check-in chưa? suất chiếu 
+    có đúng ngày hôm nay không?
+  - Cập nhật trạng thái "is_checked_in = true" và lưu thời điểm check-in.
+
+* Giao diện Kiểm soát vé (dành cho nhân viên):
+  - Tạo view mới: TicketCheckIn.vue tại frontend.
+  - Tích hợp 2 chế độ kiểm tra:
+    + Quét camera QR trực tiếp (sử dụng thư viện html5-qrcode).
+    + Nhập mã code thủ công (đề phòng camera lỗi hoặc quét mờ).
+  - Tích hợp bộ Test giả lập nhanh (Mock): Nút "Giả lập Vé Hợp lệ" và 
+    "Giả lập Vé Trùng" giúp nhân viên dễ dàng kiểm thử các kịch bản.
+  - Tự động phát âm thanh Beep báo hiệu kết quả (Beep cao khi thành công, 
+    Beep trầm khi thất bại) thông qua Web Audio API.
+  - Hiển thị đầy đủ thông tin vé sau check-in: Phim, Phòng chiếu, Ghế, 
+    Giờ chiếu, Thời gian check-in.
+
+* Tích hợp Sidebar Admin:
+  - Thêm menu "Kiểm soát vé" dẫn tới đường dẫn /admin/check-in trong 
+    AdminLayout.vue và đăng ký route tương ứng.
+
+------------------------------------------------------------------------
+2. ÁP DỤNG VOUCHER & BẮP NƯỚC F&B KHI ĐẶT VÉ (BOOKING FLOW)
+------------------------------------------------------------------------
+* Backend tính toán giảm giá:
+  - Tạo VoucherRepository và PromotionRepository.
+  - Nâng cấp BookingService.holdSeats để xử lý voucherId truyền lên.
+  - Kiểm tra voucher hợp lệ: thuộc đúng khách hàng? chưa sử dụng? còn hạn?
+  - Tự động tính giảm giá vào "finalPrice" theo tỉ lệ % (PERCENTAGE) hoặc 
+    số tiền cố định (FIXED_AMOUNT).
+
+* API Voucher mới:
+  - GET /api/vouchers/customer/{customerId}: Lấy danh sách các voucher 
+    đang hoạt động của khách hàng.
+  - POST /api/vouchers/validate: Kiểm tra tính hợp lệ của code voucher.
+
+* Giao diện Đặt vé cập nhật (BookingView.vue):
+  - Thêm tab "03. Ưu Đãi / Mã Giảm Giá" cho phép khách hàng nhập mã code 
+    hoặc click chọn trực tiếp từ danh sách voucher cá nhân có sẵn.
+  - Tích hợp giá tiền bắp nước F&B đã chọn vào Summary sidebar.
+  - Hiển thị bảng tổng hợp tiền trực quan:
+    Tạm tính (suất + F&B) ➔ Khuyến mãi (Voucher) ➔ Tổng thanh toán cuối cùng.
+  - Loại bỏ hoàn toàn phương thức thanh toán qua ví (WALLET) theo yêu cầu.
+
+------------------------------------------------------------------------
+3. VÁ LỖI (FIX BUGS) & TỐI ƯU CỔNG THANH TOÁN VNPAY
+------------------------------------------------------------------------
+* Vá lỗi đồng bộ trạng thái ghế & vé sau thanh toán:
+  - Chỉnh sửa PaymentController.java tại API callback vnpay_return.
+  - Thay vì chỉ cập nhật trạng thái đơn hàng (booking.setStatus("CONFIRMED")) 
+    như trước, hệ thống hiện đã gọi trực tiếp BookingService.completePayment.
+  - Điều này giải quyết triệt để lỗi cũ: Khách trả tiền xong nhưng ghế 
+    vẫn ở trạng thái "HOLD" (không chuyển sang "SOLD") và không sinh vé.
+
+* Sửa lỗi biên dịch (Compilation Fixes):
+  - Đồng bộ lại thuộc tính khóa ngoại của thực thể Customer (sử dụng 
+    .getUserId() thay vì .getId() bị sai trước đó).
+  - Dự án hiện tại đã compile hoàn toàn sạch sẽ, không có lỗi cảnh báo.
+
+* Tối giản chức năng chưa cần thiết:
+  - Loại bỏ cổng nạp tiền ví qua VNPay (create_deposit) để phát triển sau 
+    theo chỉ thị.
+
+------------------------------------------------------------------------
+4. THƯ MỤC CÁC FILE ĐÃ TẠO / CHỈNH SỬA
+------------------------------------------------------------------------
+[NEW] VoucherRepository.java
+[NEW] PromotionRepository.java
+[NEW] TicketRepository.java
+[NEW] TicketService.java
+[NEW] TicketController.java
+[NEW] VoucherController.java
+[NEW] TicketCheckIn.vue
+
+[MODIFY] BookingService.java
+[MODIFY] PaymentController.java
+[MODIFY] AdminLayout.vue
+[MODIFY] BookingView.vue
+[MODIFY] booking.js (Pinia Store)
+[MODIFY] admin.js (Router)
+[MODIFY] index.js (Customer API)
+
+========================================================================
+                         DEVCINE - 2026
+========================================================================

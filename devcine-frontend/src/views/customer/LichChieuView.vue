@@ -1,7 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useBookingStore } from '@/stores/booking'
 import api from '@/api/axios'
+
+const router = useRouter()
+const store = useBookingStore()
 
 const showtimes = ref([])
 const loading = ref(true)
@@ -137,11 +141,39 @@ const groupedData = computed(() => {
     formatGroup.showtimes.push({
       id: s.id,
       time: timeString,
-      status: s.status
+      status: s.status,
+      raw: s
     })
   })
 
   // Convert maps to arrays for Vue iteration
+  return mapCinemas(cinemaMap)
+})
+
+// Build booking store state from the selected showtime, then navigate.
+// (Mirrors the flow in MovieDetail.vue — BookingView requires store.selectedShowtime)
+const goToBooking = (st) => {
+  const s = st.raw
+  store.setMovie({
+    id: s.movieId,
+    title: s.movieTitle,
+    posterUrl: s.moviePosterUrl,
+    ageRating: s.movieAgeRating,
+    durationMins: s.movieDurationMins
+  })
+  store.setShowtime(
+    {
+      id: s.id,
+      startTime: s.startTime,
+      room: { id: s.roomId, name: s.roomName },
+      format: { id: s.formatId, name: s.formatName }
+    },
+    { id: s.cinemaId, name: s.cinemaName, cinemaName: s.cinemaName, address: s.cinemaAddress }
+  )
+  router.push('/booking')
+}
+
+const mapCinemas = (cinemaMap) => {
   return Array.from(cinemaMap.values()).map(cinema => ({
     ...cinema,
     movies: Array.from(cinema.movies.values()).map(movie => ({
@@ -153,7 +185,7 @@ const groupedData = computed(() => {
       })
     }))
   }))
-})
+}
 </script>
 
 <template>
@@ -264,14 +296,14 @@ const groupedData = computed(() => {
                   <div v-for="format in movie.formats" :key="format.id">
                     <span v-if="movie.formats.length > 1" class="text-[10px] font-bold text-on-surface-variant uppercase mb-2 block border-l-2 border-primary-container pl-2">{{ format.name }}</span>
                     <div class="flex flex-wrap gap-2.5">
-                      <router-link 
-                        v-for="st in format.showtimes" 
-                        :key="st.id" 
-                        :to="'/booking?showtimeId=' + st.id" 
+                      <button
+                        v-for="st in format.showtimes"
+                        :key="st.id"
+                        @click="goToBooking(st)"
                         class="px-5 py-2 border border-outline-variant/30 text-on-surface hover:border-primary-container hover:bg-primary-container/10 hover:text-primary-container text-sm font-bold transition-all rounded-md"
                       >
                         {{ st.time }}
-                      </router-link>
+                      </button>
                     </div>
                   </div>
                 </div>

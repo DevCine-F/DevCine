@@ -4,26 +4,45 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import StarryBackground from '@/components/common/StarryBackground.vue'
+import { authApi } from '@/api/customer/index'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 
+const username = ref('')
+const password = ref('')
+const isLoading = ref(false)
+const errorMsg = ref('')
+
 const loginAsAdmin = async (e) => {
   if (e && e.preventDefault) e.preventDefault()
-  
-  // Trigger Warp Speed
-  themeStore.triggerWarp()
-  
-  // Đợi hiệu ứng warp (khoảng 800ms)
-  await new Promise(resolve => setTimeout(resolve, 800))
-  
-  const email = 'admin@devcine.com'
-  const mockUser = { name: 'Admin', email }
-  const mockToken = 'mock-jwt-token-' + Math.random().toString(36).substr(2)
-  
-  authStore.login(mockUser, mockToken, 'admin')
-  router.push('/admin/dashboard')
+
+  const user = username.value || 'admin'
+  const pass = password.value || 'Admin@123'
+
+  isLoading.value = true
+  errorMsg.value = ''
+  try {
+    const res = await authApi.login(user, pass)
+    const { token, user: userData } = res.data.data
+    const role = userData.role.toLowerCase()
+
+    if (role !== 'admin' && role !== 'staff') {
+      errorMsg.value = 'Tài khoản không có quyền truy cập hệ thống quản trị.'
+      return
+    }
+
+    themeStore.triggerWarp()
+    await new Promise(resolve => setTimeout(resolve, 800))
+
+    authStore.login({ id: userData.id, username: userData.username, email: userData.email, fullName: userData.fullName }, token, role)
+    router.push('/admin/dashboard')
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng.'
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -43,18 +62,23 @@ const loginAsAdmin = async (e) => {
           <p class="text-white/60 text-sm tracking-widest uppercase">Hệ Thống Quản Trị</p>
         </div>
 
+        <!-- Error -->
+        <div v-if="errorMsg" class="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold">
+          {{ errorMsg }}
+        </div>
+
         <!-- Form -->
         <form @submit.prevent="loginAsAdmin" class="space-y-8">
-          
-          <!-- Email Input -->
+
+          <!-- Username Input -->
           <div class="relative z-0 w-full group">
-            <input type="email" name="email" id="admin_email" class="block py-3 px-0 w-full text-base text-white bg-transparent border-0 border-b border-white/30 appearance-none focus:outline-none focus:ring-0 focus:border-[#f5c518] peer transition-colors" placeholder=" " required />
-            <label for="admin_email" class="peer-focus:font-bold absolute text-base text-white/50 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-[#f5c518] peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6">Email quản trị</label>
+            <input v-model="username" type="text" id="admin_username" class="block py-3 px-0 w-full text-base text-white bg-transparent border-0 border-b border-white/30 appearance-none focus:outline-none focus:ring-0 focus:border-[#f5c518] peer transition-colors" placeholder=" " required />
+            <label for="admin_username" class="peer-focus:font-bold absolute text-base text-white/50 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-[#f5c518] peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6">Tên đăng nhập</label>
           </div>
-          
+
           <!-- Password Input -->
           <div class="relative z-0 w-full group">
-            <input type="password" name="password" id="admin_password" class="block py-3 px-0 w-full text-base text-white bg-transparent border-0 border-b border-white/30 appearance-none focus:outline-none focus:ring-0 focus:border-[#f5c518] peer transition-colors" placeholder=" " required />
+            <input v-model="password" type="password" id="admin_password" class="block py-3 px-0 w-full text-base text-white bg-transparent border-0 border-b border-white/30 appearance-none focus:outline-none focus:ring-0 focus:border-[#f5c518] peer transition-colors" placeholder=" " required />
             <label for="admin_password" class="peer-focus:font-bold absolute text-base text-white/50 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-[#f5c518] peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6">Mật khẩu</label>
           </div>
 
@@ -67,8 +91,8 @@ const loginAsAdmin = async (e) => {
           </div>
 
           <!-- Submit Button -->
-          <button type="submit" class="w-full bg-[#f5c518] text-black py-4 mt-4 rounded-xl font-extrabold uppercase tracking-[0.2em] text-sm hover:bg-white hover:shadow-[0_0_20px_rgba(245,197,24,0.4)] transition-all duration-300">
-            Đăng Nhập
+          <button type="submit" :disabled="isLoading" class="w-full bg-[#f5c518] text-black py-4 mt-4 rounded-xl font-extrabold uppercase tracking-[0.2em] text-sm hover:bg-white hover:shadow-[0_0_20px_rgba(245,197,24,0.4)] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed">
+            {{ isLoading ? 'Đang xác thực...' : 'Đăng Nhập' }}
           </button>
         </form>
 

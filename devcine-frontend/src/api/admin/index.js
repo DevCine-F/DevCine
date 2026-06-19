@@ -12,3 +12,59 @@ export const cinemaApi = {
   getAll: () => api.get('/admin/cinemas'),
   // ... other cinema methods
 };
+
+export const settingsApi = {
+  getAll: () => api.get('/settings'),
+  getByKey: (key) => api.get(`/settings/${key}`),
+  save: (data) => api.post('/settings', data),
+};
+
+export const bannerApi = {
+  getAll: () => api.get('/banners'),
+  create: (data) => api.post('/banners', data),
+  update: (id, data) => api.put(`/banners/${id}`, data),
+  delete: (id) => api.delete(`/banners/${id}`),
+};
+
+export const supportTicketApi = {
+  getAll: () => api.get('/support-tickets'),
+  create: (data) => api.post('/support-tickets', data),
+  updateStatus: (id, status) => api.put(`/support-tickets/${id}/status`, null, { params: { status } }),
+  delete: (id) => api.delete(`/support-tickets/${id}`),
+};
+
+export const auditLogApi = {
+  getLogs: (params) => api.get('/admin/logs', { params }),
+};
+
+export const rolePermissionApi = {
+  getRoles: () => api.get('/admin/roles'),
+  updatePermissions: (roleId, matrix) => api.put(`/admin/roles/${roleId}/permissions`, matrix),
+};
+
+export const marketingApi = {
+  getPromotions: () => api.get('/marketing/promotions'),
+  createPromotion: (data) => api.post('/marketing/promotions', data),
+  updatePromotion: (id, data) => api.put(`/marketing/promotions/${id}`, data),
+  deletePromotion: (id) => api.delete(`/marketing/promotions/${id}`),
+  issueVoucher: (promoId, customerId) => api.post(`/marketing/promotions/${promoId}/issue-voucher`, { customerId }),
+};
+
+export const customerApi = {
+  list: (q) => api.get('/customers', { params: q ? { q } : {} }),
+};
+
+export const fnbApi = {
+  getAll: () => api.get('/fnbs/all'),
+  create: (data) => api.post('/fnbs', data),
+  update: (id, data) => api.put(`/fnbs/${id}`, data),
+  delete: (id) => api.delete(`/fnbs/${id}`),
+};
+
+export const ticketingApi = {
+  getShowtimes: () => api.get('/ticketing/showtimes'),
+  getSeats: (showtimeId) => api.get(`/seats/showtime/${showtimeId}`),
+  getCombos: () => api.get('/fnbs'),
+  memberCard: (cardNumber) => api.get(`/ticketing/member-card/${cardNumber}`),
+  pay: (payload) => api.post('/ticketing/pay', payload),
+};

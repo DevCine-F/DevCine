@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { bookingApi, seatApi, fnbApi, showtimeApi } from '../api/customer'
+import { useAuthStore } from './auth'
 
 export const useBookingStore = defineStore('booking', {
   state: () => ({
@@ -7,7 +8,9 @@ export const useBookingStore = defineStore('booking', {
     selectedShowtime: null,
     selectedSeats: [], // Array of seat objects
     selectedFnbs: [], // Array of { fnbItem, quantity }
-    totalPrice: 0,
+    selectedVoucher: null, // Selected voucher object
+    totalPrice: 0, // Tạm tính (suất + bắp), CHƯA trừ voucher
+    finalPrice: 0, // Giá phải trả sau khi trừ voucher (do backend tính ở holdSeats)
     bookingStep: 1, // 1: Select Seat, 2: F&B, 3: Payment, 4: Success
     bookingId: null,
     bookingCode: null,
@@ -99,23 +102,24 @@ export const useBookingStore = defineStore('booking', {
       }
       this.totalPrice = total;
     },
-    async holdSeatsAndProceed() {
+    async holdSeatsAndProceed(paymentMethod) {
       if (this.selectedSeats.length === 0) return false;
+      const authStore = useAuthStore()
       try {
         const payload = {
-          customerId: null, // Replace with actual user ID if logged in
+          customerId: authStore.user?.id || null,
           showtimeId: this.selectedShowtime.id,
           seatIds: this.selectedSeats.map(s => s.seatId),
           fnbs: this.selectedFnbs.map(f => ({ fnbItemId: f.fnbItem.id, quantity: f.quantity })),
-          paymentMethod: null
+          voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
+          paymentMethod: paymentMethod
         };
         const { data } = await bookingApi.holdSeats(payload);
         this.bookingId = data.id;
         this.bookingCode = data.bookingCode;
-        this.bookingStep = 2; // Move to F&B (if you want F&B before payment)
-        // Wait, if hold is called after F&B? We should hold first, then add F&B, or hold both.
-        // The API supports passing fnbs at hold time. So we hold right before payment.
-        // Let's refine the flow: 1: Seats -> 2: F&B -> 3: Payment (Hold happens here)
+        // Giá cuối do backend tính (đã trừ voucher) — dùng làm số tiền thanh toán chuẩn
+        this.finalPrice = data.finalPrice;
+        this.bookingStep = 3;
         return true;
       } catch (err) {
         console.error('Failed to hold seats', err);
@@ -138,7 +142,9 @@ export const useBookingStore = defineStore('booking', {
       this.selectedShowtime = null;
       this.selectedSeats = [];
       this.selectedFnbs = [];
+      this.selectedVoucher = null;
       this.totalPrice = 0;
+      this.finalPrice = 0;
       this.bookingStep = 1;
       this.bookingId = null;
       this.bookingCode = null;

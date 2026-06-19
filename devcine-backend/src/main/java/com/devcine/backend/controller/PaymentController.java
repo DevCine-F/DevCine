@@ -3,6 +3,7 @@ package com.devcine.backend.controller;
 import com.devcine.backend.config.VNPAYConfig;
 import com.devcine.backend.entity.Booking;
 import com.devcine.backend.repository.BookingRepository;
+import com.devcine.backend.service.BookingService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,7 @@ import java.util.*;
 public class PaymentController {
 
     private final BookingRepository bookingRepository;
+    private final BookingService bookingService;
 
     @Value("${vnpay.tmnCode}")
     private String vnp_TmnCode;
@@ -99,12 +101,6 @@ public class PaymentController {
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
         String paymentUrl = vnp_PayUrl + "?" + queryUrl;
 
-        // Save transaction ref to booking
-        Booking booking = bookingRepository.findById(bookingId).orElse(null);
-        if(booking != null) {
-            // we can store the txnRef if we want, or rely on bookingId in return url
-        }
-
         Map<String, String> response = new HashMap<>();
         response.put("code", "00");
         response.put("message", "success");
@@ -161,13 +157,9 @@ public class PaymentController {
             String bookingIdStr = request.getParameter("bookingId");
             if (bookingIdStr != null && "00".equals(request.getParameter("vnp_ResponseCode"))) {
                 Integer bookingId = Integer.parseInt(bookingIdStr);
-                // Call booking service to complete payment
-                Booking booking = bookingRepository.findById(bookingId).orElse(null);
-                if (booking != null && "HOLD".equals(booking.getStatus())) {
-                    booking.setStatus("CONFIRMED");
-                    booking.setPaymentMethod("VNPAY");
-                    bookingRepository.save(booking);
-                }
+                // Call booking service to complete payment (ensures seat status updates and tickets generate)
+                bookingService.completePayment(bookingId, "VNPAY");
+                
                 response.put("code", "00");
                 response.put("message", "Thanh toán thành công");
                 return ResponseEntity.ok(response);

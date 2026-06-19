@@ -5,6 +5,7 @@ import com.devcine.backend.dto.response.SystemSettingResponseDTO;
 import com.devcine.backend.service.SystemSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public class SystemSettingController {
     }
 
     @PostMapping
+    @PreAuthorize("@perm.can('settings','edit')")
     public ResponseEntity<SystemSettingResponseDTO> saveOrUpdateSetting(@RequestBody SystemSettingRequestDTO dto) {
         return ResponseEntity.ok(systemSettingService.saveOrUpdateSetting(dto));
     }

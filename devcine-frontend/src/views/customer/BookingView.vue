@@ -1,12 +1,27 @@
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
-import { paymentApi } from '@/api/customer'
-import { computed, onMounted, ref } from 'vue'
+import { paymentApi, walletApi, voucherApi } from '@/api/customer'
+import { useAuthStore } from '@/stores/auth'
+import { computed, onMounted, ref, watch } from 'vue'
 
 const store = useBookingStore()
 const router = useRouter()
+const authStore = useAuthStore()
+
 const paymentMethod = ref('VNPAY')
+const walletBalance = ref(0)
+const vouchers = ref([])
+const voucherCode = ref('')
+const voucherError = ref('')
+const voucherSuccess = ref('')
+const discountAmount = ref(0)
+
+const finalPaymentPrice = computed(() => {
+  const total = store.totalPrice
+  const final = total - discountAmount.value
+  return final < 0 ? 0 : final
+})
 
 onMounted(async () => {
   if (!store.selectedShowtime) {
@@ -16,6 +31,103 @@ onMounted(async () => {
   }
   await store.fetchSeats()
   await store.fetchFnbs()
+  
+  if (authStore.isAuthenticated && authStore.user?.id) {
+    // Fetch wallet info
+    try {
+      const walletRes = await walletApi.getWallet(authStore.user.id)
+      walletBalance.value = walletRes.data.balance
+    } catch (err) {
+      console.error('Failed to fetch wallet info', err)
+    }
+    // Fetch active vouchers
+    try {
+      const voucherRes = await voucherApi.getActiveVouchers(authStore.user.id)
+      vouchers.value = voucherRes.data
+    } catch (err) {
+      console.error('Failed to fetch vouchers', err)
+    }
+  }
+})
+
+const isApplyingVoucher = ref(false)
+
+const refreshVouchers = async () => {
+  if (!authStore.user?.id) return
+  try {
+    const voucherRes = await voucherApi.getActiveVouchers(authStore.user.id)
+    vouchers.value = voucherRes.data
+  } catch (err) {
+    // giữ danh sách cũ nếu refresh lỗi
+  }
+}
+
+const successText = (discountType, discountValue) =>
+  `Áp dụng thành công! Được giảm ${discountType === 'PERCENTAGE' ? Number(discountValue) + '%' : Number(discountValue).toLocaleString('vi-VN') + ' VNĐ'}`
+
+const applyVoucherCode = async () => {
+  voucherError.value = ''
+  voucherSuccess.value = ''
+  if (!voucherCode.value.trim()) return
+
+  if (!authStore.isAuthenticated || !authStore.user?.id) {
+    voucherError.value = 'Vui lòng đăng nhập để sử dụng mã giảm giá!'
+    return
+  }
+
+  isApplyingVoucher.value = true
+  try {
+    // /apply: dùng voucher đã lưu, hoặc tự lưu mã hợp lệ rồi áp dụng (chặn mã đổi-điểm / hết hạn / không tồn tại)
+    const { data } = await voucherApi.applyCode(authStore.user.id, voucherCode.value.trim())
+    store.selectedVoucher = data
+    voucherSuccess.value = successText(data.discountType, data.discountValue)
+    voucherCode.value = ''
+    calculateDiscount()
+    await refreshVouchers()
+  } catch (err) {
+    voucherError.value = err.response?.data?.message || err.response?.data?.error || 'Mã giảm giá không hợp lệ!'
+    store.selectedVoucher = null
+    discountAmount.value = 0
+  } finally {
+    isApplyingVoucher.value = false
+  }
+}
+
+const selectVoucher = (v) => {
+  store.selectedVoucher = {
+    id: v.id,
+    code: v.promotion.code,
+    discountType: v.promotion.discountType,
+    discountValue: v.promotion.discountValue
+  }
+  voucherSuccess.value = successText(v.promotion.discountType, v.promotion.discountValue)
+  voucherError.value = ''
+  calculateDiscount()
+}
+
+const removeVoucher = () => {
+  store.selectedVoucher = null
+  discountAmount.value = 0
+  voucherSuccess.value = ''
+  voucherError.value = ''
+}
+
+const calculateDiscount = () => {
+  if (!store.selectedVoucher) {
+    discountAmount.value = 0
+    return
+  }
+  const total = store.selectedSeats.reduce((acc, s) => acc + s.price, 0) + store.selectedFnbs.reduce((acc, f) => acc + f.fnbItem.price * f.quantity, 0)
+  if (store.selectedVoucher.discountType === 'PERCENTAGE') {
+    discountAmount.value = total * store.selectedVoucher.discountValue / 100
+  } else {
+    discountAmount.value = store.selectedVoucher.discountValue
+  }
+}
+
+// Recalculate discount if seat or fnb selections change
+watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
+  calculateDiscount()
 })
 
 const handleSeatClick = (seat) => {
@@ -76,31 +188,33 @@ const getBookingSeatClass = (seat) => {
 }
 
 const proceedToPayment = async () => {
-  const success = await store.holdSeatsAndProceed()
+  
+  const success = await store.holdSeatsAndProceed(paymentMethod.value)
   if (success) {
     if (paymentMethod.value === 'VNPAY') {
       try {
-        const { data } = await paymentApi.createPayment(store.totalPrice, store.bookingId);
+        // Dùng giá cuối do backend tính ở bước giữ ghế (đã trừ voucher) để tránh lệch/giảm 2 lần
+        const { data } = await paymentApi.createPayment(store.finalPrice, store.bookingId);
         if (data.code === '00') {
           sessionStorage.setItem('bookingState', JSON.stringify(store.$state));
           window.location.href = data.data; // Redirect to VNPAY Sandbox
         } else {
-          alert('Failed to get payment URL');
+          alert('Không thể tạo liên kết thanh toán VNPay');
         }
       } catch (err) {
         console.error(err);
-        alert('Error creating payment');
+        alert('Lỗi tạo cổng thanh toán');
       }
     } else {
       const paid = await store.confirmPayment(paymentMethod.value)
       if (paid) {
         router.push('/success')
       } else {
-        alert('Payment failed')
+        alert('Thanh toán thất bại! Vui lòng thử lại.')
       }
     }
   } else {
-    alert('Failed to hold seats. They might have been taken.')
+    alert('Giữ ghế thất bại. Ghế có thể đã được đặt hoặc hết hạn giữ.')
   }
 }
 
@@ -189,13 +303,20 @@ const proceedToPayment = async () => {
         </div>
       </section>
       
-      <!-- Section 2: Concessions Selection -->
+      <!-- Section 2: Combo / F&B Selection -->
       <section>
         <div class="mb-8">
-          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">02. Bắp Nước & Ưu Đãi</h1>
-          <p class="text-sm text-on-surface-variant">Thêm hương vị cho trải nghiệm điện ảnh của bạn</p>
+          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">02. Combo - Đồ Ăn & Nước Uống</h1>
+          <p class="text-sm text-on-surface-variant">Chọn combo bắp nước & đồ ăn kèm cho buổi xem phim (không bắt buộc)</p>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Empty state khi rạp chưa có combo -->
+        <div v-if="store.availableFnbs.length === 0" class="glass-card p-10 rounded-2xl text-center">
+          <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">fastfood</span>
+          <p class="text-sm text-on-surface-variant">Hiện chưa có combo nào. Bạn có thể tiếp tục đặt vé.</p>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="glass-card p-6 flex gap-6 hover:border-primary-container/30 transition-all group rounded-2xl" v-for="fnb in store.availableFnbs" :key="fnb.id">
             <div class="w-28 h-28 flex-shrink-0 bg-black overflow-hidden relative rounded-xl">
               <img :src="fnb.imageUrl || '/images/Hopper.webp'" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-500"/>
@@ -218,18 +339,62 @@ const proceedToPayment = async () => {
           </div>
         </div>
         
+        <!-- Add Voucher Input & List -->
         <div class="mt-16 mb-8 border-t border-outline-variant/10 pt-16">
-          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">03. Phương Thức Thanh Toán</h1>
+          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">03. Ưu Đãi / Mã Giảm Giá</h1>
+          <p class="text-sm text-on-surface-variant">Chọn voucher sẵn có hoặc nhập mã giảm giá</p>
+        </div>
+        
+        <div class="glass-card p-6 rounded-2xl space-y-6">
+          <!-- Code input -->
+          <div class="flex flex-col sm:flex-row gap-4">
+            <input 
+              v-model="voucherCode" 
+              type="text" 
+              placeholder="Nhập mã giảm giá..."
+              class="flex-grow bg-surface-container-high border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-3 text-sm text-on-surface font-mono uppercase tracking-wider"
+            >
+            <button @click="applyVoucherCode" :disabled="isApplyingVoucher" class="bg-primary text-on-primary font-bold px-6 py-3 rounded-xl hover:brightness-115 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60">
+              {{ isApplyingVoucher ? 'Đang áp dụng...' : 'Áp dụng' }}
+            </button>
+          </div>
+          <p v-if="voucherError" class="text-xs text-error font-bold px-2">{{ voucherError }}</p>
+          <div v-if="voucherSuccess" class="flex items-center justify-between px-2">
+            <p class="text-xs text-green-400 font-bold">{{ voucherSuccess }}</p>
+            <button v-if="store.selectedVoucher" @click="removeVoucher" class="text-xs text-on-surface-variant hover:text-error font-bold flex items-center gap-1 transition-colors">
+              <span class="material-symbols-outlined text-sm">close</span> Bỏ chọn
+            </button>
+          </div>
+
+          <!-- Active Vouchers list -->
+          <div v-if="vouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Voucher của bạn:</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div 
+                v-for="v in vouchers" 
+                :key="v.id"
+                @click="selectVoucher(v)"
+                :class="store.selectedVoucher?.id === v.id ? 'border-primary bg-primary/5' : 'border-outline-variant/20 bg-surface-container-high/40'"
+                class="border p-4 rounded-xl flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors"
+              >
+                <div>
+                  <p class="font-mono font-bold text-sm text-primary uppercase">{{ v.promotion.code }}</p>
+                  <p class="text-[10px] text-on-surface-variant mt-1">Giảm {{ v.promotion.discountType === 'PERCENTAGE' ? v.promotion.discountValue + '%' : v.promotion.discountValue.toLocaleString() + 'đ' }}</p>
+                </div>
+                <span v-if="store.selectedVoucher?.id === v.id" class="material-symbols-outlined text-primary">check_circle</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-16 mb-8 border-t border-outline-variant/10 pt-16">
+          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">04. Phương Thức Thanh Toán</h1>
           <p class="text-sm text-on-surface-variant">Chọn phương thức thanh toán phù hợp nhất</p>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'VNPAY'}">
                 <input type="radio" value="VNPAY" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
                 <span class="font-bold">Thanh toán qua VNPAY</span>
-            </label>
-            <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'MOMO'}">
-                <input type="radio" value="MOMO" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
-                <span class="font-bold">Thanh toán qua MoMo</span>
             </label>
             <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'TRANSFER'}">
                 <input type="radio" value="TRANSFER" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
@@ -246,12 +411,18 @@ const proceedToPayment = async () => {
         <div class="p-8 pb-6 border-b border-outline-variant/10">
           <div class="flex gap-6">
             <div class="w-20 h-28 flex-shrink-0 shadow-lg">
-              <img src="/images/Hopper.webp" class="w-full h-full object-cover"/>
+              <img :src="store.selectedMovie?.posterUrl || '/images/Hopper.webp'" class="w-full h-full object-cover rounded-lg"/>
             </div>
             <div class="flex flex-col justify-center">
-              <span class="bg-error-container text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 w-fit mb-2 text-white">T18</span>
-              <h2 class="font-headline text-lg font-bold leading-tight uppercase tracking-tight mb-1">DUNE: PART TWO</h2>
-              <p class="text-xs text-on-surface-variant font-label">DevCine Landmark 81 • Phòng 05</p>
+              <span class="bg-error-container text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 w-fit mb-2 text-white">
+                {{ store.selectedMovie?.ageRating || 'T18' }}
+              </span>
+              <h2 class="font-headline text-lg font-bold leading-tight uppercase tracking-tight mb-1">
+                {{ store.selectedMovie?.title || 'Phim đã chọn' }}
+              </h2>
+              <p class="text-xs text-on-surface-variant font-label">
+                {{ store.selectedShowtime?.cinema?.name }} • {{ store.selectedShowtime?.room?.name }}
+              </p>
             </div>
           </div>
         </div>
@@ -279,10 +450,18 @@ const proceedToPayment = async () => {
           </div>
           <!-- Total Calculation -->
           <div class="pt-6 border-t border-outline-variant/10">
-            <div class="bg-black/40 border border-white/5 p-5 rounded-xl">
-              <div class="flex justify-between items-center mb-1">
-                <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Tổng thanh toán</span>
-                <span class="text-2xl font-headline font-extrabold text-primary-container">{{ store.totalPrice.toLocaleString('vi-VN') }} VNĐ</span>
+            <div class="bg-black/40 border border-white/5 p-5 rounded-xl space-y-2">
+              <div class="flex justify-between items-center text-xs text-on-surface-variant">
+                <span>Tạm tính (suất + bắp):</span>
+                <span>{{ store.totalPrice.toLocaleString('vi-VN') }}đ</span>
+              </div>
+              <div v-if="discountAmount > 0" class="flex justify-between items-center text-xs text-green-400">
+                <span>Khuyến mãi (voucher):</span>
+                <span>-{{ discountAmount.toLocaleString('vi-VN') }}đ</span>
+              </div>
+              <div class="flex justify-between items-center border-t border-outline-variant/10 pt-2 mb-1">
+                <span class="text-xs font-bold uppercase tracking-widest text-on-surface">Tổng tiền</span>
+                <span class="text-2xl font-headline font-extrabold text-primary-container">{{ finalPaymentPrice.toLocaleString('vi-VN') }} VNĐ</span>
               </div>
               <p class="text-[10px] text-outline-variant text-right italic">(VAT & Phí dịch vụ đã bao gồm)</p>
             </div>

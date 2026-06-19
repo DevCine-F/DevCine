@@ -32,4 +32,14 @@ public class Banner {
 
     @Column(name = "end_date")
     private LocalDateTime endDate;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
+
+    @Column(name = "display_order")
+    private Integer displayOrder;
+
+    @Column(name = "link", length = 500)
+    private String link;
 }

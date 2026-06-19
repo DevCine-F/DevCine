@@ -1,20 +1,57 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { supportTicketApi } from '@/api/admin/index'
 
-const tickets = ref([
-  { id: 'TKT-001', user: 'Hoàng Nam', type: 'Hoàn tiền', status: 'pending', priority: 'high', message: 'Tôi muốn hoàn tiền vé Oppenheimer do bận đột xuất.', time: '10 phút trước' },
-  { id: 'TKT-002', user: 'Linh Chi', type: 'Lỗi ứng dụng', status: 'in-progress', priority: 'medium', message: 'Không thể thanh toán qua ví MoMo.', time: '45 phút trước' },
-  { id: 'TKT-003', user: 'Minh Tuấn', type: 'Góp ý', status: 'closed', priority: 'low', message: 'Rạp nên có thêm bắp vị phô mai.', time: '2 giờ trước' }
-])
+const tickets = ref([])
+const isLoading = ref(false)
+
+const pendingCount = computed(() => tickets.value.filter(t => t.status === 'OPEN').length)
+
+const fetchTickets = async () => {
+  isLoading.value = true
+  try {
+    const { data } = await supportTicketApi.getAll()
+    tickets.value = data.data ?? data
+  } catch (e) {
+    console.error('Failed to load support tickets', e)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const updateStatus = async (ticket, newStatus) => {
+  try {
+    await supportTicketApi.updateStatus(ticket.id, newStatus)
+    ticket.status = newStatus
+  } catch (e) {
+    console.error('Failed to update ticket status', e)
+  }
+}
 
 const getStatusClass = (status) => {
   switch (status) {
-    case 'pending': return 'bg-red-500/10 text-red-400 border-red-500/20'
-    case 'in-progress': return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-    case 'closed': return 'bg-green-500/10 text-green-400 border-green-500/20'
-    default: return ''
+    case 'OPEN': return 'bg-red-500/10 text-red-400 border-red-500/20'
+    case 'IN_PROGRESS': return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+    case 'CLOSED': return 'bg-green-500/10 text-green-400 border-green-500/20'
+    default: return 'bg-white/10 text-on-surface-variant border-white/10'
   }
 }
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'OPEN': return 'Chờ xử lý'
+    case 'IN_PROGRESS': return 'Đang xử lý'
+    case 'CLOSED': return 'Đã đóng'
+    default: return status
+  }
+}
+
+const formatTime = (iso) => {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+onMounted(fetchTickets)
 </script>
 
 <template>
@@ -31,11 +68,11 @@ const getStatusClass = (status) => {
       <div class="flex gap-4">
         <div class="bg-surface-container-high px-6 py-3 rounded-lg border border-outline-variant/10 text-center">
           <p class="text-[9px] font-bold text-outline-variant uppercase tracking-widest mb-1">Đang chờ</p>
-          <p class="text-xl font-black text-red-400">12</p>
+          <p class="text-xl font-black text-red-400">{{ pendingCount }}</p>
         </div>
         <div class="bg-surface-container-high px-6 py-3 rounded-lg border border-outline-variant/10 text-center">
-          <p class="text-[9px] font-bold text-outline-variant uppercase tracking-widest mb-1">Tỉ lệ giải quyết</p>
-          <p class="text-xl font-black text-green-400">98%</p>
+          <p class="text-[9px] font-bold text-outline-variant uppercase tracking-widest mb-1">Tổng ticket</p>
+          <p class="text-xl font-black text-primary">{{ tickets.length }}</p>
         </div>
       </div>
     </header>
@@ -59,34 +96,45 @@ const getStatusClass = (status) => {
           </div>
         </div>
 
-        <div v-for="ticket in tickets" :key="ticket.id" 
+        <!-- Loading -->
+        <div v-if="isLoading" class="flex flex-col gap-4">
+          <div v-for="i in 3" :key="i" class="bg-surface-container-low h-28 rounded-xl animate-pulse"></div>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="tickets.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
+          <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">support_agent</span>
+          <p class="text-on-surface-variant font-semibold">Không có yêu cầu hỗ trợ nào</p>
+        </div>
+
+        <div v-else v-for="ticket in tickets" :key="ticket.id"
              class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-5 hover:border-primary/30 transition-all cursor-pointer group shadow-lg shadow-black/10">
           <div class="flex justify-between items-start mb-4">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase tracking-tighter">
-                {{ ticket.user.split(' ').map(n => n[0]).join('') }}
+                {{ (ticket.customerName || ticket.customer?.fullName || 'KH').split(' ').slice(-1)[0]?.slice(0,2) }}
               </div>
               <div>
-                <p class="text-xs font-black text-on-surface tracking-tight">{{ ticket.user }}</p>
-                <p class="text-[10px] text-on-surface-variant uppercase font-bold italic tracking-wider">{{ ticket.id }} • {{ ticket.type }}</p>
+                <p class="text-xs font-black text-on-surface tracking-tight">{{ ticket.customerName || ticket.customer?.fullName || 'Khách hàng' }}</p>
+                <p class="text-[10px] text-on-surface-variant uppercase font-bold italic tracking-wider">#{{ ticket.id }} • {{ ticket.subject || ticket.type }}</p>
               </div>
             </div>
-            <span :class="getStatusClass(ticket.status)" 
+            <span :class="getStatusClass(ticket.status)"
                   class="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border">
-              {{ ticket.status }}
+              {{ getStatusLabel(ticket.status) }}
             </span>
           </div>
-          
-          <p class="text-xs text-on-surface-variant leading-relaxed mb-4 group-hover:text-on-surface transition-colors">{{ ticket.message }}</p>
-          
+
+          <p class="text-xs text-on-surface-variant leading-relaxed mb-4 group-hover:text-on-surface transition-colors">{{ ticket.message || ticket.description }}</p>
+
           <div class="flex justify-between items-center pt-4 border-t border-outline-variant/5">
             <div class="flex items-center gap-2">
               <span class="material-symbols-outlined text-xs text-outline-variant">schedule</span>
-              <span class="text-[9px] font-bold text-outline-variant uppercase">{{ ticket.time }}</span>
+              <span class="text-[9px] font-bold text-outline-variant uppercase">{{ formatTime(ticket.createdAt) }}</span>
             </div>
             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button class="px-4 py-1.5 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-md hover:brightness-110 transition-all">Phản hồi</button>
-              <button class="px-4 py-1.5 bg-surface-container-high text-on-surface text-[10px] font-black uppercase tracking-widest rounded-md hover:bg-white/5 transition-all">Chi tiết</button>
+              <button v-if="ticket.status === 'OPEN'" @click="updateStatus(ticket, 'IN_PROGRESS')" class="px-4 py-1.5 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-md hover:brightness-110 transition-all">Xử lý</button>
+              <button v-if="ticket.status !== 'CLOSED'" @click="updateStatus(ticket, 'CLOSED')" class="px-4 py-1.5 bg-surface-container-high text-on-surface text-[10px] font-black uppercase tracking-widest rounded-md hover:bg-white/5 transition-all">Đóng</button>
             </div>
           </div>
         </div>

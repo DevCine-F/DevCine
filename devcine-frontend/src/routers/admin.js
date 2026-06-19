@@ -19,9 +19,9 @@ export default [
         component: () => import('../views/admin/AdminMovies.vue')
       },
       {
+        // Màn hình lịch chiếu cũ (mock) đã hợp nhất vào Điều phối lịch chiếu
         path: 'schedule',
-        name: 'admin-schedule',
-        component: () => import('../views/admin/AdminSchedule.vue')
+        redirect: { name: 'admin-master-scheduling' }
       },
       {
         path: 'cinemas',
@@ -74,6 +74,11 @@ export default [
         component: () => import('../views/admin/InventoryManagement.vue')
       },
       {
+        path: 'fnb',
+        name: 'admin-fnb',
+        component: () => import('../views/admin/FnbMenuManager.vue')
+      },
+      {
         path: 'staff-shifts',
         name: 'admin-staff-shifts',
         component: () => import('../views/admin/StaffShiftManagement.vue')
@@ -82,6 +87,11 @@ export default [
         path: 'ticketing',
         name: 'admin-ticketing',
         component: () => import('../views/admin/TicketingPOS.vue')
+      },
+      {
+        path: 'check-in',
+        name: 'admin-check-in',
+        component: () => import('../views/admin/TicketCheckIn.vue')
       },
       {
         path: 'customer-support',
@@ -97,6 +107,11 @@ export default [
         path: 'permissions',
         name: 'admin-permissions',
         component: () => import('../views/admin/AdminPermissions.vue')
+      },
+      {
+        path: 'customers',
+        name: 'admin-customers',
+        component: () => import('../views/admin/AdminCustomers.vue')
       }
     ]
   }

@@ -1,84 +1,44 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { auditLogApi } from '@/api/admin/index'
 
 const searchQuery = ref('')
 const filterType = ref('all')
+const logs = ref([])
+const isLoading = ref(false)
+const currentPage = ref(0)
+const totalPages = ref(1)
 
-const logs = ref([
-  {
-    id: 'LOG-001',
-    timestamp: '2026-04-28 11:45:22',
-    actor: 'Nguyen Admin',
-    role: 'Super Admin',
-    action: 'CREATE',
-    target: 'Suất chiếu',
-    detail: 'Tạo mới suất chiếu Oppenheimer lúc 19:00 tại Phòng IMAX 01',
-    ip: '192.168.1.45',
-    status: 'success'
-  },
-  {
-    id: 'LOG-002',
-    timestamp: '2026-04-28 11:30:15',
-    actor: 'Tran Staff',
-    role: 'Nhân viên Quầy',
-    action: 'UPDATE',
-    target: 'Vé xem phim',
-    detail: 'Hoàn vé #TK-99234 cho khách hàng Nguyễn Văn A',
-    ip: '192.168.1.12',
-    status: 'warning'
-  },
-  {
-    id: 'LOG-003',
-    timestamp: '2026-04-28 10:15:00',
-    actor: 'Lumière AI',
-    role: 'Hệ thống',
-    action: 'SYSTEM',
-    target: 'Lịch chiếu',
-    detail: 'Chạy thuật toán Auto-Scheduling tối ưu hóa doanh thu',
-    ip: 'localhost',
-    status: 'success'
-  },
-  {
-    id: 'LOG-004',
-    timestamp: '2026-04-28 09:05:11',
-    actor: 'Le Manager',
-    role: 'Quản lý Rạp',
-    action: 'DELETE',
-    target: 'Voucher',
-    detail: 'Xóa mã khuyến mãi hết hạn KHAI_TRUONG_2026',
-    ip: '192.168.1.88',
-    status: 'danger'
-  },
-  {
-    id: 'LOG-005',
-    timestamp: '2026-04-27 22:10:45',
-    actor: 'Nguyen Admin',
-    role: 'Super Admin',
-    action: 'LOGIN',
-    target: 'Hệ thống',
-    detail: 'Đăng nhập thành công vào Admin Portal',
-    ip: '115.79.22.10',
-    status: 'success'
+const fetchLogs = async () => {
+  isLoading.value = true
+  try {
+    const params = { page: currentPage.value, size: 20 }
+    if (filterType.value !== 'all') params.action = filterType.value
+    const { data } = await auditLogApi.getLogs(params)
+    const result = data.data ?? data
+    if (result.content) {
+      logs.value = result.content
+      totalPages.value = result.totalPages ?? 1
+    } else {
+      logs.value = Array.isArray(result) ? result : []
+    }
+  } catch (e) {
+    console.error('Failed to load audit logs', e)
+  } finally {
+    isLoading.value = false
   }
-])
+}
+
+watch(filterType, () => { currentPage.value = 0; fetchLogs() })
 
 const filteredLogs = computed(() => {
-  let result = logs.value
-
-  if (filterType.value !== 'all') {
-    result = result.filter(log => log.action === filterType.value)
-  }
-
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(log => 
-      log.actor.toLowerCase().includes(query) || 
-      log.detail.toLowerCase().includes(query) ||
-      log.target.toLowerCase().includes(query)
-    )
-  }
-
-  return result
+  if (!searchQuery.value) return logs.value
+  const q = searchQuery.value.toLowerCase()
+  return logs.value.filter(l =>
+    (l.performedBy || l.actor || '').toLowerCase().includes(q) ||
+    (l.description || l.detail || '').toLowerCase().includes(q) ||
+    (l.entityType || l.target || '').toLowerCase().includes(q)
+  )
 })
 
 const getActionColor = (action) => {
@@ -99,9 +59,20 @@ const getActionLabel = (action) => {
     case 'DELETE': return 'Xóa'
     case 'SYSTEM': return 'Hệ thống'
     case 'LOGIN': return 'Đăng nhập'
-    default: return 'Khác'
+    default: return action || 'Khác'
   }
 }
+
+const formatTimestamp = (iso) => {
+  if (!iso) return { date: '', time: '' }
+  const d = new Date(iso)
+  return {
+    date: d.toLocaleDateString('vi-VN'),
+    time: d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+}
+
+onMounted(fetchLogs)
 </script>
 
 <template>
@@ -149,46 +120,49 @@ const getActionLabel = (action) => {
 
       <!-- Table Body -->
       <div class="flex-grow overflow-y-auto">
-         <div v-for="log in filteredLogs" :key="log.id" class="grid grid-cols-12 gap-4 p-4 border-b border-outline-variant/5 items-center hover:bg-white/[0.02] transition-colors group">
-            
+         <!-- Loading -->
+         <div v-if="isLoading" class="flex items-center justify-center py-16">
+            <span class="material-symbols-outlined animate-spin text-primary text-3xl">autorenew</span>
+         </div>
+
+         <template v-else>
+         <div v-for="log in filteredLogs" :key="log.id ?? log.logId" class="grid grid-cols-12 gap-4 p-4 border-b border-outline-variant/5 items-center hover:bg-white/[0.02] transition-colors group">
+
             <!-- Time -->
             <div class="col-span-2 pl-4">
-               <p class="text-sm font-black text-on-surface group-hover:text-primary transition-colors">{{ log.timestamp.split(' ')[1] }}</p>
-               <p class="text-[10px] font-bold text-on-surface-variant">{{ log.timestamp.split(' ')[0] }}</p>
+               <p class="text-sm font-black text-on-surface group-hover:text-primary transition-colors">{{ formatTimestamp(log.createdAt ?? log.timestamp).time }}</p>
+               <p class="text-[10px] font-bold text-on-surface-variant">{{ formatTimestamp(log.createdAt ?? log.timestamp).date }}</p>
             </div>
 
             <!-- Actor -->
             <div class="col-span-3 flex items-center gap-3">
                <div class="w-10 h-10 rounded-full bg-surface-container-highest border border-outline-variant/20 flex items-center justify-center flex-shrink-0">
-                  <span v-if="log.action === 'SYSTEM'" class="material-symbols-outlined text-primary text-sm">smart_toy</span>
+                  <span v-if="(log.action ?? '').toUpperCase() === 'SYSTEM'" class="material-symbols-outlined text-primary text-sm">smart_toy</span>
                   <span v-else class="material-symbols-outlined text-on-surface-variant text-sm">person</span>
                </div>
                <div>
-                  <p class="text-xs font-black text-on-surface uppercase">{{ log.actor }}</p>
-                  <p class="text-[9px] font-bold text-primary italic uppercase tracking-widest mt-0.5">{{ log.role }}</p>
+                  <p class="text-xs font-black text-on-surface uppercase">{{ log.performedBy ?? log.actor }}</p>
+                  <p class="text-[9px] font-bold text-primary italic uppercase tracking-widest mt-0.5">{{ log.userRole ?? log.role }}</p>
                </div>
             </div>
 
             <!-- Action Tag -->
             <div class="col-span-2">
-               <div :class="getActionColor(log.action)" class="inline-flex px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-widest border">
-                  {{ getActionLabel(log.action) }}
+               <div :class="getActionColor((log.action ?? '').toUpperCase())" class="inline-flex px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-widest border">
+                  {{ getActionLabel((log.action ?? '').toUpperCase()) }}
                </div>
-               <p class="text-[10px] text-on-surface-variant mt-1.5 uppercase font-bold">{{ log.target }}</p>
+               <p class="text-[10px] text-on-surface-variant mt-1.5 uppercase font-bold">{{ log.entityType ?? log.target }}</p>
             </div>
 
             <!-- Detail -->
             <div class="col-span-4 pr-4">
-               <p class="text-xs text-on-surface/90 leading-relaxed">{{ log.detail }}</p>
-               <p class="text-[9px] text-on-surface-variant mt-1 font-mono opacity-50">{{ log.id }}</p>
+               <p class="text-xs text-on-surface/90 leading-relaxed">{{ log.description ?? log.detail }}</p>
+               <p class="text-[9px] text-on-surface-variant mt-1 font-mono opacity-50">#{{ log.logId ?? log.id }}</p>
             </div>
 
-            <!-- Status / IP -->
+            <!-- Status -->
             <div class="col-span-1 flex flex-col items-center justify-center">
-               <span v-if="log.status === 'success'" class="material-symbols-outlined text-green-400">check_circle</span>
-               <span v-else-if="log.status === 'warning'" class="material-symbols-outlined text-yellow-400">warning</span>
-               <span v-else-if="log.status === 'danger'" class="material-symbols-outlined text-red-400">error</span>
-               <p class="text-[9px] font-mono text-on-surface-variant mt-1">{{ log.ip }}</p>
+               <span class="material-symbols-outlined text-green-400">check_circle</span>
             </div>
 
          </div>
@@ -199,6 +173,14 @@ const getActionLabel = (action) => {
             <p class="text-sm font-black text-on-surface uppercase tracking-widest">Không tìm thấy dữ liệu</p>
             <p class="text-[10px] text-on-surface-variant mt-2 uppercase">Vui lòng thử lại với từ khóa khác</p>
          </div>
+         </template>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-4 p-4 border-t border-outline-variant/10 bg-surface-container-high flex-shrink-0">
+        <button @click="currentPage--; fetchLogs()" :disabled="currentPage === 0" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-surface-container-highest rounded disabled:opacity-40 hover:bg-white/10 transition-colors">Trước</button>
+        <span class="text-xs text-on-surface-variant font-mono">Trang {{ currentPage + 1 }} / {{ totalPages }}</span>
+        <button @click="currentPage++; fetchLogs()" :disabled="currentPage >= totalPages - 1" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-surface-container-highest rounded disabled:opacity-40 hover:bg-white/10 transition-colors">Tiếp</button>
       </div>
     </div>
   </div>

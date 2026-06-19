@@ -1,5 +1,34 @@
 <script setup>
+import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { promotionApi } from '@/api/customer/index'
+
+const promotions = ref([])
+const isLoading = ref(false)
+
+const fetchPromotions = async () => {
+  isLoading.value = true
+  try {
+    const { data } = await promotionApi.getActive()
+    promotions.value = data.data ?? data
+  } catch (e) {
+    console.error('Không tải được khuyến mãi', e)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const formatValue = (p) => {
+  if (p.discountType === 'PERCENTAGE') return `Giảm ${Number(p.discountValue)}%`
+  return `Giảm ${Number(p.discountValue).toLocaleString('vi-VN')}đ`
+}
+
+const formatEnd = (iso) => {
+  if (!iso) return 'Không giới hạn'
+  return 'HSD ' + new Date(iso).toLocaleDateString('vi-VN')
+}
+
+onMounted(fetchPromotions)
 </script>
 
 <template>
@@ -18,67 +47,39 @@ import { RouterLink } from 'vue-router'
     </header>
     
     <!-- Promotions Grid -->
-    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      <!-- Featured Card -->
-      <div class="md:col-span-2 lg:col-span-2 group relative bg-surface-container-high rounded-xl overflow-hidden min-h-[400px] flex flex-col justify-end transition-all duration-500 hover:shadow-2xl hover:shadow-primary-container/5">
-        <img class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" src="/images/Hopper.webp"/>
-        <div class="absolute inset-0 editorial-gradient"></div>
-        <div class="relative p-10 z-10">
-          <span class="bg-error-container text-on-error-container px-3 py-1 text-[10px] font-bold uppercase tracking-widest mb-4 inline-block">Hot Trend</span>
-          <h3 class="text-4xl font-headline font-bold text-white mb-2">Combo Siêu Anh Hùng</h3>
-          <p class="text-neutral-300 max-w-md mb-6 leading-relaxed">
-            Sở hữu trọn bộ ly sưu tập giới hạn cùng bắp rang bơ vị Caramel đặc biệt khi đặt vé các phim bom tấn Marvel & DC.
-          </p>
-          <a class="inline-flex items-center gap-2 text-primary-container font-bold hover:gap-4 transition-all uppercase tracking-widest text-xs" href="#">
-            Learn More <span class="material-symbols-outlined">arrow_forward</span>
-          </a>
-        </div>
-      </div>
-      
-      <!-- Standard Grid Cards -->
-      <div class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300">
-        <div class="h-64 overflow-hidden relative">
-          <img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" src="/images/Hopper.webp"/>
-          <div class="absolute top-0 left-0 bg-primary-container text-on-primary px-3 py-1 font-bold text-[10px] uppercase">Thứ 3 Hàng Tuần</div>
+    <!-- Loading -->
+    <section v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div v-for="i in 3" :key="i" class="h-52 bg-surface-container-low rounded-xl animate-pulse border border-outline-variant/10"></div>
+    </section>
+
+    <!-- Empty -->
+    <section v-else-if="promotions.length === 0" class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low rounded-xl border border-outline-variant/10">
+      <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">local_activity</span>
+      <p class="text-on-surface-variant font-semibold">Hiện chưa có chương trình khuyến mãi nào đang diễn ra</p>
+      <p class="text-sm text-outline-variant mt-1">Vui lòng quay lại sau để không bỏ lỡ ưu đãi mới.</p>
+    </section>
+
+    <!-- Danh sách khuyến mãi đang chạy -->
+    <section v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div v-for="promo in promotions" :key="promo.id"
+           class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300">
+        <div class="h-40 relative bg-gradient-to-br from-primary-container/20 to-surface-container-high flex items-center justify-center">
+          <span class="text-4xl font-headline font-extrabold text-primary-container">{{ formatValue(promo) }}</span>
+          <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-3 py-1 font-bold text-[10px] uppercase tracking-widest">Đang áp dụng</div>
         </div>
         <div class="p-8 flex flex-col flex-grow">
-          <h3 class="text-xl font-headline font-bold mb-3 text-on-surface">Ngày Hội Gia Đình</h3>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-headline font-bold text-on-surface">Mã: {{ promo.code }}</h3>
+            <span v-if="promo.pointsRequired > 0" class="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-1 rounded">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
+          </div>
           <p class="text-on-surface-variant text-sm leading-relaxed mb-6 flex-grow">
-            Giảm ngay 30% giá vé cho nhóm gia đình từ 4 người và tặng kèm 01 phần quà bí mật cho các bé dưới 12 tuổi.
+            {{ formatValue(promo) }} khi đặt vé tại DevCine. Đổi bằng điểm tích luỹ. {{ formatEnd(promo.endDate) }}.
           </p>
-          <a class="text-primary-container font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:opacity-80 transition-opacity" href="#">
-            Learn More <span class="material-symbols-outlined text-sm">open_in_new</span>
-          </a>
-        </div>
-      </div>
-      <div class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300">
-        <div class="h-64 overflow-hidden relative">
-          <img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" src="/images/Hopper.webp"/>
-          <div class="absolute top-0 left-0 bg-tertiary-container text-on-tertiary-container px-3 py-1 font-bold text-[10px] uppercase">Lumière Elite</div>
-        </div>
-        <div class="p-8 flex flex-col flex-grow">
-          <h3 class="text-xl font-headline font-bold mb-3 text-on-surface">Đặc Quyền Thành Viên</h3>
-          <p class="text-on-surface-variant text-sm leading-relaxed mb-6 flex-grow">
-            Nhân đôi điểm thưởng cho mọi giao dịch đặt vé qua ứng dụng. Đổi điểm lấy vé xem phim miễn phí hoặc bỏng nước.
-          </p>
-          <a class="text-primary-container font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:opacity-80 transition-opacity" href="#">
-            Learn More <span class="material-symbols-outlined text-sm">open_in_new</span>
-          </a>
-        </div>
-      </div>
-      <div class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300">
-        <div class="h-64 overflow-hidden relative">
-          <img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" src="/images/Hopper.webp"/>
-          <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-3 py-1 font-bold text-[10px] uppercase">Cặp Đôi</div>
-        </div>
-        <div class="p-8 flex flex-col flex-grow">
-          <h3 class="text-xl font-headline font-bold mb-3 text-on-surface">Sweetbox Night</h3>
-          <p class="text-on-surface-variant text-sm leading-relaxed mb-6 flex-grow">
-            Tận hưởng không gian riêng tư tại hàng ghế Sweetbox với gói combo đặc biệt bao gồm 2 nước, 1 bắp lớn và 1 phần snack.
-          </p>
-          <a class="text-primary-container font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:opacity-80 transition-opacity" href="#">
-            Learn More <span class="material-symbols-outlined text-sm">open_in_new</span>
-          </a>
+          <RouterLink to="/profile/vouchers"
+                  class="self-start flex items-center gap-2 text-primary-container font-bold text-xs uppercase tracking-widest hover:opacity-80 transition-opacity">
+            <span class="material-symbols-outlined text-sm">redeem</span>
+            Đổi bằng điểm
+          </RouterLink>
         </div>
       </div>
     </section>

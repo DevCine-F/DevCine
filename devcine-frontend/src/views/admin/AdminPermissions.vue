@@ -1,12 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { rolePermissionApi } from '@/api/admin/index'
 
 // --- DỮ LIỆU CẤU TRÚC ---
-const roles = ref([
-  { id: 'admin', name: 'Quản trị viên' },
-  { id: 'manager', name: 'Quản lý rạp' },
-  { id: 'staff', name: 'Nhân viên' }
-])
+// Vai trò được nạp động từ backend (id là số, kèm ma trận quyền hiện tại)
+const roles = ref([])
 
 const modules = ref([
   { id: 'dashboard', name: 'Tổng quan' },
@@ -15,20 +13,22 @@ const modules = ref([
   { id: 'system', name: 'Hệ thống' }
 ])
 
+// Các feature/action khớp với khoá enforce ở backend (@perm.can('<feature>','<action>'))
 const features = ref([
   { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view', 'export'] },
-  { id: 'dashboard_users', moduleId: 'dashboard', name: 'Thống kê khách hàng', actions: ['view', 'export'] },
-  
+
   { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add', 'edit', 'delete'] },
-  { id: 'pos_inventory', moduleId: 'pos', name: 'Kiểm kê F&B', actions: ['view', 'add', 'edit'] },
-  
+  { id: 'pos_inventory', moduleId: 'pos', name: 'Kiểm kê & Kho F&B', actions: ['view', 'add', 'edit', 'delete'] },
+
   { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'] },
   { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu', actions: ['view', 'add', 'edit', 'delete', 'export'] },
   { id: 'banners', moduleId: 'content', name: 'Quản lý Banner quảng cáo', actions: ['view', 'add', 'edit', 'delete'] },
   { id: 'promotions', moduleId: 'content', name: 'Chương trình khuyến mãi', actions: ['view', 'add', 'edit', 'delete'] },
+  { id: 'pricing', moduleId: 'content', name: 'Cấu hình giá vé', actions: ['view', 'add', 'edit', 'delete'] },
 
   { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view', 'add', 'edit', 'delete'] },
   { id: 'staff_management', moduleId: 'system', name: 'Nhân sự & Ca trực', actions: ['view', 'add', 'edit', 'delete', 'export'] },
+  { id: 'support', moduleId: 'system', name: 'Chăm sóc khách hàng', actions: ['view', 'edit', 'delete'] },
   { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'] },
 ])
 
@@ -49,39 +49,38 @@ const actionLabelsShort = {
 }
 
 // --- TRẠNG THÁI (STATE) ---
-const activeRole = ref('admin')
+const activeRole = ref(null)   // id (số) của vai trò đang chọn
 const activeModule = ref('content')
+const isLoading = ref(false)
+const isSaving = ref(false)
+const saveMessage = ref('')
 
 // permissions Matrix: roleId -> featureId -> array of actions
-const permissions = ref({
-  admin: {
-    dashboard_stats: ['view', 'export'],
-    dashboard_users: ['view', 'export'],
-    pos_ticketing: ['view', 'add', 'edit', 'delete'],
-    pos_inventory: ['view', 'add', 'edit'],
-    movies: ['view', 'add', 'edit', 'delete'],
-    schedules: ['view', 'add', 'edit', 'delete', 'export'],
-    banners: ['view', 'add', 'edit', 'delete'],
-    promotions: ['view', 'add', 'edit', 'delete'],
-    cinemas: ['view', 'add', 'edit', 'delete'],
-    staff_management: ['view', 'add', 'edit', 'delete', 'export'],
-    settings: ['view', 'edit']
-  },
-  manager: {
-    dashboard_stats: ['view'],
-    dashboard_users: ['view'],
-    pos_ticketing: ['view', 'add', 'edit'],
-    movies: ['view'],
-    schedules: ['view', 'add', 'edit'],
-    cinemas: ['view'],
-    staff_management: ['view', 'add', 'edit'],
-  },
-  staff: {
-    pos_ticketing: ['view', 'add'],
-    movies: ['view'],
-    schedules: ['view']
+const permissions = ref({})
+
+const fetchRoles = async () => {
+  isLoading.value = true
+  try {
+    const { data } = await rolePermissionApi.getRoles()
+    const list = data.data ?? data
+    // Bỏ vai trò CUSTOMER khỏi màn phân quyền quản trị
+    roles.value = list.filter(r => (r.name || '').toUpperCase() !== 'CUSTOMER')
+    const matrix = {}
+    roles.value.forEach(r => {
+      matrix[r.id] = r.permissions || {}
+    })
+    permissions.value = matrix
+    if (roles.value.length && activeRole.value === null) {
+      activeRole.value = roles.value[0].id
+    }
+  } catch (err) {
+    console.error('Không tải được danh sách vai trò', err)
+  } finally {
+    isLoading.value = false
   }
-})
+}
+
+onMounted(fetchRoles)
 
 // --- LOGIC HELPER ---
 const currentModuleFeatures = computed(() => {
@@ -160,8 +159,26 @@ const clearCurrentModule = () => {
   })
 }
 
-const saveChanges = () => {
-  alert(`Đã lưu phân quyền thành công cho vai trò: ${roles.value.find(r => r.id === activeRole.value)?.name}`)
+const saveChanges = async () => {
+  if (activeRole.value === null) return
+  isSaving.value = true
+  saveMessage.value = ''
+  try {
+    const matrix = permissions.value[activeRole.value] || {}
+    // Chỉ gửi các feature có ít nhất 1 action để ma trận gọn gàng
+    const payload = {}
+    Object.keys(matrix).forEach(k => {
+      if (Array.isArray(matrix[k]) && matrix[k].length > 0) payload[k] = matrix[k]
+    })
+    await rolePermissionApi.updatePermissions(activeRole.value, payload)
+    const roleName = roles.value.find(r => r.id === activeRole.value)?.name
+    saveMessage.value = `Đã lưu phân quyền cho vai trò ${roleName}`
+    setTimeout(() => { saveMessage.value = '' }, 3000)
+  } catch (err) {
+    saveMessage.value = err.response?.data?.message || 'Lưu phân quyền thất bại.'
+  } finally {
+    isSaving.value = false
+  }
 }
 </script>
 
@@ -298,10 +315,13 @@ const saveChanges = () => {
       </div>
 
       <!-- Action Button -->
-      <button @click="saveChanges" class="w-full md:w-auto shrink-0 px-10 py-4 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-3">
-         Lưu Thay Đổi
-         <span class="material-symbols-outlined text-sm">save</span>
-      </button>
+      <div class="flex flex-col items-end gap-2 w-full md:w-auto shrink-0">
+        <span v-if="saveMessage" class="text-[10px] font-bold uppercase tracking-widest text-primary">{{ saveMessage }}</span>
+        <button @click="saveChanges" :disabled="isSaving || activeRole === null" class="w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-60">
+           {{ isSaving ? 'Đang lưu...' : 'Lưu Thay Đổi' }}
+           <span class="material-symbols-outlined text-sm">{{ isSaving ? 'autorenew' : 'save' }}</span>
+        </button>
+      </div>
     </div>
 
   </div>

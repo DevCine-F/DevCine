@@ -25,6 +25,11 @@ const { isLightMode, toggleTheme } = useTheme()
           <span class="font-semibold text-sm">Bán vé (POS)</span>
         </router-link>
 
+        <router-link to="/admin/check-in" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">qr_code_scanner</span>
+          <span class="font-semibold text-sm">Kiểm soát vé</span>
+        </router-link>
+
         
         <router-link to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
@@ -48,19 +53,19 @@ const { isLightMode, toggleTheme } = useTheme()
           <span class="font-semibold text-sm">Quản lý Banner</span>
         </router-link>
 
-        <router-link to="/admin/schedule" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_month</span>
-          <span class="font-semibold text-sm">Lịch chiếu</span>
-        </router-link>
-
         <router-link to="/admin/master-scheduling" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">assignment_turned_in</span>
-          <span class="font-semibold text-sm">Điều phối suất chiếu</span>
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_month</span>
+          <span class="font-semibold text-sm">Lịch chiếu & Điều phối</span>
         </router-link>
 
         <router-link to="/admin/cinemas" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">theater_comedy</span>
           <span class="font-semibold text-sm">Cụm rạp</span>
+        </router-link>
+
+        <router-link to="/admin/fnb" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">fastfood</span>
+          <span class="font-semibold text-sm">Thực đơn F&B / Combo</span>
         </router-link>
 
         <router-link to="/admin/inventory" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
@@ -105,6 +110,11 @@ const { isLightMode, toggleTheme } = useTheme()
           <span class="font-semibold text-sm">Nhật ký</span>
         </router-link>
         
+        <router-link to="/admin/customers" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">groups</span>
+          <span class="font-semibold text-sm">Khách hàng</span>
+        </router-link>
+
         <router-link to="/admin/customer-support" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">support_agent</span>
           <span class="font-semibold text-sm">Chăm sóc khách hàng</span>

@@ -1,37 +1,24 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { bannerApi } from '@/api/admin/index'
 
-const banners = ref([
-  {
-    id: 1,
-    imageUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=2000&auto=format&fit=crop',
-    link: '/movies/oppenheimer',
-    isActive: true,
-    order: 1
-  },
-  {
-    id: 2,
-    imageUrl: 'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=2000&auto=format&fit=crop',
-    link: '/movies/avatar-2',
-    isActive: true,
-    order: 2
-  },
-  {
-    id: 3,
-    imageUrl: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?q=80&w=2000&auto=format&fit=crop',
-    link: '/promotions/summer',
-    isActive: false,
-    order: 3
-  }
-])
-
+const banners = ref([])
+const isLoading = ref(false)
 const isAddModalOpen = ref(false)
-const newBanner = ref({
-  imageUrl: '',
-  link: '',
-  isActive: true,
-  order: 1
-})
+const isSaving = ref(false)
+const newBanner = ref({ imageUrl: '', link: '', isActive: true, order: 1 })
+
+const fetchBanners = async () => {
+  isLoading.value = true
+  try {
+    const { data } = await bannerApi.getAll()
+    banners.value = data.data ?? data
+  } catch (e) {
+    console.error('Failed to load banners', e)
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const openAddModal = () => {
   newBanner.value = { imageUrl: '', link: '', isActive: true, order: banners.value.length + 1 }
@@ -42,19 +29,39 @@ const closeAddModal = () => {
   isAddModalOpen.value = false
 }
 
-const saveBanner = () => {
-  banners.value.push({
-    id: Date.now(),
-    ...newBanner.value
-  })
-  closeAddModal()
-}
-
-const deleteBanner = (id) => {
-  if (confirm('Bạn có chắc chắn muốn xoá banner này?')) {
-    banners.value = banners.value.filter(b => b.id !== id)
+const saveBanner = async () => {
+  isSaving.value = true
+  try {
+    await bannerApi.create(newBanner.value)
+    await fetchBanners()
+    closeAddModal()
+  } catch (e) {
+    console.error('Failed to save banner', e)
+  } finally {
+    isSaving.value = false
   }
 }
+
+const toggleActive = async (banner) => {
+  try {
+    await bannerApi.update(banner.id, { ...banner, isActive: !banner.isActive })
+    await fetchBanners()
+  } catch (e) {
+    console.error('Failed to toggle banner', e)
+  }
+}
+
+const deleteBanner = async (id) => {
+  if (!confirm('Bạn có chắc chắn muốn xoá banner này?')) return
+  try {
+    await bannerApi.delete(id)
+    banners.value = banners.value.filter(b => b.id !== id)
+  } catch (e) {
+    console.error('Failed to delete banner', e)
+  }
+}
+
+onMounted(fetchBanners)
 </script>
 
 <template>
@@ -72,7 +79,10 @@ const deleteBanner = (id) => {
     </header>
 
     <!-- Banner Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 flex-1 overflow-y-auto pr-2 pb-10">
+    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div v-for="i in 4" :key="i" class="bg-surface-container-low border border-outline-variant/10 rounded-xl h-64 animate-pulse"></div>
+    </div>
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 flex-1 overflow-y-auto pr-2 pb-10">
       <div v-for="banner in banners" :key="banner.id" class="bg-surface-container-low border border-outline-variant/10 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow group">
         
         <!-- Image Preview -->
@@ -103,8 +113,8 @@ const deleteBanner = (id) => {
             </div>
 
             <div class="flex items-center gap-2">
-              <button class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" title="Chỉnh sửa">
-                <span class="material-symbols-outlined text-sm">edit</span>
+              <button @click="toggleActive(banner)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" :title="banner.isActive ? 'Tắt' : 'Bật'">
+                <span class="material-symbols-outlined text-sm">{{ banner.isActive ? 'visibility_off' : 'visibility' }}</span>
               </button>
               <button @click="deleteBanner(banner.id)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center text-on-surface-variant transition-colors" title="Xoá">
                 <span class="material-symbols-outlined text-sm">delete</span>
@@ -113,6 +123,10 @@ const deleteBanner = (id) => {
           </div>
         </div>
       </div>
+    </div>
+    <div v-if="!isLoading && banners.length === 0" class="flex flex-col items-center justify-center py-24 text-center">
+      <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">add_photo_alternate</span>
+      <p class="text-on-surface-variant font-semibold">Chưa có banner nào</p>
     </div>
 
     <!-- Add Banner Modal Overlay -->
@@ -157,7 +171,7 @@ const deleteBanner = (id) => {
 
         <div class="px-6 py-4 bg-surface-container-lowest border-t border-outline-variant/10 flex justify-end gap-3">
           <button @click="closeAddModal" class="px-5 py-2.5 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded hover:bg-white/10 transition-all">Huỷ</button>
-          <button @click="saveBanner" class="px-5 py-2.5 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all">Lưu Banner</button>
+          <button @click="saveBanner" :disabled="isSaving" class="px-5 py-2.5 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all disabled:opacity-60">{{ isSaving ? 'Đang lưu...' : 'Lưu Banner' }}</button>
         </div>
       </div>
     </div>

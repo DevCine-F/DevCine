@@ -1,16 +1,71 @@
 <script setup>
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
+import { useAuthStore } from '@/stores/auth'
+import { reviewApi } from '@/api/customer/index'
 import { onMounted, ref, computed } from 'vue'
 import api from '@/api/axios'
 
 const route = useRoute()
 const router = useRouter()
 const store = useBookingStore()
+const authStore = useAuthStore()
 
 const movie = ref({})
 const loading = ref(true)
 const activeDateStr = ref('')
+
+// --- Đánh giá phim ---
+const reviewsData = ref({ averageRating: 0, totalReviews: 0, reviews: [] })
+const myRating = ref(0)
+const hoverRating = ref(0)
+const myComment = ref('')
+const submittingReview = ref(false)
+const reviewError = ref('')
+const reviewSuccess = ref('')
+
+const fetchReviews = async (movieId) => {
+  try {
+    const { data } = await reviewApi.getForMovie(movieId)
+    reviewsData.value = data.data ?? data
+  } catch (e) {
+    console.error('Không tải được đánh giá', e)
+  }
+}
+
+const submitReview = async () => {
+  reviewError.value = ''
+  reviewSuccess.value = ''
+  if (!authStore.isAuthenticated || !authStore.user?.id) {
+    reviewError.value = 'Vui lòng đăng nhập để gửi đánh giá.'
+    return
+  }
+  if (myRating.value < 1) {
+    reviewError.value = 'Vui lòng chọn số sao đánh giá.'
+    return
+  }
+  submittingReview.value = true
+  try {
+    await reviewApi.submit({
+      movieId: route.params.id,
+      customerId: authStore.user.id,
+      rating: myRating.value,
+      comment: myComment.value
+    })
+    reviewSuccess.value = 'Cảm ơn bạn đã đánh giá!'
+    myComment.value = ''
+    await fetchReviews(route.params.id)
+  } catch (err) {
+    reviewError.value = err.response?.data?.message || 'Gửi đánh giá thất bại.'
+  } finally {
+    submittingReview.value = false
+  }
+}
+
+const formatReviewDate = (iso) => {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
 
 const formatDateForUI = (dateString) => {
   // expects YYYY-MM-DD
@@ -55,7 +110,8 @@ onMounted(async () => {
   await Promise.all([
     fetchMovieData,
     store.fetchCities(),
-    store.fetchShowtimes(movieId, store.selectedCity)
+    store.fetchShowtimes(movieId, store.selectedCity),
+    fetchReviews(movieId)
   ])
   
   if (uniqueDates.value.length > 0) {
@@ -277,6 +333,79 @@ const groupShowtimesByFormat = (showtimes) => {
               </div>
             </div>
           </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- ĐÁNH GIÁ & BÌNH LUẬN -->
+    <section class="bg-[#111111] border-t border-white/5">
+      <div class="max-w-[1200px] mx-auto px-6 py-14">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-2xl font-bold text-white uppercase tracking-tight">Đánh giá phim</h2>
+          <div v-if="reviewsData.totalReviews > 0" class="flex items-center gap-3">
+            <span class="text-4xl font-extrabold text-[#f5c518]">{{ reviewsData.averageRating }}</span>
+            <div class="flex flex-col">
+              <div class="flex">
+                <span v-for="i in 5" :key="i" class="material-symbols-outlined text-[18px]"
+                      :class="i <= Math.round(reviewsData.averageRating) ? 'text-[#f5c518]' : 'text-white/20'"
+                      style="font-variation-settings: 'FILL' 1;">star</span>
+              </div>
+              <span class="text-[11px] text-gray-400">{{ reviewsData.totalReviews }} lượt đánh giá</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form gửi đánh giá -->
+        <div class="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 mb-10">
+          <p class="text-sm font-bold text-white mb-3 uppercase tracking-wider">Chia sẻ cảm nhận của bạn</p>
+          <div class="flex items-center gap-2 mb-4">
+            <span v-for="i in 5" :key="i"
+                  @click="myRating = i"
+                  @mouseenter="hoverRating = i"
+                  @mouseleave="hoverRating = 0"
+                  class="material-symbols-outlined text-3xl cursor-pointer transition-transform hover:scale-110"
+                  :class="i <= (hoverRating || myRating) ? 'text-[#f5c518]' : 'text-white/20'"
+                  style="font-variation-settings: 'FILL' 1;">star</span>
+            <span class="text-xs text-gray-400 ml-2">{{ myRating > 0 ? myRating + '/5 sao' : 'Chọn số sao' }}</span>
+          </div>
+          <textarea v-model="myComment" rows="3" placeholder="Viết nhận xét của bạn về bộ phim..."
+                    class="w-full bg-[#262626] border border-white/10 rounded-lg p-4 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#f5c518]/50 transition-colors"></textarea>
+
+          <div v-if="reviewError" class="mt-3 text-xs text-red-400 font-semibold">{{ reviewError }}</div>
+          <div v-if="reviewSuccess" class="mt-3 text-xs text-green-400 font-semibold">{{ reviewSuccess }}</div>
+
+          <div class="flex justify-end mt-4">
+            <button @click="submitReview" :disabled="submittingReview"
+                    class="bg-[#f5c518] text-black font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-lg hover:brightness-110 transition-all disabled:opacity-60">
+              {{ submittingReview ? 'Đang gửi...' : 'Gửi đánh giá' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Danh sách đánh giá -->
+        <div v-if="reviewsData.reviews.length > 0" class="space-y-5">
+          <div v-for="rv in reviewsData.reviews" :key="rv.id" class="border-b border-white/5 pb-5 last:border-0">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-[#f5c518]/15 flex items-center justify-center text-[#f5c518] font-bold text-xs">
+                  {{ (rv.customerName || 'K').charAt(0).toUpperCase() }}
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-white">{{ rv.customerName }}</p>
+                  <div class="flex">
+                    <span v-for="i in 5" :key="i" class="material-symbols-outlined text-[13px]"
+                          :class="i <= rv.rating ? 'text-[#f5c518]' : 'text-white/20'"
+                          style="font-variation-settings: 'FILL' 1;">star</span>
+                  </div>
+                </div>
+              </div>
+              <span class="text-[11px] text-gray-500">{{ formatReviewDate(rv.createdAt) }}</span>
+            </div>
+            <p v-if="rv.comment" class="text-sm text-gray-300 leading-relaxed pl-12">{{ rv.comment }}</p>
+          </div>
+        </div>
+        <div v-else class="text-center py-10 text-gray-500 text-sm">
+          Chưa có đánh giá nào. Hãy là người đầu tiên đánh giá bộ phim này!
         </div>
       </div>
     </section>

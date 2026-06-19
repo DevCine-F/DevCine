@@ -34,11 +34,6 @@ export default [
         component: () => import('../views/customer/BookingView.vue')
       },
       {
-        path: 'payment',
-        name: 'payment',
-        component: () => import('../views/customer/PaymentView.vue')
-      },
-      {
         path: 'success',
         name: 'success',
         component: () => import('../views/customer/BookingSuccessView.vue')

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useNotificationStore } from '../../stores/notifications'
@@ -12,6 +12,15 @@ const isSearchOpen = ref(false)
 const { isLightMode, toggleTheme } = useTheme()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
+
+// Tải thông báo khi đã đăng nhập (và mỗi khi trạng thái đăng nhập thay đổi)
+onMounted(() => {
+  if (authStore.isAuthenticated) notificationStore.fetch()
+})
+watch(() => authStore.isAuthenticated, (loggedIn) => {
+  if (loggedIn) notificationStore.fetch()
+  else notificationStore.notifications = []
+})
 
 const isNotifModalOpen = ref(false)
 const selectedNotif = ref(null)

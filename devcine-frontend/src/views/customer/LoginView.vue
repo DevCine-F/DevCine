@@ -2,39 +2,58 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { authApi } from '../../api/customer/index'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const activeTab = ref('login')
+const isLoading = ref(false)
+const errorMsg = ref('')
 
-const loginAs = (role) => {
-  const email = role === 'admin' ? 'admin@devcine.com' : 'customer@devcine.com'
-  const mockUser = { name: `Mock ${role}`, email }
-  const mockToken = 'mock-jwt-token-' + Math.random().toString(36).substr(2)
-  
-  authStore.login(mockUser, mockToken, role)
-  
-  if (role === 'admin') {
-    router.push('/admin/dashboard')
-  } else {
-    router.push('/')
+// Form fields
+const loginForm = ref({ username: '', password: '' })
+const registerForm = ref({ username: '', email: '', fullName: '', phone: '', password: '' })
+
+const handleLogin = async () => {
+  if (!loginForm.value.username || !loginForm.value.password) return
+  isLoading.value = true
+  errorMsg.value = ''
+  try {
+    const res = await authApi.login(loginForm.value.username, loginForm.value.password)
+    const { token, user } = res.data.data
+    const role = user.role.toLowerCase()
+    authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, role)
+    router.push(role === 'admin' || role === 'staff' ? '/admin/dashboard' : '/')
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Đăng nhập thất bại. Kiểm tra lại tài khoản và mật khẩu.'
+  } finally {
+    isLoading.value = false
   }
 }
 
-const handleLogin = (e) => {
-  if (e && e.preventDefault) e.preventDefault()
-  
-  const formData = new FormData(e.target)
-  const email = formData.get('email') || ''
-  const role = email.toLowerCase().startsWith('admin') ? 'admin' : 'customer'
-  
-  loginAs(role)
+const handleRegister = async () => {
+  const f = registerForm.value
+  if (!f.username || !f.email || !f.password) return
+  isLoading.value = true
+  errorMsg.value = ''
+  try {
+    await authApi.register({ username: f.username, email: f.email, fullName: f.fullName, phone: f.phone, password: f.password })
+    // Auto-login after register
+    const res = await authApi.login(f.username, f.password)
+    const { token, user } = res.data.data
+    authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, user.role.toLowerCase())
+    router.push('/')
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
-const handleRegister = (e) => {
-  if (e && e.preventDefault) e.preventDefault()
-  // Mock successful registration by logging in as customer
-  loginAs('customer')
+// Giữ nút demo để test nhanh khi dev
+const loginDemo = async () => {
+  loginForm.value = { username: 'khachhang', password: 'Khach@123' }
+  await handleLogin()
 }
 </script>
 
@@ -69,31 +88,31 @@ const handleRegister = (e) => {
         </div>
         
         <!-- Form -->
+        <!-- Error Message -->
+        <div v-if="errorMsg" class="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-xs font-semibold">
+          {{ errorMsg }}
+        </div>
+
         <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="space-y-4">
           <div class="space-y-2">
-            <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Email của bạn</label>
+            <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Tên đăng nhập</label>
             <div class="relative">
-              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">mail</span>
-              <input name="email" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="email@example.com" type="email" required/>
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">person</span>
+              <input v-model="loginForm.username" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="Tên đăng nhập" type="text" required/>
             </div>
           </div>
           <div class="space-y-2">
             <div class="flex justify-between items-center">
               <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Mật khẩu</label>
-              <a class="text-[10px] font-bold uppercase tracking-[0.1em] text-[#f5c518] hover:underline" href="#">Quên mật khẩu?</a>
             </div>
             <div class="relative">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">lock</span>
-              <input class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="••••••••" type="password" required/>
+              <input v-model="loginForm.password" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="••••••••" type="password" required/>
             </div>
           </div>
-          <div class="flex items-center gap-3 py-2">
-            <input class="w-4 h-4 bg-surface-container-lowest border-outline-variant text-[#f5c518] focus:ring-0 rounded-sm" id="remember" type="checkbox"/>
-            <label class="text-xs text-on-surface-variant font-medium" for="remember">Ghi nhớ đăng nhập</label>
-          </div>
-          <button type="submit" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-            Đăng nhập
-            <span class="material-symbols-outlined">chevron_right</span>
+          <button type="submit" :disabled="isLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+            {{ isLoading ? 'Đang đăng nhập...' : 'Đăng nhập' }}
+            <span v-if="!isLoading" class="material-symbols-outlined">chevron_right</span>
           </button>
         </form>
 
@@ -102,26 +121,33 @@ const handleRegister = (e) => {
             <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Họ và tên</label>
             <div class="relative">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">person</span>
-              <input name="name" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="Nguyễn Văn A" type="text" required/>
+              <input v-model="registerForm.fullName" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="Nguyễn Văn A" type="text" required/>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Tên đăng nhập</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">badge</span>
+              <input v-model="registerForm.username" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="username" type="text" required/>
             </div>
           </div>
           <div class="space-y-2">
             <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Email của bạn</label>
             <div class="relative">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">mail</span>
-              <input name="email" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="email@example.com" type="email" required/>
+              <input v-model="registerForm.email" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="email@example.com" type="email" required/>
             </div>
           </div>
           <div class="space-y-2">
             <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Mật khẩu</label>
             <div class="relative">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">lock</span>
-              <input class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="••••••••" type="password" required/>
+              <input v-model="registerForm.password" class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-[#f5c518] py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all" placeholder="••••••••" type="password" required/>
             </div>
           </div>
-          <button type="submit" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4">
-            Đăng ký
-            <span class="material-symbols-outlined">chevron_right</span>
+          <button type="submit" :disabled="isLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-60">
+            {{ isLoading ? 'Đang đăng ký...' : 'Đăng ký' }}
+            <span v-if="!isLoading" class="material-symbols-outlined">chevron_right</span>
           </button>
         </form>
         
@@ -144,13 +170,13 @@ const handleRegister = (e) => {
         <div class="mt-6 pt-6 border-t border-outline-variant/10">
           <p class="text-[9px] font-black uppercase tracking-widest text-neutral-600 mb-4 text-center">Chế độ thử nghiệm</p>
           <div class="flex gap-4">
-            <button @click="loginAs('customer')" 
+            <button type="button" @click="loginDemo"
                     class="flex-1 py-3 bg-surface-container-high border border-outline-variant/20 rounded text-[9px] font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
-              Vào quyền Khách
+              Demo Khách hàng
             </button>
-            <button @click="router.push('/admin/login')"
+            <button type="button" @click="router.push('/admin/login')"
                     class="flex-1 py-3 bg-primary/10 border border-primary/40 rounded text-[9px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors">
-              Vào quyền Admin
+              Vào trang Admin
             </button>
           </div>
         </div>

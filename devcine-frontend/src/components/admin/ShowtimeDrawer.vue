@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue';
-import axios from 'axios';
+import api from '@/api/axios';
 import CustomSelect from './CustomSelect.vue';
 
 const props = defineProps({
@@ -10,8 +10,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'saved']);
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api";
 
 const form = reactive({
   movieId: '',
@@ -71,8 +69,8 @@ const minuteOptions = Array.from({ length: 12 }, (_, i) => {
 const fetchOptions = async () => {
   try {
     const [moviesRes, formatsRes] = await Promise.all([
-      axios.get(`${API_BASE_URL}/movies`), // Assuming this exists
-      axios.get(`${API_BASE_URL}/formats`)
+      api.get('/movies'),
+      api.get('/formats')
     ]);
     movies.value = moviesRes.data;
     formats.value = formatsRes.data;
@@ -84,7 +82,7 @@ const fetchOptions = async () => {
 const fetchRooms = async (cinemaId) => {
   if (!cinemaId) return;
   try {
-    const res = await axios.get(`${API_BASE_URL}/rooms/cinema/${cinemaId}`);
+    const res = await api.get(`/rooms/cinema/${cinemaId}`);
     rooms.value = res.data;
   } catch (error) {
     console.error("Error fetching rooms:", error);
@@ -123,7 +121,7 @@ const handleSave = async () => {
     const [day, month] = props.selectedDate.split('/');
     const formattedStartTime = `${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`;
 
-    await axios.post(`${API_BASE_URL}/showtimes`, {
+    await api.post('/showtimes', {
       movieId: parseInt(form.movieId),
       roomId: parseInt(form.roomId),
       formatId: parseInt(form.formatId),

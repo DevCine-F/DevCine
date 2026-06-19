@@ -29,6 +29,9 @@ public class SupportTicket {
     @Column(name = "issue_type", length = 50)
     private String issueType;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     @Column(length = 20)
     private String status;
 

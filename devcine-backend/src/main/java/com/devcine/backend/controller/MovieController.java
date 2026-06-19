@@ -4,6 +4,7 @@ import com.devcine.backend.entity.Movie;
 import com.devcine.backend.service.MovieService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +22,11 @@ public class MovieController {
         return movieService.getAllMovies();
     }
 
+    @GetMapping("/search")
+    public List<MovieSummaryDTO> searchMovies(@RequestParam(value = "q", required = false) String q) {
+        return movieService.searchMovies(q);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Movie> getMovieById(@PathVariable Integer id) {
         Movie movie = movieService.getMovieById(id);
@@ -31,11 +37,13 @@ public class MovieController {
     }
 
     @PostMapping
+    @PreAuthorize("@perm.can('movies','add')")
     public Movie createMovie(@RequestBody Movie movie) {
         return movieService.createMovie(movie);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@perm.can('movies','edit')")
     public ResponseEntity<Movie> updateMovie(@PathVariable Integer id, @RequestBody Movie movie) {
         Movie updatedMovie = movieService.updateMovie(id, movie);
         if (updatedMovie != null) {
@@ -45,6 +53,7 @@ public class MovieController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@perm.can('movies','delete')")
     public ResponseEntity<Void> deleteMovie(@PathVariable Integer id) {
         movieService.deleteMovie(id);
         return ResponseEntity.noContent().build();

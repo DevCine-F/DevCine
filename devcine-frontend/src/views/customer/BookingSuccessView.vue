@@ -105,11 +105,11 @@ onMounted(async () => {
         </div>
         <div class="flex justify-between py-2 border-b border-[#333]/50">
           <span class="text-[#888] font-label text-xs">Giảm giá</span>
-          <span class="text-white font-headline font-bold text-sm">0 đ</span>
+          <span class="text-white font-headline font-bold text-sm">{{ (store.totalPrice - store.finalPrice) > 0 ? '-' + (store.totalPrice - store.finalPrice).toLocaleString('vi-VN') : '0' }} đ</span>
         </div>
         <div class="flex justify-between py-3">
           <span class="text-white font-label text-xs uppercase tracking-widest font-bold">Tổng thanh toán</span>
-          <span class="text-primary-container font-headline font-bold text-lg">{{ store.totalPrice ? store.totalPrice.toLocaleString('vi-VN') : '168.000' }} đ</span>
+          <span class="text-primary-container font-headline font-bold text-lg">{{ (store.finalPrice || store.totalPrice || 0).toLocaleString('vi-VN') }} đ</span>
         </div>
       </div>
 

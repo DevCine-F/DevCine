@@ -9,7 +9,7 @@ const selectedCity = ref('Tất cả')
 
 const fetchCinemas = async () => {
   try {
-    const response = await api.get('/cinemas')
+    const response = await api.get('/v1/cinemas')
     cinemas.value = response.data
   } catch (error) {
     console.error('Error fetching cinemas:', error)
@@ -136,7 +136,7 @@ onMounted(() => {
             </div>
 
             <div class="absolute bottom-0 left-0 p-8 z-20 w-full">
-              <div v-if="cinema.distance !== Infinity" class="text-primary font-bold text-sm mb-2">
+              <div v-if="typeof cinema.distance === 'number' && isFinite(cinema.distance)" class="text-primary font-bold text-sm mb-2">
                 Cách bạn {{ cinema.distance.toFixed(1) }} km
               </div>
               <h3 class="text-2xl font-bold font-headline mb-3 text-on-surface group-hover:text-primary transition-colors">{{ cinema.name }}</h3>
@@ -148,7 +148,7 @@ onMounted(() => {
                 </button>
                 <div class="flex items-center gap-1 text-on-surface-variant">
                   <span class="material-symbols-outlined text-sm">phone</span>
-                  <span class="text-[0.625rem] font-mono">{{ cinema.contactNumber }}</span>
+                  <span class="text-[0.625rem] font-mono">{{ cinema.hotline }}</span>
                 </div>
               </div>
             </div>
@@ -222,7 +222,7 @@ onMounted(() => {
                 <div class="flex items-center gap-6 mt-4">
                   <div class="flex items-center gap-1.5 opacity-60">
                     <span class="material-symbols-outlined text-sm">meeting_room</span>
-                    <span class="text-[0.7rem] font-bold uppercase tracking-widest">{{ cinema.totalRooms }} Phòng</span>
+                    <span class="text-[0.7rem] font-bold uppercase tracking-widest">{{ cinema.rooms }} Phòng</span>
                   </div>
                   <button class="text-[0.65rem] font-bold uppercase tracking-widest text-primary hover:opacity-80 transition-opacity">
                     Thông tin rạp

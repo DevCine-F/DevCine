@@ -16,7 +16,7 @@ defineProps({
 <template>
   <button 
     :disabled="disabled || loading"
-    class="relative inline-flex items-center justify-center font-bold transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 uppercase tracking-widest text-[10px]"
+    class="relative inline-flex items-center justify-center font-bold transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 uppercase tracking-widest text-[10px] rounded-xl"
     :class="[
       {
         'bg-primary text-black hover:bg-primary/90 shadow-[0_0_20px_rgba(245,197,24,0.2)]': variant === 'primary',
