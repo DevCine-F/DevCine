@@ -473,61 +473,29 @@ const printInvoice = () => {
   win.document.close()
 }
 
-// ===== Hiển thị mã QR toàn màn hình (tab mới) cho khách quét =====
-const buildQrPageHtml = () => {
+// ===== Hiển thị mã QR toàn màn hình (tab mới) cho khách quét — chỉ mã, không thông tin =====
+const qrOnlyUrl = computed(() => {
   const b = bankInfo.value
+  if (!b.code || !b.accountNo) return ''
+  return `https://img.vietqr.io/image/${b.code}-${b.accountNo}-qr_only.png?amount=${totalPrice.value}&addInfo=${encodeURIComponent(transferContent.value)}`
+})
+
+const buildQrPageHtml = () => {
   return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Quét mã chuyển khoản — DevCine</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',system-ui,Arial,sans-serif;background:#efe8da;color:#26221b;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{width:100%;max-width:580px;background:#fffdf8;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(40,34,22,.2);border:1px solid #ece3d0}
-  .head{background:linear-gradient(160deg,#211d16,#14110c);color:#f3ecdc;padding:24px 30px;display:flex;align-items:center;gap:14px;position:relative}
-  .head::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#b8902f,#e6c878,#b8902f)}
-  .mono{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#e9cd80,#b8902f);display:flex;align-items:center;justify-content:center;font-size:27px;font-weight:900;color:#1c1a17;font-family:'Playfair Display',serif;flex:none}
-  .brand{font-size:22px;font-weight:800;letter-spacing:.18em;line-height:1}
-  .brand .g{color:#e6c878}
-  .brand small{display:block;font-size:9px;letter-spacing:.28em;color:#a89c81;margin-top:6px;font-weight:600;text-transform:uppercase}
-  .body{padding:28px 30px 32px;text-align:center}
-  .qr{width:460px;max-width:100%;aspect-ratio:1;margin:0 auto;background:#fff;border-radius:18px;padding:12px;border:1px solid #eee}
-  .qr img{width:100%;height:100%;object-fit:contain}
-  .hint{font-size:13px;color:#8c836d;margin:16px 0 22px}
-  .rows{text-align:left;border-top:1px solid #efe6d3;padding-top:18px}
-  .row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;font-size:15px;border-bottom:1px solid #f3ecdd}
-  .row span{color:#8c836d}
-  .row b{color:#26221b;font-weight:700}
-  .row .mono-no{font-family:'Courier New',monospace}
-  .amount{margin-top:18px;background:#211d16;border-radius:14px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
-  .amount span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a89c81;font-weight:700}
-  .amount b{font-family:'Playfair Display',serif;font-size:30px;font-weight:800;color:#e6c878}
-  .note{margin-top:18px;font-size:12px;color:#9a8f76;font-style:italic}
+  body{background:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  img{width:min(86vmin,560px);height:auto;display:block}
 </style></head>
 <body>
-  <div class="card">
-    <div class="head">
-      <div class="mono">D</div>
-      <div class="brand">DEV<span class="g">CINE</span><small>Quét mã để chuyển khoản</small></div>
-    </div>
-    <div class="body">
-      <div class="qr"><img src="${vietQrUrl.value}" alt="VietQR" /></div>
-      <p class="hint">Mở app ngân hàng → quét mã. Số tiền &amp; nội dung tự điền.</p>
-      <div class="rows">
-        <div class="row"><span>Ngân hàng</span><b>${esc(b.name)}</b></div>
-        <div class="row"><span>Số tài khoản</span><b class="mono-no">${esc(b.accountNo)}</b></div>
-        <div class="row"><span>Chủ tài khoản</span><b>${esc(b.accountName)}</b></div>
-        <div class="row"><span>Nội dung</span><b>${esc(transferContent.value)}</b></div>
-      </div>
-      <div class="amount"><span>Số tiền</span><b>${fmt(totalPrice.value)}đ</b></div>
-      <p class="note">Sau khi khách chuyển khoản, nhân viên bấm "Xác nhận đã chuyển khoản" trên màn hình POS.</p>
-    </div>
-  </div>
+  <img src="${qrOnlyUrl.value}" alt="VietQR" />
 </body></html>`
 }
 
 const openQrFullscreen = () => {
-  if (!vietQrUrl.value) return
+  if (!qrOnlyUrl.value) return
   const win = window.open('', '_blank')
   if (!win) {
     showToast('Trình duyệt đã chặn cửa sổ. Hãy cho phép pop-up để hiển thị mã.', 'error')
