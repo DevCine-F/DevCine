@@ -79,19 +79,26 @@ public class DataSeeder {
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho STAFF.");
             }
 
-            // Seed admin user
-            if (!userRepository.existsByUsername("admin")) {
-                User adminUser = User.builder()
+            // Seed / đảm bảo tài khoản admin (admin / 123) — tạo mới nếu chưa có, reset mật khẩu nếu đã tồn tại
+            User adminUser = userRepository.findByUsername("admin").orElse(null);
+            if (adminUser == null) {
+                adminUser = User.builder()
                         .username("admin")
                         .email("admin@devcine.com")
-                        .passwordHash(passwordEncoder.encode("Admin@123"))
+                        .passwordHash(passwordEncoder.encode("123"))
                         .fullName("Quản trị viên")
                         .role(adminRole)
                         .isActive(true)
                         .createdAt(LocalDateTime.now())
                         .build();
                 userRepository.save(adminUser);
-                System.out.println("Đã tạo tài khoản admin mặc định (admin / Admin@123)");
+                System.out.println("Đã tạo tài khoản admin mặc định (admin / 123)");
+            } else if (!passwordEncoder.matches("123", adminUser.getPasswordHash())) {
+                adminUser.setPasswordHash(passwordEncoder.encode("123"));
+                adminUser.setRole(adminRole);
+                adminUser.setIsActive(true);
+                userRepository.save(adminUser);
+                System.out.println("Đã đặt lại mật khẩu tài khoản admin về (admin / 123)");
             }
 
             // Seed customer demo

@@ -28,7 +28,7 @@
 | **Lưu ảnh** | Cloudinary (poster, banner) |
 | **Cổng/Port** | Backend `:8080` · Frontend `:5173` |
 
-**Tài khoản seed sẵn (DataSeeder):** admin `admin / Admin@123` · khách demo `khachhang / Khach@123` (ví 500.000đ).
+**Tài khoản seed sẵn (DataSeeder):** admin `admin / 123` · khách demo `khachhang / Khach@123` (ví 500.000đ).
 
 ---
 
