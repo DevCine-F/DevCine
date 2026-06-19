@@ -231,7 +231,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
     </div>
 
     <!-- Modal -->
-    <AppModal v-model="isModalOpen" :title="editingItem ? 'Sửa danh mục' : 'Thêm danh mục mới'">
+    <AppModal :show="isModalOpen" @close="isModalOpen = false" :title="editingItem ? 'Sửa danh mục' : 'Thêm danh mục mới'">
       <div class="space-y-6 pt-4">
         <div v-if="activeTab === 'age-ratings'" class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã kiểm duyệt (Code)</label>
