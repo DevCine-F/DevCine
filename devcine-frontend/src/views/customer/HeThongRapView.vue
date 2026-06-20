@@ -137,10 +137,7 @@ onMounted(fetchCinemas)
               </div>
               <div class="flex flex-col justify-between py-1 min-w-0 flex-grow">
                 <div>
-                  <div class="flex items-center gap-2 mb-1">
-                    <h4 class="font-bold text-lg group-hover:text-primary transition-colors truncate">{{ cinema.name }}</h4>
-                    <span v-if="cinema.type?.includes('Premium') || cinema.type?.includes('IMAX')" class="material-symbols-outlined text-sm text-primary shrink-0">verified</span>
-                  </div>
+                  <h4 class="font-bold text-lg group-hover:text-primary transition-colors truncate mb-1">{{ cinema.name }}</h4>
                   <p class="text-[0.8rem] text-on-surface-variant line-clamp-2 leading-relaxed opacity-70">{{ cinema.address }}</p>
                 </div>
                 <div class="flex items-center gap-5 mt-3 flex-wrap">
