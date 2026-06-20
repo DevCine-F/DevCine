@@ -12,4 +12,7 @@ import java.util.List;
 public interface RoomRepository extends JpaRepository<Room, Integer> {
     @Query("SELECT r FROM Room r JOIN FETCH r.cinema c WHERE c.id = :cinemaId")
     List<Room> findByCinemaId(@Param("cinemaId") Integer cinemaId);
+
+    /** Đếm số phòng thực tế của một cụm rạp (đồng bộ số phòng hiển thị). */
+    long countByCinema_Id(Integer cinemaId);
 }

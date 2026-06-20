@@ -71,6 +71,50 @@ const handleCreate = () => {
             <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Số lượng phòng dự kiến</label>
             <input v-model.number="newCinema.rooms" type="number" min="1" max="20" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
           </div>
+
+          <!-- Thành phố -->
+          <div class="space-y-2 col-span-2 sm:col-span-1">
+            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Tỉnh / Thành phố <span class="text-red-500">*</span></label>
+            <input v-model="newCinema.city" type="text" placeholder="VD: Hồ Chí Minh" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+          </div>
+
+          <!-- Trạng thái -->
+          <div class="space-y-2 col-span-2 sm:col-span-1">
+            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Trạng thái hoạt động</label>
+            <select v-model="newCinema.status" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all appearance-none cursor-pointer">
+              <option value="ACTIVE" class="bg-surface-container-high">Đang hoạt động</option>
+              <option value="MAINTENANCE" class="bg-surface-container-high">Bảo trì</option>
+              <option value="CLOSED" class="bg-surface-container-high">Tạm đóng</option>
+            </select>
+          </div>
+
+          <!-- Ảnh rạp (URL) -->
+          <div class="space-y-2 col-span-2">
+            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Ảnh rạp (URL)</label>
+            <input v-model="newCinema.imageUrl" type="text" placeholder="https://..." class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+          </div>
+
+          <!-- Mô tả -->
+          <div class="space-y-2 col-span-2">
+            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Mô tả</label>
+            <textarea v-model="newCinema.description" rows="3" placeholder="Giới thiệu ngắn về cụm rạp..." class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all resize-none placeholder-white/20"></textarea>
+          </div>
+
+          <!-- Tiện ích -->
+          <div class="space-y-2 col-span-2">
+            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Tiện ích (cách nhau bằng dấu phẩy)</label>
+            <input v-model="newCinema.amenities" type="text" placeholder="IMAX, Dolby Atmos, Bãi đỗ xe..." class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+          </div>
+
+          <!-- Toạ độ -->
+          <div class="space-y-2 col-span-2 sm:col-span-1">
+            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Vĩ độ (Latitude)</label>
+            <input v-model.number="newCinema.latitude" type="number" step="any" placeholder="10.794903" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+          </div>
+          <div class="space-y-2 col-span-2 sm:col-span-1">
+            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Kinh độ (Longitude)</label>
+            <input v-model.number="newCinema.longitude" type="number" step="any" placeholder="106.721866" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-white/20">
+          </div>
         </div>
       </div>
 

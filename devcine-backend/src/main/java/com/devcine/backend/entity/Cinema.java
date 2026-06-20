@@ -34,6 +34,28 @@ public class Cinema {
     @Column
     private Integer rooms;
 
+    // ----- Thông tin mở rộng phục vụ trang khách (cột mới, ddl-auto update) -----
+
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
+    /** Danh sách tiện ích, lưu chuỗi ngăn cách bởi dấu phẩy (vd "IMAX,Dolby Atmos,Bãi đỗ xe"). */
+    @Column(columnDefinition = "TEXT")
+    private String amenities;
+
+    /** Trạng thái hoạt động: ACTIVE / MAINTENANCE / CLOSED. */
+    @Column(length = 20)
+    private String status;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id")
     private Staff manager;

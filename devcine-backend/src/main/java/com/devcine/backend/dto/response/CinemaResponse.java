@@ -19,6 +19,12 @@ public class CinemaResponse {
     private String type;
     private String hotline;
     private Integer rooms;
+    private String imageUrl;
+    private String description;
+    private Double latitude;
+    private Double longitude;
+    private String amenities;
+    private String status;
     private Integer managerId;
     private String managerName;
 
@@ -31,6 +37,12 @@ public class CinemaResponse {
                 .type(cinema.getType())
                 .hotline(cinema.getHotline())
                 .rooms(cinema.getRooms())
+                .imageUrl(cinema.getImageUrl())
+                .description(cinema.getDescription())
+                .latitude(cinema.getLatitude())
+                .longitude(cinema.getLongitude())
+                .amenities(cinema.getAmenities())
+                .status(cinema.getStatus())
                 .managerId(cinema.getManager() != null ? cinema.getManager().getUserId() : null)
                 .managerName((cinema.getManager() != null && cinema.getManager().getUser() != null) ? cinema.getManager().getUser().getFullName() : null)
                 .build();

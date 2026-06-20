@@ -11,9 +11,16 @@ export function useCinemas() {
   const newCinema = reactive({
     name: '',
     address: '',
+    city: 'Hồ Chí Minh',
     hotline: '',
     type: 'Standard',
-    rooms: 1
+    rooms: 1,
+    imageUrl: '',
+    description: '',
+    latitude: null,
+    longitude: null,
+    amenities: '',
+    status: 'ACTIVE'
   });
 
   const fetchCinemas = async () => {
@@ -115,7 +122,13 @@ export function useCinemas() {
         type: newCinema.type,
         hotline: newCinema.hotline,
         rooms: newCinema.rooms,
-        city: "Hồ Chí Minh" // Default for now
+        city: newCinema.city || "Hồ Chí Minh",
+        imageUrl: newCinema.imageUrl || null,
+        description: newCinema.description || null,
+        latitude: newCinema.latitude,
+        longitude: newCinema.longitude,
+        amenities: newCinema.amenities || null,
+        status: newCinema.status || "ACTIVE"
       });
       
       // Add missing mock properties for UI since BE doesn't have them yet
@@ -146,9 +159,16 @@ export function useCinemas() {
       // Reset form
       newCinema.name = '';
       newCinema.address = '';
+      newCinema.city = 'Hồ Chí Minh';
       newCinema.hotline = '';
       newCinema.type = 'Standard';
       newCinema.rooms = 1;
+      newCinema.imageUrl = '';
+      newCinema.description = '';
+      newCinema.latitude = null;
+      newCinema.longitude = null;
+      newCinema.amenities = '';
+      newCinema.status = 'ACTIVE';
       showCreateModal.value = false;
     } catch (error) {
       console.error("Error creating cinema:", error);

@@ -19,6 +19,11 @@ export default [
         component: () => import('../views/customer/HeThongRapView.vue')
       },
       {
+        path: 'he-thong-rap/:id',
+        name: 'cinema-detail',
+        component: () => import('../views/customer/CinemaDetailView.vue')
+      },
+      {
         path: 'khuyen-mai',
         name: 'khuyen-mai',
         component: () => import('../views/customer/KhuyenMaiView.vue')

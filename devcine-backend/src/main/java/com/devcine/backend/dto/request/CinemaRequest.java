@@ -24,8 +24,19 @@ public class CinemaRequest {
 
     private String hotline;
 
-    @NotNull(message = "Số phòng không được để trống")
     private Integer rooms;
+
+    private String imageUrl;
+
+    private String description;
+
+    private Double latitude;
+
+    private Double longitude;
+
+    private String amenities;
+
+    private String status;
 
     private Integer managerId;
 }
