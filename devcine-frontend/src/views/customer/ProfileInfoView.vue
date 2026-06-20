@@ -75,11 +75,11 @@ const tierInfo = computed(() => {
       nextTier: 'Max Tier',
       pointsNeeded: 0,
       percent: 100,
-      colorClass: 'text-sky-300',
-      bgGradient: 'from-slate-900 via-slate-800 to-indigo-950/70 border-sky-500/30',
-      badgeBg: 'bg-sky-500/20 text-sky-300 border border-sky-500/40',
-      glow: 'shadow-[0_0_35px_rgba(14,165,233,0.3)]',
-      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(14,165,233,0.15) 0%, transparent 60%)',
+      colorClass: 'text-sky-200',
+      bgGradient: 'from-[#0c1420] via-[#16243a] to-[#0a0e16] border-sky-400/30',
+      badgeBg: 'bg-sky-400/15 text-sky-200 border border-sky-400/40',
+      glow: 'shadow-[0_0_38px_rgba(56,189,248,0.28)]',
+      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(56,189,248,0.18) 0%, transparent 60%)',
       cardIcon: 'workspace_premium'
     }
   } else if (tier === 'GOLD' || points >= 5000) {
@@ -91,11 +91,11 @@ const tierInfo = computed(() => {
       nextTier: 'Platinum',
       pointsNeeded: needed,
       percent,
-      colorClass: 'text-amber-400',
-      bgGradient: 'from-amber-950/90 via-yellow-900/60 to-amber-900 border-amber-500/30',
-      badgeBg: 'bg-amber-500/20 text-amber-400 border border-amber-500/40',
-      glow: 'shadow-[0_0_35px_rgba(245,158,11,0.25)]',
-      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(245,158,11,0.15) 0%, transparent 60%)',
+      colorClass: 'text-primary',
+      bgGradient: 'from-[#241c06] via-[#3a2e08] to-[#16110a] border-primary/40',
+      badgeBg: 'bg-primary/15 text-primary border border-primary/40',
+      glow: 'shadow-[0_0_38px_rgba(245,197,24,0.3)]',
+      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(245,197,24,0.2) 0%, transparent 60%)',
       cardIcon: 'military_tech'
     }
   } else if (tier === 'SILVER' || points >= 2000) {
@@ -107,11 +107,11 @@ const tierInfo = computed(() => {
       nextTier: 'Gold',
       pointsNeeded: needed,
       percent,
-      colorClass: 'text-slate-300',
-      bgGradient: 'from-slate-800 via-zinc-800 to-slate-900 border-slate-500/30',
-      badgeBg: 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
-      glow: 'shadow-[0_0_30px_rgba(148,163,184,0.15)]',
-      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(148,163,184,0.1) 0%, transparent 60%)',
+      colorClass: 'text-slate-100',
+      bgGradient: 'from-[#1b1e24] via-[#2b313b] to-[#101216] border-slate-300/30',
+      badgeBg: 'bg-slate-300/15 text-slate-100 border border-slate-300/30',
+      glow: 'shadow-[0_0_32px_rgba(203,213,225,0.18)]',
+      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(203,213,225,0.14) 0%, transparent 60%)',
       cardIcon: 'stars'
     }
   } else {
@@ -122,11 +122,11 @@ const tierInfo = computed(() => {
       nextTier: 'Silver',
       pointsNeeded: needed,
       percent,
-      colorClass: 'text-amber-600',
-      bgGradient: 'from-stone-900 via-amber-950/30 to-stone-900 border-amber-800/20',
-      badgeBg: 'bg-amber-800/20 text-amber-600 border border-amber-800/30',
-      glow: 'shadow-[0_0_20px_rgba(217,119,6,0.05)]',
-      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(217,119,6,0.05) 0%, transparent 60%)',
+      colorClass: 'text-amber-500',
+      bgGradient: 'from-[#201712] via-[#3b2a1b] to-[#130d09] border-amber-600/30',
+      badgeBg: 'bg-amber-600/15 text-amber-500 border border-amber-600/40',
+      glow: 'shadow-[0_0_30px_rgba(217,119,6,0.2)]',
+      cardPattern: 'radial-gradient(circle at 80% 20%, rgba(217,119,6,0.18) 0%, transparent 60%)',
       cardIcon: 'hotel_class'
     }
   }

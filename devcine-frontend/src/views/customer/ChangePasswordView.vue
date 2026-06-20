@@ -62,17 +62,26 @@ const handleSubmit = async () => {
       <form @submit.prevent="handleSubmit" class="flex flex-col gap-6">
         <div>
           <label class="block text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-2">Mật khẩu hiện tại</label>
-          <input v-model="oldPassword" type="password" class="w-full bg-surface-container-highest border-none text-sm text-white px-4 py-3 rounded focus:ring-1 focus:ring-primary-container" placeholder="Nhập mật khẩu hiện tại" />
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">lock</span>
+            <input v-model="oldPassword" type="password" class="w-full bg-black/30 border border-outline-variant/25 text-sm text-white pl-11 pr-4 py-3.5 rounded-lg outline-none transition-all hover:border-outline-variant/40 focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 placeholder:text-on-surface-variant/40" placeholder="Nhập mật khẩu hiện tại" />
+          </div>
         </div>
 
         <div>
           <label class="block text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-2">Mật khẩu mới</label>
-          <input v-model="newPassword" type="password" class="w-full bg-surface-container-highest border-none text-sm text-white px-4 py-3 rounded focus:ring-1 focus:ring-primary-container" placeholder="Nhập mật khẩu mới (ít nhất 6 ký tự)" />
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">lock_reset</span>
+            <input v-model="newPassword" type="password" class="w-full bg-black/30 border border-outline-variant/25 text-sm text-white pl-11 pr-4 py-3.5 rounded-lg outline-none transition-all hover:border-outline-variant/40 focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 placeholder:text-on-surface-variant/40" placeholder="Nhập mật khẩu mới (ít nhất 6 ký tự)" />
+          </div>
         </div>
 
         <div>
           <label class="block text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-2">Xác nhận mật khẩu mới</label>
-          <input v-model="confirmPassword" type="password" class="w-full bg-surface-container-highest border-none text-sm text-white px-4 py-3 rounded focus:ring-1 focus:ring-primary-container" placeholder="Nhập lại mật khẩu mới" />
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">check_circle</span>
+            <input v-model="confirmPassword" type="password" class="w-full bg-black/30 border border-outline-variant/25 text-sm text-white pl-11 pr-4 py-3.5 rounded-lg outline-none transition-all hover:border-outline-variant/40 focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 placeholder:text-on-surface-variant/40" placeholder="Nhập lại mật khẩu mới" />
+          </div>
         </div>
 
         <div class="pt-4 border-t border-white/5 mt-2 flex justify-end">

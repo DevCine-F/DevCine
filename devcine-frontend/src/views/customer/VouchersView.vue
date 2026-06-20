@@ -228,13 +228,13 @@ onUnmounted(() => {
       <!-- Tìm / nhập mã -->
       <div>
         <div class="relative">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">{{ isLookingUp ? 'progress_activity' : 'search' }}</span>
+          <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/70 text-xl pointer-events-none" :class="{ 'animate-spin': isLookingUp }">{{ isLookingUp ? 'progress_activity' : 'search' }}</span>
           <input
             v-model="voucherSearch"
             @input="handleVoucherSearchInput"
             type="text"
             placeholder="Tìm voucher đang có hoặc nhập mã mới để lưu..."
-            class="w-full bg-surface-container-highest border-none text-sm text-white pl-11 pr-4 py-3 rounded-lg focus:ring-1 focus:ring-primary-container outline-none"
+            class="w-full bg-black/30 border border-outline-variant/25 text-sm text-white pl-12 pr-4 py-4 rounded-xl outline-none transition-all hover:border-outline-variant/40 focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 placeholder:text-on-surface-variant/40 shadow-lg"
           />
         </div>
 
