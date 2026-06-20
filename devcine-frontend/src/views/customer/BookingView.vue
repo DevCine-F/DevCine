@@ -328,7 +328,14 @@ const proceedToPayment = async () => {
       }
     }
   } else {
-    alert('Giữ ghế thất bại. Ghế có thể đã được đặt hoặc hết hạn giữ.')
+    const reason = store.lastHoldError || ''
+    if (/already taken|on hold/i.test(reason)) {
+      alert('Một số ghế bạn chọn vừa được người khác đặt. Vui lòng tải lại sơ đồ ghế và chọn ghế khác.')
+    } else {
+      alert(reason || 'Giữ ghế thất bại. Vui lòng thử lại.')
+    }
+    // Làm mới sơ đồ ghế để cập nhật trạng thái mới nhất
+    await store.fetchSeats()
   }
 }
 

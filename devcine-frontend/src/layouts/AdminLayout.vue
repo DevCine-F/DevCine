@@ -29,8 +29,14 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
         </RouterLink>
       </div>
 
-      <nav class="flex-grow px-4 space-y-2 overflow-y-auto">
-        <div class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Điều khiển</div>
+      <nav class="flex-grow px-4 space-y-1.5 overflow-y-auto">
+        <!-- ===== TỔNG QUAN & VẬN HÀNH ===== -->
+        <div class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
+
+        <router-link to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
+          <span class="font-semibold text-sm">Tổng quan</span>
+        </router-link>
 
         <router-link to="/admin/ticketing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">confirmation_number</span>
@@ -47,13 +53,8 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="font-semibold text-sm">Hoá đơn</span>
         </router-link>
 
-
-        <router-link to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
-          <span class="font-semibold text-sm">Tổng quan</span>
-        </router-link>
-
-        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Quản lý nội dung</div>
+        <!-- ===== PHIM & NỘI DUNG ===== -->
+        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Phim & Nội dung</div>
 
         <router-link to="/admin/movies" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">movie</span>
@@ -65,19 +66,27 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="font-semibold text-sm">Danh mục phim</span>
         </router-link>
 
-        <router-link to="/admin/banners" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">view_carousel</span>
-          <span class="font-semibold text-sm">Quản lý Banner</span>
-        </router-link>
-
         <router-link to="/admin/master-scheduling" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_month</span>
           <span class="font-semibold text-sm">Lịch chiếu & Điều phối</span>
         </router-link>
 
+        <router-link to="/admin/banners" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">view_carousel</span>
+          <span class="font-semibold text-sm">Quản lý Banner</span>
+        </router-link>
+
+        <!-- ===== RẠP & HẠ TẦNG ===== -->
+        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Rạp & Hạ tầng</div>
+
         <router-link to="/admin/cinemas" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">theater_comedy</span>
           <span class="font-semibold text-sm">Cụm rạp</span>
+        </router-link>
+
+        <router-link to="/admin/seat-map" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">grid_view</span>
+          <span class="font-semibold text-sm">Sơ đồ ghế</span>
         </router-link>
 
         <router-link to="/admin/fnb" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
@@ -90,26 +99,12 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="font-semibold text-sm">Quản lý kho (F&B)</span>
         </router-link>
 
-        <router-link to="/admin/seat-map" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">grid_view</span>
-          <span class="font-semibold text-sm">Sơ đồ ghế</span>
-        </router-link>
+        <!-- ===== KINH DOANH & KHÁCH HÀNG ===== -->
+        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
 
-        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Hệ thống</div>
-
-        <router-link to="/admin/staff" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">group</span>
-          <span class="font-semibold text-sm">Nhân viên</span>
-        </router-link>
-
-        <router-link to="/admin/permissions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">admin_panel_settings</span>
-          <span class="font-semibold text-sm">Phân quyền</span>
-        </router-link>
-
-        <router-link to="/admin/staff-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">event_available</span>
-          <span class="font-semibold text-sm">Phê duyệt ca trực</span>
+        <router-link to="/admin/pricing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">payments</span>
+          <span class="font-semibold text-sm">Quản lý giá</span>
         </router-link>
 
         <router-link to="/admin/promotions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
@@ -117,16 +112,6 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="font-semibold text-sm">Khuyến mãi</span>
         </router-link>
 
-        <router-link to="/admin/pricing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">payments</span>
-          <span class="font-semibold text-sm">Quản lý giá</span>
-        </router-link>
-
-        <router-link to="/admin/logs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">manage_search</span>
-          <span class="font-semibold text-sm">Nhật ký</span>
-        </router-link>
-        
         <router-link to="/admin/customers" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">groups</span>
           <span class="font-semibold text-sm">Khách hàng</span>
@@ -136,7 +121,38 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">support_agent</span>
           <span class="font-semibold text-sm">Chăm sóc khách hàng</span>
         </router-link>
-        
+
+        <router-link to="/admin/faqs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">quiz</span>
+          <span class="font-semibold text-sm">Câu hỏi (FAQ)</span>
+        </router-link>
+
+        <!-- ===== NHÂN SỰ ===== -->
+        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
+
+        <router-link to="/admin/staff" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">group</span>
+          <span class="font-semibold text-sm">Nhân viên</span>
+        </router-link>
+
+        <router-link to="/admin/staff-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">event_available</span>
+          <span class="font-semibold text-sm">Phê duyệt ca trực</span>
+        </router-link>
+
+        <!-- ===== HỆ THỐNG ===== -->
+        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Hệ thống</div>
+
+        <router-link to="/admin/permissions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">admin_panel_settings</span>
+          <span class="font-semibold text-sm">Phân quyền</span>
+        </router-link>
+
+        <router-link to="/admin/logs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">manage_search</span>
+          <span class="font-semibold text-sm">Nhật ký</span>
+        </router-link>
+
         <router-link to="/admin/settings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">settings</span>
           <span class="font-semibold text-sm">Cài đặt</span>

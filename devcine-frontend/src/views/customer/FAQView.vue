@@ -1,11 +1,63 @@
 <script setup>
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import api from '@/api/axios'
+
+const faqs = ref([])
+const loading = ref(true)
+const loadError = ref('')
+const selectedCategory = ref('')
+const searchQuery = ref('')
+
+const ICONS = {
+  'Đặt vé & Thanh toán': 'payments',
+  'Thành viên Prestige': 'stars',
+  'Quy định rạp': 'gavel',
+  'Ưu đãi & Khuyến mãi': 'local_offer'
+}
+const iconFor = (cat) => ICONS[cat] || 'help'
+
+const fetchFaqs = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { data } = await api.get('/faqs')
+    faqs.value = data
+    if (categories.value.length) selectedCategory.value = categories.value[0]
+  } catch (e) {
+    console.error('Lỗi tải FAQ', e)
+    loadError.value = 'Không thể tải nội dung. Vui lòng thử lại.'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Giữ thứ tự danh mục theo lần xuất hiện đầu tiên (backend đã sort)
+const categories = computed(() => {
+  const seen = []
+  faqs.value.forEach(f => { if (!seen.includes(f.category)) seen.push(f.category) })
+  return seen
+})
+
+const displayedFaqs = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    return faqs.value.filter(f =>
+      f.question?.toLowerCase().includes(q) || f.answer?.toLowerCase().includes(q)
+    )
+  }
+  return faqs.value.filter(f => f.category === selectedCategory.value)
+})
+
+const countOf = (cat) => faqs.value.filter(f => f.category === cat).length
+
+onMounted(fetchFaqs)
 </script>
 
 <template>
   <main class="min-h-screen">
-    <!-- Hero Section -->
-    <section class="relative min-h-[540px] pt-32 pb-16 flex flex-col items-center justify-center text-center overflow-hidden">
+    <!-- Hero -->
+    <section class="relative min-h-[460px] pt-32 pb-16 flex flex-col items-center justify-center text-center overflow-hidden">
       <div class="absolute inset-0 z-0">
         <img class="w-full h-full object-cover opacity-30" src="/images/Hopper.webp"/>
         <div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
@@ -18,100 +70,88 @@ import { RouterLink } from 'vue-router'
           <div class="absolute inset-y-0 left-6 flex items-center pointer-events-none">
             <span class="material-symbols-outlined text-primary-container">search</span>
           </div>
-          <input class="w-full bg-black/30 border border-white/10 focus:border-primary-container focus:ring-1 focus:ring-primary-container/30 text-white py-5 pl-16 pr-8 rounded-2xl font-body text-lg shadow-2xl placeholder:text-neutral-500 transition-all" placeholder="Tìm kiếm câu trả lời của bạn..." type="text"/>
+          <input v-model="searchQuery" type="text"
+                 class="w-full bg-black/30 border border-white/10 focus:border-primary-container focus:ring-1 focus:ring-primary-container/30 text-white py-5 pl-16 pr-8 rounded-2xl font-body text-lg shadow-2xl placeholder:text-neutral-500 transition-all"
+                 placeholder="Tìm kiếm câu trả lời của bạn..."/>
         </div>
       </div>
     </section>
 
-    <!-- Content Layout -->
+    <!-- Content -->
     <section class="max-w-[1440px] mx-auto px-6 md:px-10 py-12 flex flex-col md:flex-row gap-12">
-      <!-- Sidebar Navigation -->
+      <!-- Sidebar danh mục -->
       <aside class="md:w-1/4 space-y-2">
         <div class="sticky top-32">
           <h3 class="font-headline font-bold text-neutral-500 text-xs uppercase tracking-[0.2em] mb-6 px-4">Danh mục</h3>
           <nav class="flex flex-col gap-1">
-            <button class="flex items-center gap-4 px-4 py-4 rounded-lg bg-primary-container text-on-primary font-semibold text-left transition-all">
-              <span class="material-symbols-outlined">payments</span>
-              <span>Đặt vé & Thanh toán</span>
-            </button>
-            <button class="flex items-center gap-4 px-4 py-4 rounded-xl text-neutral-400 hover:bg-white/10 hover:text-white text-left transition-all group">
-              <span class="material-symbols-outlined group-hover:text-primary-container transition-colors">stars</span>
-              <span>Thành viên Prestige</span>
-            </button>
-            <button class="flex items-center gap-4 px-4 py-4 rounded-xl text-neutral-400 hover:bg-white/10 hover:text-white text-left transition-all group">
-              <span class="material-symbols-outlined group-hover:text-primary-container transition-colors">gavel</span>
-              <span>Quy định rạp</span>
-            </button>
-            <button class="flex items-center gap-4 px-4 py-4 rounded-xl text-neutral-400 hover:bg-white/10 hover:text-white text-left transition-all group">
-              <span class="material-symbols-outlined group-hover:text-primary-container transition-colors">local_offer</span>
-              <span>Ưu đãi & Khuyến mãi</span>
+            <button
+              v-for="cat in categories" :key="cat"
+              @click="selectedCategory = cat; searchQuery = ''"
+              class="flex items-center gap-4 px-4 py-4 rounded-xl text-left transition-all group"
+              :class="selectedCategory === cat && !searchQuery ? 'bg-primary-container text-on-primary font-semibold' : 'text-neutral-400 hover:bg-white/10 hover:text-white'"
+            >
+              <span class="material-symbols-outlined" :class="selectedCategory === cat && !searchQuery ? '' : 'group-hover:text-primary-container transition-colors'">{{ iconFor(cat) }}</span>
+              <span class="flex-grow">{{ cat }}</span>
+              <span class="text-xs opacity-60 font-mono">{{ countOf(cat) }}</span>
             </button>
           </nav>
           <div class="mt-12 p-6 rounded-2xl glass-card glass-shine-edge">
             <p class="text-sm text-neutral-400 mb-4 font-body leading-relaxed">Không tìm thấy điều bạn cần?</p>
-            <router-link to="/contact" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
-              LIÊN HỆ CHÚNG TÔI 
+            <RouterLink to="/contact" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
+              LIÊN HỆ CHÚNG TÔI
               <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
-            </router-link>
+            </RouterLink>
           </div>
         </div>
       </aside>
 
-      <!-- FAQ Accordions -->
+      <!-- Danh sách câu hỏi -->
       <div class="md:w-3/4 space-y-8">
         <div class="mb-10">
-          <h2 class="font-headline font-bold text-3xl text-on-surface mb-2">Đặt vé & Thanh toán</h2>
+          <h2 class="font-headline font-bold text-3xl text-on-surface mb-2">
+            {{ searchQuery ? `Kết quả cho "${searchQuery}"` : selectedCategory }}
+          </h2>
           <div class="h-1 w-20 bg-primary-container"></div>
         </div>
-        
-        <div class="space-y-4">
-          <!-- Question 1 -->
-          <details class="group glass-card rounded-2xl overflow-hidden mb-4" open>
+
+        <!-- Loading -->
+        <div v-if="loading" class="space-y-4">
+          <div v-for="i in 3" :key="i" class="h-20 glass-card rounded-2xl animate-pulse"></div>
+        </div>
+
+        <!-- Error -->
+        <div v-else-if="loadError" class="py-16 text-center glass-card rounded-2xl">
+          <span class="material-symbols-outlined text-4xl text-red-500/70 mb-3 block">error</span>
+          <p class="text-on-surface-variant mb-4">{{ loadError }}</p>
+          <button @click="fetchFaqs" class="text-primary-container font-bold text-sm">Thử lại</button>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="displayedFaqs.length === 0" class="py-16 text-center glass-card rounded-2xl">
+          <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-3 block">quiz</span>
+          <p class="text-on-surface-variant">{{ searchQuery ? 'Không tìm thấy câu hỏi phù hợp.' : 'Chưa có câu hỏi trong mục này.' }}</p>
+        </div>
+
+        <!-- Accordions -->
+        <div v-else class="space-y-4">
+          <details v-for="(f, idx) in displayedFaqs" :key="f.id" class="group glass-card rounded-2xl overflow-hidden" :open="idx === 0">
             <summary class="flex items-center justify-between p-6 cursor-pointer list-none">
-              <h4 class="font-headline font-semibold text-xl text-on-surface group-hover:text-primary-container transition-colors">Làm thế nào để đặt vé trực tuyến?</h4>
-              <span class="material-symbols-outlined text-neutral-500 group-open:rotate-180 transition-transform">expand_more</span>
+              <h4 class="font-headline font-semibold text-lg md:text-xl text-on-surface group-hover:text-primary-container transition-colors pr-4">{{ f.question }}</h4>
+              <span class="material-symbols-outlined text-neutral-500 group-open:rotate-180 transition-transform shrink-0">expand_more</span>
             </summary>
-            <div class="px-6 pb-8 text-on-surface-variant font-body leading-relaxed space-y-4">
-              <p>Bạn có thể đặt vé dễ dàng thông qua website chính thức hoặc ứng dụng di động của DevCine theo các bước sau:</p>
-              <ol class="list-decimal list-inside space-y-2 ml-4">
-                <li>Chọn phim và suất chiếu mong muốn.</li>
-                <li>Chọn vị trí ghế ngồi (Ghế Standard, VIP hoặc Sweetbox).</li>
-                <li>Lựa chọn bắp nước kèm theo (tùy chọn).</li>
-                <li>Thanh toán qua các phương thức: Ví điện tử (Momo, ShopeePay), Thẻ ATM/Visa/Mastercard.</li>
-              </ol>
-              <p>Sau khi đặt vé thành công, một mã QR Code sẽ được gửi về email và mục "Vé của tôi" trong ứng dụng.</p>
-            </div>
-          </details>
-          
-          <!-- Question 2 -->
-          <details class="group glass-card rounded-2xl overflow-hidden">
-            <summary class="flex items-center justify-between p-6 cursor-pointer list-none">
-              <h4 class="font-headline font-semibold text-xl text-on-surface group-hover:text-primary-container transition-colors">Hủy vé đã đặt có được hoàn tiền không?</h4>
-              <span class="material-symbols-outlined text-neutral-500 group-open:rotate-180 transition-transform">expand_more</span>
-            </summary>
-            <div class="px-6 pb-8 text-on-surface-variant font-body leading-relaxed">
-              <p>Theo quy định của DevCine, vé đã thanh toán thành công <strong>không được hoàn trả hoặc đổi lại</strong> dưới bất kỳ hình thức nào. Quý khách vui lòng kiểm tra kỹ thông tin phim, rạp chiếu, ngày giờ và số ghế trước khi tiến hành thanh toán.</p>
-              <div class="mt-4 p-4 bg-error-container/10 border-l-4 border-error-container rounded-r-md">
-                <p class="text-error text-sm">Lưu ý: Trong các trường hợp sự cố kỹ thuật từ phía rạp, chúng tôi sẽ hỗ trợ đổi suất chiếu hoặc hoàn tiền tùy theo tình huống cụ thể.</p>
-              </div>
-            </div>
+            <div class="px-6 pb-7 text-on-surface-variant font-body leading-relaxed whitespace-pre-line">{{ f.answer }}</div>
           </details>
         </div>
-        
-        <!-- CTA Section -->
+
+        <!-- CTA -->
         <div class="mt-20 p-12 glass-card glass-shine-edge rounded-3xl relative overflow-hidden text-center">
           <div class="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
           <div class="relative z-10">
             <h3 class="font-headline font-bold text-3xl mb-4">Vẫn còn thắc mắc?</h3>
-            <p class="text-on-surface-variant mb-8 max-w-lg mx-auto">Đội ngũ hỗ trợ của chúng tôi luôn sẵn sàng giải đáp mọi câu hỏi của bạn 24/7 qua các kênh hotline hoặc chat trực tuyến.</p>
-            <div class="flex flex-wrap justify-center gap-4">
-              <router-link to="/contact" class="bg-primary-container text-on-primary font-headline font-bold uppercase py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)] transition-all">
-                Liên hệ hỗ trợ
-              </router-link>
-              <button class="border border-outline-variant/40 text-on-surface font-headline font-bold uppercase py-4 px-10 rounded-sm hover:bg-white/5 transition-all">
-                Chat với chúng tôi
-              </button>
-            </div>
+            <p class="text-on-surface-variant mb-8 max-w-lg mx-auto">Đội ngũ hỗ trợ của chúng tôi luôn sẵn sàng giải đáp mọi câu hỏi của bạn qua hotline hoặc liên hệ trực tuyến.</p>
+            <RouterLink to="/contact" class="inline-block bg-primary-container text-on-primary font-headline font-bold uppercase py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)] transition-all">
+              Liên hệ hỗ trợ
+            </RouterLink>
           </div>
         </div>
       </div>
@@ -120,7 +160,5 @@ import { RouterLink } from 'vue-router'
 </template>
 
 <style scoped>
-details > summary::-webkit-details-marker {
-  display: none;
-}
+details > summary::-webkit-details-marker { display: none; }
 </style>

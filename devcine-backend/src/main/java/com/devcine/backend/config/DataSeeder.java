@@ -32,7 +32,8 @@ public class DataSeeder {
             CustomerRepository customerRepository,
             WalletRepository walletRepository,
             FnbItemRepository fnbItemRepository,
-            ShowtimeRepository showtimeRepository) {
+            ShowtimeRepository showtimeRepository,
+            FaqRepository faqRepository) {
         return args -> {
             if (systemSettingRepository.findById("LOYALTY_POINT_RATE").isEmpty()) {
                 systemSettingRepository.save(SystemSetting.builder()
@@ -374,6 +375,41 @@ public class DataSeeder {
             }
             if (updated) {
                 System.out.println("Đã đồng bộ cập nhật trạng thái phim thành công!");
+            }
+
+            // Seed nội dung FAQ trang Hỗ trợ (chạy một lần khi bảng trống)
+            if (faqRepository.count() == 0) {
+                List<Faq> faqs = List.of(
+                        Faq.builder().category("Đặt vé & Thanh toán").displayOrder(1).isActive(true)
+                                .question("Làm thế nào để đặt vé trực tuyến?")
+                                .answer("Bạn có thể đặt vé dễ dàng qua website DevCine theo các bước sau:\n1. Chọn phim và suất chiếu mong muốn.\n2. Chọn vị trí ghế ngồi (Standard, VIP hoặc Sweetbox).\n3. Lựa chọn bắp nước/combo kèm theo (tùy chọn).\n4. Thanh toán qua VNPAY hoặc chuyển khoản (mã VietQR).\nSau khi đặt vé thành công, thông tin vé sẽ được gửi về email và lưu trong mục \"Vé của tôi\".").build(),
+                        Faq.builder().category("Đặt vé & Thanh toán").displayOrder(2).isActive(true)
+                                .question("Hủy vé đã đặt có được hoàn tiền không?")
+                                .answer("Theo quy định của DevCine, vé đã thanh toán thành công không được hoàn trả hoặc đổi lại dưới bất kỳ hình thức nào. Quý khách vui lòng kiểm tra kỹ thông tin phim, rạp chiếu, ngày giờ và số ghế trước khi thanh toán. Trong trường hợp sự cố kỹ thuật từ phía rạp, chúng tôi sẽ hỗ trợ đổi suất chiếu hoặc hoàn tiền tùy tình huống.").build(),
+                        Faq.builder().category("Đặt vé & Thanh toán").displayOrder(3).isActive(true)
+                                .question("DevCine hỗ trợ những phương thức thanh toán nào?")
+                                .answer("Hiện DevCine hỗ trợ thanh toán qua cổng VNPAY và chuyển khoản ngân hàng bằng mã VietQR được sinh tự động. Số tiền và nội dung chuyển khoản đã được điền sẵn để bạn thanh toán nhanh chóng.").build(),
+                        Faq.builder().category("Thành viên Prestige").displayOrder(1).isActive(true)
+                                .question("Làm sao để tích điểm thành viên?")
+                                .answer("Mỗi giao dịch đặt vé thành công sẽ được tích điểm tự động vào tài khoản của bạn theo tỉ lệ quy đổi của hệ thống. Điểm tích lũy có thể dùng để đổi voucher ưu đãi trong mục \"Ưu đãi của tôi\".").build(),
+                        Faq.builder().category("Thành viên Prestige").displayOrder(2).isActive(true)
+                                .question("Đổi điểm lấy ưu đãi như thế nào?")
+                                .answer("Vào mục \"Ưu đãi của tôi\" → tab \"Đổi điểm lấy ưu đãi\", chọn voucher bạn muốn và xác nhận đổi. Hệ thống sẽ trừ điểm tương ứng và thêm voucher vào tài khoản để dùng khi thanh toán.").build(),
+                        Faq.builder().category("Quy định rạp").displayOrder(1).isActive(true)
+                                .question("Tôi cần đến rạp trước giờ chiếu bao lâu?")
+                                .answer("Quý khách nên có mặt tại rạp trước giờ chiếu khoảng 15–20 phút để check-in vé và ổn định chỗ ngồi. Vui lòng xuất trình mã vé tại quầy hoặc cổng soát vé.").build(),
+                        Faq.builder().category("Quy định rạp").displayOrder(2).isActive(true)
+                                .question("Phân loại độ tuổi phim có ý nghĩa gì?")
+                                .answer("DevCine áp dụng phân loại độ tuổi theo quy định: P (mọi đối tượng), K (dưới 13 có người lớn đi kèm), T13/T16/T18 (từ 13/16/18 tuổi). Vui lòng mang theo giấy tờ tùy thân khi cần xác minh độ tuổi.").build(),
+                        Faq.builder().category("Ưu đãi & Khuyến mãi").displayOrder(1).isActive(true)
+                                .question("Làm sao để nhận mã giảm giá?")
+                                .answer("Bạn có thể xem các chương trình đang chạy ở trang Khuyến mãi, lưu mã công khai hoặc nhập mã bí mật trong mục \"Ưu đãi của tôi\". Mã hợp lệ sẽ dùng được ngay ở bước thanh toán.").build(),
+                        Faq.builder().category("Ưu đãi & Khuyến mãi").displayOrder(2).isActive(true)
+                                .question("Có thể dùng nhiều voucher cho một đơn không?")
+                                .answer("Mỗi đơn đặt vé chỉ áp dụng được một voucher giảm giá. Hệ thống sẽ tính toán số tiền được giảm và hiển thị tổng thanh toán cuối cùng trước khi bạn xác nhận.").build()
+                );
+                faqRepository.saveAll(faqs);
+                System.out.println("Đã tạo " + faqs.size() + " câu hỏi FAQ mẫu.");
             }
 
             // Backfill thông tin mở rộng cho cụm rạp (idempotent: chỉ ghi khi imageUrl còn trống)

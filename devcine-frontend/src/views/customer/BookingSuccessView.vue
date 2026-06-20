@@ -69,6 +69,9 @@ const discount = computed(() => {
   const d = (store.totalPrice || 0) - (store.finalPrice || store.totalPrice || 0)
   return d > 0 ? d : 0
 })
+
+// Chỉ hiện thông tin giảm giá khi đơn THỰC SỰ được giảm (tránh hiện voucher tồn từ phiên cũ)
+const hasVoucher = computed(() => discount.value > 0)
 </script>
 
 <template>
@@ -148,9 +151,15 @@ const discount = computed(() => {
           <span class="text-white font-headline font-bold text-sm text-right">{{ paidAtText }}</span>
         </div>
 
-        <div v-if="discount > 0" class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
-          <span class="text-[#888] font-label text-xs flex-shrink-0">Giảm giá</span>
+        <!-- Số tiền được giảm -->
+        <div v-if="hasVoucher" class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Số tiền được giảm</span>
           <span class="text-green-400 font-headline font-bold text-sm">-{{ discount.toLocaleString('vi-VN') }} đ</span>
+        </div>
+        <!-- Tạm tính trước giảm (chỉ hiện khi có giảm) -->
+        <div v-if="discount > 0" class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Tạm tính</span>
+          <span class="text-on-surface-variant text-sm line-through">{{ (store.totalPrice || 0).toLocaleString('vi-VN') }} đ</span>
         </div>
 
         <div class="flex justify-between items-center gap-4 pt-4 pb-1">

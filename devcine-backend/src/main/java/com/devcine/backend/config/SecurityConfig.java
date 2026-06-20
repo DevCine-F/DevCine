@@ -48,6 +48,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/reviews/**").permitAll()
                 // Danh sách hệ thống rạp — công khai cho trang Cụm rạp
                 .requestMatchers(HttpMethod.GET, "/api/v1/cinemas/**").permitAll()
+                // FAQ trang Hỗ trợ — GET công khai; ghi vẫn được @PreAuthorize bảo vệ
+                .requestMatchers(HttpMethod.GET, "/api/faqs/**").permitAll()
                 // Danh sách khuyến mãi đang chạy — công khai cho trang Khuyến mãi
                 .requestMatchers(HttpMethod.GET, "/api/marketing/promotions/active").permitAll()
                 .requestMatchers("/api/payment/vnpay_return").permitAll()

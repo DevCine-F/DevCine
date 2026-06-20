@@ -16,6 +16,7 @@ export const useBookingStore = defineStore('booking', {
     bookingCode: null,
     paymentMethod: null, // Phương thức thanh toán đã chọn (VNPAY/TRANSFER/WALLET)
     paidAt: null, // Thời điểm thanh toán thành công (ISO string)
+    lastHoldError: '', // Thông điệp lỗi giữ ghế gần nhất (để hiển thị cho khách)
     availableSeats: [],
     matrixRow: 9,
     matrixCol: 10,
@@ -70,6 +71,17 @@ export const useBookingStore = defineStore('booking', {
     },
     setShowtime(showtime, cinema) {
       this.selectedShowtime = { ...showtime, cinema };
+      // Bắt đầu phiên đặt vé mới: dọn sạch lựa chọn cũ để tránh áp voucher/ghế/combo còn sót từ lần trước
+      this.selectedSeats = [];
+      this.selectedFnbs = [];
+      this.selectedVoucher = null;
+      this.totalPrice = 0;
+      this.finalPrice = 0;
+      this.bookingId = null;
+      this.bookingCode = null;
+      this.paymentMethod = null;
+      this.paidAt = null;
+      this.lastHoldError = '';
       this.bookingStep = 1;
     },
     toggleSeat(seat) {
@@ -126,6 +138,7 @@ export const useBookingStore = defineStore('booking', {
         return true;
       } catch (err) {
         console.error('Failed to hold seats', err);
+        this.lastHoldError = err.response?.data?.error || err.response?.data?.message || '';
         return false;
       }
     },

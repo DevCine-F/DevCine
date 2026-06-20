@@ -109,6 +109,11 @@ export default [
         component: () => import('../views/admin/CustomerSupport.vue')
       },
       {
+        path: 'faqs',
+        name: 'admin-faqs',
+        component: () => import('../views/admin/FaqManager.vue')
+      },
+      {
         path: 'banners',
         name: 'admin-banners',
         component: () => import('../views/admin/AdminBanners.vue')

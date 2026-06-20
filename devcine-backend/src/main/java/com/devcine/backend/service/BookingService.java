@@ -48,10 +48,20 @@ public class BookingService {
         List<BookingSeat> existingReservedSeats = bookingSeatRepository.findReservedSeatsByShowtime(request.getShowtimeId());
         for (BookingSeat reserved : existingReservedSeats) {
             if (request.getSeatIds().contains(reserved.getSeat().getId())) {
-                // If it's on HOLD but older than 10 minutes, we can override it (pretend it's free)
-                if ("HOLD".equals(reserved.getStatus()) && 
-                    reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(10))) {
-                    continue; 
+                boolean isHold = "HOLD".equals(reserved.getStatus());
+                // Chỗ giữ quá hạn (>10 phút) coi như đã được giải phóng
+                boolean isStale = reserved.getBooking().getCreatedAt() != null
+                        && reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(10));
+                // Chính khách này đang giữ ghế đó (vd quay lại từ bước thanh toán) — cho đặt lại ngay
+                boolean isSameCustomer = customer != null
+                        && reserved.getBooking().getCustomer() != null
+                        && customer.getUserId().equals(reserved.getBooking().getCustomer().getUserId());
+
+                if (isHold && (isStale || isSameCustomer)) {
+                    // Giải phóng chỗ giữ cũ để tránh khoá ghế trùng và rác HOLD
+                    reserved.setStatus("EXPIRED");
+                    bookingSeatRepository.save(reserved);
+                    continue;
                 }
                 throw new RuntimeException("Seat " + reserved.getSeat().getId() + " is already taken or on hold.");
             }

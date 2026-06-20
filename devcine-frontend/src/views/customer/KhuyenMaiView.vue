@@ -1,10 +1,26 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
-import { promotionApi } from '@/api/customer/index'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import { promotionApi, voucherApi } from '@/api/customer/index'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 const promotions = ref([])
 const isLoading = ref(false)
+const savingId = ref(null)
+const savedIds = ref(new Set())
+
+// Toast
+const toast = ref({ show: false, type: 'success', message: '' })
+let toastTimer = null
+const showToast = (message, type = 'success') => {
+  toast.value = { show: true, type, message }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
+}
+const errMsg = (e, fb) => e?.response?.data?.message || e?.response?.data?.error || fb
 
 const fetchPromotions = async () => {
   isLoading.value = true
@@ -18,6 +34,8 @@ const fetchPromotions = async () => {
   }
 }
 
+const isPointPromo = (p) => p.allowPointRedemption && Number(p.pointsRequired) > 0
+
 const formatValue = (p) => {
   if (p.discountType === 'PERCENTAGE') return `Giảm ${Number(p.discountValue)}%`
   return `Giảm ${Number(p.discountValue).toLocaleString('vi-VN')}đ`
@@ -28,7 +46,48 @@ const formatEnd = (iso) => {
   return 'HSD ' + new Date(iso).toLocaleDateString('vi-VN')
 }
 
+const requireLogin = () => {
+  if (!authStore.isAuthenticated || !authStore.user?.id) {
+    showToast('Vui lòng đăng nhập để lưu ưu đãi', 'error')
+    router.push('/login')
+    return false
+  }
+  return true
+}
+
+// Mã đổi-điểm: trừ điểm rồi lưu voucher
+const redeemPoints = async (p) => {
+  if (!requireLogin()) return
+  if (!confirm(`Dùng ${Number(p.pointsRequired).toLocaleString('vi-VN')} điểm để đổi mã "${p.code}"?`)) return
+  savingId.value = p.id
+  try {
+    await voucherApi.redeem(authStore.user.id, p.id)
+    savedIds.value.add(p.id)
+    showToast('Đã đổi & lưu vào "Ưu đãi của tôi"')
+  } catch (e) {
+    showToast(errMsg(e, 'Đổi điểm thất bại (có thể không đủ điểm).'), 'error')
+  } finally {
+    savingId.value = null
+  }
+}
+
+// Mã miễn phí: lưu thẳng vào tài khoản
+const claimCode = async (p) => {
+  if (!requireLogin()) return
+  savingId.value = p.id
+  try {
+    await voucherApi.claim(authStore.user.id, p.code)
+    savedIds.value.add(p.id)
+    showToast('Đã lưu mã vào "Ưu đãi của tôi"')
+  } catch (e) {
+    showToast(errMsg(e, 'Lưu mã thất bại.'), 'error')
+  } finally {
+    savingId.value = null
+  }
+}
+
 onMounted(fetchPromotions)
+onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>
 
 <template>
@@ -73,16 +132,44 @@ onMounted(fetchPromotions)
             <span v-if="promo.pointsRequired > 0" class="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-1 rounded">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
           </div>
           <p class="text-on-surface-variant text-sm leading-relaxed mb-6 flex-grow">
-            {{ formatValue(promo) }} khi đặt vé tại DevCine. Đổi bằng điểm tích luỹ. {{ formatEnd(promo.endDate) }}.
+            {{ formatValue(promo) }} khi đặt vé tại DevCine.
+            {{ isPointPromo(promo) ? 'Đổi bằng điểm tích luỹ.' : 'Lưu mã để dùng khi thanh toán.' }}
+            {{ formatEnd(promo.endDate) }}.
           </p>
-          <RouterLink to="/profile/vouchers"
-                  class="self-start flex items-center gap-2 text-primary-container font-bold text-xs uppercase tracking-widest hover:opacity-80 transition-opacity">
+
+          <!-- Đã lưu -->
+          <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between">
+            <span class="flex items-center gap-2 text-green-400 font-bold text-xs uppercase tracking-widest">
+              <span class="material-symbols-outlined text-sm">check_circle</span> Đã lưu
+            </span>
+            <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-xs uppercase tracking-widest hover:opacity-80">Ưu đãi của tôi →</RouterLink>
+          </div>
+
+          <!-- Nút đổi điểm (mã point) -->
+          <button v-else-if="isPointPromo(promo)" @click="redeemPoints(promo)" :disabled="savingId === promo.id"
+                  class="self-start flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-amber-500/20 transition-all disabled:opacity-60">
             <span class="material-symbols-outlined text-sm">redeem</span>
-            Đổi bằng điểm
-          </RouterLink>
+            {{ savingId === promo.id ? 'Đang đổi...' : `Đổi ${Number(promo.pointsRequired).toLocaleString('vi-VN')} điểm` }}
+          </button>
+
+          <!-- Nút lưu mã (mã free) -->
+          <button v-else @click="claimCode(promo)" :disabled="savingId === promo.id"
+                  class="self-start flex items-center gap-2 bg-primary-container text-on-primary font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-lg hover:brightness-110 transition-all disabled:opacity-60">
+            <span class="material-symbols-outlined text-sm">bookmark_add</span>
+            {{ savingId === promo.id ? 'Đang lưu...' : 'Lưu mã' }}
+          </button>
         </div>
       </div>
     </section>
+
+    <!-- Toast -->
+    <transition name="fade">
+      <div v-if="toast.show" :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
+           class="fixed bottom-8 right-8 z-[200] px-6 py-4 rounded-xl shadow-2xl text-white flex items-center gap-3 max-w-sm">
+        <span class="material-symbols-outlined text-lg">{{ toast.type === 'error' ? 'error' : 'check_circle' }}</span>
+        <span class="text-sm font-bold">{{ toast.message }}</span>
+      </div>
+    </transition>
 
     <!-- Newsletter / CTA -->
     <section class="mt-24 bg-surface-container rounded-sm p-12 border border-outline-variant/20 relative overflow-hidden">

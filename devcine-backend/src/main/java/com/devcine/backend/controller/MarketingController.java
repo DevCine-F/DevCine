@@ -39,8 +39,10 @@ public class MarketingController {
     @GetMapping("/promotions/active")
     public ResponseEntity<?> getActivePromotions() {
         LocalDateTime now = LocalDateTime.now();
+        // Trả mọi promotion đang trong thời gian áp dụng (cả mã đổi-điểm lẫn mã lưu-miễn-phí);
+        // FE dựa vào allowPointRedemption + pointsRequired để chọn nút "Đổi điểm" hay "Lưu mã".
         List<Map<String, Object>> result = promotionRepository.findAll().stream()
-                .filter(p -> Boolean.TRUE.equals(p.getAllowPointRedemption()))
+                .filter(p -> p.getCode() != null && !p.getCode().isBlank())
                 .filter(p -> (p.getStartDate() == null || !p.getStartDate().isAfter(now))
                         && (p.getEndDate() == null || !p.getEndDate().isBefore(now)))
                 .map(p -> Map.<String, Object>of(
@@ -50,7 +52,8 @@ public class MarketingController {
                         "discountValue", p.getDiscountValue() != null ? p.getDiscountValue() : 0,
                         "startDate", p.getStartDate() != null ? p.getStartDate().toString() : "",
                         "endDate", p.getEndDate() != null ? p.getEndDate().toString() : "",
-                        "pointsRequired", p.getPointsRequired() != null ? p.getPointsRequired() : 0
+                        "pointsRequired", p.getPointsRequired() != null ? p.getPointsRequired() : 0,
+                        "allowPointRedemption", Boolean.TRUE.equals(p.getAllowPointRedemption())
                 ))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
