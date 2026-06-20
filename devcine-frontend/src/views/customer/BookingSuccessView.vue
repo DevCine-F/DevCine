@@ -44,7 +44,6 @@ onMounted(async () => {
 const paymentLabel = (m) => ({
   VNPAY: 'VNPAY',
   TRANSFER: 'Chuyển khoản (VietQR)',
-  WALLET: 'Ví DevCine',
   CASH: 'Tiền mặt',
   CARD: 'Thẻ ngân hàng'
 }[m] || m || '—')

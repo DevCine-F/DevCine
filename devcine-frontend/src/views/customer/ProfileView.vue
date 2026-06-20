@@ -1,5 +1,14 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push('/')
+}
 </script>
 
 <template>
@@ -31,10 +40,10 @@ import { RouterLink } from 'vue-router'
             Đổi mật khẩu
           </router-link>
           <hr class="my-2 border-white/5"/>
-          <router-link to="/" class="flex items-center gap-3 px-4 py-3 text-error hover:bg-error/5 transition-colors text-sm border-l-4 border-transparent">
+          <button type="button" @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-error hover:bg-error/5 transition-colors text-sm border-l-4 border-transparent text-left w-full">
             <span class="material-symbols-outlined text-xl">logout</span>
             Đăng xuất
-          </router-link>
+          </button>
         </nav>
       </aside>
       

@@ -13,6 +13,7 @@ const authStore = useAuthStore()
 
 const movie = ref({})
 const loading = ref(true)
+const loadError = ref(false)
 const activeDateStr = ref('')
 
 // --- Đánh giá phim ---
@@ -91,20 +92,8 @@ onMounted(async () => {
       movie.value = response.data
     })
     .catch(e => {
-      // mock data if api fails
-      movie.value = {
-        id: movieId,
-        titleVietnamese: 'PHIM SUPER MARIO THIÊN HÀ - P (LỒNG TIẾNG)',
-        title: 'SUPER MARIO GALAXY',
-        posterUrl: '/images/Hopper.webp',
-        format: '2D',
-        durationMins: 99,
-        director: 'Aaron Horvath, Michael Jelenic',
-        castMembers: 'Chris Pratt, Anya Taylor-Joy, Charlie Day, Jack Black, Keegan-Michael Key',
-        releaseDate: '2026-04-01',
-        description: 'Phim Super Mario Thiên Hà là một bộ phim hoạt hình được lấy bối cảnh trong thế giới của Anh Em Super Mario và là phần tiếp theo của Phim Anh Em Super Mario - tác phẩm ra mắt năm 2023 và đạt doanh thu hơn 1,3 tỷ đô la trên toàn cầu. Cả hai bộ phim Phim Anh Em Super Mario (2023) và Phim Super Mario Thiên Hà đều do Chris...',
-        ageRating: 'P'
-      }
+      console.error('Không tải được thông tin phim', e)
+      loadError.value = true
     })
 
   await Promise.all([
@@ -214,6 +203,18 @@ const groupShowtimesByFormat = (showtimes) => {
         </div>
       </div>
     </section>
+  </main>
+
+  <main v-else-if="loadError" class="min-h-screen bg-[#111111] text-white flex items-center justify-center px-6">
+    <div class="text-center max-w-md">
+      <span class="material-symbols-outlined text-6xl text-error mb-4">error</span>
+      <h2 class="text-2xl font-headline font-bold text-white mb-2 uppercase tracking-tight">Không tải được thông tin phim</h2>
+      <p class="text-on-surface-variant mb-8">Phim không tồn tại hoặc đã xảy ra lỗi khi kết nối máy chủ. Vui lòng thử lại.</p>
+      <div class="flex items-center justify-center gap-4">
+        <RouterLink to="/lich-chieu" class="px-6 py-3 bg-primary-container text-on-primary font-bold rounded-full hover:brightness-110 transition-all">Xem lịch chiếu</RouterLink>
+        <RouterLink to="/" class="px-6 py-3 border border-white/15 text-white font-bold rounded-full hover:bg-white/5 transition-all">Về trang chủ</RouterLink>
+      </div>
+    </div>
   </main>
 
   <main v-else class="min-h-screen bg-[#111111] text-white">

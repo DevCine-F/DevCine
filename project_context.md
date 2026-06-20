@@ -9,10 +9,10 @@
 
 **DevCine** là hệ thống website **quản lý rạp chiếu phim & đặt vé xem phim trực tuyến** (fullstack, đồ án tốt nghiệp), phục vụ 2 nhóm người dùng:
 
-- **Khách hàng:** duyệt phim → xem lịch chiếu → chọn ghế + combo F&B → áp voucher → thanh toán (VNPAY/Ví điện tử) → nhận vé QR → xem lịch sử/hồ sơ.
+- **Khách hàng:** duyệt phim → xem lịch chiếu → chọn ghế + combo F&B → áp voucher → thanh toán (VNPAY) → nhận vé QR → xem lịch sử/hồ sơ.
 - **Quản trị/Nhân viên:** quản lý phim, suất chiếu, rạp/phòng/ghế, bán vé tại quầy (POS), check-in vé bằng QR, kho F&B, nhân sự & ca trực, khuyến mãi, định giá, dashboard, CSKH.
 
-**Tính năng cốt lõi:** Đặt vé online, thanh toán ví/VNPAY, sinh & quét vé QR, loyalty points + hạng thành viên, quản trị vận hành rạp toàn diện.
+**Tính năng cốt lõi:** Đặt vé online, thanh toán VNPAY, sinh & quét vé QR, loyalty points + hạng thành viên, quản trị vận hành rạp toàn diện.
 
 ---
 
@@ -24,11 +24,11 @@
 | **Frontend** | Vue.js 3.5 (`<script setup>` / Composition API) · Vite 8 · Pinia 3 · Vue Router 5 · TailwindCSS 4 · Axios |
 | **Database** | PostgreSQL 15+ (hosted trên Supabase, region AWS Singapore) |
 | **Auth** | JWT (JJWT 0.12.6, HMAC) + BCryptPasswordEncoder, stateless |
-| **Thanh toán** | Cổng VNPAY + Ví điện tử nội bộ (Wallet) |
+| **Thanh toán** | Cổng VNPAY (khách) + CASH/CARD/TRANSFER tại quầy (POS). _Ví điện tử nội bộ đã gỡ bỏ 21/06/2026._ |
 | **Lưu ảnh** | Cloudinary (poster, banner) |
 | **Cổng/Port** | Backend `:8080` · Frontend `:5173` |
 
-**Tài khoản seed sẵn (DataSeeder):** admin `admin / 123` · khách demo `khachhang / Khach@123` (ví 500.000đ).
+**Tài khoản seed sẵn (DataSeeder):** admin `admin / 123` · khách demo `khachhang / Khach@123`.
 
 ---
 
@@ -80,14 +80,14 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 > ⚠️ **Khoảng cách thực tế:** nhiều controller hiện trả `Map`/entity trực tiếp và dùng `@CrossOrigin(origins="*")` thay vì lớp `ApiResponse<T>` thống nhất + `@ControllerAdvice`. Đây là một hạng mục nợ kỹ thuật cần chuẩn hóa dần.
 
 ### 3.5 File "bất khả xâm phạm" (cẩn trọng + báo cáo khi chạm vào)
-`config/SecurityConfig.java` · `util/JwtUtil.java` · `service/WalletService.java` · `service/BookingService.java` · `service/PricingService.java` · `pom.xml`/`package.json` · `entity/*.java` (đổi schema).
+`config/SecurityConfig.java` · `util/JwtUtil.java` · `service/BookingService.java` · `service/PricingService.java` · `pom.xml`/`package.json` · `entity/*.java` (đổi schema). _(WalletService đã bị gỡ khỏi dự án.)_
 
 ---
 
 ## 4. Tiến độ hiện tại (~92% tổng thể)
 
 ### 4.1 ĐÃ hoàn thiện (kết nối FE↔BE↔DB thật)
-**Khách hàng:** Đăng ký/Đăng nhập (JWT), Trang chủ & danh sách phim, Lịch chiếu, Hệ thống rạp, Chi tiết phim + **đánh giá sao/bình luận**, Đặt vé (chọn ghế + F&B + voucher, hold ghế 10', tính giá server), Thanh toán VNPAY + Ví + tích điểm/nâng hạng, Hồ sơ cá nhân (xem+sửa), Lịch sử đặt vé, Đổi mật khẩu, Ví điện tử, **Voucher của tôi**, **Tìm kiếm phim (debounce)**, **Khuyến mãi (Promotion thật)**, **Thông báo (badge + đánh dấu đã đọc)**.
+**Khách hàng:** Đăng ký/Đăng nhập (JWT), Trang chủ & danh sách phim, Lịch chiếu, Hệ thống rạp, Chi tiết phim + **đánh giá sao/bình luận**, Đặt vé (chọn ghế + F&B + voucher, hold ghế 10', tính giá server), Thanh toán VNPAY + tích điểm/nâng hạng, Hồ sơ cá nhân (xem+sửa), Lịch sử đặt vé, Đổi mật khẩu, **Voucher của tôi**, **Tìm kiếm phim (debounce)**, **Khuyến mãi (Promotion thật)**, **Thông báo (badge + đánh dấu đã đọc)**.
 
 **Quản trị:** Đăng nhập admin (JWT + chặn role), Dashboard, Quản lý phim (CRUD + Cloudinary), Danh mục phim, Banner, Điều phối lịch chiếu (Master Scheduling), Quản lý rạp/phòng, Sơ đồ ghế, Nhân sự & ca trực, POS bán vé, Check-in QR, Khuyến mãi & phát voucher, Định giá, Kho F&B, CSKH, Cài đặt, **Nhật ký hệ thống (ghi thật)**, **Phân quyền chi tiết (@PreAuthorize + ma trận DB)**.
 

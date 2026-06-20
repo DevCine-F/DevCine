@@ -14,7 +14,7 @@ export const useBookingStore = defineStore('booking', {
     bookingStep: 1, // 1: Select Seat, 2: F&B, 3: Payment, 4: Success
     bookingId: null,
     bookingCode: null,
-    paymentMethod: null, // Phương thức thanh toán đã chọn (VNPAY/TRANSFER/WALLET)
+    paymentMethod: null, // Phương thức thanh toán đã chọn (VNPAY/TRANSFER)
     paidAt: null, // Thời điểm thanh toán thành công (ISO string)
     lastHoldError: '', // Thông điệp lỗi giữ ghế gần nhất (để hiển thị cho khách)
     availableSeats: [],

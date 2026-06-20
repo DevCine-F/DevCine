@@ -31,12 +31,6 @@ export const paymentApi = {
   vnpayReturn: (queryString) => api.get(`/payment/vnpay_return?${queryString}`),
 };
 
-export const walletApi = {
-  getWallet: (customerId) => api.get(`/wallets/customer/${customerId}`),
-  getTransactions: (walletId) => api.get(`/wallets/${walletId}/transactions`),
-  createDeposit: (amount, customerId) => api.post('/payment/create_deposit', null, { params: { amount, customerId } }),
-};
-
 export const voucherApi = {
   getActiveVouchers: (customerId) => api.get(`/vouchers/customer/${customerId}`),
   getAllVouchers: (customerId) => api.get(`/vouchers/customer/${customerId}/all`),
@@ -67,6 +61,10 @@ export const notificationApi = {
   getUnreadCount: (customerId) => api.get(`/notifications/customer/${customerId}/unread-count`),
   markAsRead: (id) => api.put(`/notifications/${id}/read`),
   markAllAsRead: (customerId) => api.put(`/notifications/customer/${customerId}/read-all`),
+};
+
+export const supportApi = {
+  createTicket: (data) => api.post('/support-tickets', data),
 };
 
 export const authApi = {

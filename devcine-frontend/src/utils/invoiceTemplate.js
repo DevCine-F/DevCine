@@ -13,7 +13,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(code)}`
 
 export const paymentLabel = (m) =>
-  ({ CASH: 'Tiền mặt', CARD: 'Thẻ / QR', TRANSFER: 'Chuyển khoản QR', WALLET: 'Ví điện tử', VNPAY: 'VNPAY' }[m] || m || '—')
+  ({ CASH: 'Tiền mặt', CARD: 'Thẻ / QR', TRANSFER: 'Chuyển khoản QR', VNPAY: 'VNPAY' }[m] || m || '—')
 
 export function buildInvoiceHtml(inv) {
   const movie = esc(inv.movie)

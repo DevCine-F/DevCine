@@ -9,7 +9,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +20,6 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final CustomerRepository customerRepository;
-    private final WalletRepository walletRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
@@ -58,13 +56,6 @@ public class AuthService {
                 .loyaltyPoints(0)
                 .build();
         customerRepository.save(customer);
-
-        Wallet wallet = Wallet.builder()
-                .customer(customer)
-                .balance(BigDecimal.ZERO)
-                .status("ACTIVE")
-                .build();
-        walletRepository.save(wallet);
 
         log.info("Registered new customer: {}", username);
         return Map.of(

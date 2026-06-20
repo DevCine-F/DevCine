@@ -27,8 +27,6 @@ public class BookingService {
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
     private final TicketRepository ticketRepository;
-    private final WalletRepository walletRepository;
-    private final WalletTransactionRepository walletTransactionRepository;
     private final SystemSettingRepository systemSettingRepository;
     private final NotificationService notificationService;
     private final InventoryService inventoryService;
@@ -166,33 +164,6 @@ public class BookingService {
             return; // Already processed
         }
         
-        // If paid with wallet, deduct balance
-        if ("WALLET".equalsIgnoreCase(paymentMethod)) {
-            if (booking.getCustomer() == null) {
-                throw new RuntimeException("Guest booking cannot pay with Wallet");
-            }
-            Wallet wallet = walletRepository.findByCustomerUserId(booking.getCustomer().getUserId())
-                    .orElseThrow(() -> new RuntimeException("Wallet not found for customer"));
-            
-            if (wallet.getBalance().compareTo(booking.getFinalPrice()) < 0) {
-                throw new RuntimeException("Insufficient wallet balance");
-            }
-            
-            // Deduct balance
-            wallet.setBalance(wallet.getBalance().subtract(booking.getFinalPrice()));
-            walletRepository.save(wallet);
-            
-            // Create Transaction Log
-            WalletTransaction wt = WalletTransaction.builder()
-                    .wallet(wallet)
-                    .type("PAYMENT")
-                    .amount(booking.getFinalPrice().negate())
-                    .description("Thanh toán đơn vé: " + booking.getBookingCode())
-                    .createdAt(LocalDateTime.now())
-                    .build();
-            walletTransactionRepository.save(wt);
-        }
-
         // Loyalty points and membership tiers update
         if (booking.getCustomer() != null) {
             Customer customer = booking.getCustomer();

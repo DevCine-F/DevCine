@@ -259,7 +259,7 @@ const processPayment = async (method) => {
 // ===== In hoá đơn (mở tab mới: hoá đơn + vé QR soát cổng) =====
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(code)}`
-const paymentLabel = (m) => ({ CASH: 'Tiền mặt', CARD: 'Thẻ / QR', TRANSFER: 'Chuyển khoản QR', WALLET: 'Ví điện tử' }[m] || m)
+const paymentLabel = (m) => ({ CASH: 'Tiền mặt', CARD: 'Thẻ / QR', TRANSFER: 'Chuyển khoản QR' }[m] || m)
 
 const buildInvoiceHtml = () => {
   const st = selectedShowtime.value

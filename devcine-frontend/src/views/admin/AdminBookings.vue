@@ -20,7 +20,7 @@ const STATUS_TABS = [
   { value: 'HOLD', label: 'Đang giữ' },
   { value: 'CANCELLED', label: 'Đã huỷ' }
 ]
-const METHODS = ['CASH', 'CARD', 'TRANSFER', 'WALLET', 'VNPAY']
+const METHODS = ['CASH', 'CARD', 'TRANSFER', 'VNPAY']
 
 // Dropdown phương thức (custom — khớp theme tối)
 const methodOpen = ref(false)

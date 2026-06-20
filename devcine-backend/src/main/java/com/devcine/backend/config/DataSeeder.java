@@ -22,7 +22,6 @@ import com.devcine.backend.entity.SeatType;
 import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.entity.SystemSetting;
 import com.devcine.backend.entity.User;
-import com.devcine.backend.entity.Wallet;
 import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.FaqRepository;
@@ -35,7 +34,6 @@ import com.devcine.backend.repository.SeatTypeRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.SystemSettingRepository;
 import com.devcine.backend.repository.UserRepository;
-import com.devcine.backend.repository.WalletRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -56,7 +54,6 @@ public class DataSeeder {
             RoleRepository roleRepository,
             UserRepository userRepository,
             CustomerRepository customerRepository,
-            WalletRepository walletRepository,
             FnbItemRepository fnbItemRepository,
             ShowtimeRepository showtimeRepository,
             FaqRepository faqRepository) {
@@ -148,11 +145,6 @@ public class DataSeeder {
                         .loyaltyPoints(500)
                         .build();
                 customerRepository.save(demoCustomer);
-                walletRepository.save(Wallet.builder()
-                        .customer(demoCustomer)
-                        .balance(new BigDecimal("500000"))
-                        .status("ACTIVE")
-                        .build());
                 System.out.println("Đã tạo tài khoản demo khách hàng (khachhang / Khach@123)");
             }
 

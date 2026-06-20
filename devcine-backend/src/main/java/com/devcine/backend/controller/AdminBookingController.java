@@ -150,7 +150,7 @@ public class AdminBookingController {
         if (method == null) return "—";
         switch (method.toUpperCase()) {
             case "CASH": case "CARD": case "TRANSFER": return "Quầy (POS)";
-            case "WALLET": case "VNPAY": return "Online";
+            case "VNPAY": return "Online";
             default: return method;
         }
     }

@@ -1,7 +1,7 @@
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
-import { paymentApi, walletApi, voucherApi } from '@/api/customer'
+import { paymentApi, voucherApi } from '@/api/customer'
 import { settingsApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -11,7 +11,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const paymentMethod = ref('VNPAY')
-const walletBalance = ref(0)
 
 // ===== Điều hướng wizard từng bước =====
 const currentStep = ref(1)
@@ -147,13 +146,6 @@ onMounted(async () => {
   loadBankInfo()
 
   if (authStore.isAuthenticated && authStore.user?.id) {
-    // Fetch wallet info
-    try {
-      const walletRes = await walletApi.getWallet(authStore.user.id)
-      walletBalance.value = walletRes.data.balance
-    } catch (err) {
-      console.error('Failed to fetch wallet info', err)
-    }
     // Fetch active vouchers
     try {
       const voucherRes = await voucherApi.getActiveVouchers(authStore.user.id)
