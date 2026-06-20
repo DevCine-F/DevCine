@@ -27,7 +27,18 @@ public class MovieController {
         return movieService.searchMovies(q);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/now-showing")
+    public List<MovieSummaryDTO> getNowShowing() {
+        return movieService.getNowShowing();
+    }
+
+    @GetMapping("/upcoming")
+    public List<MovieSummaryDTO> getUpcoming() {
+        return movieService.getUpcoming();
+    }
+
+    // Ràng buộc chỉ khớp id dạng số để không nuốt các path như /now-showing, /search
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<Movie> getMovieById(@PathVariable Integer id) {
         Movie movie = movieService.getMovieById(id);
         if (movie != null) {

@@ -21,6 +21,22 @@ public class MovieService {
                 .collect(Collectors.toList());
     }
 
+    /** Phim đang chiếu (status = active). */
+    public List<MovieSummaryDTO> getNowShowing() {
+        return movieRepository.findAllWithGenres().stream()
+                .filter(m -> "active".equalsIgnoreCase(m.getStatus()))
+                .map(this::toSummary)
+                .collect(Collectors.toList());
+    }
+
+    /** Phim sắp chiếu (status = upcoming). */
+    public List<MovieSummaryDTO> getUpcoming() {
+        return movieRepository.findAllWithGenres().stream()
+                .filter(m -> "upcoming".equalsIgnoreCase(m.getStatus()))
+                .map(this::toSummary)
+                .collect(Collectors.toList());
+    }
+
     public List<MovieSummaryDTO> searchMovies(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return List.of();

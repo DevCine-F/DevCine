@@ -1,28 +1,28 @@
 <script setup>
-import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { onMounted, ref } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
 import { useBookingStore } from '@/stores/booking'
 import { paymentApi } from '@/api/customer'
 
 const route = useRoute()
-const router = useRouter()
 const store = useBookingStore()
 
 const isLoading = ref(true)
 const paymentStatus = ref('')
 
 onMounted(async () => {
-  const savedState = sessionStorage.getItem('bookingState')
-  if (savedState) {
-    store.$patch(JSON.parse(savedState))
-  }
-
   if (route.query.vnp_SecureHash) {
+    // Quay về từ VNPAY: khôi phục state đã lưu trước khi chuyển hướng rồi xác thực chữ ký
+    const savedState = sessionStorage.getItem('bookingState')
+    if (savedState) store.$patch(JSON.parse(savedState))
     try {
       const queryString = window.location.search.substring(1)
       const { data } = await paymentApi.vnpayReturn(queryString)
       if (data.code === '00') {
         paymentStatus.value = 'success'
+        store.paymentMethod = 'VNPAY'
+        if (!store.paidAt) store.paidAt = new Date().toISOString()
+        sessionStorage.removeItem('bookingState')
       } else {
         paymentStatus.value = 'failed'
         alert(data.message || 'Giao dịch thất bại')
@@ -35,9 +35,39 @@ onMounted(async () => {
       isLoading.value = false
     }
   } else {
+    // Thanh toán nội bộ (chuyển khoản / ví): dùng trực tiếp state trong store
     paymentStatus.value = 'success'
     isLoading.value = false
   }
+})
+
+const paymentLabel = (m) => ({
+  VNPAY: 'VNPAY',
+  TRANSFER: 'Chuyển khoản (VietQR)',
+  WALLET: 'Ví DevCine',
+  CASH: 'Tiền mặt',
+  CARD: 'Thẻ ngân hàng'
+}[m] || m || '—')
+
+const showtimeText = computed(() => {
+  const st = store.selectedShowtime
+  if (!st?.startTime) return '—'
+  const d = new Date(st.startTime)
+  return `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • ${d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}`
+})
+
+const paidAtText = computed(() =>
+  store.paidAt ? new Date(store.paidAt).toLocaleString('vi-VN') : '—'
+)
+
+const seatsText = computed(() =>
+  store.selectedSeats.map(s => s.rowChar + s.colNum).join(', ') || '—'
+)
+
+const totalAmount = computed(() => store.finalPrice || store.totalPrice || 0)
+const discount = computed(() => {
+  const d = (store.totalPrice || 0) - (store.finalPrice || store.totalPrice || 0)
+  return d > 0 ? d : 0
 })
 </script>
 
@@ -69,88 +99,82 @@ onMounted(async () => {
       <p class="font-label text-sm uppercase tracking-[0.2em] text-on-surface-variant">CÓ LỖI XẢY RA TRONG QUÁ TRÌNH THANH TOÁN</p>
     </div>
 
-    <!-- Digital Ticket -->
-    <div class="relative z-10 w-full max-w-md bg-[#222] rounded-xl overflow-hidden shadow-2xl" v-if="!isLoading && paymentStatus === 'success'" id="digital-ticket">
-      
-      <!-- Top Section: Movie & Cinema -->
-      <div class="px-6 pt-8 pb-4 text-center flex flex-col items-center">
-        <h2 class="font-headline font-bold text-2xl text-white mb-2 uppercase leading-snug">{{ store.selectedMovie?.title || store.selectedShowtime?.movie || 'THỎ ƠI !!' }}</h2>
-        <span class="inline-block px-2.5 py-0.5 border border-primary-container text-primary-container text-[10px] font-bold rounded-sm mb-4 uppercase">{{ store.selectedShowtime?.formatName || '2D PHỤ ĐỀ' }}</span>
-        <p class="font-headline font-bold text-lg text-[#00bcd4] mb-1">{{ store.selectedShowtime?.cinema?.cinemaName || 'Beta Mỹ Đình' }}</p>
-        <p class="text-on-surface-variant font-label text-[11px] leading-relaxed max-w-[90%]">{{ store.selectedShowtime?.cinema?.address || 'Tầng hầm B1, tòa nhà Golden Palace, Phường Từ Liêm, Thành phố Hà Nội.' }}</p>
+    <!-- Thông tin đơn hàng vừa đặt (dữ liệu thật) -->
+    <div class="relative z-10 w-full max-w-md bg-[#1c1c1c] rounded-2xl overflow-hidden shadow-2xl border border-white/5" v-if="!isLoading && paymentStatus === 'success'">
+
+      <!-- Movie & Cinema -->
+      <div class="px-6 pt-7 pb-5 text-center flex flex-col items-center border-b border-[#333]">
+        <h2 class="font-headline font-bold text-2xl text-white mb-2 uppercase leading-snug">{{ store.selectedMovie?.title || store.selectedShowtime?.movieTitle || '—' }}</h2>
+        <span v-if="store.selectedShowtime?.formatName" class="inline-block px-2.5 py-0.5 border border-primary-container text-primary-container text-[10px] font-bold rounded-sm mb-3 uppercase">{{ store.selectedShowtime.formatName }}</span>
+        <p class="font-headline font-bold text-lg text-[#00bcd4] mb-1">{{ store.selectedShowtime?.cinema?.cinemaName || store.selectedShowtime?.cinema?.name || '—' }}</p>
+        <p v-if="store.selectedShowtime?.cinema?.address" class="text-on-surface-variant font-label text-[11px] leading-relaxed max-w-[90%]">{{ store.selectedShowtime.cinema.address }}</p>
       </div>
 
-      <!-- Divider -->
-      <div class="px-6 py-2">
-        <div class="w-full border-t border-[#333]"></div>
-      </div>
-
-      <!-- Middle Section: Transaction Details (List format) -->
+      <!-- Chi tiết đơn -->
       <div class="px-6 py-4">
-        <div class="flex justify-between py-2 border-b border-[#333]/50">
-          <span class="text-[#888] font-label text-xs">Phòng chiếu</span>
-          <span class="text-white font-headline font-bold text-sm">{{ store.selectedShowtime?.room?.name || 'Phòng 01' }}</span>
+        <div class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Suất chiếu</span>
+          <span class="text-white font-headline font-bold text-sm text-right">{{ showtimeText }}</span>
         </div>
-        <div class="flex justify-between py-2 border-b border-[#333]/50">
-          <span class="text-[#888] font-label text-xs">Ghế ngồi</span>
-          <span class="text-white font-headline font-bold text-sm">{{ store.selectedSeats.map(s => s.rowChar + s.colNum).join(', ') || 'J1, J2' }}</span>
+        <div class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Phòng chiếu</span>
+          <span class="text-white font-headline font-bold text-sm text-right">{{ store.selectedShowtime?.room?.name || '—' }}</span>
         </div>
-        <div class="flex justify-between py-2 border-b border-[#333]/50">
-          <span class="text-[#888] font-label text-xs">Phương thức thanh toán</span>
-          <span class="text-white font-headline font-bold text-sm">VNPAY</span>
+        <div class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Ghế ngồi</span>
+          <span class="text-primary-container font-headline font-bold text-sm text-right">{{ seatsText }}</span>
         </div>
-        <div class="flex justify-between py-2 border-b border-[#333]/50">
-          <span class="text-[#888] font-label text-xs">Combo/Dịch vụ</span>
-          <span class="text-white font-headline font-bold text-sm">0 đ</span>
+
+        <!-- Combo / đồ ăn -->
+        <div class="py-2.5 border-b border-[#333]/50">
+          <div class="flex justify-between gap-4">
+            <span class="text-[#888] font-label text-xs flex-shrink-0">Combo / Đồ ăn</span>
+            <span v-if="store.selectedFnbs.length === 0" class="text-white font-headline font-bold text-sm">Không có</span>
+          </div>
+          <div v-if="store.selectedFnbs.length > 0" class="mt-2 space-y-1">
+            <div v-for="f in store.selectedFnbs" :key="f.fnbItem.id" class="flex justify-between gap-4 text-sm">
+              <span class="text-white/90">{{ f.quantity }} × {{ f.fnbItem.name }}</span>
+              <span class="text-white/70 font-mono">{{ (f.quantity * f.fnbItem.price).toLocaleString('vi-VN') }} đ</span>
+            </div>
+          </div>
         </div>
-        <div class="flex justify-between py-2 border-b border-[#333]/50">
-          <span class="text-[#888] font-label text-xs">Giảm giá</span>
-          <span class="text-white font-headline font-bold text-sm">{{ (store.totalPrice - store.finalPrice) > 0 ? '-' + (store.totalPrice - store.finalPrice).toLocaleString('vi-VN') : '0' }} đ</span>
+
+        <div class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Phương thức thanh toán</span>
+          <span class="text-white font-headline font-bold text-sm text-right">{{ paymentLabel(store.paymentMethod) }}</span>
         </div>
-        <div class="flex justify-between py-3">
-          <span class="text-white font-label text-xs uppercase tracking-widest font-bold">Tổng thanh toán</span>
-          <span class="text-primary-container font-headline font-bold text-lg">{{ (store.finalPrice || store.totalPrice || 0).toLocaleString('vi-VN') }} đ</span>
+        <div class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Thời gian thanh toán</span>
+          <span class="text-white font-headline font-bold text-sm text-right">{{ paidAtText }}</span>
+        </div>
+
+        <div v-if="discount > 0" class="flex justify-between gap-4 py-2.5 border-b border-[#333]/50">
+          <span class="text-[#888] font-label text-xs flex-shrink-0">Giảm giá</span>
+          <span class="text-green-400 font-headline font-bold text-sm">-{{ discount.toLocaleString('vi-VN') }} đ</span>
+        </div>
+
+        <div class="flex justify-between items-center gap-4 pt-4 pb-1">
+          <span class="text-white font-label text-xs uppercase tracking-widest font-bold">Tổng giá trị đơn</span>
+          <span class="text-primary-container font-headline font-extrabold text-2xl">{{ totalAmount.toLocaleString('vi-VN') }} đ</span>
         </div>
       </div>
 
-      <!-- Perforated Divider -->
-      <div class="relative flex items-center justify-center h-4 my-2">
-        <div class="absolute left-0 -translate-x-1/2 w-4 h-4 bg-[#0A0A0A] rounded-full border border-[#333]/50"></div>
-        <div class="absolute right-0 translate-x-1/2 w-4 h-4 bg-[#0A0A0A] rounded-full border border-[#333]/50"></div>
-        <div class="w-full border-t-[3px] border-dotted border-[#555]"></div>
-      </div>
-
-      <!-- Bottom Section: Stub with QR -->
-      <div class="px-6 py-6 text-center flex flex-col items-center">
-        <p class="font-label text-[10px] text-[#888] uppercase tracking-[0.1em] mb-1">MÃ VÉ (RESERVATION CODE)</p>
-        <p class="font-headline font-bold text-3xl text-white mb-6 tracking-wider">{{ store.bookingCode || '6365611024328022' }}</p>
-
-        <div class="p-3 bg-white rounded-md mb-6 inline-block shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-          <img :src="'https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=' + (store.bookingCode || 'DEV-CINE')" class="w-32 h-32 mix-blend-multiply" />
-        </div>
-
-        <p class="font-label text-[10px] text-[#888] uppercase tracking-[0.1em] mb-1">SUẤT CHIẾU (SESSION)</p>
-        <p class="font-headline font-bold text-xl text-white">
-          {{ store.selectedShowtime ? new Date(store.selectedShowtime.startTime).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) : '22:00' }} - {{ store.selectedShowtime ? new Date(store.selectedShowtime.startTime).toLocaleDateString('vi-VN') : '21/02/2026' }}
-        </p>
-      </div>
-
-      <!-- Instructions Footer -->
-      <div class="p-5 bg-[#1a1a1a] border-t border-[#333] text-left">
-        <p class="text-white font-label text-xs mb-1.5 leading-relaxed">Quý khách vui lòng tới quầy dịch vụ xuất trình mã vé này để được nhận vé.</p>
-        <p class="text-[#888] italic font-label text-[10px] leading-relaxed">Please go to the service counter and present your booking code to receive the physical ticket to check-in.</p>
+      <!-- Ghi chú gửi vé -->
+      <div class="p-5 bg-[#161616] border-t border-[#333] text-left flex items-start gap-3">
+        <span class="material-symbols-outlined text-primary-container text-lg flex-shrink-0">mark_email_read</span>
+        <p class="text-on-surface-variant font-label text-[11px] leading-relaxed">Mã vé điện tử sẽ được gửi về email của bạn. Bạn cũng có thể xem lại vé trong mục "Vé của tôi".</p>
       </div>
     </div>
 
     <!-- Action Buttons -->
-    <div class="relative z-10 mt-6 grid grid-cols-2 gap-3 w-full max-w-md">
-      <router-link to="/" class="bg-transparent border border-outline-variant text-on-surface font-headline font-bold text-xs uppercase tracking-widest py-3 rounded-sm hover:bg-primary-container/10 transition-all active:scale-[0.98] text-center flex items-center justify-center">TRANG CHỦ</router-link>
-      <router-link to="/profile" class="bg-transparent border border-outline-variant text-on-surface font-headline font-bold text-xs uppercase tracking-widest py-3 rounded-sm hover:bg-primary-container/10 transition-all active:scale-[0.98] text-center flex items-center justify-center">VÉ CỦA TÔI</router-link>
-      
-      <!-- Save Image Button placeholder (not functional yet) -->
-      <button @click="() => alert('Tính năng tải vé đang được phát triển!')" class="col-span-2 bg-primary-container text-on-primary font-headline font-bold text-sm uppercase tracking-widest py-3.5 rounded-sm hover:bg-primary-fixed-dim transition-all active:scale-[0.98] text-center flex items-center justify-center gap-2">
-        <span class="material-symbols-outlined text-[20px]">download</span> LƯU ẢNH VÉ
-      </button>
+    <div class="relative z-10 mt-6 grid grid-cols-2 gap-3 w-full max-w-md" v-if="!isLoading && paymentStatus === 'success'">
+      <router-link to="/" class="bg-transparent border border-outline-variant text-on-surface font-headline font-bold text-xs uppercase tracking-widest py-3.5 rounded-sm hover:bg-primary-container/10 transition-all active:scale-[0.98] text-center flex items-center justify-center">TRANG CHỦ</router-link>
+      <router-link to="/profile" class="bg-primary-container text-on-primary font-headline font-bold text-xs uppercase tracking-widest py-3.5 rounded-sm hover:brightness-110 transition-all active:scale-[0.98] text-center flex items-center justify-center">VÉ CỦA TÔI</router-link>
+    </div>
+
+    <!-- Nút khi thất bại -->
+    <div class="relative z-10 mt-6 w-full max-w-md" v-else-if="!isLoading">
+      <router-link to="/" class="block bg-transparent border border-outline-variant text-on-surface font-headline font-bold text-xs uppercase tracking-widest py-3.5 rounded-sm hover:bg-primary-container/10 transition-all text-center">VỀ TRANG CHỦ</router-link>
     </div>
   </main>
 </template>

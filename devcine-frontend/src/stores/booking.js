@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, acceptHMRUpdate } from 'pinia'
 import { bookingApi, seatApi, fnbApi, showtimeApi } from '../api/customer'
 import { useAuthStore } from './auth'
 
@@ -14,6 +14,8 @@ export const useBookingStore = defineStore('booking', {
     bookingStep: 1, // 1: Select Seat, 2: F&B, 3: Payment, 4: Success
     bookingId: null,
     bookingCode: null,
+    paymentMethod: null, // Phương thức thanh toán đã chọn (VNPAY/TRANSFER/WALLET)
+    paidAt: null, // Thời điểm thanh toán thành công (ISO string)
     availableSeats: [],
     matrixRow: 9,
     matrixCol: 10,
@@ -117,6 +119,7 @@ export const useBookingStore = defineStore('booking', {
         const { data } = await bookingApi.holdSeats(payload);
         this.bookingId = data.id;
         this.bookingCode = data.bookingCode;
+        this.paymentMethod = paymentMethod;
         // Giá cuối do backend tính (đã trừ voucher) — dùng làm số tiền thanh toán chuẩn
         this.finalPrice = data.finalPrice;
         this.bookingStep = 3;
@@ -130,6 +133,8 @@ export const useBookingStore = defineStore('booking', {
       if (!this.bookingId) return false;
       try {
         await bookingApi.completePayment(this.bookingId, paymentMethod);
+        this.paymentMethod = paymentMethod;
+        this.paidAt = new Date().toISOString();
         this.bookingStep = 4; // Success
         return true;
       } catch (err) {
@@ -148,6 +153,13 @@ export const useBookingStore = defineStore('booking', {
       this.bookingStep = 1;
       this.bookingId = null;
       this.bookingCode = null;
+      this.paymentMethod = null;
+      this.paidAt = null;
     }
   }
 })
+
+// Cho phép HMR cập nhật store khi dev (tránh giữ state/action cũ sau khi sửa)
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useBookingStore, import.meta.hot))
+}
