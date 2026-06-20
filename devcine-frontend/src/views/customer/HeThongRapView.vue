@@ -27,6 +27,8 @@ const cities = computed(() => {
   return ['Tất cả', ...new Set(all)]
 })
 
+const totalRooms = computed(() => cinemas.value.reduce((sum, c) => sum + (c.rooms || 0), 0))
+
 const filteredCinemas = computed(() => {
   let list = cinemas.value
   if (selectedCity.value !== 'Tất cả') list = list.filter(c => c.city === selectedCity.value)
@@ -47,24 +49,39 @@ onMounted(fetchCinemas)
     <!-- Hero -->
     <section class="max-w-[1440px] mx-auto px-6 md:px-10 mb-16 relative overflow-hidden">
       <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 blur-[120px] -z-10 rounded-full"></div>
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-outline-variant/30 pb-12">
-        <div class="max-w-3xl">
-          <span class="text-primary font-bold tracking-[0.3em] uppercase text-xs mb-4 block">Hệ thống rạp chiếu</span>
-          <h1 class="text-5xl md:text-7xl font-bold font-headline tracking-tighter mb-6 leading-[0.9]">
-            Trải nghiệm <br/><span class="text-primary italic">Điện ảnh</span> Đẳng cấp
-          </h1>
-          <p class="text-on-surface-variant text-lg md:text-xl leading-relaxed max-w-xl">
-            Sở hữu công nghệ IMAX® và âm thanh Dolby Atmos® hiện đại nhất, DevCine mang đến không gian giải trí sang trọng và tinh tế cho mọi tín đồ điện ảnh.
-          </p>
-        </div>
-        <div class="flex gap-4">
-          <div class="p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center min-w-[120px]">
-            <div class="text-3xl font-bold text-primary">{{ cinemas.length }}</div>
-            <div class="text-[0.625rem] uppercase tracking-widest text-on-surface-variant">Cụm rạp toàn quốc</div>
+      <div class="border-b border-outline-variant/30 pb-12">
+        <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+          <div class="max-w-2xl">
+            <span class="text-primary font-bold tracking-[0.3em] uppercase text-xs mb-4 block">Hệ thống rạp DevCine</span>
+            <h1 class="text-5xl md:text-7xl font-bold font-headline tracking-tighter mb-6 leading-[0.9]">
+              Trải nghiệm <br/><span class="text-primary italic">Điện ảnh</span> Đẳng cấp
+            </h1>
+            <p class="text-on-surface-variant text-base md:text-lg leading-relaxed mb-7">
+              DevCine hiện vận hành <span class="text-on-surface font-bold">{{ cinemas.length }} cụm rạp</span> tại TP. Hồ Chí Minh, trang bị phòng chiếu <span class="text-on-surface font-bold">IMAX</span>, âm thanh <span class="text-on-surface font-bold">Dolby Atmos</span> và ghế đôi <span class="text-on-surface font-bold">Sweetbox</span>. Đặt vé, chọn ghế và thanh toán trực tuyến chỉ trong vài bước.
+            </p>
+            <!-- Chip công nghệ thực tế -->
+            <div class="flex flex-wrap gap-2.5">
+              <span v-for="f in ['IMAX', 'Dolby Atmos', 'Sweetbox', 'Đặt vé online']" :key="f"
+                    class="px-3.5 py-1.5 rounded-full bg-surface-container-high/60 border border-outline-variant/20 text-xs font-bold text-on-surface-variant">
+                {{ f }}
+              </span>
+            </div>
           </div>
-          <div class="p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center min-w-[120px]">
-            <div class="text-3xl font-bold text-primary">{{ cities.length - 1 }}</div>
-            <div class="text-[0.625rem] uppercase tracking-widest text-on-surface-variant">Tỉnh thành phố</div>
+
+          <!-- Thống kê (kích thước đồng nhất) -->
+          <div class="grid grid-cols-3 gap-3 shrink-0">
+            <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
+              <div class="text-3xl font-bold text-primary">{{ cinemas.length }}</div>
+              <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Cụm rạp</div>
+            </div>
+            <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
+              <div class="text-3xl font-bold text-primary">{{ cities.length - 1 }}</div>
+              <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Tỉnh / Thành</div>
+            </div>
+            <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
+              <div class="text-3xl font-bold text-primary">{{ totalRooms }}</div>
+              <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Phòng chiếu</div>
+            </div>
           </div>
         </div>
       </div>

@@ -175,7 +175,7 @@ onMounted(fetchAll)
                 <button
                   v-for="ds in availableDates" :key="ds"
                   @click="selectedDate = ds"
-                  class="flex flex-col items-center px-5 py-3 rounded-2xl border shrink-0 transition-all"
+                  class="flex flex-col items-center justify-center w-24 h-20 rounded-2xl border shrink-0 transition-all"
                   :class="selectedDate === ds ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20' : 'border-outline-variant/20 hover:border-primary/40'"
                 >
                   <span class="text-[0.65rem] font-bold uppercase tracking-widest opacity-80">{{ dateLabel(ds).weekday }}</span>
