@@ -123,7 +123,7 @@ const openEditVoucher = (promo) => {
     value: promo.discountValue != null ? Number(promo.discountValue) : null,
     allowPointExchange: !!promo.allowPointRedemption,
     pointsRequired: promo.pointsRequired || null,
-    title: '', description: '',
+    title: promo.name || '', description: promo.description || '',
     expiry: promo.endDate ? String(promo.endDate).slice(0, 10) : '',
     cinemaMode: 'all', selectedCinemas: []
   }
@@ -158,6 +158,8 @@ const handleSaveVoucher = async () => {
   try {
     const payload = {
       code: newVoucher.value.code.trim().toUpperCase(),
+      name: newVoucher.value.title?.trim() || null,
+      description: newVoucher.value.description?.trim() || null,
       discountType: newVoucher.value.type,
       discountValue: Number(newVoucher.value.value),
       endDate: newVoucher.value.expiry ? `${newVoucher.value.expiry}T23:59:59` : null,
@@ -179,6 +181,22 @@ const handleSaveVoucher = async () => {
     isSavingVoucher.value = false
   }
 }
+
+// Sao chép mã voucher nhanh
+const handleCopyCode = async (code) => {
+  if (!code) return
+  try {
+    await navigator.clipboard.writeText(code)
+    showToast(`Đã sao chép mã ${code}.`)
+  } catch (err) {
+    showToast('Không thể sao chép mã.', 'error')
+  }
+}
+
+// Xem chi tiết voucher
+const detailTarget = ref(null)
+const openDetail = (promo) => { detailTarget.value = promo }
+const closeDetail = () => { detailTarget.value = null }
 
 // Xoá voucher với xác nhận
 const deleteTarget = ref(null)
@@ -263,10 +281,13 @@ const fetchMarketingData = async () => {
     promotions.value = data.map(p => ({
       id: p.id,
       code: p.code,
+      name: p.name,
+      description: p.description,
       discountType: p.discountType,
       discountValue: p.discountValue,
       startDate: p.startDate,
       endDate: p.endDate,
+      isStackable: p.isStackable,
       pointsRequired: p.pointsRequired,
       allowPointRedemption: p.allowPointRedemption
     }))
@@ -351,46 +372,90 @@ onUnmounted(() => {
         <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4">sell</span>
         <p class="text-on-surface-variant font-semibold">Chưa có voucher nào. Bấm "Tạo Voucher" để thêm mới.</p>
       </div>
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <div v-for="promo in promotions" :key="promo.id" class="relative group">
-          <div class="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-purple-500/50 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-          <div class="relative bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden shadow-xl">
-            <div class="p-6">
-              <div class="flex justify-between items-start mb-6">
-                <div class="px-4 py-2 bg-primary/10 rounded-xl border border-primary/20">
-                  <span class="font-black text-xl tracking-widest text-primary font-mono uppercase">{{ promo.code }}</span>
-                </div>
-                <span :class="promoStatus(promo) === 'active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'" class="text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-widest">
+          <!-- Glow nhẹ khi hover -->
+          <div class="absolute -inset-px bg-gradient-to-br from-primary/30 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition duration-300"></div>
+
+          <div class="relative rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-primary/30 shadow-lg shadow-black/30 transition-all duration-300">
+            <!-- ===== Cuống vé: Mức giảm (hero) ===== -->
+            <div class="relative bg-surface-container px-4 pt-2.5 pb-4 cursor-pointer overflow-hidden" @click="openDetail(promo)" title="Bấm để xem chi tiết">
+              <!-- vệt sáng vàng dịu góc trái -->
+              <div class="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none"></div>
+              <span class="material-symbols-outlined absolute -right-3 -bottom-4 text-[88px] leading-none text-primary/5 select-none pointer-events-none">local_activity</span>
+
+              <div class="relative flex items-center justify-between">
+                <span class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
+                  <span class="material-symbols-outlined text-xs">sell</span> Voucher
+                </span>
+                <span :class="promoStatus(promo) === 'active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'" class="shrink-0 inline-flex items-center gap-1 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
+                  <span v-if="promoStatus(promo) === 'active'" class="w-1 h-1 rounded-full bg-green-400 animate-pulse"></span>
                   {{ promoStatus(promo) === 'active' ? 'Đang chạy' : 'Hết hạn' }}
                 </span>
               </div>
 
-              <div class="space-y-3 pt-2">
-                <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mức giảm</span>
-                  <span class="text-sm font-black text-primary">{{ promo.discountType === 'PERCENTAGE' ? Number(promo.discountValue) + '%' : Number(promo.discountValue).toLocaleString() + 'đ' }}</span>
+              <div class="relative mt-2 flex items-end gap-1.5">
+                <span class="text-3xl font-black text-primary leading-none tracking-tight">{{ promo.discountType === 'PERCENTAGE' ? Number(promo.discountValue) + '%' : Number(promo.discountValue).toLocaleString() + 'đ' }}</span>
+                <span class="text-[9px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Giảm</span>
+              </div>
+            </div>
+
+            <!-- ===== Thân vé ===== -->
+            <div class="relative bg-surface-container-low cursor-pointer" @click="openDetail(promo)">
+              <!-- Khía + răng cưa ngăn cách cuống vé -->
+              <div class="absolute -left-1.5 -top-1.5 w-3 h-3 rounded-full bg-surface-container-lowest"></div>
+              <div class="absolute -right-1.5 -top-1.5 w-3 h-3 rounded-full bg-surface-container-lowest"></div>
+              <div class="border-t border-dashed border-on-surface-variant/20 mx-2.5"></div>
+
+              <div class="px-4 pt-3 pb-4">
+                <!-- Tên voucher -->
+                <h3 class="text-sm font-black text-on-surface uppercase italic leading-tight line-clamp-1 mb-2.5" :title="promo.name || 'Chưa đặt tên'">
+                  {{ promo.name || 'Voucher chưa đặt tên' }}
+                </h3>
+
+                <!-- Mã code + sao chép -->
+                <div class="flex items-center gap-1.5 mb-3">
+                  <div class="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 bg-black/30 rounded-md border border-dashed border-primary/25 min-w-0">
+                    <span class="material-symbols-outlined text-primary text-sm shrink-0">confirmation_number</span>
+                    <span class="font-black text-xs tracking-[0.15em] text-primary font-mono uppercase truncate">{{ promo.code }}</span>
+                  </div>
+                  <button @click.stop="handleCopyCode(promo.code)" title="Sao chép mã" class="w-7 h-7 rounded-md bg-primary/10 hover:bg-primary text-primary hover:text-black flex items-center justify-center transition-colors shrink-0">
+                    <span class="material-symbols-outlined text-sm">content_copy</span>
+                  </button>
                 </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Hết hạn</span>
-                  <span class="text-[10px] font-black text-red-400 uppercase italic">{{ formatPromoDate(promo.endDate) }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Đổi điểm</span>
-                  <span v-if="promo.allowPointRedemption" class="text-[10px] font-black text-amber-400 uppercase">{{ Number(promo.pointsRequired).toLocaleString() }} điểm</span>
-                  <span v-else class="text-[10px] font-black text-on-surface-variant/60 uppercase">Tắt</span>
+
+                <!-- Thông tin phụ -->
+                <div class="space-y-1.5">
+                  <div class="flex justify-between items-center">
+                    <span class="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                      <span class="material-symbols-outlined text-xs">schedule</span> Hết hạn
+                    </span>
+                    <span class="text-[11px] font-bold" :class="promoStatus(promo) === 'active' ? 'text-on-surface' : 'text-red-400'">{{ formatPromoDate(promo.endDate) }}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                      <span class="material-symbols-outlined text-xs">stars</span> Đổi điểm
+                    </span>
+                    <span v-if="promo.allowPointRedemption" class="text-[11px] font-black text-amber-400">{{ Number(promo.pointsRequired).toLocaleString() }} điểm</span>
+                    <span v-else class="text-[11px] font-bold text-on-surface-variant/50">Tắt</span>
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="bg-primary/5 p-3 flex justify-end items-center gap-2">
-               <button @click="openIssueModal(promo)" class="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest hover:text-white px-2 py-1.5 rounded transition-colors">
-                 <span class="material-symbols-outlined text-sm">card_giftcard</span> Phát cho khách
-               </button>
-               <button @click="openEditVoucher(promo)" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
-                 <span class="material-symbols-outlined text-sm">edit</span>
-               </button>
-               <button @click="askDeleteVoucher(promo)" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
-                 <span class="material-symbols-outlined text-sm">delete</span>
-               </button>
+
+            <!-- ===== Hành động ===== -->
+            <div class="bg-surface-container-low border-t border-white/5 px-2.5 py-2 flex justify-between items-center">
+              <button @click="openIssueModal(promo)" class="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest hover:bg-primary/10 px-2 py-1.5 rounded-md transition-colors">
+                <span class="material-symbols-outlined text-xs">card_giftcard</span> Phát cho khách
+              </button>
+              <div class="flex items-center gap-0.5">
+                <button @click="openEditVoucher(promo)" title="Chỉnh sửa" class="w-7 h-7 rounded-md hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
+                  <span class="material-symbols-outlined text-sm">edit</span>
+                </button>
+                <button @click="askDeleteVoucher(promo)" title="Xoá" class="w-7 h-7 rounded-md hover:bg-red-500/15 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
+                  <span class="material-symbols-outlined text-sm">delete</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -805,6 +870,68 @@ onUnmounted(() => {
             </div>
             <button @click="handleIssueVoucher(c)" :disabled="isIssuing" class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-3 py-2 bg-primary text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60">Phát</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Voucher detail modal -->
+    <div v-if="detailTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeDetail"></div>
+      <div class="relative w-full max-w-md bg-surface-container-low border border-outline-variant/20 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="p-6 border-b border-outline-variant/10 flex justify-between items-start gap-4">
+          <div class="min-w-0">
+            <div class="flex items-center gap-3 mb-2">
+              <span class="font-black text-lg tracking-widest text-primary font-mono uppercase px-3 py-1 bg-primary/10 rounded-lg border border-primary/20">{{ detailTarget.code }}</span>
+              <span :class="promoStatus(detailTarget) === 'active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'" class="text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-widest">
+                {{ promoStatus(detailTarget) === 'active' ? 'Đang chạy' : 'Hết hạn' }}
+              </span>
+            </div>
+            <h3 class="font-headline font-black uppercase italic text-on-surface text-lg truncate">{{ detailTarget.name || 'Voucher chưa đặt tên' }}</h3>
+          </div>
+          <button @click="closeDetail" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-custom">
+          <div v-if="detailTarget.description" class="space-y-1">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả</p>
+            <p class="text-sm text-on-surface whitespace-pre-line">{{ detailTarget.description }}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mức giảm</p>
+              <p class="text-sm font-black text-primary">{{ detailTarget.discountType === 'PERCENTAGE' ? Number(detailTarget.discountValue) + '%' : Number(detailTarget.discountValue).toLocaleString() + 'đ' }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Loại giảm</p>
+              <p class="text-sm font-bold text-on-surface">{{ detailTarget.discountType === 'PERCENTAGE' ? 'Phần trăm' : 'Tiền cố định' }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bắt đầu</p>
+              <p class="text-sm font-bold text-on-surface">{{ formatPromoDate(detailTarget.startDate) }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Hết hạn</p>
+              <p class="text-sm font-bold text-red-400">{{ formatPromoDate(detailTarget.endDate) }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đổi điểm</p>
+              <p v-if="detailTarget.allowPointRedemption" class="text-sm font-black text-amber-400">{{ Number(detailTarget.pointsRequired).toLocaleString() }} điểm</p>
+              <p v-else class="text-sm font-bold text-on-surface-variant/60">Tắt</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Cộng dồn</p>
+              <p class="text-sm font-bold text-on-surface">{{ detailTarget.isStackable ? 'Có' : 'Không' }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="p-6 border-t border-outline-variant/10 flex gap-3">
+          <button @click="openIssueModal(detailTarget); closeDetail()" class="flex-1 px-4 py-3 rounded-xl bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-colors flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-sm">card_giftcard</span> Phát cho khách
+          </button>
+          <button @click="openEditVoucher(detailTarget); closeDetail()" class="flex-1 px-4 py-3 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-sm">edit</span> Chỉnh sửa
+          </button>
         </div>
       </div>
     </div>

@@ -128,7 +128,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         </div>
         <div class="p-8 flex flex-col flex-grow">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-lg font-headline font-bold text-on-surface">Mã: {{ promo.code }}</h3>
+            <h3 class="text-lg font-headline font-bold text-on-surface">{{ promo.name || 'Ưu đãi đặc biệt' }}</h3>
             <span v-if="promo.pointsRequired > 0" class="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-1 rounded">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
           </div>
           <p class="text-on-surface-variant text-sm leading-relaxed mb-6 flex-grow">

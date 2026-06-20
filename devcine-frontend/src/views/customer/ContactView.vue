@@ -39,7 +39,7 @@ import { RouterLink } from 'vue-router'
           <div class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
             <span class="material-symbols-outlined text-4xl text-primary-container mb-6 block">loyalty</span>
             <h3 class="text-xl font-headline font-bold text-on-background mb-2">Thành viên & Ưu đãi</h3>
-            <p class="text-on-surface-variant text-sm font-body mb-4">Quản lý tài khoản DevCine Prestige và khám phá các đặc quyền dành riêng cho bạn.</p>
+            <p class="text-on-surface-variant text-sm font-body mb-4">Quản lý tài khoản DevCine và khám phá các đặc quyền dành riêng cho bạn.</p>
             <a class="text-primary-container font-label text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all" href="#">Xem thêm <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
           </div>
           <div class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
@@ -121,7 +121,7 @@ import { RouterLink } from 'vue-router'
             <h4 class="text-xs font-label uppercase tracking-[0.2em] text-on-surface-variant mb-6 border-b border-outline-variant/20 pb-4">Liên kết nhanh</h4>
             <ul class="space-y-4">
               <li><router-link to="/faq" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold">Làm thế nào để đặt vé trực tuyến? <span class="material-symbols-outlined text-lg">chevron_right</span></router-link></li>
-              <li><a class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold" href="#">Quy định về thẻ thành viên Prestige <span class="material-symbols-outlined text-lg">chevron_right</span></a></li>
+              <li><a class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold" href="#">Quy định về thẻ thành viên DevCine <span class="material-symbols-outlined text-lg">chevron_right</span></a></li>
               <li><router-link to="/lich-chieu" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold">Lịch chiếu phim tuần này <span class="material-symbols-outlined text-lg">chevron_right</span></router-link></li>
             </ul>
           </div>

@@ -22,6 +22,14 @@ public class Promotion {
     @Column(unique = true, length = 50)
     private String code;
 
+    /** Tên/tiêu đề hiển thị của voucher (vd "Khuyến mãi hè rực rỡ"). */
+    @Column(name = "name", length = 255)
+    private String name;
+
+    /** Mô tả ngắn cho voucher, hiển thị ở chi tiết. */
+    @Column(name = "description", length = 500)
+    private String description;
+
     @Column(name = "discount_type", nullable = false, length = 20)
     private String discountType;
 

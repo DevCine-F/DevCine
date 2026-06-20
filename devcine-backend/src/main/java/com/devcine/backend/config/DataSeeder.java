@@ -1,17 +1,43 @@
 package com.devcine.backend.config;
 
-import com.devcine.backend.entity.*;
-import com.devcine.backend.repository.*;
-import lombok.RequiredArgsConstructor;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
+import com.devcine.backend.entity.Cinema;
+import com.devcine.backend.entity.Customer;
+import com.devcine.backend.entity.Faq;
+import com.devcine.backend.entity.FnbItem;
+import com.devcine.backend.entity.Movie;
+import com.devcine.backend.entity.MovieFormat;
+import com.devcine.backend.entity.Role;
+import com.devcine.backend.entity.Room;
+import com.devcine.backend.entity.SeatType;
+import com.devcine.backend.entity.Showtime;
+import com.devcine.backend.entity.SystemSetting;
+import com.devcine.backend.entity.User;
+import com.devcine.backend.entity.Wallet;
+import com.devcine.backend.repository.CinemaRepository;
+import com.devcine.backend.repository.CustomerRepository;
+import com.devcine.backend.repository.FaqRepository;
+import com.devcine.backend.repository.FnbItemRepository;
+import com.devcine.backend.repository.MovieFormatRepository;
+import com.devcine.backend.repository.MovieRepository;
+import com.devcine.backend.repository.RoleRepository;
+import com.devcine.backend.repository.RoomRepository;
+import com.devcine.backend.repository.SeatTypeRepository;
+import com.devcine.backend.repository.ShowtimeRepository;
+import com.devcine.backend.repository.SystemSettingRepository;
+import com.devcine.backend.repository.UserRepository;
+import com.devcine.backend.repository.WalletRepository;
+
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @RequiredArgsConstructor
@@ -44,12 +70,12 @@ public class DataSeeder {
             }
 
             // Seed roles
-            Role adminRole = roleRepository.findByName("ADMIN").orElseGet(() ->
-                    roleRepository.save(Role.builder().name("ADMIN").build()));
-            Role staffRole = roleRepository.findByName("STAFF").orElseGet(() ->
-                    roleRepository.save(Role.builder().name("STAFF").build()));
-            Role customerRole = roleRepository.findByName("CUSTOMER").orElseGet(() ->
-                    roleRepository.save(Role.builder().name("CUSTOMER").build()));
+            Role adminRole = roleRepository.findByName("ADMIN").orElseGet(()
+                    -> roleRepository.save(Role.builder().name("ADMIN").build()));
+            Role staffRole = roleRepository.findByName("STAFF").orElseGet(()
+                    -> roleRepository.save(Role.builder().name("STAFF").build()));
+            Role customerRole = roleRepository.findByName("CUSTOMER").orElseGet(()
+                    -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
             // Seed ma trận phân quyền mặc định (chỉ set khi chưa có cấu hình)
             if (adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
@@ -218,14 +244,14 @@ public class DataSeeder {
                 Room room1 = Room.builder().cinema(cinema1).name("Phòng 01 - IMAX").type("IMAX").status("Hoạt động").build();
                 Room room2 = Room.builder().cinema(cinema1).name("Phòng 02 - Gold").type("Gold Class").status("Hoạt động").build();
                 Room room3 = Room.builder().cinema(cinema2).name("Phòng 01 - Standard").type("Standard").status("Hoạt động").build();
-                
+
                 roomRepository.save(room1);
                 roomRepository.save(room2);
                 roomRepository.save(room3);
 
                 Movie movie1 = Movie.builder().title("Lật Mặt 7: Một Điều Ước").slug("lat-mat-7").durationMins(130).status("active").releaseDate(LocalDate.now().minusDays(10)).build();
                 Movie movie2 = Movie.builder().title("Doraemon: Bản Giao Hưởng Địa Cầu").slug("doraemon-ban-giao-huong").durationMins(115).status("active").releaseDate(LocalDate.now()).build();
-                
+
                 movieRepository.save(movie1);
                 movieRepository.save(movie2);
 
@@ -246,16 +272,20 @@ public class DataSeeder {
                 seatTypeRepository.save(SeatType.builder().name("SWEETBOX").priceModifier(new BigDecimal("50000")).build());
                 System.out.println("Đã thêm dữ liệu giả lập cho SeatType thành công!");
             }
-            
+
             // Cập nhật giá ghế thực tế (seed cũ để NORMAL = 0đ). Khớp với chú thích giá ở giao diện khách.
             SeatType normalType = seatTypeRepository.findAll().stream()
                     .filter(t -> "NORMAL".equalsIgnoreCase(t.getName())).findFirst().orElse(null);
             if (normalType != null && (normalType.getPriceModifier() == null
                     || normalType.getPriceModifier().compareTo(BigDecimal.ZERO) == 0)) {
                 for (SeatType t : seatTypeRepository.findAll()) {
-                    if ("NORMAL".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("110000"));
-                    else if ("VIP".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("150000"));
-                    else if ("SWEETBOX".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("300000"));
+                    if ("NORMAL".equalsIgnoreCase(t.getName())) {
+                        t.setPriceModifier(new BigDecimal("110000")); 
+                    }else if ("VIP".equalsIgnoreCase(t.getName())) {
+                        t.setPriceModifier(new BigDecimal("150000")); 
+                    }else if ("SWEETBOX".equalsIgnoreCase(t.getName())) {
+                        t.setPriceModifier(new BigDecimal("300000"));
+                    }
                     seatTypeRepository.save(t);
                 }
                 System.out.println("Đã cập nhật giá ghế thực tế (Thường 110k / VIP 150k / Sweetbox 300k).");
@@ -321,7 +351,7 @@ public class DataSeeder {
                 // Xoá các suất chiếu từ hôm nay trở đi (lịch demo cũ/lẫn lộn) để tạo lại sạch
                 List<Showtime> upcomingOld = showtimeRepository.findAll().stream()
                         .filter(s -> s.getStartTime() != null
-                                && !s.getStartTime().isBefore(LocalDate.now().atStartOfDay()))
+                        && !s.getStartTime().isBefore(LocalDate.now().atStartOfDay()))
                         .toList();
                 if (!upcomingOld.isEmpty()) {
                     showtimeRepository.deleteAll(upcomingOld);
@@ -335,7 +365,7 @@ public class DataSeeder {
                             .filter(f -> f.getName() != null && f.getName().contains("2D"))
                             .findFirst().orElse(formats.get(0));
 
-                    int[][] slots = { {9, 0}, {12, 30}, {16, 0}, {19, 30}, {22, 0} };
+                    int[][] slots = {{9, 0}, {12, 30}, {16, 0}, {19, 30}, {22, 0}};
                     List<Showtime> showtimes = new java.util.ArrayList<>();
                     int movieIdx = 0;
                     for (int day = 0; day < 3; day++) {
@@ -389,10 +419,10 @@ public class DataSeeder {
                         Faq.builder().category("Đặt vé & Thanh toán").displayOrder(3).isActive(true)
                                 .question("DevCine hỗ trợ những phương thức thanh toán nào?")
                                 .answer("Hiện DevCine hỗ trợ thanh toán qua cổng VNPAY và chuyển khoản ngân hàng bằng mã VietQR được sinh tự động. Số tiền và nội dung chuyển khoản đã được điền sẵn để bạn thanh toán nhanh chóng.").build(),
-                        Faq.builder().category("Thành viên Prestige").displayOrder(1).isActive(true)
+                        Faq.builder().category("Thành viên DevCine").displayOrder(1).isActive(true)
                                 .question("Làm sao để tích điểm thành viên?")
                                 .answer("Mỗi giao dịch đặt vé thành công sẽ được tích điểm tự động vào tài khoản của bạn theo tỉ lệ quy đổi của hệ thống. Điểm tích lũy có thể dùng để đổi voucher ưu đãi trong mục \"Ưu đãi của tôi\".").build(),
-                        Faq.builder().category("Thành viên Prestige").displayOrder(2).isActive(true)
+                        Faq.builder().category("Thành viên DevCine").displayOrder(2).isActive(true)
                                 .question("Đổi điểm lấy ưu đãi như thế nào?")
                                 .answer("Vào mục \"Ưu đãi của tôi\" → tab \"Đổi điểm lấy ưu đãi\", chọn voucher bạn muốn và xác nhận đổi. Hệ thống sẽ trừ điểm tương ứng và thêm voucher vào tài khoản để dùng khi thanh toán.").build(),
                         Faq.builder().category("Quy định rạp").displayOrder(1).isActive(true)
@@ -410,6 +440,14 @@ public class DataSeeder {
                 );
                 faqRepository.saveAll(faqs);
                 System.out.println("Đã tạo " + faqs.size() + " câu hỏi FAQ mẫu.");
+            }
+
+            // Đổi tên danh mục FAQ "Thành viên Prestige" -> "Thành viên DevCine" (idempotent)
+            List<Faq> prestigeFaqs = faqRepository.findByCategory("Thành viên Prestige");
+            if (!prestigeFaqs.isEmpty()) {
+                prestigeFaqs.forEach(f -> f.setCategory("Thành viên DevCine"));
+                faqRepository.saveAll(prestigeFaqs);
+                System.out.println("Đã đổi tên danh mục FAQ sang 'Thành viên DevCine'.");
             }
 
             // Backfill thông tin mở rộng cho cụm rạp (idempotent: chỉ ghi khi imageUrl còn trống)

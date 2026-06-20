@@ -11,7 +11,7 @@ const searchQuery = ref('')
 
 const ICONS = {
   'Đặt vé & Thanh toán': 'payments',
-  'Thành viên Prestige': 'stars',
+  'Thành viên DevCine': 'stars',
   'Quy định rạp': 'gavel',
   'Ưu đãi & Khuyến mãi': 'local_offer'
 }

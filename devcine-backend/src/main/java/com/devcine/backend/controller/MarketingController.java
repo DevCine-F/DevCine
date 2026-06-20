@@ -6,6 +6,7 @@ import com.devcine.backend.repository.PromotionRepository;
 import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.VoucherRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/marketing")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
+@Slf4j
 public class MarketingController {
 
     private final PromotionRepository promotionRepository;
@@ -48,6 +50,7 @@ public class MarketingController {
                 .map(p -> Map.<String, Object>of(
                         "id", p.getId(),
                         "code", p.getCode() != null ? p.getCode() : "",
+                        "name", p.getName() != null ? p.getName() : "",
                         "discountType", p.getDiscountType() != null ? p.getDiscountType() : "",
                         "discountValue", p.getDiscountValue() != null ? p.getDiscountValue() : 0,
                         "startDate", p.getStartDate() != null ? p.getStartDate().toString() : "",
@@ -84,8 +87,17 @@ public class MarketingController {
     @PreAuthorize("@perm.can('promotions','add')")
     public ResponseEntity<?> createPromotion(@RequestBody Map<String, Object> body) {
         try {
+            String code = body.get("code") != null ? ((String) body.get("code")).trim() : "";
+            if (code.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Vui lòng nhập mã code."));
+            }
+            if (promotionRepository.existsByCodeIgnoreCase(code)) {
+                return ResponseEntity.status(409).body(Map.of("success", false, "message", "Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
+            }
             Promotion promo = Promotion.builder()
-                    .code((String) body.get("code"))
+                    .code(code)
+                    .name((String) body.get("name"))
+                    .description((String) body.get("description"))
                     .discountType((String) body.get("discountType"))
                     .discountValue(new BigDecimal(body.get("discountValue").toString()))
                     .startDate(body.get("startDate") != null ? LocalDateTime.parse((String) body.get("startDate")) : null)
@@ -97,7 +109,8 @@ public class MarketingController {
             promotionRepository.save(promo);
             return ResponseEntity.status(201).body(Map.of("success", true, "data", promo));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            log.error("Lỗi tạo promotion", e);
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể tạo voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
         }
     }
 
@@ -108,7 +121,18 @@ public class MarketingController {
         try {
             Promotion promo = promotionRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khuyến mãi"));
-            if (body.containsKey("code")) promo.setCode((String) body.get("code"));
+            if (body.containsKey("code")) {
+                String code = body.get("code") != null ? ((String) body.get("code")).trim() : "";
+                if (code.isBlank()) {
+                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Vui lòng nhập mã code."));
+                }
+                if (promotionRepository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
+                    return ResponseEntity.status(409).body(Map.of("success", false, "message", "Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
+                }
+                promo.setCode(code);
+            }
+            if (body.containsKey("name")) promo.setName((String) body.get("name"));
+            if (body.containsKey("description")) promo.setDescription((String) body.get("description"));
             if (body.containsKey("discountType")) promo.setDiscountType((String) body.get("discountType"));
             if (body.containsKey("discountValue")) promo.setDiscountValue(new BigDecimal(body.get("discountValue").toString()));
             if (body.get("startDate") != null) promo.setStartDate(LocalDateTime.parse((String) body.get("startDate")));
@@ -119,7 +143,8 @@ public class MarketingController {
             promotionRepository.save(promo);
             return ResponseEntity.ok(Map.of("success", true, "data", promo));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            log.error("Lỗi cập nhật promotion {}", id, e);
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể cập nhật voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
         }
     }
 

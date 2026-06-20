@@ -14,4 +14,7 @@ public interface FaqRepository extends JpaRepository<Faq, Integer> {
 
     /** Quản trị: tất cả FAQ. */
     List<Faq> findAllByOrderByCategoryAscDisplayOrderAscIdAsc();
+
+    /** Tìm theo danh mục (phục vụ backfill đổi tên danh mục). */
+    List<Faq> findByCategory(String category);
 }
