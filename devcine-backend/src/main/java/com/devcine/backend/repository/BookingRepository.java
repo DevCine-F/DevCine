@@ -90,4 +90,28 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
 
     @Query("SELECT bs.booking.id, COUNT(bs) FROM BookingSeat bs WHERE bs.booking.id IN :ids GROUP BY bs.booking.id")
     List<Object[]> countSeatsByBookingIds(@Param("ids") List<Integer> ids);
+
+    // ===== Thống kê theo phim (modal chi tiết Quản lý Phim) =====
+
+    /** Doanh thu vé (tổng price_snapshot ghế đã CONFIRMED) của 1 phim. */
+    @Query("SELECT COALESCE(SUM(bs.priceSnapshot), 0) FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s " +
+           "WHERE s.movie.id = :movieId AND b.status = 'CONFIRMED'")
+    BigDecimal sumTicketRevenueByMovie(@Param("movieId") Integer movieId);
+
+    /** Tổng số vé đã bán (ghế CONFIRMED) của 1 phim. */
+    @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s " +
+           "WHERE s.movie.id = :movieId AND b.status = 'CONFIRMED'")
+    long countTicketsByMovie(@Param("movieId") Integer movieId);
+
+    /** Số vé bán ra ở các suất ĐÃ diễn ra — tử số cho tỷ lệ lấp đầy. */
+    @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s " +
+           "WHERE s.movie.id = :movieId AND b.status = 'CONFIRMED' AND s.startTime <= :now")
+    long countPastTicketsByMovie(@Param("movieId") Integer movieId, @Param("now") LocalDateTime now);
+
+    /** Phân bổ doanh thu/số vé theo hạng ghế (Standard/VIP/Sweetbox...) của 1 phim. */
+    @Query("SELECT t.name, COALESCE(SUM(bs.priceSnapshot), 0), COUNT(bs) " +
+           "FROM BookingSeat bs JOIN bs.seat se JOIN se.seatType t JOIN bs.booking b JOIN b.showtime s " +
+           "WHERE s.movie.id = :movieId AND b.status = 'CONFIRMED' " +
+           "GROUP BY t.id, t.name ORDER BY SUM(bs.priceSnapshot) DESC")
+    List<Object[]> ticketClassDistributionByMovie(@Param("movieId") Integer movieId);
 }

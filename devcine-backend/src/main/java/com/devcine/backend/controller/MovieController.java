@@ -1,13 +1,16 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.request.MovieBulkRequest;
 import com.devcine.backend.entity.Movie;
 import com.devcine.backend.service.MovieService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.devcine.backend.dto.response.MovieStatsResponse;
 import com.devcine.backend.dto.response.MovieSummaryDTO;
 @RestController
 @RequestMapping("/api/movies")
@@ -45,6 +48,32 @@ public class MovieController {
             return ResponseEntity.ok(movie);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    /** Thống kê vận hành thật theo phim (doanh thu, vé bán, lấp đầy, hạng vé) cho modal chi tiết. */
+    @GetMapping("/{id:\\d+}/stats")
+    @PreAuthorize("@perm.can('movies','edit')")
+    public ResponseEntity<MovieStatsResponse> getMovieStats(@PathVariable Integer id) {
+        if (movieService.getMovieById(id) == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(movieService.getMovieStats(id));
+    }
+
+    /** Đổi trạng thái hàng loạt. */
+    @PatchMapping("/bulk-status")
+    @PreAuthorize("@perm.can('movies','edit')")
+    public ResponseEntity<Void> bulkUpdateStatus(@Valid @RequestBody MovieBulkRequest request) {
+        movieService.bulkUpdateStatus(request.getIds(), request.getStatus());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Xoá hàng loạt. */
+    @DeleteMapping("/bulk")
+    @PreAuthorize("@perm.can('movies','delete')")
+    public ResponseEntity<Void> bulkDelete(@Valid @RequestBody MovieBulkRequest request) {
+        movieService.bulkDelete(request.getIds());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping

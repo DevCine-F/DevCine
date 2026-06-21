@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
@@ -30,4 +31,9 @@ public interface MovieRepository extends JpaRepository<Movie, Integer> {
 
     /** Đếm số phim đang gắn 1 thể loại — chặn xoá thể loại đang được sử dụng. */
     long countByGenres_Id(Integer categoryId);
+
+    /** Cập nhật trạng thái hàng loạt cho nhiều phim trong 1 query (bulk action). */
+    @Modifying
+    @Query("UPDATE Movie m SET m.status = :status WHERE m.id IN :ids")
+    int bulkUpdateStatus(@Param("ids") List<Integer> ids, @Param("status") String status);
 }

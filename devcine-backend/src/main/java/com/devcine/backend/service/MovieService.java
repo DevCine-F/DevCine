@@ -1,12 +1,21 @@
 package com.devcine.backend.service;
 
 import com.devcine.backend.entity.Movie;
+import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.MovieRepository;
+import com.devcine.backend.repository.ShowtimeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.devcine.backend.dto.response.MovieStatsResponse;
+import com.devcine.backend.dto.response.MovieStatsResponse.ClassRevenue;
 import com.devcine.backend.dto.response.MovieSummaryDTO;
 import com.devcine.backend.dto.response.MovieSummaryDTO.CategorySummaryDTO;
 @Service
@@ -14,6 +23,12 @@ public class MovieService {
 
     @Autowired
     private MovieRepository movieRepository;
+
+    @Autowired
+    private BookingRepository bookingRepository;
+
+    @Autowired
+    private ShowtimeRepository showtimeRepository;
 
     public List<MovieSummaryDTO> getAllMovies() {
         return movieRepository.findAllWithGenres().stream()
@@ -59,7 +74,10 @@ public class MovieService {
                 .status(movie.getStatus())
                 .posterUrl(movie.getPosterUrl())
                 .releaseDate(movie.getReleaseDate())
+                .endDate(movie.getEndDate())
                 .ageRating(movie.getAgeRating())
+                .basePrice(movie.getBasePrice())
+                .ratingCount(movie.getRatingCount())
                 .genres(movie.getGenres() == null ? null : movie.getGenres().stream()
                         .map(g -> CategorySummaryDTO.builder()
                                 .id(g.getId())
@@ -116,5 +134,69 @@ public class MovieService {
 
     public void deleteMovie(Integer id) {
         movieRepository.deleteById(id);
+    }
+
+    /** Cập nhật trạng thái cho nhiều phim cùng lúc (bulk action). */
+    @Transactional
+    public int bulkUpdateStatus(List<Integer> ids, String status) {
+        if (ids == null || ids.isEmpty() || status == null || status.isBlank()) {
+            return 0;
+        }
+        return movieRepository.bulkUpdateStatus(ids, status);
+    }
+
+    /** Xoá nhiều phim cùng lúc (bulk action). */
+    @Transactional
+    public void bulkDelete(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        movieRepository.deleteAllById(ids);
+    }
+
+    /** Thống kê vận hành thật theo phim cho modal chi tiết. */
+    @Transactional(readOnly = true)
+    public MovieStatsResponse getMovieStats(Integer movieId) {
+        LocalDateTime now = LocalDateTime.now();
+
+        BigDecimal revenue = bookingRepository.sumTicketRevenueByMovie(movieId);
+        if (revenue == null) {
+            revenue = BigDecimal.ZERO;
+        }
+        long ticketsSold = bookingRepository.countTicketsByMovie(movieId);
+        long showtimeCount = showtimeRepository.countByMovieId(movieId);
+
+        long pastSold = bookingRepository.countPastTicketsByMovie(movieId, now);
+        long pastCapacity = showtimeRepository.sumPastCapacityByMovie(movieId, now);
+        double occupancyRate = pastCapacity > 0
+                ? BigDecimal.valueOf(pastSold * 100.0 / pastCapacity)
+                        .setScale(1, RoundingMode.HALF_UP).doubleValue()
+                : 0.0;
+
+        List<Object[]> rows = bookingRepository.ticketClassDistributionByMovie(movieId);
+        List<ClassRevenue> distribution = new ArrayList<>();
+        for (Object[] row : rows) {
+            String name = (String) row[0];
+            BigDecimal classRevenue = (BigDecimal) row[1];
+            long count = ((Number) row[2]).longValue();
+            double percentage = revenue.signum() > 0
+                    ? classRevenue.multiply(BigDecimal.valueOf(100))
+                        .divide(revenue, 1, RoundingMode.HALF_UP).doubleValue()
+                    : 0.0;
+            distribution.add(ClassRevenue.builder()
+                    .name(name)
+                    .revenue(classRevenue)
+                    .count(count)
+                    .percentage(percentage)
+                    .build());
+        }
+
+        return MovieStatsResponse.builder()
+                .ticketRevenue(revenue)
+                .ticketsSold(ticketsSold)
+                .showtimeCount(showtimeCount)
+                .occupancyRate(occupancyRate)
+                .classDistribution(distribution)
+                .build();
     }
 }

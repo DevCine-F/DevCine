@@ -50,6 +50,17 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
 
     boolean existsByFormat_Id(Integer formatId);
 
+    // ===== Thống kê theo phim (modal chi tiết Quản lý Phim) =====
+
+    /** Tổng số suất chiếu đã lên lịch cho 1 phim. */
+    @Query("SELECT COUNT(s) FROM Showtime s WHERE s.movie.id = :movieId")
+    long countByMovieId(@Param("movieId") Integer movieId);
+
+    /** Sức chứa của các suất ĐÃ diễn ra (startTime <= now) — mẫu số cho tỷ lệ lấp đầy. */
+    @Query("SELECT COALESCE(SUM(r.matrixRow * r.matrixCol), 0) FROM Showtime s JOIN s.room r " +
+           "WHERE s.movie.id = :movieId AND s.startTime <= :now")
+    long sumPastCapacityByMovie(@Param("movieId") Integer movieId, @Param("now") LocalDateTime now);
+
     // ===== Lịch chiếu có lọc + phân trang (trang /lich-chieu) =====
 
     // Suất của 1 RẠP trong khoảng [start, end]
