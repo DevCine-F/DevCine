@@ -31,9 +31,9 @@ const stepMeta = computed(() => ({
   4: { title: '04. Phương Thức Thanh Toán', desc: 'Chọn phương thức thanh toán phù hợp nhất' },
 }[currentStep.value]))
 
-// Chỉ cho rời bước 1 khi đã chọn ít nhất 1 ghế; các bước sau không bắt buộc
+// Bước 1: phải chọn số lượng vé > 0 và chọn ĐÚNG số ghế bằng tổng số vé
 const canProceed = computed(() => {
-  if (currentStep.value === 1) return store.selectedSeats.length > 0
+  if (currentStep.value === 1) return store.totalTickets > 0 && store.selectedSeats.length === store.totalTickets
   return true
 })
 
@@ -74,11 +74,23 @@ const ensureHeld = async () => {
   return holdPromise // người bấm "Xác nhận" sớm sẽ chờ chung promise giữ ghế đang chạy ở nền
 }
 watch(currentStep, (s) => { if (s === 4) ensureHeld() })
-// Đổi ghế/combo/voucher → đơn đã giữ không còn đúng, sẽ giữ lại khi vào bước 4 lần tới
-watch(() => [store.selectedSeats.length, store.selectedFnbs.length, store.selectedVoucher?.id], () => {
+// Đổi ghế/loại vé/combo/voucher → đơn đã giữ không còn đúng, sẽ giữ lại khi vào bước 4 lần tới
+watch(() => [store.selectedSeats.length, JSON.stringify(store.ticketQuantities), store.selectedFnbs.length, store.selectedVoucher?.id], () => {
   held.value = false
   store.bookingId = null
 })
+
+// Tạm tính riêng phần ghế (đã gồm giá theo đối tượng) để hiển thị ở sidebar
+const seatsSubtotal = computed(() => {
+  const fnb = store.selectedFnbs.reduce((a, f) => a + f.fnbItem.price * f.quantity, 0)
+  return Math.max(0, store.totalPrice - fnb)
+})
+// Liệt kê số lượng vé theo đối tượng (chỉ loại > 0) cho sidebar
+const ticketBreakdown = computed(() =>
+  Object.entries(store.ticketQuantities)
+    .filter(([, q]) => q > 0)
+    .map(([code, q]) => ({ label: store.audienceLabels[code] || code, qty: q }))
+)
 
 // ===== Phân trang danh sách combo / F&B (6 món = 2 cột x 3 hàng / trang) =====
 const fnbPage = ref(1)
@@ -280,12 +292,8 @@ const getRowChar = (row) => {
   return seat ? seat.rowChar : ''
 }
 
-// Giá Người lớn theo loại ghế (cho phần chú thích) — lấy động từ bảng giá của suất
-const seatTypeAdultPrice = (typeName) => {
-  const v = store.priceTable?.[typeName]?.ADULT
-  return v != null ? Number(v).toLocaleString('vi-VN') + ' VNĐ' : '—'
-}
-const onChangeTicketType = (seatId, e) => store.setSeatTicketType(seatId, e.target.value)
+// Tăng/giảm số lượng vé theo đối tượng (chọn trước khi chọn ghế)
+const setQty = (code, delta) => store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) + delta)
 
 const isHiddenBecauseSweetbox = (row, col) => {
   if (col === 0) return false;
@@ -430,8 +438,42 @@ const proceedToPayment = async () => {
       </div>
 
       <!-- Section 1: Seat Selection -->
-      <section v-show="currentStep === 1">
+      <section v-show="currentStep === 1" class="space-y-6">
+        <!-- Bước 1a: Chọn SỐ LƯỢNG vé theo đối tượng (bắt buộc trước khi chọn ghế) -->
+        <div class="glass-card glass-shine-edge p-6 md:p-8 rounded-3xl">
+          <h3 class="font-headline font-bold uppercase tracking-tight text-sm mb-1 flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary-container text-lg">confirmation_number</span>
+            Loại vé
+          </h3>
+          <p class="text-xs text-on-surface-variant mb-5">Chọn số lượng vé theo đối tượng, sau đó chọn đúng số ghế tương ứng.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="(label, code) in store.audienceLabels" :key="code"
+                 class="flex items-center justify-between bg-surface-container-high/40 border border-outline-variant/20 rounded-xl px-4 py-3">
+              <span class="font-bold text-sm">{{ label }}</span>
+              <div class="flex items-center gap-3">
+                <button @click="setQty(code, -1)" :disabled="(store.ticketQuantities[code] || 0) <= 0"
+                        class="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-high disabled:opacity-30 hover:text-primary-container transition-colors">
+                  <span class="material-symbols-outlined text-base">remove</span>
+                </button>
+                <span class="w-6 text-center font-bold tabular-nums">{{ store.ticketQuantities[code] || 0 }}</span>
+                <button @click="setQty(code, 1)"
+                        class="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-high hover:text-primary-container transition-colors">
+                  <span class="material-symbols-outlined text-base">add</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 flex items-center justify-between text-sm">
+            <span class="text-on-surface-variant">Tổng số vé</span>
+            <span class="font-bold text-primary-container">{{ store.totalTickets }} vé · đã chọn {{ store.selectedSeats.length }} ghế</span>
+          </div>
+        </div>
+
         <div class="relative glass-card glass-shine-edge p-12 overflow-hidden rounded-3xl">
+          <!-- Nhắc chọn số lượng vé trước -->
+          <div v-if="store.totalTickets === 0" class="mb-8 text-center bg-primary-container/10 border border-primary-container/30 rounded-2xl py-4 px-6 text-sm text-on-surface-variant">
+            Vui lòng chọn số lượng vé ở trên trước khi chọn ghế.
+          </div>
           <!-- Screen -->
           <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8 mb-12">
             <div class="absolute top-0 w-full h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
@@ -440,7 +482,7 @@ const proceedToPayment = async () => {
           </div>
           
           <!-- Seats Grid -->
-          <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-16 relative" v-if="store.availableSeats.length">
+          <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-16 relative transition-opacity" :class="{ 'opacity-40 pointer-events-none': store.totalTickets === 0 }" v-if="store.availableSeats.length">
             <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
             <div class="relative z-10 flex flex-col gap-3 mx-auto min-w-max pb-4 bg-black/40 backdrop-blur-sm p-8 rounded-3xl border border-white/5 shadow-2xl">
               <div v-for="row in store.matrixRow" :key="row" class="flex items-center gap-2 justify-center">
@@ -469,21 +511,18 @@ const proceedToPayment = async () => {
               <div class="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
               <div class="flex flex-col">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300">Standard</span>
-                <span class="text-[10px] text-on-surface-variant">{{ seatTypeAdultPrice('NORMAL') }}</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(220,38,38,0.2)]"></div>
               <div class="flex flex-col">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-red-400">VIP</span>
-                <span class="text-[10px] text-on-surface-variant">{{ seatTypeAdultPrice('VIP') }}</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
               <div class="w-12 h-8 rounded-t-xl rounded-b-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(147,51,234,0.2)]"></div>
               <div class="flex flex-col">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400">Sweetbox</span>
-                <span class="text-[10px] text-on-surface-variant">{{ seatTypeAdultPrice('SWEETBOX') }}</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
@@ -496,29 +535,6 @@ const proceedToPayment = async () => {
             </div>
           </div>
 
-          <!-- Chọn loại vé / đối tượng cho từng ghế -->
-          <div v-if="store.selectedSeats.length > 0" class="border-t border-outline-variant/10 pt-8 mt-10">
-            <h3 class="font-headline font-bold uppercase tracking-tight text-sm mb-4 flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary-container text-lg">groups</span>
-              Loại vé theo ghế
-            </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div v-for="seat in store.selectedSeats" :key="seat.seatId"
-                   class="glass-card rounded-xl p-4 flex items-center justify-between gap-3">
-                <div class="flex flex-col">
-                  <span class="font-bold text-primary-container">{{ seat.rowChar }}{{ seat.colNum }}</span>
-                  <span class="text-[10px] uppercase tracking-wider text-on-surface-variant">{{ seat.seatType }}</span>
-                </div>
-                <div class="flex flex-col items-end gap-1">
-                  <select :value="seat.ticketType || 'ADULT'" @change="onChangeTicketType(seat.seatId, $event)"
-                          class="bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold px-3 py-2 rounded-lg outline-none focus:border-primary-container">
-                    <option v-for="(label, code) in store.audienceLabels" :key="code" :value="code">{{ label }}</option>
-                  </select>
-                  <span class="text-xs font-bold text-on-surface">{{ Number(seat.price).toLocaleString('vi-VN') }} VNĐ</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
       
@@ -698,9 +714,12 @@ const proceedToPayment = async () => {
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ghế đã chọn</span>
               <span class="text-xs font-bold text-primary-container">{{ store.selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
             </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-on-surface/60">{{ store.selectedSeats.length }} x ghế</span>
-              <span class="font-semibold">{{ store.selectedSeats.reduce((acc, s) => acc + s.price, 0).toLocaleString('vi-VN') }} VNĐ</span>
+            <div v-for="t in ticketBreakdown" :key="t.label" class="flex justify-between text-sm">
+              <span class="text-on-surface/60">{{ t.qty }} x {{ t.label }}</span>
+            </div>
+            <div class="flex justify-between text-sm pt-1">
+              <span class="text-on-surface/60">{{ store.selectedSeats.length }} ghế</span>
+              <span class="font-semibold">{{ seatsSubtotal.toLocaleString('vi-VN') }} VNĐ</span>
             </div>
           </div>
           <div class="pt-6 border-t border-outline-variant/10" v-if="store.selectedFnbs.length > 0">

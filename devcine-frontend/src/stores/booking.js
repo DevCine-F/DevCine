@@ -20,6 +20,7 @@ export const useBookingStore = defineStore('booking', {
     availableSeats: [],
     priceTable: {}, // tên loại ghế -> (mã đối tượng -> giá)
     audienceLabels: {}, // mã đối tượng -> nhãn
+    ticketQuantities: {}, // mã đối tượng -> số lượng vé (chọn TRƯỚC khi chọn ghế)
     matrixRow: 9,
     matrixCol: 10,
     availableFnbs: [],
@@ -27,6 +28,18 @@ export const useBookingStore = defineStore('booking', {
     selectedCity: '',
     cinemaShowtimes: [] // Grouped showtimes
   }),
+  getters: {
+    // Tổng số vé = tổng số lượng các loại đối tượng
+    totalTickets: (state) => Object.values(state.ticketQuantities).reduce((a, b) => a + (Number(b) || 0), 0),
+    // Gán đối tượng cho từng ghế theo thứ tự (tổng tiền không đổi dù gán cách nào)
+    audienceAssignment: (state) => {
+      const arr = []
+      for (const [code, qty] of Object.entries(state.ticketQuantities)) {
+        for (let i = 0; i < (Number(qty) || 0); i++) arr.push(code)
+      }
+      return arr.slice(0, state.selectedSeats.length)
+    }
+  },
   actions: {
     async fetchCities() {
       try {
@@ -54,6 +67,10 @@ export const useBookingStore = defineStore('booking', {
           this.availableSeats = data.seats;
           this.priceTable = data.priceTable || {};
           this.audienceLabels = data.audienceLabels || {};
+          // Khởi tạo số lượng vé theo các đối tượng (giữ giá trị cũ nếu có)
+          const q = {};
+          Object.keys(this.audienceLabels).forEach(k => { q[k] = this.ticketQuantities[k] || 0; });
+          this.ticketQuantities = q;
         } else {
           // Fallback if backend hasn't been updated yet or returned an array directly
           this.availableSeats = Array.isArray(data) ? data : [];
@@ -79,6 +96,7 @@ export const useBookingStore = defineStore('booking', {
       this.selectedShowtime = { ...showtime, cinema };
       // Bắt đầu phiên đặt vé mới: dọn sạch lựa chọn cũ để tránh áp voucher/ghế/combo còn sót từ lần trước
       this.selectedSeats = [];
+      this.ticketQuantities = {};
       this.selectedFnbs = [];
       this.selectedVoucher = null;
       this.totalPrice = 0;
@@ -93,20 +111,20 @@ export const useBookingStore = defineStore('booking', {
     toggleSeat(seat) {
       const index = this.selectedSeats.findIndex(s => s.seatId === seat.seatId);
       if (index === -1) {
-        // Mặc định loại vé Người lớn (ADULT); giá lấy theo bảng giá đối tượng
-        this.selectedSeats.push({ ...seat, ticketType: 'ADULT' });
+        // Chỉ cho chọn tối đa = tổng số vé đã chọn ở bước "Loại vé"
+        if (this.selectedSeats.length >= this.totalTickets) return;
+        this.selectedSeats.push({ ...seat });
       } else {
         this.selectedSeats.splice(index, 1);
       }
       this.calculateTotal();
     },
-    setSeatTicketType(seatId, ticketType) {
-      const seat = this.selectedSeats.find(s => s.seatId === seatId);
-      if (!seat) return;
-      seat.ticketType = ticketType;
-      const byAudience = this.priceTable[seat.seatType];
-      if (byAudience && byAudience[ticketType] != null) {
-        seat.price = Number(byAudience[ticketType]);
+    setTicketQuantity(code, qty) {
+      const n = Math.max(0, Number(qty) || 0);
+      this.ticketQuantities = { ...this.ticketQuantities, [code]: n };
+      // Nếu giảm số vé xuống dưới số ghế đang chọn → bỏ bớt ghế thừa
+      if (this.selectedSeats.length > this.totalTickets) {
+        this.selectedSeats = this.selectedSeats.slice(0, this.totalTickets);
       }
       this.calculateTotal();
     },
@@ -125,9 +143,12 @@ export const useBookingStore = defineStore('booking', {
     },
     calculateTotal() {
       let total = 0;
-      for (const seat of this.selectedSeats) {
-        total += seat.price;
-      }
+      const assign = this.audienceAssignment; // đối tượng gán cho từng ghế theo thứ tự
+      this.selectedSeats.forEach((seat, i) => {
+        const aud = assign[i] || 'ADULT';
+        const byAud = this.priceTable[seat.seatType];
+        total += (byAud && byAud[aud] != null) ? Number(byAud[aud]) : (seat.price || 0);
+      });
       for (const fnb of this.selectedFnbs) {
         total += fnb.fnbItem.price * fnb.quantity;
       }
@@ -141,7 +162,7 @@ export const useBookingStore = defineStore('booking', {
           customerId: authStore.user?.id || null,
           showtimeId: this.selectedShowtime.id,
           seatIds: this.selectedSeats.map(s => s.seatId),
-          seatSelections: this.selectedSeats.map(s => ({ seatId: s.seatId, ticketType: s.ticketType || 'ADULT' })),
+          seatSelections: this.selectedSeats.map((s, i) => ({ seatId: s.seatId, ticketType: this.audienceAssignment[i] || 'ADULT' })),
           fnbs: this.selectedFnbs.map(f => ({ fnbItemId: f.fnbItem.id, quantity: f.quantity })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
           paymentMethod: paymentMethod
