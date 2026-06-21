@@ -31,6 +31,7 @@ public class BookingService {
     private final NotificationService notificationService;
     private final InventoryService inventoryService;
     private final PricingService pricingService;
+    private final UserRepository userRepository;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -52,8 +53,18 @@ public class BookingService {
 
         Customer customer = null;
         if (request.getCustomerId() != null) {
-            customer = customerRepository.findById(request.getCustomerId())
-                    .orElse(null);
+            customer = customerRepository.findById(request.getCustomerId()).orElse(null);
+            // Tự tạo hồ sơ khách cho user chưa có Customer (vd admin/staff đặt vé) → đơn gắn customer + hiện ở lịch sử
+            if (customer == null) {
+                User u = userRepository.findById(request.getCustomerId()).orElse(null);
+                if (u != null) {
+                    customer = customerRepository.save(Customer.builder()
+                            .user(u) // @MapsId: chỉ set association, KHÔNG set userId (tránh merge)
+                            .membershipTier("BRONZE")
+                            .loyaltyPoints(0)
+                            .build());
+                }
+            }
         }
 
         // Validate seats

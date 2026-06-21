@@ -666,15 +666,10 @@ const proceedToPayment = async () => {
             </div>
             <div class="flex-grow space-y-3 w-full">
               <h3 class="font-headline font-bold text-lg uppercase tracking-tight text-primary-container">Quét mã để chuyển khoản</h3>
-              <p class="text-xs text-on-surface-variant">Dùng app ngân hàng/ví quét mã VietQR — số tiền & nội dung đã điền sẵn.</p>
               <div class="space-y-2 pt-2 border-t border-outline-variant/10">
-                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Ngân hàng</span><span class="font-bold">{{ bankInfo.name || bankInfo.code }}</span></div>
-                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Số tài khoản</span><span class="font-bold font-mono">{{ bankInfo.accountNo }}</span></div>
-                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Chủ tài khoản</span><span class="font-bold uppercase">{{ bankInfo.accountName }}</span></div>
                 <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Số tiền</span><span class="font-bold text-primary-container">{{ finalPaymentPrice.toLocaleString('vi-VN') }} VNĐ</span></div>
                 <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Nội dung</span><span class="font-bold font-mono text-xs">{{ transferContent }}</span></div>
               </div>
-              <p class="text-[11px] text-on-surface-variant/70 italic pt-2">Sau khi chuyển khoản, bấm "Xác nhận thanh toán" để hoàn tất đặt vé.</p>
             </div>
           </div>
           <div v-else class="text-center py-8">
@@ -736,7 +731,7 @@ const proceedToPayment = async () => {
           <div class="pt-6 border-t border-outline-variant/10">
             <div class="bg-black/40 border border-white/5 p-5 rounded-xl space-y-2">
               <div class="flex justify-between items-center text-xs text-on-surface-variant">
-                <span>Tạm tính (suất + bắp):</span>
+                <span>Tạm tính</span>
                 <span>{{ store.totalPrice.toLocaleString('vi-VN') }}đ</span>
               </div>
               <div v-if="discountAmount > 0" class="flex justify-between items-center text-xs text-green-400">
