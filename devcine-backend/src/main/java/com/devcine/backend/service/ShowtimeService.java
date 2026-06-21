@@ -13,9 +13,15 @@ import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.RoomRepository;
 import com.devcine.backend.repository.MovieFormatRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
+import com.devcine.backend.dto.response.MovieCardDTO;
+import com.devcine.backend.dto.response.PublicShowtimeDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -35,10 +41,15 @@ public class ShowtimeService {
         return cinemaRepository.findAllCities();
     }
 
-    public List<com.devcine.backend.dto.response.PublicShowtimeDTO> getAllUpcomingShowtimes() {
+    public List<PublicShowtimeDTO> getAllUpcomingShowtimes() {
         LocalDateTime now = LocalDateTime.now();
-        List<Showtime> showtimes = showtimeRepository.findUpcomingShowtimes(now);
-        return showtimes.stream().map(s -> com.devcine.backend.dto.response.PublicShowtimeDTO.builder()
+        return showtimeRepository.findUpcomingShowtimes(now).stream()
+                .map(this::toPublicDTO).collect(Collectors.toList());
+    }
+
+    /** Mapper dùng chung: Showtime -> PublicShowtimeDTO (DTO phẳng cho FE tự nhóm). */
+    private PublicShowtimeDTO toPublicDTO(Showtime s) {
+        return PublicShowtimeDTO.builder()
                 .id(s.getId())
                 .startTime(s.getStartTime())
                 .endTime(s.getEndTime())
@@ -55,13 +66,68 @@ public class ShowtimeService {
                 .movieCountry(s.getMovie().getCountry())
                 .movieReleaseDate(s.getMovie().getReleaseDate())
                 .movieDescription(s.getMovie().getDescription())
-                .movieGenres(s.getMovie().getGenres() != null ? 
-                    s.getMovie().getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new java.util.HashSet<>())
+                .movieGenres(s.getMovie().getGenres() != null ?
+                    s.getMovie().getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new HashSet<>())
                 .formatId(s.getFormat().getId())
                 .formatName(s.getFormat().getName())
                 .roomId(s.getRoom().getId())
                 .roomName(s.getRoom().getName())
-                .build()).collect(Collectors.toList());
+                .build();
+    }
+
+    // ===== Trang Lịch chiếu: lọc phía server + phân trang =====
+
+    /** Khoảng thời gian của một ngày; với hôm nay thì bắt đầu từ "bây giờ" để ẩn suất đã qua. */
+    private LocalDateTime[] dayRange(String date) {
+        LocalDate d = (date != null && !date.isBlank()) ? LocalDate.parse(date) : LocalDate.now();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = d.atStartOfDay();
+        if (start.isBefore(now)) start = now; // hôm nay: ẩn suất đã chiếu
+        return new LocalDateTime[]{ start, d.atTime(23, 59, 59) };
+    }
+
+    public List<Map<String, Object>> getCinemasByCity(String city) {
+        List<Cinema> cinemas = (city != null && !city.isBlank())
+                ? cinemaRepository.findByCityIgnoreCaseOrderByNameAsc(city)
+                : cinemaRepository.findAllByOrderByNameAsc();
+        return cinemas.stream().map(c -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", c.getId());
+            m.put("name", c.getName());
+            m.put("address", c.getAddress());
+            m.put("city", c.getCity());
+            return m;
+        }).collect(Collectors.toList());
+    }
+
+    public Page<MovieCardDTO> getMoviesWithShowtimes(String city, String date, String q, int page, int size) {
+        LocalDateTime[] range = dayRange(date);
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        Page<Movie> movies = showtimeRepository.findMoviesWithShowtimes(
+                range[0], range[1], city != null ? city : "", q != null ? q : "", pageable);
+        return movies.map(m -> MovieCardDTO.builder()
+                .id(m.getId())
+                .title(m.getTitle())
+                .titleVietnamese(m.getTitleVietnamese())
+                .posterUrl(m.getPosterUrl())
+                .ageRating(m.getAgeRating())
+                .durationMins(m.getDurationMins())
+                .country(m.getCountry())
+                .releaseDate(m.getReleaseDate())
+                .genres(m.getGenres() != null ? m.getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new HashSet<>())
+                .build());
+    }
+
+    public List<PublicShowtimeDTO> getShowtimesByMovieAndDate(Integer movieId, String date, String city) {
+        LocalDateTime[] range = dayRange(date);
+        return showtimeRepository.findByMovieAndRange(movieId, city != null ? city : "", range[0], range[1])
+                .stream().map(this::toPublicDTO).collect(Collectors.toList());
+    }
+
+    public List<PublicShowtimeDTO> getShowtimesByCinemaAndDate(Integer cinemaId, String date) {
+        LocalDateTime[] range = dayRange(date);
+        return showtimeRepository.findByCinemaAndRange(cinemaId, range[0], range[1])
+                .stream().map(this::toPublicDTO).collect(Collectors.toList());
     }
 
     public List<CinemaShowtimeDTO> getShowtimesForMovie(Integer movieId, String city) {

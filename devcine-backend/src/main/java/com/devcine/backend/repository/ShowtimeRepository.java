@@ -1,6 +1,9 @@
 package com.devcine.backend.repository;
 
+import com.devcine.backend.entity.Movie;
 import com.devcine.backend.entity.Showtime;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,4 +44,29 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     long countTotalSeatsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
     boolean existsByFormat_Id(Integer formatId);
+
+    // ===== Lịch chiếu có lọc + phân trang (trang /lich-chieu) =====
+
+    // Suất của 1 RẠP trong khoảng [start, end]
+    @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
+           "WHERE c.id = :cinemaId AND s.startTime >= :start AND s.startTime <= :end ORDER BY m.title ASC, s.startTime ASC")
+    List<Showtime> findByCinemaAndRange(@Param("cinemaId") Integer cinemaId,
+                                        @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    // Suất của 1 PHIM trong khoảng [start, end], lọc theo thành phố (rỗng = tất cả)
+    @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
+           "WHERE m.id = :movieId AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+           "ORDER BY c.name ASC, s.startTime ASC")
+    List<Showtime> findByMovieAndRange(@Param("movieId") Integer movieId, @Param("city") String city,
+                                       @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    // Danh sách PHIM có suất trong (thành phố × khoảng ngày), tìm theo tên — phân trang
+    @Query(value = "SELECT DISTINCT m FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
+            "WHERE (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY m.title ASC",
+            countQuery = "SELECT COUNT(DISTINCT m) FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
+            "WHERE (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%'))")
+    Page<Movie> findMoviesWithShowtimes(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+                                        @Param("city") String city, @Param("q") String q, Pageable pageable);
 }

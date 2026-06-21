@@ -15,4 +15,7 @@ public interface CinemaRepository extends JpaRepository<Cinema, Integer> {
 
     @Query("SELECT c FROM Cinema c LEFT JOIN FETCH c.manager m LEFT JOIN FETCH m.user")
     List<Cinema> findAllWithManager();
+
+    List<Cinema> findAllByOrderByNameAsc();
+    List<Cinema> findByCityIgnoreCaseOrderByNameAsc(String city);
 }
