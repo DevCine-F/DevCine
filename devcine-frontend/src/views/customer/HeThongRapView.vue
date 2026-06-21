@@ -53,15 +53,15 @@ onMounted(fetchCinemas)
         <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
           <div class="max-w-2xl">
             <span class="text-primary font-bold tracking-[0.3em] uppercase text-xs mb-4 block">Hệ thống rạp DevCine</span>
-            <h1 class="text-5xl md:text-7xl font-bold font-headline tracking-tighter mb-6 leading-[0.9]">
-              Trải nghiệm <br/><span class="text-primary italic">Điện ảnh</span> Đẳng cấp
+            <h1 class="text-5xl md:text-7xl font-bold font-headline tracking-tight mb-7 leading-[1.18] md:leading-[1.15]">
+              Trải nghiệm<br/><span class="text-primary italic">Điện ảnh</span> Đẳng cấp
             </h1>
-            <p class="text-on-surface-variant text-base md:text-lg leading-relaxed mb-7">
-              DevCine hiện vận hành <span class="text-on-surface font-bold">{{ cinemas.length }} cụm rạp</span> tại TP. Hồ Chí Minh, trang bị phòng chiếu <span class="text-on-surface font-bold">IMAX</span>, âm thanh <span class="text-on-surface font-bold">Dolby Atmos</span> và ghế đôi <span class="text-on-surface font-bold">Sweetbox</span>. Đặt vé, chọn ghế và thanh toán trực tuyến chỉ trong vài bước.
+            <p class="text-on-surface-variant text-base md:text-lg leading-loose mb-8">
+              DevCine hiện vận hành <span class="text-on-surface font-bold">{{ cinemas.length }} cụm rạp</span> tại TP. Hồ Chí Minh, với phòng chiếu <span class="text-on-surface font-bold">IMAX &amp; 3D</span>, ghế <span class="text-on-surface font-bold">VIP</span> và <span class="text-on-surface font-bold">Sweetbox</span> ghế đôi. Đặt vé, chọn ghế và thanh toán trực tuyến chỉ trong vài bước.
             </p>
-            <!-- Chip công nghệ thực tế -->
+            <!-- Chip tính năng thực tế của hệ thống -->
             <div class="flex flex-wrap gap-2.5">
-              <span v-for="f in ['IMAX', 'Dolby Atmos', 'Sweetbox', 'Đặt vé online']" :key="f"
+              <span v-for="f in ['Phòng IMAX', 'Định dạng 3D', 'Ghế VIP', 'Sweetbox (ghế đôi)', 'Đặt vé online']" :key="f"
                     class="px-3.5 py-1.5 rounded-full bg-surface-container-high/60 border border-outline-variant/20 text-xs font-bold text-on-surface-variant">
                 {{ f }}
               </span>
