@@ -324,7 +324,7 @@ public class DataSeeder {
 
             // Áp dụng BIỂU GIÁ LOTTE (chạy 1 lần, cờ LOTTE_PRICING_SEEDED): giá nền theo đối tượng × ngày
             // (không theo giờ), phụ thu 3D theo ngày, KHÔNG phụ thu ghế/phòng.
-            boolean lottePricingSeeded = systemSettingRepository.findById("LOTTE_PRICING_SEEDED").isPresent();
+            boolean lottePricingSeeded = systemSettingRepository.findById("LOTTE_PRICING_SEEDED_V2").isPresent();
             if (!lottePricingSeeded) {
                 // Bỏ phụ thu loại ghế (Lotte không phân biệt giá ghế)
                 for (SeatType t : seatTypeRepository.findAll()) {
@@ -345,11 +345,11 @@ public class DataSeeder {
                 }
                 // Re-seed ma trận giá nền theo Lotte (timeSlot=ALL vì không phân biệt giờ)
                 pricingRuleRepository.deleteAll(pricingRuleRepository.findByRuleType("BASE_PRICE"));
-                java.util.Map<String, int[]> baseByDay = new java.util.LinkedHashMap<>(); // [ADULT,STUDENT,CHILD,SENIOR]
-                baseByDay.put("WEEKDAY", new int[]{45000, 45000, 45000, 45000});
-                baseByDay.put("WEEKEND", new int[]{75000, 45000, 45000, 60000});
-                baseByDay.put("HOLIDAY", new int[]{85000, 55000, 55000, 70000});
-                String[] auds = {"ADULT", "STUDENT", "CHILD", "SENIOR"};
+                java.util.Map<String, int[]> baseByDay = new java.util.LinkedHashMap<>(); // [ADULT, STUDENT]
+                baseByDay.put("WEEKDAY", new int[]{45000, 45000});
+                baseByDay.put("WEEKEND", new int[]{75000, 45000});
+                baseByDay.put("HOLIDAY", new int[]{85000, 55000});
+                String[] auds = {"ADULT", "STUDENT"};
                 for (var e : baseByDay.entrySet()) {
                     for (int i = 0; i < auds.length; i++) {
                         pricingRuleRepository.save(PricingRule.builder()
@@ -359,8 +359,8 @@ public class DataSeeder {
                     }
                 }
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("LOTTE_PRICING_SEEDED").settingValue("true").build());
-                System.out.println("Đã áp dụng biểu giá Lotte (đối tượng×ngày, 3D +20k/+30k, bỏ phụ thu ghế).");
+                        .settingKey("LOTTE_PRICING_SEEDED_V2").settingValue("true").build());
+                System.out.println("Đã áp dụng biểu giá Lotte (2 đối tượng NL/HSSV × ngày, 3D +20k/+30k, bỏ phụ thu ghế).");
             }
 
             // Seed phim thật (thêm theo slug nếu chưa có — không trùng phim cũ)

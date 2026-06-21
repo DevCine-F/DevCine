@@ -39,7 +39,7 @@ public class PricingService {
     private final HolidayRepository holidayRepository;
     private final SpecialSeatPriceRepository specialSeatPriceRepository;
 
-    public static final List<String> AUDIENCE_TYPES = List.of("ADULT", "STUDENT", "CHILD", "SENIOR");
+    public static final List<String> AUDIENCE_TYPES = List.of("ADULT", "STUDENT");
     public static final String RULE_BASE_PRICE = "BASE_PRICE";
     private static final BigDecimal DEFAULT_BASE = new BigDecimal("75000");
     private static final LocalTime SLOT_EARLY_END = LocalTime.of(10, 0);
@@ -50,8 +50,6 @@ public class PricingService {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("ADULT", "Người lớn");
         m.put("STUDENT", "HSSV / U22");
-        m.put("CHILD", "Trẻ em");
-        m.put("SENIOR", "Người cao tuổi");
         return m;
     }
 
