@@ -2,11 +2,14 @@ package com.devcine.backend.service;
 
 import com.devcine.backend.entity.AgeRating;
 import com.devcine.backend.entity.Category;
-import com.devcine.backend.entity.Format;
+import com.devcine.backend.entity.MovieFormat;
 import com.devcine.backend.repository.AgeRatingRepository;
 import com.devcine.backend.repository.CategoryRepository;
-import com.devcine.backend.repository.FormatRepository;
+import com.devcine.backend.repository.MovieFormatRepository;
 import com.devcine.backend.repository.MovieRepository;
+import com.devcine.backend.repository.ShowtimeRepository;
+
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +25,10 @@ import java.util.List;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
-    private final FormatRepository formatRepository;
+    private final MovieFormatRepository movieFormatRepository;
     private final AgeRatingRepository ageRatingRepository;
     private final MovieRepository movieRepository;
+    private final ShowtimeRepository showtimeRepository;
 
     // ===================== THỂ LOẠI (GENRES) =====================
 
@@ -82,49 +86,56 @@ public class CategoryService {
 
     // ===================== ĐỊNH DẠNG (FORMATS) =====================
 
+    // Dùng CHUNG bảng movie_formats (gắn vào Suất chiếu + Cấu hình giá) — một nguồn định dạng duy nhất.
     @Transactional
-    public List<Format> getFormats() {
-        if (formatRepository.count() == 0) {
-            formatRepository.saveAll(List.of(
-                    Format.builder().name("2D").description("Định dạng tiêu chuẩn").build(),
-                    Format.builder().name("3D").description("Định dạng 3 chiều").build(),
-                    Format.builder().name("IMAX").description("Màn hình IMAX").build()
+    public List<MovieFormat> getFormats() {
+        if (movieFormatRepository.count() == 0) {
+            movieFormatRepository.saveAll(List.of(
+                    MovieFormat.builder().name("2D").description("Định dạng tiêu chuẩn").surcharge(BigDecimal.ZERO).isFixedPrice(false).build(),
+                    MovieFormat.builder().name("3D").description("Định dạng 3 chiều").surcharge(BigDecimal.ZERO).isFixedPrice(false).build(),
+                    MovieFormat.builder().name("IMAX").description("Màn hình IMAX").surcharge(BigDecimal.ZERO).isFixedPrice(false).build()
             ));
         }
-        return formatRepository.findAll();
+        return movieFormatRepository.findAll();
     }
 
     @Transactional
-    public Format createFormat(Format input) {
+    public MovieFormat createFormat(MovieFormat input) {
         String name = requireName(input.getName(), "Tên định dạng không được để trống");
-        if (formatRepository.existsByNameIgnoreCase(name)) {
+        if (movieFormatRepository.existsByNameIgnoreCase(name)) {
             throw new IllegalArgumentException("Định dạng \"" + name + "\" đã tồn tại");
         }
-        return formatRepository.save(Format.builder()
+        return movieFormatRepository.save(MovieFormat.builder()
                 .name(name)
                 .description(trimToNull(input.getDescription()))
+                .surcharge(BigDecimal.ZERO)
+                .isFixedPrice(false)
                 .build());
     }
 
+    // Chỉ sửa tên + mô tả; phụ thu/giá cố định được chỉnh ở màn "Cấu hình giá".
     @Transactional
-    public Format updateFormat(Integer id, Format input) {
-        Format existing = formatRepository.findById(id)
+    public MovieFormat updateFormat(Integer id, MovieFormat input) {
+        MovieFormat existing = movieFormatRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng #" + id));
         String name = requireName(input.getName(), "Tên định dạng không được để trống");
-        if (!name.equalsIgnoreCase(existing.getName()) && formatRepository.existsByNameIgnoreCase(name)) {
+        if (!name.equalsIgnoreCase(existing.getName()) && movieFormatRepository.existsByNameIgnoreCase(name)) {
             throw new IllegalArgumentException("Định dạng \"" + name + "\" đã tồn tại");
         }
         existing.setName(name);
         existing.setDescription(trimToNull(input.getDescription()));
-        return formatRepository.save(existing);
+        return movieFormatRepository.save(existing);
     }
 
     @Transactional
     public void deleteFormat(Integer id) {
-        if (!formatRepository.existsById(id)) {
+        if (!movieFormatRepository.existsById(id)) {
             throw new IllegalArgumentException("Không tìm thấy định dạng #" + id);
         }
-        formatRepository.deleteById(id);
+        if (showtimeRepository.existsByFormat_Id(id)) {
+            throw new IllegalStateException("Không thể xoá: định dạng đang được suất chiếu sử dụng");
+        }
+        movieFormatRepository.deleteById(id);
     }
 
     // ===================== KIỂM DUYỆT (AGE RATINGS) =====================

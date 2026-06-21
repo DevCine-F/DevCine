@@ -2,7 +2,7 @@ package com.devcine.backend.controller;
 
 import com.devcine.backend.entity.AgeRating;
 import com.devcine.backend.entity.Category;
-import com.devcine.backend.entity.Format;
+import com.devcine.backend.entity.MovieFormat;
 import com.devcine.backend.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -58,19 +58,19 @@ public class CategoryController {
     // ===================== ĐỊNH DẠNG =====================
 
     @GetMapping("/formats")
-    public List<Format> getFormats() {
+    public List<MovieFormat> getFormats() {
         return categoryService.getFormats();
     }
 
     @PostMapping("/formats")
     @PreAuthorize("@perm.can('movies','add')")
-    public ResponseEntity<?> createFormat(@RequestBody Format body) {
+    public ResponseEntity<?> createFormat(@RequestBody MovieFormat body) {
         return ResponseEntity.ok(categoryService.createFormat(body));
     }
 
     @PutMapping("/formats/{id}")
     @PreAuthorize("@perm.can('movies','edit')")
-    public ResponseEntity<?> updateFormat(@PathVariable Integer id, @RequestBody Format body) {
+    public ResponseEntity<?> updateFormat(@PathVariable Integer id, @RequestBody MovieFormat body) {
         return ResponseEntity.ok(categoryService.updateFormat(id, body));
     }
 

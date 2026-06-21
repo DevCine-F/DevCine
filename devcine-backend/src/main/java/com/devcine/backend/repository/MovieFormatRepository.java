@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface MovieFormatRepository extends JpaRepository<MovieFormat, Integer> {
+    boolean existsByNameIgnoreCase(String name);
 }

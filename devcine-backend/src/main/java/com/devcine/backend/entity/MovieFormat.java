@@ -21,6 +21,9 @@ public class MovieFormat {
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
+    @Column(length = 255)
+    private String description;
+
     /**
      * Phụ thu định dạng cho NGÀY THƯỜNG (T2–T5). Vd 2D +0, 3D +20k.
      * Khi isFixedPrice=true: định dạng/phòng đặc biệt (IMAX/4DX/Gold) — giá lấy từ SpecialSeatPrice
