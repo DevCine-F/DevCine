@@ -465,6 +465,60 @@ public class DataSeeder {
                         .settingKey("DEMO_SCHEDULE_SEEDED").settingValue("true").build());
             }
 
+            // ===== Tự bù lịch chiếu cho 7 ngày tới (hôm nay .. +6) =====
+            // Chạy MỖI lần khởi động: ngày nào đang TRỐNG suất thì tạo mới — idempotent
+            // (bỏ qua ngày đã có lịch, tự cuốn chiếu khi lịch cũ trôi vào quá khứ).
+            {
+                List<String> rollSlugs = List.of(
+                        "mai-2024", "lat-mat-7-mot-dieu-uoc", "dao-pho-va-piano",
+                        "dune-part-two", "kung-fu-panda-4", "godzilla-x-kong");
+                List<Movie> rollMovies = rollSlugs.stream()
+                        .map(slug -> movieRepository.findBySlug(slug).orElse(null))
+                        .filter(m -> m != null)
+                        .toList();
+                List<Room> rollRooms = roomRepository.findAll();
+                List<MovieFormat> rollFormats = formatRepository.findAll();
+                if (!rollMovies.isEmpty() && !rollRooms.isEmpty() && !rollFormats.isEmpty()) {
+                    java.util.Set<LocalDate> daysWithShowtimes = showtimeRepository.findAll().stream()
+                            .filter(s -> s.getStartTime() != null)
+                            .map(s -> s.getStartTime().toLocalDate())
+                            .collect(java.util.stream.Collectors.toSet());
+                    MovieFormat imaxFmt = rollFormats.stream()
+                            .filter(f -> f.getName() != null && f.getName().toUpperCase().contains("IMAX"))
+                            .findFirst().orElse(rollFormats.get(0));
+                    MovieFormat stdFmt = rollFormats.stream()
+                            .filter(f -> f.getName() != null && f.getName().contains("2D"))
+                            .findFirst().orElse(rollFormats.get(0));
+                    int[][] rollSlots = {{9, 0}, {12, 30}, {16, 0}, {19, 30}, {22, 0}};
+                    LocalDateTime nowTs = LocalDateTime.now();
+                    List<Showtime> rollShowtimes = new java.util.ArrayList<>();
+                    int rollIdx = 0;
+                    for (int day = 0; day <= 6; day++) {
+                        LocalDate date = LocalDate.now().plusDays(day);
+                        if (daysWithShowtimes.contains(date)) continue; // ngày đã có lịch -> bỏ qua
+                        for (Room room : rollRooms) {
+                            MovieFormat fmt = (room.getType() != null && room.getType().toUpperCase().contains("IMAX"))
+                                    ? imaxFmt : stdFmt;
+                            for (int[] slot : rollSlots) {
+                                LocalDateTime start = date.atTime(slot[0], slot[1]);
+                                if (start.isBefore(nowTs)) continue; // bỏ suất đã qua giờ trong hôm nay
+                                Movie m = rollMovies.get(rollIdx % rollMovies.size());
+                                rollIdx++;
+                                int dur = m.getDurationMins() != null ? m.getDurationMins() : 120;
+                                rollShowtimes.add(Showtime.builder()
+                                        .movie(m).room(room).format(fmt)
+                                        .startTime(start).endTime(start.plusMinutes(dur + 15))
+                                        .status("SCHEDULED").build());
+                            }
+                        }
+                    }
+                    if (!rollShowtimes.isEmpty()) {
+                        showtimeRepository.saveAll(rollShowtimes);
+                        System.out.println("Đã bổ sung " + rollShowtimes.size() + " suất chiếu cho các ngày còn trống (tới hết tuần).");
+                    }
+                }
+            }
+
             // Temporary fix for previously seeded movies with wrong status
             List<Movie> allMovies = movieRepository.findAll();
             boolean updated = false;
