@@ -29,7 +29,7 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
         </RouterLink>
       </div>
 
-      <nav class="flex-grow px-4 space-y-1.5 overflow-y-auto">
+      <nav class="flex-grow px-4 pb-6 space-y-1.5 overflow-y-auto">
         <!-- ===== TỔNG QUAN & VẬN HÀNH ===== -->
         <div class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
 
