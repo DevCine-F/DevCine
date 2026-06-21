@@ -26,7 +26,7 @@ public class VoucherController {
 
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<?> getActiveVouchers(@PathVariable Integer customerId) {
-        List<Voucher> vouchers = voucherRepository.findActiveVouchersByCustomerId(customerId);
+        List<Voucher> vouchers = voucherRepository.findActiveVouchersByCustomerId(customerId, java.time.LocalDateTime.now());
         return ResponseEntity.ok(vouchers);
     }
 
@@ -61,7 +61,7 @@ public class VoucherController {
 
     @PostMapping("/validate")
     public ResponseEntity<?> validateVoucher(@RequestParam String code, @RequestParam Integer customerId) {
-        Voucher voucher = voucherRepository.findActiveVoucherByCustomerAndCode(customerId, code)
+        Voucher voucher = voucherRepository.findActiveVoucherByCustomerAndCode(customerId, code, java.time.LocalDateTime.now())
                 .orElse(null);
         
         if (voucher == null) {
@@ -92,7 +92,7 @@ public class VoucherController {
         boolean expired = (promo.getEndDate() != null && promo.getEndDate().isBefore(now))
                 || (promo.getStartDate() != null && promo.getStartDate().isAfter(now));
         boolean pointOnly = Boolean.TRUE.equals(promo.getAllowPointRedemption());
-        boolean owned = voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode()).isPresent();
+        boolean owned = voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), now).isPresent();
         boolean claimable = !pointOnly && !expired && !owned;
         String reason = pointOnly ? "POINT_ONLY" : expired ? "EXPIRED" : owned ? "ALREADY_OWNED" : "OK";
 

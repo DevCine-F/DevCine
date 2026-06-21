@@ -95,7 +95,7 @@ public class VoucherService {
             throw new RuntimeException("Ưu đãi đã hết hạn.");
         }
 
-        if (voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode()).isPresent()) {
+        if (voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), now).isPresent()) {
             throw new RuntimeException("Bạn đã lưu mã này rồi.");
         }
 
@@ -124,7 +124,7 @@ public class VoucherService {
         Promotion promo = promotionRepository.findByCodeIgnoreCase(code.trim())
                 .orElseThrow(() -> new RuntimeException("Mã ưu đãi không tồn tại."));
 
-        return voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode())
+        return voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), LocalDateTime.now())
                 .orElseGet(() -> claimByCode(customerId, promo.getCode()));
     }
 }
