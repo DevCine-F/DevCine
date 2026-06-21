@@ -94,41 +94,47 @@ public class BookingService {
 
         BigDecimal totalPrice = BigDecimal.ZERO;
 
-        // Process Seats — giá tính tập trung qua PricingService (nạp ngữ cảnh suất một lần)
+        // Process Seats — giá tính tập trung qua PricingService (nạp ngữ cảnh suất một lần).
+        // Gom 1 query đọc ghế (findAllById) + saveAll thay vì truy vấn/lưu từng ghế (giảm round-trip).
         PricingService.PricingContext priceCtx = pricingService.buildContext(showtime);
+        java.util.Map<Integer, Seat> seatMap = new java.util.HashMap<>();
+        seatRepository.findByIdInWithSeatType(selectedSeatIds).forEach(s -> seatMap.put(s.getId(), s));
+        java.util.List<BookingSeat> bookingSeats = new java.util.ArrayList<>();
         for (java.util.Map.Entry<Integer, String> entry : ticketTypeBySeat.entrySet()) {
-            Seat seat = seatRepository.findById(entry.getKey())
-                    .orElseThrow(() -> new RuntimeException("Seat not found"));
+            Seat seat = seatMap.get(entry.getKey());
+            if (seat == null) throw new RuntimeException("Seat not found");
             String ticketType = entry.getValue();
             BigDecimal seatPrice = pricingService.priceFor(priceCtx, seat.getSeatType(), ticketType);
-
-            BookingSeat bookingSeat = BookingSeat.builder()
+            bookingSeats.add(BookingSeat.builder()
                     .booking(booking)
                     .seat(seat)
                     .priceSnapshot(seatPrice)
                     .ticketType(ticketType)
                     .status("HOLD")
-                    .build();
-            bookingSeatRepository.save(bookingSeat);
+                    .build());
             totalPrice = totalPrice.add(seatPrice);
         }
+        bookingSeatRepository.saveAll(bookingSeats);
 
-        // Process F&B
-        if (request.getFnbs() != null) {
+        // Process F&B — gom 1 query đọc món + saveAll
+        if (request.getFnbs() != null && !request.getFnbs().isEmpty()) {
+            java.util.List<Integer> fnbIds = request.getFnbs().stream()
+                    .map(FnbSelectionDTO::getFnbItemId).toList();
+            java.util.Map<Integer, FnbItem> fnbMap = new java.util.HashMap<>();
+            fnbItemRepository.findAllById(fnbIds).forEach(i -> fnbMap.put(i.getId(), i));
+            java.util.List<BookingFnb> bookingFnbs = new java.util.ArrayList<>();
             for (FnbSelectionDTO fnbDTO : request.getFnbs()) {
-                FnbItem item = fnbItemRepository.findById(fnbDTO.getFnbItemId())
-                        .orElseThrow(() -> new RuntimeException("F&B Item not found"));
-                BigDecimal itemTotal = item.getPrice().multiply(new BigDecimal(fnbDTO.getQuantity()));
-                
-                BookingFnb bookingFnb = BookingFnb.builder()
+                FnbItem item = fnbMap.get(fnbDTO.getFnbItemId());
+                if (item == null) throw new RuntimeException("F&B Item not found");
+                bookingFnbs.add(BookingFnb.builder()
                         .booking(booking)
                         .fnbItem(item)
                         .quantity(fnbDTO.getQuantity())
                         .priceSnapshot(item.getPrice())
-                        .build();
-                bookingFnbRepository.save(bookingFnb);
-                totalPrice = totalPrice.add(itemTotal);
+                        .build());
+                totalPrice = totalPrice.add(item.getPrice().multiply(new BigDecimal(fnbDTO.getQuantity())));
             }
+            bookingFnbRepository.saveAll(bookingFnbs);
         }
 
         booking.setTotalPrice(totalPrice);
@@ -220,21 +226,20 @@ public class BookingService {
         booking.setPaymentMethod(paymentMethod);
         bookingRepository.save(booking);
         
-        // Update seat status
+        // Update seat status + sinh vé QR — gom saveAll thay vì lưu từng bản ghi (giảm round-trip)
         List<BookingSeat> seats = bookingSeatRepository.findAllByBookingId(bookingId);
+        List<Ticket> tickets = new java.util.ArrayList<>();
         for (BookingSeat bs : seats) {
             bs.setStatus("SOLD");
-            bookingSeatRepository.save(bs);
-            
-            // Generate Ticket and QR code
-            Ticket ticket = Ticket.builder()
+            tickets.add(Ticket.builder()
                     .bookingSeat(bs)
                     .qrCode("DEVCINE-T-" + bs.getId() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                     .isCheckedIn(false)
                     .isAgeVerified(false)
-                    .build();
-            ticketRepository.save(ticket);
+                    .build());
         }
+        bookingSeatRepository.saveAll(seats);
+        ticketRepository.saveAll(tickets);
         
         // Mark voucher as used
         if (booking.getVoucher() != null) {

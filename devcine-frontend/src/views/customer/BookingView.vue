@@ -14,6 +14,8 @@ const paymentMethod = ref('VNPAY')
 
 // ===== Điều hướng wizard từng bước =====
 const currentStep = ref(1)
+const held = ref(false)      // đã giữ ghế (tạo đơn) cho lựa chọn hiện tại chưa
+const holding = ref(false)   // đang giữ ghế ở nền
 const steps = [
   { id: 1, label: 'Chọn ghế', icon: 'event_seat' },
   { id: 2, label: 'Combo', icon: 'fastfood' },
@@ -55,6 +57,28 @@ const goToStep = (id) => {
   currentStep.value = id
   scrollTop()
 }
+
+// Giữ ghế (tạo đơn) SẴN ở nền ngay khi mở bước Thanh toán → lúc bấm "Xác nhận" chỉ còn completePayment (nhanh hơn)
+let holdPromise = null
+const ensureHeld = async () => {
+  if (held.value) return true
+  if (!holdPromise) {
+    holding.value = true
+    holdPromise = store.holdSeatsAndProceed(paymentMethod.value).then(ok => {
+      held.value = ok
+      holding.value = false
+      holdPromise = null
+      return ok
+    })
+  }
+  return holdPromise // người bấm "Xác nhận" sớm sẽ chờ chung promise giữ ghế đang chạy ở nền
+}
+watch(currentStep, (s) => { if (s === 4) ensureHeld() })
+// Đổi ghế/combo/voucher → đơn đã giữ không còn đúng, sẽ giữ lại khi vào bước 4 lần tới
+watch(() => [store.selectedSeats.length, store.selectedFnbs.length, store.selectedVoucher?.id], () => {
+  held.value = false
+  store.bookingId = null
+})
 
 // ===== Phân trang danh sách combo / F&B (6 món = 2 cột x 3 hàng / trang) =====
 const fnbPage = ref(1)
@@ -116,7 +140,7 @@ const buildVietQrPayload = () => {
 const transferQrUrl = computed(() => {
   const payload = buildVietQrPayload()
   if (!payload) return ''
-  return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&margin=0&ecc=M&data=${encodeURIComponent(payload)}`
+  return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&ecc=M&data=${encodeURIComponent(payload)}`
 })
 
 const loadBankInfo = async () => {
@@ -301,8 +325,8 @@ const getBookingSeatClass = (seat) => {
 }
 
 const proceedToPayment = async () => {
-  
-  const success = await store.holdSeatsAndProceed(paymentMethod.value)
+  // Thường ghế đã được giữ sẵn ở nền khi mở bước 4 → ensureHeld trả về ngay; nếu chưa thì giữ ở đây
+  const success = await ensureHeld()
   if (success) {
     if (paymentMethod.value === 'VNPAY') {
       try {
@@ -327,6 +351,7 @@ const proceedToPayment = async () => {
       }
     }
   } else {
+    held.value = false
     const reason = store.lastHoldError || ''
     if (/already taken|on hold/i.test(reason)) {
       alert('Một số ghế bạn chọn vừa được người khác đặt. Vui lòng tải lại sơ đồ ghế và chọn ghế khác.')
