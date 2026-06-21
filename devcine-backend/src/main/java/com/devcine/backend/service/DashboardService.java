@@ -3,6 +3,6 @@ package com.devcine.backend.service;
 import com.devcine.backend.dto.response.DashboardStatsResponse;
 
 public interface DashboardService {
-    DashboardStatsResponse getDashboardStats();
+    DashboardStatsResponse getDashboardStats(String range);
     Object debug();
 }

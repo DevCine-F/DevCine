@@ -1,11 +1,16 @@
 package com.devcine.backend.service.impl;
 
 import com.devcine.backend.dto.response.DashboardStatsResponse;
+import com.devcine.backend.entity.Booking;
+import com.devcine.backend.entity.CinemaInventory;
+import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.repository.BookingRepository;
+import com.devcine.backend.repository.CinemaInventoryRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.service.DashboardService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,121 +29,201 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
 
+    private static final int LOW_STOCK_THRESHOLD = 20;
+
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final ShowtimeRepository showtimeRepository;
+    private final CinemaInventoryRepository cinemaInventoryRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public DashboardStatsResponse getDashboardStats() {
-        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
-        LocalDateTime endOfMonth = LocalDate.now().plusMonths(1).withDayOfMonth(1).atStartOfDay().minusSeconds(1);
+    public DashboardStatsResponse getDashboardStats(String range) {
+        Window w = resolveWindow(range);
 
-        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfToday = LocalDate.now().atTime(LocalTime.MAX);
+        // ===== KPI cho khoảng đã chọn (+ trend so với kỳ liền trước) =====
+        BigDecimal revenue = bookingRepository.sumRevenueByDateRange(w.start, w.end);
+        BigDecimal prevRevenue = bookingRepository.sumRevenueByDateRange(w.prevStart, w.prevEnd);
 
-        LocalDateTime startOfYesterday = startOfToday.minusDays(1);
-        LocalDateTime endOfYesterday = endOfToday.minusDays(1);
+        long ticketCount = bookingRepository.countTicketsByDateRange(w.start, w.end);
+        long prevTicketCount = bookingRepository.countTicketsByDateRange(w.prevStart, w.prevEnd);
 
-        // Gộp doanh thu + vé theo ngày cho 7 ngày gần nhất (2 query thay vì 14 query trong vòng lặp)
-        LocalDateTime chartStart = startOfToday.minusDays(6);
+        long newUsers = userRepository.countNewUsersByDateRange(w.start, w.end);
+        long prevNewUsers = userRepository.countNewUsersByDateRange(w.prevStart, w.prevEnd);
+
+        long totalSeats = showtimeRepository.countTotalSeatsByDateRange(w.start, w.end);
+        double occupancy = totalSeats > 0 ? (double) ticketCount / totalSeats * 100 : 0;
+        long prevTotalSeats = showtimeRepository.countTotalSeatsByDateRange(w.prevStart, w.prevEnd);
+        double prevOccupancy = prevTotalSeats > 0 ? (double) prevTicketCount / prevTotalSeats * 100 : 0;
+
+        // ===== Biểu đồ doanh thu & vé (7 ngày, riêng Tháng dùng 30 ngày) =====
+        List<DashboardStatsResponse.ChartData> chart = buildChart("month".equalsIgnoreCase(range) ? 30 : 7);
+
+        return DashboardStatsResponse.builder()
+                .rangeLabel(w.label)
+                .revenue(new DashboardStatsResponse.StatItem(formatCurrency(revenue), calculateTrend(revenue, prevRevenue)))
+                .tickets(new DashboardStatsResponse.StatItem(String.valueOf(ticketCount), calculateTrend(BigDecimal.valueOf(ticketCount), BigDecimal.valueOf(prevTicketCount))))
+                .newUsers(new DashboardStatsResponse.StatItem(String.valueOf(newUsers), calculateTrend(BigDecimal.valueOf(newUsers), BigDecimal.valueOf(prevNewUsers))))
+                .occupancy(new DashboardStatsResponse.StatItem(String.format("%.1f%%", occupancy), calculateTrend(BigDecimal.valueOf(occupancy), BigDecimal.valueOf(prevOccupancy))))
+                .businessPerformance(chart)
+                .topMovies(buildTopMovies())
+                .recentBookings(buildRecentBookings())
+                .todayShowtimes(buildTodayShowtimes())
+                .lowStock(buildLowStock())
+                .build();
+    }
+
+    // ===== Khoảng thời gian theo range =====
+    private record Window(LocalDateTime start, LocalDateTime end,
+                          LocalDateTime prevStart, LocalDateTime prevEnd, String label) {}
+
+    private Window resolveWindow(String range) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime endToday = today.atTime(LocalTime.MAX);
+        switch (range == null ? "" : range.toLowerCase()) {
+            case "week":
+                return new Window(
+                        today.minusDays(6).atStartOfDay(), endToday,
+                        today.minusDays(13).atStartOfDay(), today.minusDays(7).atTime(LocalTime.MAX),
+                        "7 ngày qua");
+            case "month": {
+                LocalDateTime startMonth = today.withDayOfMonth(1).atStartOfDay();
+                return new Window(
+                        startMonth, endToday,
+                        today.minusMonths(1).withDayOfMonth(1).atStartOfDay(), startMonth.minusSeconds(1),
+                        "Tháng này");
+            }
+            default:
+                return new Window(
+                        today.atStartOfDay(), endToday,
+                        today.minusDays(1).atStartOfDay(), today.minusDays(1).atTime(LocalTime.MAX),
+                        "Hôm nay");
+        }
+    }
+
+    // ===== Biểu đồ N ngày gần nhất (2 query gộp, không N+1) =====
+    private List<DashboardStatsResponse.ChartData> buildChart(int days) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime chartStart = today.minusDays(days - 1L).atStartOfDay();
+        LocalDateTime chartEnd = today.atTime(LocalTime.MAX);
+
         Map<LocalDate, BigDecimal> revByDay = new HashMap<>();
-        for (Object[] r : bookingRepository.sumRevenueGroupedByDay(chartStart, endOfToday)) {
+        for (Object[] r : bookingRepository.sumRevenueGroupedByDay(chartStart, chartEnd)) {
             revByDay.put(toLocalDate(r[0]), r[1] != null ? new BigDecimal(r[1].toString()) : BigDecimal.ZERO);
         }
         Map<LocalDate, Long> ticketsByDay = new HashMap<>();
-        for (Object[] r : bookingRepository.countTicketsGroupedByDay(chartStart, endOfToday)) {
+        for (Object[] r : bookingRepository.countTicketsGroupedByDay(chartStart, chartEnd)) {
             ticketsByDay.put(toLocalDate(r[0]), ((Number) r[1]).longValue());
         }
 
-        LocalDate today = LocalDate.now();
-        LocalDate yesterday = today.minusDays(1);
-
-        // Revenue (hôm nay/hôm qua lấy lại từ map đã gộp — không query thêm)
-        BigDecimal revenueMonthly = bookingRepository.sumRevenueByDateRange(startOfMonth, endOfMonth);
-        BigDecimal revenueToday = revByDay.getOrDefault(today, BigDecimal.ZERO);
-        BigDecimal revenueYesterday = revByDay.getOrDefault(yesterday, BigDecimal.ZERO);
-
-        String monthlyRevenueTrend = calculateTrend(revenueMonthly, bookingRepository.sumRevenueByDateRange(startOfMonth.minusMonths(1), startOfMonth.minusSeconds(1)));
-        String dailyRevenueTrend = calculateTrend(revenueToday, revenueYesterday);
-
-        // Tickets (lấy lại từ map đã gộp)
-        long ticketsToday = ticketsByDay.getOrDefault(today, 0L);
-        long ticketsYesterday = ticketsByDay.getOrDefault(yesterday, 0L);
-        String ticketsTrend = calculateTrend(BigDecimal.valueOf(ticketsToday), BigDecimal.valueOf(ticketsYesterday));
-
-        // New Users
-        long newUsersToday = userRepository.countNewUsersByDateRange(startOfToday, endOfToday);
-        long newUsersYesterday = userRepository.countNewUsersByDateRange(startOfYesterday, endOfYesterday);
-        String newUsersTrend = calculateTrend(BigDecimal.valueOf(newUsersToday), BigDecimal.valueOf(newUsersYesterday));
-
-        // Occupancy Rate (Simplified for today)
-        long totalSeatsToday = showtimeRepository.countTotalSeatsByDateRange(startOfToday, endOfToday);
-        double occupancyRate = totalSeatsToday > 0 ? (double) ticketsToday / totalSeatsToday * 100 : 0;
-        
-        long totalSeatsYesterday = showtimeRepository.countTotalSeatsByDateRange(startOfYesterday, endOfYesterday);
-        double occupancyRateYesterday = totalSeatsYesterday > 0 ? (double) ticketsYesterday / totalSeatsYesterday * 100 : 0;
-        String occupancyTrend = calculateTrend(BigDecimal.valueOf(occupancyRate), BigDecimal.valueOf(occupancyRateYesterday));
-
-        // Business Performance Chart
-        List<DashboardStatsResponse.ChartData> chartDataList = new ArrayList<>();
-        DateTimeFormatter dayFormatter = DateTimeFormatter.ofPattern("EEE"); // Mon, Tue
-        BigDecimal maxRevenue = BigDecimal.ONE;
-        long maxTickets = 1;
-
-        BigDecimal[] dayRevenues = new BigDecimal[7];
-        long[] dayTicketsArr = new long[7];
-
-        for (int i = 6; i >= 0; i--) {
-            LocalDateTime start = startOfToday.minusDays(i);
+        DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("dd/MM");
+        List<DashboardStatsResponse.ChartData> list = new ArrayList<>();
+        for (int i = days - 1; i >= 0; i--) {
             LocalDate day = today.minusDays(i);
-            BigDecimal dayRevenue = revByDay.getOrDefault(day, BigDecimal.ZERO);
-            long dayTickets = ticketsByDay.getOrDefault(day, 0L);
-
-            dayRevenues[6 - i] = dayRevenue;
-            dayTicketsArr[6 - i] = dayTickets;
-
-            if (dayRevenue.compareTo(maxRevenue) > 0) maxRevenue = dayRevenue;
-            if (dayTickets > maxTickets) maxTickets = dayTickets;
-
-            DashboardStatsResponse.ChartData data = new DashboardStatsResponse.ChartData();
-            data.setDay(start.format(dayFormatter));
-            data.setRevenueLabel(formatCurrency(dayRevenue));
-            data.setTicketLabel(dayTickets + " vé");
-            // we will set percentage later
-            chartDataList.add(data);
+            BigDecimal rev = revByDay.getOrDefault(day, BigDecimal.ZERO);
+            long tk = ticketsByDay.getOrDefault(day, 0L);
+            list.add(DashboardStatsResponse.ChartData.builder()
+                    .label(day.format(labelFmt))
+                    .revenue(rev.doubleValue())
+                    .tickets(tk)
+                    .revenueLabel(formatCurrency(rev))
+                    .ticketLabel(tk + " vé")
+                    .build());
         }
-        
-        for (int i = 0; i < 7; i++) {
-            DashboardStatsResponse.ChartData data = chartDataList.get(i);
-            data.setRevenuePercentage(dayRevenues[i].doubleValue() / maxRevenue.doubleValue() * 100);
-            data.setTicketPercentage((double) dayTicketsArr[i] / maxTickets * 100);
+        return list;
+    }
+
+    // ===== Top phim theo doanh thu (poster thật) =====
+    private List<DashboardStatsResponse.TopMovie> buildTopMovies() {
+        List<Object[]> raw = bookingRepository.findTopMoviesByRevenue();
+        List<DashboardStatsResponse.TopMovie> list = new ArrayList<>();
+        for (int i = 0; i < Math.min(5, raw.size()); i++) {
+            Object[] row = raw.get(i);
+            list.add(DashboardStatsResponse.TopMovie.builder()
+                    .title((String) row[0])
+                    .revenue(formatCurrency((BigDecimal) row[1]))
+                    .tickets(row[2].toString())
+                    .posterUrl((String) row[3])
+                    .build());
+        }
+        return list;
+    }
+
+    // ===== Giao dịch gần đây =====
+    private List<DashboardStatsResponse.RecentBooking> buildRecentBookings() {
+        DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm dd/MM");
+        List<DashboardStatsResponse.RecentBooking> list = new ArrayList<>();
+        for (Booking b : bookingRepository.findRecentConfirmed(PageRequest.of(0, 6))) {
+            String customerName = "Khách vãng lai";
+            if (b.getCustomer() != null && b.getCustomer().getUser() != null && b.getCustomer().getUser().getFullName() != null) {
+                customerName = b.getCustomer().getUser().getFullName();
+            }
+            list.add(DashboardStatsResponse.RecentBooking.builder()
+                    .code(b.getBookingCode())
+                    .movieTitle(b.getShowtime().getMovie().getTitle())
+                    .customerName(customerName)
+                    .amount(formatCurrency(b.getFinalPrice()))
+                    .channel(channelLabel(b.getPaymentMethod()))
+                    .time(b.getCreatedAt() != null ? b.getCreatedAt().format(timeFmt) : "")
+                    .build());
+        }
+        return list;
+    }
+
+    // ===== Suất chiếu hôm nay + tỉ lệ lấp đầy =====
+    private List<DashboardStatsResponse.TodayShowtime> buildTodayShowtimes() {
+        LocalDate today = LocalDate.now();
+        LocalDateTime startToday = today.atStartOfDay();
+        LocalDateTime endToday = today.atTime(LocalTime.MAX);
+
+        Map<Integer, Long> soldByShowtime = new HashMap<>();
+        for (Object[] r : bookingRepository.countSoldSeatsByShowtimeInRange(startToday, endToday)) {
+            soldByShowtime.put(((Number) r[0]).intValue(), ((Number) r[1]).longValue());
         }
 
-        // Top Movies
-        List<Object[]> topMoviesRaw = bookingRepository.findTopMoviesByRevenue();
-        List<DashboardStatsResponse.TopMovie> topMovies = new ArrayList<>();
-        for (int i = 0; i < Math.min(4, topMoviesRaw.size()); i++) {
-            Object[] row = topMoviesRaw.get(i);
-            DashboardStatsResponse.TopMovie movie = new DashboardStatsResponse.TopMovie();
-            movie.setTitle((String) row[0]);
-            movie.setRevenue(formatCurrency((BigDecimal) row[1]));
-            movie.setTickets(row[2].toString());
-            movie.setOccupancy("N/A"); // simplified
-            movie.setTrend("up");
-            movie.setImageUrl("/images/Hopper.webp"); // placeholder
-            topMovies.add(movie);
+        DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
+        List<DashboardStatsResponse.TodayShowtime> list = new ArrayList<>();
+        for (Showtime s : showtimeRepository.findByRangeWithDetails(startToday, endToday)) {
+            Integer rows = s.getRoom().getMatrixRow();
+            Integer cols = s.getRoom().getMatrixCol();
+            int total = (rows != null && cols != null) ? rows * cols : 0;
+            int sold = soldByShowtime.getOrDefault(s.getId(), 0L).intValue();
+            double occ = total > 0 ? (double) sold / total * 100 : 0;
+            list.add(DashboardStatsResponse.TodayShowtime.builder()
+                    .time(s.getStartTime().format(timeFmt))
+                    .movieTitle(s.getMovie().getTitle())
+                    .cinemaName(s.getRoom().getCinema().getName())
+                    .roomName(s.getRoom().getName())
+                    .sold(sold)
+                    .total(total)
+                    .occupancy(occ)
+                    .build());
         }
+        return list;
+    }
 
-        return DashboardStatsResponse.builder()
-                .revenueMonthly(new DashboardStatsResponse.StatItem(formatCurrency(revenueMonthly), monthlyRevenueTrend))
-                .revenueDaily(new DashboardStatsResponse.StatItem(formatCurrency(revenueToday), dailyRevenueTrend))
-                .tickets(new DashboardStatsResponse.StatItem(String.valueOf(ticketsToday), ticketsTrend))
-                .newUsers(new DashboardStatsResponse.StatItem(String.valueOf(newUsersToday), newUsersTrend))
-                .occupancy(new DashboardStatsResponse.StatItem(String.format("%.1f%%", occupancyRate), occupancyTrend))
-                .businessPerformance(chartDataList)
-                .topMovies(topMovies)
-                .build();
+    // ===== Cảnh báo tồn kho F&B thấp =====
+    private List<DashboardStatsResponse.LowStockItem> buildLowStock() {
+        List<DashboardStatsResponse.LowStockItem> list = new ArrayList<>();
+        for (CinemaInventory ci : cinemaInventoryRepository.findLowStock(LOW_STOCK_THRESHOLD, PageRequest.of(0, 8))) {
+            list.add(DashboardStatsResponse.LowStockItem.builder()
+                    .name(ci.getFnbItem().getName())
+                    .cinemaName(ci.getCinema().getName())
+                    .inStock(ci.getInStock())
+                    .build());
+        }
+        return list;
+    }
+
+    private String channelLabel(String method) {
+        if (method == null) return "—";
+        switch (method.toUpperCase()) {
+            case "VNPAY": return "VNPAY";
+            case "CASH": return "Tiền mặt";
+            case "CARD": return "Thẻ";
+            case "TRANSFER": return "Chuyển khoản";
+            default: return method;
+        }
     }
 
     // CAST(... AS date) có thể trả java.sql.Date, LocalDate hoặc LocalDateTime tuỳ driver — chuẩn hoá về LocalDate

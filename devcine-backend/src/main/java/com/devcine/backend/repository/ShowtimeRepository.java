@@ -43,6 +43,11 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     @Query("SELECT COALESCE(SUM(r.matrixRow * r.matrixCol), 0) FROM Showtime s JOIN s.room r WHERE s.startTime >= :startDate AND s.startTime <= :endDate")
     long countTotalSeatsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
+    // Suất chiếu trong khoảng [start, end] kèm phòng/rạp/phim (cho dashboard "Suất chiếu hôm nay")
+    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m " +
+           "WHERE s.startTime >= :start AND s.startTime <= :end ORDER BY s.startTime ASC")
+    List<Showtime> findByRangeWithDetails(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     boolean existsByFormat_Id(Integer formatId);
 
     // ===== Lịch chiếu có lọc + phân trang (trang /lich-chieu) =====

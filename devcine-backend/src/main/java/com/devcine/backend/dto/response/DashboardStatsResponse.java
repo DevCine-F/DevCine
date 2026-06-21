@@ -11,15 +11,19 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DashboardStatsResponse {
-    private StatItem revenueMonthly;
-    private StatItem revenueDaily;
+    private String rangeLabel;
+
+    private StatItem revenue;
     private StatItem tickets;
     private StatItem newUsers;
     private StatItem occupancy;
-    
+
     private List<ChartData> businessPerformance;
     private List<TopMovie> topMovies;
-    
+    private List<RecentBooking> recentBookings;
+    private List<TodayShowtime> todayShowtimes;
+    private List<LowStockItem> lowStock;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -34,10 +38,10 @@ public class DashboardStatsResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ChartData {
-        private String day;
-        private Double revenuePercentage;
+        private String label;
+        private Double revenue;
+        private Long tickets;
         private String revenueLabel;
-        private Double ticketPercentage;
         private String ticketLabel;
     }
 
@@ -49,8 +53,43 @@ public class DashboardStatsResponse {
         private String title;
         private String revenue;
         private String tickets;
-        private String occupancy;
-        private String trend;
-        private String imageUrl;
+        private String posterUrl;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecentBooking {
+        private String code;
+        private String movieTitle;
+        private String customerName;
+        private String amount;
+        private String channel;
+        private String time;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TodayShowtime {
+        private String time;
+        private String movieTitle;
+        private String cinemaName;
+        private String roomName;
+        private Integer sold;
+        private Integer total;
+        private Double occupancy;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LowStockItem {
+        private String name;
+        private String cinemaName;
+        private Integer inStock;
     }
 }

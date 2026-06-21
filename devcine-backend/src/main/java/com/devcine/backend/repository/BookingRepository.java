@@ -35,12 +35,24 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "GROUP BY CAST(b.createdAt AS date)")
     List<Object[]> countTicketsGroupedByDay(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT m.title, COALESCE(SUM(b.finalPrice), 0), COUNT(bs) " +
+    @Query("SELECT m.title, COALESCE(SUM(b.finalPrice), 0), COUNT(bs), m.posterUrl " +
            "FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s JOIN s.movie m " +
            "WHERE b.status = 'CONFIRMED' " +
-           "GROUP BY m.id, m.title " +
+           "GROUP BY m.id, m.title, m.posterUrl " +
            "ORDER BY COALESCE(SUM(b.finalPrice), 0) DESC")
     List<Object[]> findTopMoviesByRevenue();
+
+    // Đơn đặt vé gần nhất cho dashboard (JOIN FETCH tránh N+1, phân trang lấy top N)
+    @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie m " +
+           "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user u " +
+           "WHERE b.status = 'CONFIRMED' ORDER BY b.createdAt DESC")
+    List<Booking> findRecentConfirmed(Pageable pageable);
+
+    // Số vé đã bán theo từng suất trong khoảng (1 query thay vì N truy vấn)
+    @Query("SELECT b.showtime.id, COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
+           "WHERE b.status = 'CONFIRMED' AND b.showtime.startTime >= :start AND b.showtime.startTime <= :end " +
+           "GROUP BY b.showtime.id")
+    List<Object[]> countSoldSeatsByShowtimeInRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie " +
            "WHERE b.customer.userId = :customerId ORDER BY b.createdAt DESC")
