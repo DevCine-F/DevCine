@@ -18,6 +18,8 @@ export const useBookingStore = defineStore('booking', {
     paidAt: null, // Thời điểm thanh toán thành công (ISO string)
     lastHoldError: '', // Thông điệp lỗi giữ ghế gần nhất (để hiển thị cho khách)
     availableSeats: [],
+    priceTable: {}, // tên loại ghế -> (mã đối tượng -> giá)
+    audienceLabels: {}, // mã đối tượng -> nhãn
     matrixRow: 9,
     matrixCol: 10,
     availableFnbs: [],
@@ -50,9 +52,13 @@ export const useBookingStore = defineStore('booking', {
           this.matrixRow = data.matrixRow;
           this.matrixCol = data.matrixCol;
           this.availableSeats = data.seats;
+          this.priceTable = data.priceTable || {};
+          this.audienceLabels = data.audienceLabels || {};
         } else {
           // Fallback if backend hasn't been updated yet or returned an array directly
           this.availableSeats = Array.isArray(data) ? data : [];
+          this.priceTable = {};
+          this.audienceLabels = {};
         }
       } catch (err) {
         console.error('Failed to fetch seats', err);
@@ -87,9 +93,20 @@ export const useBookingStore = defineStore('booking', {
     toggleSeat(seat) {
       const index = this.selectedSeats.findIndex(s => s.seatId === seat.seatId);
       if (index === -1) {
-        this.selectedSeats.push(seat);
+        // Mặc định loại vé Người lớn (ADULT); giá lấy theo bảng giá đối tượng
+        this.selectedSeats.push({ ...seat, ticketType: 'ADULT' });
       } else {
         this.selectedSeats.splice(index, 1);
+      }
+      this.calculateTotal();
+    },
+    setSeatTicketType(seatId, ticketType) {
+      const seat = this.selectedSeats.find(s => s.seatId === seatId);
+      if (!seat) return;
+      seat.ticketType = ticketType;
+      const byAudience = this.priceTable[seat.seatType];
+      if (byAudience && byAudience[ticketType] != null) {
+        seat.price = Number(byAudience[ticketType]);
       }
       this.calculateTotal();
     },
@@ -124,6 +141,7 @@ export const useBookingStore = defineStore('booking', {
           customerId: authStore.user?.id || null,
           showtimeId: this.selectedShowtime.id,
           seatIds: this.selectedSeats.map(s => s.seatId),
+          seatSelections: this.selectedSeats.map(s => ({ seatId: s.seatId, ticketType: s.ticketType || 'ADULT' })),
           fnbs: this.selectedFnbs.map(f => ({ fnbItemId: f.fnbItem.id, quantity: f.quantity })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
           paymentMethod: paymentMethod

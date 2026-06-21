@@ -256,6 +256,13 @@ const getRowChar = (row) => {
   return seat ? seat.rowChar : ''
 }
 
+// Giá Người lớn theo loại ghế (cho phần chú thích) — lấy động từ bảng giá của suất
+const seatTypeAdultPrice = (typeName) => {
+  const v = store.priceTable?.[typeName]?.ADULT
+  return v != null ? Number(v).toLocaleString('vi-VN') + ' VNĐ' : '—'
+}
+const onChangeTicketType = (seatId, e) => store.setSeatTicketType(seatId, e.target.value)
+
 const isHiddenBecauseSweetbox = (row, col) => {
   if (col === 0) return false;
   const prevSeat = getSeatAt(row, col - 1);
@@ -437,21 +444,21 @@ const proceedToPayment = async () => {
               <div class="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
               <div class="flex flex-col">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300">Standard</span>
-                <span class="text-[10px] text-on-surface-variant">110.000 VNĐ</span>
+                <span class="text-[10px] text-on-surface-variant">{{ seatTypeAdultPrice('NORMAL') }}</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(220,38,38,0.2)]"></div>
               <div class="flex flex-col">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-red-400">VIP</span>
-                <span class="text-[10px] text-on-surface-variant">150.000 VNĐ</span>
+                <span class="text-[10px] text-on-surface-variant">{{ seatTypeAdultPrice('VIP') }}</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
               <div class="w-12 h-8 rounded-t-xl rounded-b-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(147,51,234,0.2)]"></div>
               <div class="flex flex-col">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400">Sweetbox</span>
-                <span class="text-[10px] text-on-surface-variant">300.000 VNĐ</span>
+                <span class="text-[10px] text-on-surface-variant">{{ seatTypeAdultPrice('SWEETBOX') }}</span>
               </div>
             </div>
             <div class="flex items-center gap-3">
@@ -461,6 +468,30 @@ const proceedToPayment = async () => {
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-lg bg-surface-container-high border border-white/5 opacity-50"></div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Đã đặt</span>
+            </div>
+          </div>
+
+          <!-- Chọn loại vé / đối tượng cho từng ghế -->
+          <div v-if="store.selectedSeats.length > 0" class="border-t border-outline-variant/10 pt-8 mt-10">
+            <h3 class="font-headline font-bold uppercase tracking-tight text-sm mb-4 flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary-container text-lg">groups</span>
+              Loại vé theo ghế
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div v-for="seat in store.selectedSeats" :key="seat.seatId"
+                   class="glass-card rounded-xl p-4 flex items-center justify-between gap-3">
+                <div class="flex flex-col">
+                  <span class="font-bold text-primary-container">{{ seat.rowChar }}{{ seat.colNum }}</span>
+                  <span class="text-[10px] uppercase tracking-wider text-on-surface-variant">{{ seat.seatType }}</span>
+                </div>
+                <div class="flex flex-col items-end gap-1">
+                  <select :value="seat.ticketType || 'ADULT'" @change="onChangeTicketType(seat.seatId, $event)"
+                          class="bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold px-3 py-2 rounded-lg outline-none focus:border-primary-container">
+                    <option v-for="(label, code) in store.audienceLabels" :key="code" :value="code">{{ label }}</option>
+                  </select>
+                  <span class="text-xs font-bold text-on-surface">{{ Number(seat.price).toLocaleString('vi-VN') }} VNĐ</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

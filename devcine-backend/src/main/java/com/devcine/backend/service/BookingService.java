@@ -30,11 +30,25 @@ public class BookingService {
     private final SystemSettingRepository systemSettingRepository;
     private final NotificationService notificationService;
     private final InventoryService inventoryService;
+    private final PricingService pricingService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
         Showtime showtime = showtimeRepository.findById(request.getShowtimeId())
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
+
+        // Chuẩn hoá danh sách ghế kèm loại vé: ưu tiên seatSelections, fallback seatIds (ADULT)
+        java.util.Map<Integer, String> ticketTypeBySeat = new java.util.LinkedHashMap<>();
+        if (request.getSeatSelections() != null && !request.getSeatSelections().isEmpty()) {
+            for (var sel : request.getSeatSelections()) {
+                ticketTypeBySeat.put(sel.getSeatId(), pricingService.normalizeAudience(sel.getTicketType()));
+            }
+        } else if (request.getSeatIds() != null) {
+            for (Integer seatId : request.getSeatIds()) {
+                ticketTypeBySeat.put(seatId, "ADULT");
+            }
+        }
+        java.util.List<Integer> selectedSeatIds = new java.util.ArrayList<>(ticketTypeBySeat.keySet());
 
         Customer customer = null;
         if (request.getCustomerId() != null) {
@@ -45,7 +59,7 @@ public class BookingService {
         // Validate seats
         List<BookingSeat> existingReservedSeats = bookingSeatRepository.findReservedSeatsByShowtime(request.getShowtimeId());
         for (BookingSeat reserved : existingReservedSeats) {
-            if (request.getSeatIds().contains(reserved.getSeat().getId())) {
+            if (selectedSeatIds.contains(reserved.getSeat().getId())) {
                 boolean isHold = "HOLD".equals(reserved.getStatus());
                 // Chỗ giữ quá hạn (>10 phút) coi như đã được giải phóng
                 boolean isStale = reserved.getBooking().getCreatedAt() != null
@@ -80,22 +94,23 @@ public class BookingService {
 
         BigDecimal totalPrice = BigDecimal.ZERO;
 
-        // Process Seats
-        if (request.getSeatIds() != null) {
-            for (Integer seatId : request.getSeatIds()) {
-                Seat seat = seatRepository.findById(seatId)
-                        .orElseThrow(() -> new RuntimeException("Seat not found"));
-                BigDecimal seatPrice = seat.getSeatType().getPriceModifier(); // Simplified pricing
-                
-                BookingSeat bookingSeat = BookingSeat.builder()
-                        .booking(booking)
-                        .seat(seat)
-                        .priceSnapshot(seatPrice)
-                        .status("HOLD")
-                        .build();
-                bookingSeatRepository.save(bookingSeat);
-                totalPrice = totalPrice.add(seatPrice);
-            }
+        // Process Seats — giá tính tập trung qua PricingService (nạp ngữ cảnh suất một lần)
+        PricingService.PricingContext priceCtx = pricingService.buildContext(showtime);
+        for (java.util.Map.Entry<Integer, String> entry : ticketTypeBySeat.entrySet()) {
+            Seat seat = seatRepository.findById(entry.getKey())
+                    .orElseThrow(() -> new RuntimeException("Seat not found"));
+            String ticketType = entry.getValue();
+            BigDecimal seatPrice = pricingService.priceFor(priceCtx, seat.getSeatType(), ticketType);
+
+            BookingSeat bookingSeat = BookingSeat.builder()
+                    .booking(booking)
+                    .seat(seat)
+                    .priceSnapshot(seatPrice)
+                    .ticketType(ticketType)
+                    .status("HOLD")
+                    .build();
+            bookingSeatRepository.save(bookingSeat);
+            totalPrice = totalPrice.add(seatPrice);
         }
 
         // Process F&B

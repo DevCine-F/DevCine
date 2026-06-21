@@ -1,307 +1,392 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { pricingApi } from '@/api/admin'
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api/pricing";
-const pricingRules = ref([]);
+const loading = ref(true)
+const loadError = ref(false)
+const saving = ref(false)
+const activeTab = ref('base')
 
-const fetchRules = async () => {
+const config = ref(null)
+const baseMatrix = reactive({})       // key `${day}|${aud}` -> value (Lotte: không theo giờ)
+const seatTypes = ref([])
+const formats = ref([])
+const specialPrices = reactive({})    // key `${formatId}|${seatTypeId}` -> price
+const holidays = ref([])
+const newHoliday = reactive({ holidayDate: '', name: '' })
+
+// Simulator (Lotte: không có khung giờ)
+const sim = reactive({ dayType: 'WEEKEND', audienceType: 'ADULT', seatTypeId: '', formatId: '' })
+const simResult = ref(null)
+const simulating = ref(false)
+
+// Toast
+const toast = ref({ show: false, type: 'success', message: '' })
+let toastTimer = null
+const showToast = (message, type = 'success') => {
+  toast.value = { show: true, type, message }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
+}
+
+const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+const audienceEntries = computed(() => Object.entries(config.value?.audiences || {}))
+const fixedFormats = computed(() => formats.value.filter(f => f.isFixedPrice))
+
+const loadConfig = async () => {
+  loading.value = true
+  loadError.value = false
   try {
-    const response = await axios.get(API_BASE_URL);
-    pricingRules.value = response.data;
-  } catch (error) {
-    console.error("Error fetching pricing rules:", error);
+    const { data } = await pricingApi.getConfig()
+    config.value = data
+
+    Object.keys(baseMatrix).forEach(k => delete baseMatrix[k])
+    const existing = {}
+    ;(data.baseMatrix || []).forEach(r => { existing[`${r.dayType}|${r.audienceType}`] = r.value })
+    data.dayTypes.forEach(d => Object.keys(data.audiences).forEach(a => {
+      const key = `${d.code}|${a}`
+      baseMatrix[key] = existing[key] ?? 0
+    }))
+
+    seatTypes.value = (data.seatTypes || []).map(s => ({ ...s, priceModifier: Number(s.priceModifier || 0) }))
+    formats.value = (data.formats || []).map(f => ({
+      ...f,
+      surcharge: Number(f.surcharge || 0),
+      weekendSurcharge: f.weekendSurcharge == null ? null : Number(f.weekendSurcharge),
+      isFixedPrice: !!f.isFixedPrice
+    }))
+
+    Object.keys(specialPrices).forEach(k => delete specialPrices[k])
+    ;(data.specialPrices || []).forEach(sp => { specialPrices[`${sp.formatId}|${sp.seatTypeId}`] = Number(sp.price || 0) })
+
+    holidays.value = data.holidays || []
+    if (seatTypes.value.length) sim.seatTypeId = seatTypes.value[0].id
+    if (formats.value.length) sim.formatId = formats.value[0].id
+  } catch (e) {
+    console.error('Lỗi tải cấu hình giá', e)
+    loadError.value = true
+  } finally {
+    loading.value = false
   }
-};
+}
 
-onMounted(fetchRules);
+onMounted(loadConfig)
+onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 
-const selectedRule = ref(null);
-const isModalOpen = ref(false);
+const saveBase = async () => {
+  saving.value = true
+  try {
+    const rules = Object.entries(baseMatrix).map(([k, value]) => {
+      const [dayType, audienceType] = k.split('|')
+      return { dayType, timeSlot: 'ALL', audienceType, value: Number(value || 0) }
+    })
+    await pricingApi.saveBaseMatrix(rules)
+    showToast('Đã lưu bảng giá nền.')
+  } catch (e) {
+    showToast(e.response?.data?.message || 'Lưu giá nền thất bại.', 'error')
+  } finally { saving.value = false }
+}
 
-const openEditModal = (rule) => {
-  selectedRule.value = { ...rule };
-  isModalOpen.value = true;
-};
+const saveSeats = async () => {
+  saving.value = true
+  try {
+    await pricingApi.saveSeatTypes(seatTypes.value.map(s => ({ id: s.id, priceModifier: Number(s.priceModifier || 0) })))
+    showToast('Đã lưu phụ thu loại ghế.')
+  } catch (e) {
+    showToast(e.response?.data?.message || 'Lưu loại ghế thất bại.', 'error')
+  } finally { saving.value = false }
+}
 
-const closeModal = () => {
-  isModalOpen.value = false;
-  selectedRule.value = null;
-};
+const saveFormats = async () => {
+  saving.value = true
+  try {
+    await pricingApi.saveFormats(formats.value.map(f => ({
+      id: f.id,
+      surcharge: Number(f.surcharge || 0),
+      weekendSurcharge: f.weekendSurcharge == null || f.weekendSurcharge === '' ? null : Number(f.weekendSurcharge),
+      isFixedPrice: !!f.isFixedPrice
+    })))
+    showToast('Đã lưu cấu hình định dạng.')
+  } catch (e) {
+    showToast(e.response?.data?.message || 'Lưu định dạng thất bại.', 'error')
+  } finally { saving.value = false }
+}
 
-const saveRule = () => {
-  const index = pricingRules.value.findIndex(r => r.id === selectedRule.value.id);
-  if (index !== -1) {
-    pricingRules.value[index] = { ...selectedRule.value };
+const saveSpecials = async () => {
+  saving.value = true
+  try {
+    const items = []
+    fixedFormats.value.forEach(f => seatTypes.value.forEach(s => {
+      const v = specialPrices[`${f.id}|${s.id}`]
+      if (v != null && Number(v) > 0) items.push({ formatId: f.id, seatTypeId: s.id, price: Number(v) })
+    }))
+    await pricingApi.saveSpecialPrices(items)
+    showToast('Đã lưu giá phòng đặc biệt.')
+  } catch (e) {
+    showToast(e.response?.data?.message || 'Lưu giá đặc biệt thất bại.', 'error')
+  } finally { saving.value = false }
+}
+
+const addHoliday = async () => {
+  if (!newHoliday.holidayDate || !newHoliday.name.trim()) {
+    showToast('Nhập đủ ngày và tên ngày lễ.', 'error'); return
   }
-  closeModal();
-};
-
-const getModifierText = (rule) => {
-  if (rule.modifierType === 'PERCENTAGE') {
-    return `${rule.modifierValue > 0 ? '+' : ''}${rule.modifierValue}%`;
-  } else if (rule.modifierType === 'FIXED_ADD') {
-    return `${rule.modifierValue > 0 ? '+' : ''}${rule.modifierValue.toLocaleString()}đ`;
+  try {
+    await pricingApi.addHoliday(newHoliday.holidayDate, newHoliday.name.trim())
+    newHoliday.holidayDate = ''; newHoliday.name = ''
+    await loadConfig()
+    showToast('Đã thêm ngày lễ.')
+  } catch (e) {
+    showToast(e.response?.data?.message || 'Thêm ngày lễ thất bại.', 'error')
   }
-  return `${rule.modifierValue.toLocaleString()}đ`;
-};
+}
 
-const getTypeIcon = (type) => {
-  switch (type) {
-    case 'TIME': return 'schedule';
-    case 'DATE': return 'event';
-    case 'SEAT_TYPE': return 'chair';
-    case 'MEMBERSHIP': return 'card_membership';
-    default: return 'settings';
+const removeHoliday = async (h) => {
+  if (!confirm(`Xoá ngày lễ "${h.name}" (${h.holidayDate})?`)) return
+  try {
+    await pricingApi.deleteHoliday(h.id)
+    holidays.value = holidays.value.filter(x => x.id !== h.id)
+    showToast('Đã xoá ngày lễ.')
+  } catch (e) {
+    showToast('Xoá ngày lễ thất bại.', 'error')
   }
-};
+}
+
+const runSimulate = async () => {
+  simulating.value = true
+  simResult.value = null
+  try {
+    const { data } = await pricingApi.simulate({ ...sim, timeSlot: 'ALL' })
+    simResult.value = data
+  } catch (e) {
+    showToast(e.response?.data?.message || 'Tính thử thất bại.', 'error')
+  } finally { simulating.value = false }
+}
+
+const TABS = [
+  { key: 'base', label: 'Giá nền', icon: 'grid_on' },
+  { key: 'seat', label: 'Loại ghế', icon: 'chair' },
+  { key: 'format', label: 'Định dạng', icon: 'movie' },
+  { key: 'holiday', label: 'Ngày lễ', icon: 'event' },
+  { key: 'sim', label: 'Tính thử', icon: 'calculate' },
+]
 </script>
 
 <template>
-  <div class="p-10 space-y-8">
-    <header class="flex justify-between items-end">
-      <div>
-        <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Pricing Matrix</h1>
-        <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Thiết lập ma trận giá thông minh & đa tầng</p>
-      </div>
-      <button class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
-        <span class="material-symbols-outlined text-sm">add</span>
-        Thêm quy tắc mới
-      </button>
+  <div class="p-6 md:p-10 space-y-6">
+    <header>
+      <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight font-headline uppercase text-primary">Cấu hình giá vé</h1>
+      <p class="text-on-surface-variant text-sm mt-1">Giá = giá nền (đối tượng × ngày) + phụ thu định dạng (theo ngày). Phòng đặc biệt dùng giá cố định.</p>
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <!-- Matrix Overview Card -->
-      <div class="lg:col-span-2 space-y-6">
-        <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl overflow-hidden shadow-2xl">
-          <div class="p-6 border-b border-outline-variant/10 bg-white/5 flex justify-between items-center">
-            <h3 class="font-headline font-bold uppercase tracking-widest text-xs text-on-surface">Danh sách quy tắc áp dụng</h3>
-            <div class="flex gap-2">
-                <span class="px-2 py-1 bg-green-500/10 text-green-500 text-[10px] font-black rounded uppercase">8 Active</span>
-                <span class="px-2 py-1 bg-on-surface-variant/10 text-on-surface-variant text-[10px] font-black rounded uppercase">2 Disabled</span>
-            </div>
+    <div v-if="loading" class="space-y-3">
+      <div v-for="i in 5" :key="i" class="h-12 bg-white/5 rounded-lg animate-pulse"></div>
+    </div>
+
+    <div v-else-if="loadError" class="bg-red-500/10 border border-red-500/30 rounded-xl p-8 text-center">
+      <span class="material-symbols-outlined text-4xl text-red-400 mb-2">error</span>
+      <p class="text-on-surface-variant mb-4">Không tải được cấu hình giá.</p>
+      <button @click="loadConfig" class="px-5 py-2 bg-primary text-on-primary rounded-lg font-bold">Thử lại</button>
+    </div>
+
+    <template v-else>
+      <div class="flex flex-wrap gap-2 border-b border-outline-variant/10">
+        <button v-for="t in TABS" :key="t.key" @click="activeTab = t.key"
+          :class="activeTab === t.key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
+          class="flex items-center gap-2 px-4 py-3 border-b-2 font-bold text-sm transition-colors">
+          <span class="material-symbols-outlined text-lg">{{ t.icon }}</span>{{ t.label }}
+        </button>
+      </div>
+
+      <!-- TAB: Giá nền (ngày × đối tượng) -->
+      <section v-if="activeTab === 'base'" class="space-y-4">
+        <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5">
+                <th class="p-4 text-left">Loại ngày \ Đối tượng</th>
+                <th v-for="[code, label] in audienceEntries" :key="code" class="p-4 text-center">{{ label }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="d in config.dayTypes" :key="d.code" class="border-t border-outline-variant/5">
+                <td class="p-4 font-bold text-on-surface">{{ d.label }}</td>
+                <td v-for="[code] in audienceEntries" :key="code" class="p-3 text-center">
+                  <input type="number" v-model.number="baseMatrix[`${d.code}|${code}`]"
+                    class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-on-surface-variant">* Giá ngày lễ nên đã gồm phụ thu lễ. Suất rơi vào ngày trong tab "Ngày lễ" sẽ dùng cột giá Lễ.</p>
+        <button @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+          {{ saving ? 'Đang lưu...' : 'Lưu giá nền' }}
+        </button>
+      </section>
+
+      <!-- TAB: Loại ghế -->
+      <section v-else-if="activeTab === 'seat'" class="space-y-4 max-w-xl">
+        <p class="text-sm text-on-surface-variant">Phụ thu cộng vào giá nền theo loại ghế. Theo biểu giá Lotte: tất cả = 0 (không phân biệt giá ghế).</p>
+        <div v-for="s in seatTypes" :key="s.id" class="flex items-center justify-between bg-surface-container-low border border-outline-variant/10 rounded-xl p-4">
+          <span class="font-bold text-on-surface">{{ s.name }}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-on-surface-variant text-sm">+</span>
+            <input type="number" v-model.number="s.priceModifier" class="w-36 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
+            <span class="text-on-surface-variant text-sm">đ</span>
           </div>
-          
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+        </div>
+        <button @click="saveSeats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+          {{ saving ? 'Đang lưu...' : 'Lưu phụ thu ghế' }}
+        </button>
+      </section>
+
+      <!-- TAB: Định dạng -->
+      <section v-else-if="activeTab === 'format'" class="space-y-4">
+        <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5">
+                <th class="p-4 text-left">Định dạng</th>
+                <th class="p-4 text-center">Phụ thu ngày thường (T2–T5)</th>
+                <th class="p-4 text-center">Phụ thu cuối tuần & lễ</th>
+                <th class="p-4 text-center">Giá cố định?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in formats" :key="f.id" class="border-t border-outline-variant/5">
+                <td class="p-4 font-bold text-on-surface">{{ f.name }}</td>
+                <td class="p-3 text-center" :class="{ 'opacity-40': f.isFixedPrice }">
+                  <input type="number" v-model.number="f.surcharge" :disabled="f.isFixedPrice" class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
+                </td>
+                <td class="p-3 text-center" :class="{ 'opacity-40': f.isFixedPrice }">
+                  <input type="number" v-model.number="f.weekendSurcharge" :disabled="f.isFixedPrice" placeholder="= ngày thường" class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
+                </td>
+                <td class="p-3 text-center">
+                  <input type="checkbox" v-model="f.isFixedPrice" class="accent-primary w-4 h-4" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <button @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+          {{ saving ? 'Đang lưu...' : 'Lưu định dạng' }}
+        </button>
+
+        <!-- Giá cố định phòng đặc biệt -->
+        <div v-if="fixedFormats.length" class="mt-6 space-y-3">
+          <h3 class="font-bold text-on-surface uppercase tracking-widest text-xs">Giá cố định phòng đặc biệt</h3>
+          <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
+            <table class="w-full text-sm">
               <thead>
-                <tr class="bg-surface-container-high/50 text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
-                  <th class="p-4 border-b border-outline-variant/10">Loại</th>
-                  <th class="p-4 border-b border-outline-variant/10">Tên quy tắc</th>
-                  <th class="p-4 border-b border-outline-variant/10">Điều chỉnh</th>
-                  <th class="p-4 border-b border-outline-variant/10">Ưu tiên</th>
-                  <th class="p-4 border-b border-outline-variant/10">Trạng thái</th>
-                  <th class="p-4 border-b border-outline-variant/10 text-right">Thao tác</th>
+                <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5">
+                  <th class="p-4 text-left">Định dạng \ Loại ghế</th>
+                  <th v-for="s in seatTypes" :key="s.id" class="p-4 text-center">{{ s.name }}</th>
                 </tr>
               </thead>
-              <tbody class="text-sm font-medium">
-                <tr v-for="rule in pricingRules" :key="rule.id" class="border-b border-outline-variant/5 hover:bg-white/5 transition-colors group">
-                  <td class="p-4">
-                    <div class="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary">
-                      <span class="material-symbols-outlined text-lg">{{ getTypeIcon(rule.type) }}</span>
-                    </div>
-                  </td>
-                  <td class="p-4">
-                    <div class="font-bold text-on-surface">{{ rule.name }}</div>
-                    <div class="text-[10px] text-on-surface-variant uppercase tracking-tighter">{{ rule.type }}</div>
-                  </td>
-                  <td class="p-4">
-                    <span :class="rule.modifierValue > 0 ? 'text-red-400 bg-red-400/10' : 'text-green-400 bg-green-400/10'" class="px-3 py-1 rounded-full text-xs font-black">
-                      {{ getModifierText(rule) }}
-                    </span>
-                  </td>
-                  <td class="p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="w-12 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
-                            <div class="h-full bg-primary" :style="{ width: rule.priority * 2 + '%' }"></div>
-                        </div>
-                        <span class="text-[10px] font-bold">{{ rule.priority }}</span>
-                    </div>
-                  </td>
-                  <td class="p-4">
-                    <div class="flex items-center gap-1.5">
-                      <span class="w-2 h-2 rounded-full" :class="rule.isActive ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-on-surface-variant/30'"></span>
-                      <span class="text-[10px] font-bold uppercase tracking-widest" :class="rule.isActive ? 'text-on-surface' : 'text-on-surface-variant'">{{ rule.isActive ? 'Active' : 'Draft' }}</span>
-                    </div>
-                  </td>
-                  <td class="p-4 text-right">
-                    <button @click="openEditModal(rule)" class="p-2 hover:text-primary transition-colors">
-                      <span class="material-symbols-outlined text-lg">edit_note</span>
-                    </button>
-                    <button class="p-2 hover:text-red-500 transition-colors">
-                      <span class="material-symbols-outlined text-lg">delete</span>
-                    </button>
+              <tbody>
+                <tr v-for="f in fixedFormats" :key="f.id" class="border-t border-outline-variant/5">
+                  <td class="p-4 font-bold text-on-surface">{{ f.name }}</td>
+                  <td v-for="s in seatTypes" :key="s.id" class="p-3 text-center">
+                    <input type="number" v-model.number="specialPrices[`${f.id}|${s.id}`]"
+                      class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <button @click="saveSpecials" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+            {{ saving ? 'Đang lưu...' : 'Lưu giá đặc biệt' }}
+          </button>
         </div>
+      </section>
+
+      <!-- TAB: Ngày lễ -->
+      <section v-else-if="activeTab === 'holiday'" class="space-y-4 max-w-xl">
+        <p class="text-sm text-on-surface-variant">Suất rơi vào ngày lễ áp cột giá "Ngày lễ" + phụ thu định dạng cuối tuần/lễ.</p>
+        <div class="flex flex-wrap items-end gap-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-4">
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Ngày</label>
+            <input type="date" v-model="newHoliday.holidayDate" class="bg-surface-container-high border border-outline-variant/20 p-2 rounded text-on-surface outline-none" />
+          </div>
+          <div class="flex-1 min-w-[160px]">
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Tên</label>
+            <input type="text" v-model="newHoliday.name" placeholder="Vd: Tết Dương lịch" class="w-full bg-surface-container-high border border-outline-variant/20 p-2 rounded text-on-surface outline-none" />
+          </div>
+          <button @click="addHoliday" class="px-5 py-2 bg-primary text-on-primary rounded-lg font-bold">Thêm</button>
+        </div>
+
+        <div v-if="!holidays.length" class="text-center text-on-surface-variant py-8">Chưa có ngày lễ nào.</div>
+        <div v-for="h in holidays" :key="h.id" class="flex items-center justify-between bg-surface-container-low border border-outline-variant/10 rounded-xl px-4 py-3">
+          <div><span class="font-bold text-on-surface">{{ h.holidayDate }}</span> — <span class="text-on-surface-variant">{{ h.name }}</span></div>
+          <button @click="removeHoliday(h)" class="p-2 text-on-surface-variant hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
+        </div>
+      </section>
+
+      <!-- TAB: Tính thử -->
+      <section v-else-if="activeTab === 'sim'" class="grid md:grid-cols-2 gap-6 max-w-3xl">
+        <div class="space-y-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-6">
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại ngày</label>
+            <select v-model="sim.dayType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+              <option v-for="d in config.dayTypes" :key="d.code" :value="d.code">{{ d.label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Đối tượng</label>
+            <select v-model="sim.audienceType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+              <option v-for="[code, label] in audienceEntries" :key="code" :value="code">{{ label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại ghế</label>
+            <select v-model="sim.seatTypeId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+              <option v-for="s in seatTypes" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Định dạng</label>
+            <select v-model="sim.formatId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+              <option v-for="f in formats" :key="f.id" :value="f.id">{{ f.name }}</option>
+            </select>
+          </div>
+          <button @click="runSimulate" :disabled="simulating" class="w-full px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+            {{ simulating ? 'Đang tính...' : 'Tính thử giá' }}
+          </button>
+        </div>
+
+        <div class="bg-primary/10 border border-primary/20 rounded-xl p-6 flex flex-col justify-center">
+          <template v-if="simResult">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-primary">Giá vé tính được</span>
+            <div class="text-4xl font-black font-headline text-primary mb-4">{{ fmt(simResult.total) }}đ</div>
+            <div v-if="simResult.fixedPrice" class="text-sm text-on-surface-variant">Giá cố định (phòng đặc biệt).</div>
+            <div v-else class="text-sm text-on-surface-variant space-y-1">
+              <div class="flex justify-between"><span>Giá nền</span><span class="font-bold text-on-surface">{{ fmt(simResult.basePrice) }}đ</span></div>
+              <div class="flex justify-between"><span>Phụ thu ghế</span><span class="font-bold text-on-surface">+{{ fmt(simResult.seatSurcharge) }}đ</span></div>
+              <div class="flex justify-between"><span>Phụ thu định dạng</span><span class="font-bold text-on-surface">+{{ fmt(simResult.formatSurcharge) }}đ</span></div>
+            </div>
+          </template>
+          <div v-else class="text-center text-on-surface-variant">
+            <span class="material-symbols-outlined text-4xl mb-2">calculate</span>
+            <p class="text-sm">Chọn thông số và bấm "Tính thử giá".</p>
+          </div>
+        </div>
+      </section>
+    </template>
+
+    <transition name="fade">
+      <div v-if="toast.show" :class="[
+        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
+        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
+      ]">
+        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
+        {{ toast.message }}
       </div>
-
-      <!-- Quick Controls / Summary -->
-      <div class="space-y-6">
-        <!-- Simulation Tool -->
-        <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-6 shadow-xl relative overflow-hidden">
-            <div class="absolute -right-4 -top-4 opacity-5">
-                <span class="material-symbols-outlined text-8xl text-primary">calculate</span>
-            </div>
-            <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-6 flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary">rocket_launch</span>
-                Price Simulator
-            </h3>
-            
-            <div class="space-y-4 relative z-10">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giá vé gốc</label>
-                    <input type="number" value="100000" class="w-full bg-surface-container-high border border-outline-variant/20 p-3 rounded text-sm font-bold text-on-surface focus:border-primary outline-none transition-all" />
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ngày chiếu</label>
-                        <select class="w-full bg-surface-container-high border border-outline-variant/20 p-3 rounded text-sm font-bold text-on-surface outline-none">
-                            <option>Thứ 7 (Cuối tuần)</option>
-                            <option>Thứ 2 (Ngày thường)</option>
-                            <option>Ngày lễ</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giờ chiếu</label>
-                        <select class="w-full bg-surface-container-high border border-outline-variant/20 p-3 rounded text-sm font-bold text-on-surface outline-none">
-                            <option>19:00 (Cao điểm)</option>
-                            <option>10:00 (Thấp điểm)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Loại ghế</label>
-                    <select class="w-full bg-surface-container-high border border-outline-variant/20 p-3 rounded text-sm font-bold text-on-surface outline-none">
-                        <option>Normal Seat</option>
-                        <option selected>VIP Seat (+20k)</option>
-                        <option>Sweetbox (+50k)</option>
-                    </select>
-                </div>
-
-                <div class="mt-8 p-6 bg-primary/10 border border-primary/20 rounded-xl">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-[10px] font-bold uppercase tracking-widest text-primary">Giá cuối cùng</span>
-                        <span class="text-[10px] font-bold text-green-500 uppercase tracking-widest bg-green-500/10 px-2 py-0.5 rounded">Optimized</span>
-                    </div>
-                    <div class="text-4xl font-black font-headline text-primary">145.000đ</div>
-                    <p class="text-[9px] text-on-surface-variant mt-2 italic font-medium leading-relaxed">
-                        Đã áp dụng: <span class="text-on-surface font-bold">Cuối tuần (+25%)</span>, <span class="text-on-surface font-bold">Ghế VIP (+20k)</span>, <span class="text-on-surface font-bold">Thành viên Silver (-5%)</span>
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- System Settings -->
-        <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-6 shadow-xl">
-            <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-6 flex items-center gap-2">
-                <span class="material-symbols-outlined text-on-surface-variant">tune</span>
-                Global Config
-            </h3>
-            <div class="space-y-4">
-                <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
-                    <div>
-                        <p class="text-xs font-bold text-on-surface uppercase">Stacking Mode</p>
-                        <p class="text-[9px] text-on-surface-variant uppercase tracking-widest">Cho phép cộng dồn quy tắc</p>
-                    </div>
-                    <div class="w-10 h-5 bg-primary rounded-full relative cursor-pointer">
-                        <div class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></div>
-                    </div>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
-                    <div>
-                        <p class="text-xs font-bold text-on-surface uppercase">Rounding</p>
-                        <p class="text-[9px] text-on-surface-variant uppercase tracking-widest">Làm tròn lên 1.000đ</p>
-                    </div>
-                    <div class="w-10 h-5 bg-primary rounded-full relative cursor-pointer">
-                        <div class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal Edit -->
-    <div v-if="isModalOpen" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeModal"></div>
-        <div class="relative bg-surface-container-high border border-outline-variant/20 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-white/5">
-                <h3 class="font-headline font-black uppercase italic text-primary">Hiệu chỉnh quy tắc giá</h3>
-                <button @click="closeModal" class="material-symbols-outlined hover:text-red-400 transition-colors">close</button>
-            </div>
-            
-            <div class="p-8 space-y-6">
-                <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tên quy tắc</label>
-                    <input v-model="selectedRule.name" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
-                </div>
-
-                <div class="grid grid-cols-2 gap-6">
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Loại thay đổi</label>
-                        <select v-model="selectedRule.modifierType" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface outline-none">
-                            <option value="PERCENTAGE">Phần trăm (%)</option>
-                            <option value="FIXED_ADD">Cộng thêm (VNĐ)</option>
-                            <option value="FIXED_SET">Gán giá cố định</option>
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giá trị</label>
-                        <div class="relative">
-                            <input type="number" v-model="selectedRule.modifierValue" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
-                            <span class="absolute right-4 top-1/2 -translate-y-1/2 font-black text-xs text-primary">{{ selectedRule.modifierType === 'PERCENTAGE' ? '%' : 'đ' }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Độ ưu tiên (Priority)</label>
-                    <input type="range" min="1" max="100" v-model="selectedRule.priority" class="w-full accent-primary" />
-                    <div class="flex justify-between text-[10px] font-bold text-on-surface-variant">
-                        <span>Low (1)</span>
-                        <span class="text-primary">{{ selectedRule.priority }}</span>
-                        <span>Critical (100)</span>
-                    </div>
-                </div>
-
-                <div class="flex gap-4 pt-4">
-                    <button @click="closeModal" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-                    <button @click="saveRule" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform">Lưu cấu hình</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <style scoped>
-
-input[type="range"] {
-  height: 6px;
-  -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(245, 197, 24, 0.2);
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 197, 24, 0.5);
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

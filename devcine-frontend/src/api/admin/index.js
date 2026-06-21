@@ -73,3 +73,14 @@ export const ticketingApi = {
   memberCard: (cardNumber) => api.get(`/ticketing/member-card/${cardNumber}`),
   pay: (payload) => api.post('/ticketing/pay', payload),
 };
+
+export const pricingApi = {
+  getConfig: () => api.get('/pricing/config'),
+  saveBaseMatrix: (rules) => api.put('/pricing/base-matrix', { rules }),
+  saveSeatTypes: (items) => api.put('/pricing/seat-types', { items }),
+  saveFormats: (items) => api.put('/pricing/formats', { items }),
+  saveSpecialPrices: (items) => api.put('/pricing/special-prices', { items }),
+  addHoliday: (holidayDate, name) => api.post('/pricing/holidays', { holidayDate, name }),
+  deleteHoliday: (id) => api.delete(`/pricing/holidays/${id}`),
+  simulate: (payload) => api.post('/pricing/simulate', payload),
+};

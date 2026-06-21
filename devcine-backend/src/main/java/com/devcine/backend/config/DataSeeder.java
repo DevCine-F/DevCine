@@ -16,6 +16,7 @@ import com.devcine.backend.entity.Faq;
 import com.devcine.backend.entity.FnbItem;
 import com.devcine.backend.entity.Movie;
 import com.devcine.backend.entity.MovieFormat;
+import com.devcine.backend.entity.PricingRule;
 import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.Room;
 import com.devcine.backend.entity.SeatType;
@@ -27,6 +28,7 @@ import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.FaqRepository;
 import com.devcine.backend.repository.FnbItemRepository;
 import com.devcine.backend.repository.MovieFormatRepository;
+import com.devcine.backend.repository.PricingRuleRepository;
 import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.RoomRepository;
@@ -50,6 +52,7 @@ public class DataSeeder {
             MovieFormatRepository formatRepository,
             RoomRepository roomRepository,
             SeatTypeRepository seatTypeRepository,
+            PricingRuleRepository pricingRuleRepository,
             SystemSettingRepository systemSettingRepository,
             RoleRepository roleRepository,
             UserRepository userRepository,
@@ -265,22 +268,99 @@ public class DataSeeder {
                 System.out.println("Đã thêm dữ liệu giả lập cho SeatType thành công!");
             }
 
-            // Cập nhật giá ghế thực tế (seed cũ để NORMAL = 0đ). Khớp với chú thích giá ở giao diện khách.
-            SeatType normalType = seatTypeRepository.findAll().stream()
-                    .filter(t -> "NORMAL".equalsIgnoreCase(t.getName())).findFirst().orElse(null);
-            if (normalType != null && (normalType.getPriceModifier() == null
-                    || normalType.getPriceModifier().compareTo(BigDecimal.ZERO) == 0)) {
+            // Pricing engine: đổi giá ghế từ TUYỆT ĐỐI sang PHỤ THU + seed ma trận giá nền (CHẠY 1 LẦN).
+            // Sau đổi nghĩa: priceModifier = phụ thu cộng dồn vào giá nền (không còn là giá vé tuyệt đối).
+            boolean demoPricingSeeded = systemSettingRepository.findById("DEMO_PRICING_SEEDED").isPresent();
+            if (!demoPricingSeeded) {
                 for (SeatType t : seatTypeRepository.findAll()) {
-                    if ("NORMAL".equalsIgnoreCase(t.getName())) {
-                        t.setPriceModifier(new BigDecimal("110000")); 
-                    }else if ("VIP".equalsIgnoreCase(t.getName())) {
-                        t.setPriceModifier(new BigDecimal("150000")); 
-                    }else if ("SWEETBOX".equalsIgnoreCase(t.getName())) {
-                        t.setPriceModifier(new BigDecimal("300000"));
-                    }
+                    if ("NORMAL".equalsIgnoreCase(t.getName())) t.setPriceModifier(BigDecimal.ZERO);
+                    else if ("VIP".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("30000"));
+                    else if ("SWEETBOX".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("100000"));
                     seatTypeRepository.save(t);
                 }
-                System.out.println("Đã cập nhật giá ghế thực tế (Thường 110k / VIP 150k / Sweetbox 300k).");
+
+                if (pricingRuleRepository.findByRuleType("BASE_PRICE").isEmpty()) {
+                    // Giá nền Người lớn theo (loại ngày, khung giờ); các đối tượng khác lệch cố định.
+                    java.util.Map<String, int[]> adultBase = new java.util.LinkedHashMap<>();
+                    adultBase.put("WEEKDAY", new int[]{60000, 70000, 85000});    // EARLY, BEFORE_17H, AFTER_17H
+                    adultBase.put("WEDNESDAY", new int[]{75000, 75000, 75000});  // T4 đồng giá
+                    adultBase.put("WEEKEND", new int[]{80000, 100000, 115000});
+                    String[] slots = {"EARLY", "BEFORE_17H", "AFTER_17H"};
+                    // Lệch giá theo đối tượng so với Người lớn (T4 đồng giá nên không áp lệch)
+                    java.util.Map<String, Integer> audienceOffset = new java.util.LinkedHashMap<>();
+                    audienceOffset.put("ADULT", 0);
+                    audienceOffset.put("STUDENT", -10000);
+                    audienceOffset.put("CHILD", -20000);
+                    audienceOffset.put("SENIOR", -20000);
+
+                    for (var dayEntry : adultBase.entrySet()) {
+                        String dayType = dayEntry.getKey();
+                        int[] base = dayEntry.getValue();
+                        for (int i = 0; i < slots.length; i++) {
+                            for (var audEntry : audienceOffset.entrySet()) {
+                                int value = "WEDNESDAY".equals(dayType)
+                                        ? base[i]
+                                        : Math.max(40000, base[i] + audEntry.getValue());
+                                pricingRuleRepository.save(PricingRule.builder()
+                                        .name("Giá nền")
+                                        .ruleType("BASE_PRICE")
+                                        .dayType(dayType)
+                                        .timeSlot(slots[i])
+                                        .audienceType(audEntry.getKey())
+                                        .value(new BigDecimal(value))
+                                        .priority(0)
+                                        .active(true)
+                                        .build());
+                            }
+                        }
+                    }
+                    System.out.println("Đã seed ma trận giá nền (ngày × khung giờ × đối tượng).");
+                }
+
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("DEMO_PRICING_SEEDED").settingValue("true").build());
+                System.out.println("Đã chuyển giá ghế sang phụ thu (Thường +0 / VIP +30k / Sweetbox +100k).");
+            }
+
+            // Áp dụng BIỂU GIÁ LOTTE (chạy 1 lần, cờ LOTTE_PRICING_SEEDED): giá nền theo đối tượng × ngày
+            // (không theo giờ), phụ thu 3D theo ngày, KHÔNG phụ thu ghế/phòng.
+            boolean lottePricingSeeded = systemSettingRepository.findById("LOTTE_PRICING_SEEDED").isPresent();
+            if (!lottePricingSeeded) {
+                // Bỏ phụ thu loại ghế (Lotte không phân biệt giá ghế)
+                for (SeatType t : seatTypeRepository.findAll()) {
+                    t.setPriceModifier(BigDecimal.ZERO);
+                    seatTypeRepository.save(t);
+                }
+                // Phụ thu định dạng theo ngày: 3D +20k (thường) / +30k (cuối tuần & lễ); 2D = 0; IMAX giữ nguyên
+                for (MovieFormat f : formatRepository.findAll()) {
+                    String n = f.getName() != null ? f.getName().toUpperCase() : "";
+                    if (n.contains("3D")) {
+                        f.setSurcharge(new BigDecimal("20000"));
+                        f.setWeekendSurcharge(new BigDecimal("30000"));
+                    } else if (!n.contains("IMAX")) {
+                        f.setSurcharge(BigDecimal.ZERO);
+                        f.setWeekendSurcharge(BigDecimal.ZERO);
+                    }
+                    formatRepository.save(f);
+                }
+                // Re-seed ma trận giá nền theo Lotte (timeSlot=ALL vì không phân biệt giờ)
+                pricingRuleRepository.deleteAll(pricingRuleRepository.findByRuleType("BASE_PRICE"));
+                java.util.Map<String, int[]> baseByDay = new java.util.LinkedHashMap<>(); // [ADULT,STUDENT,CHILD,SENIOR]
+                baseByDay.put("WEEKDAY", new int[]{45000, 45000, 45000, 45000});
+                baseByDay.put("WEEKEND", new int[]{75000, 45000, 45000, 60000});
+                baseByDay.put("HOLIDAY", new int[]{85000, 55000, 55000, 70000});
+                String[] auds = {"ADULT", "STUDENT", "CHILD", "SENIOR"};
+                for (var e : baseByDay.entrySet()) {
+                    for (int i = 0; i < auds.length; i++) {
+                        pricingRuleRepository.save(PricingRule.builder()
+                                .name("Giá nền").ruleType("BASE_PRICE")
+                                .dayType(e.getKey()).timeSlot("ALL").audienceType(auds[i])
+                                .value(new BigDecimal(e.getValue()[i])).priority(0).active(true).build());
+                    }
+                }
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("LOTTE_PRICING_SEEDED").settingValue("true").build());
+                System.out.println("Đã áp dụng biểu giá Lotte (đối tượng×ngày, 3D +20k/+30k, bỏ phụ thu ghế).");
             }
 
             // Seed phim thật (thêm theo slug nếu chưa có — không trùng phim cũ)

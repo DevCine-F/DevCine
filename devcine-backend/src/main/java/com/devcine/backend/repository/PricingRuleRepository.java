@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface PricingRuleRepository extends JpaRepository<PricingRule, Integer> {
     List<PricingRule> findAllByOrderByStartDateDesc();
+    List<PricingRule> findByRuleTypeAndActiveTrue(String ruleType);
+    List<PricingRule> findByRuleType(String ruleType);
 }

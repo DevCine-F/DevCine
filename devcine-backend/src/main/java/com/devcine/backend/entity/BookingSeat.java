@@ -29,6 +29,10 @@ public class BookingSeat {
     @Column(name = "price_snapshot", precision = 15, scale = 2)
     private BigDecimal priceSnapshot;
 
+    /** Loại vé/đối tượng đã chọn cho ghế này: ADULT | STUDENT | CHILD | SENIOR. */
+    @Column(name = "ticket_type", length = 20)
+    private String ticketType;
+
     @Column(length = 20)
     private String status;
 }

@@ -34,6 +34,7 @@ public class SeatService {
     private final ShowtimeRepository showtimeRepository;
     private final RoomRepository roomRepository;
     private final SeatTypeRepository seatTypeRepository;
+    private final PricingService pricingService;
     private final JdbcTemplate jdbcTemplate;
 
     public ShowtimeSeatResponse getSeatsForShowtime(Integer showtimeId) {
@@ -44,16 +45,19 @@ public class SeatService {
         List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
 
         List<BookingSeat> reservedBookingSeats = bookingSeatRepository.findReservedSeatsByShowtime(showtimeId);
-        
+
         Set<Integer> soldSeatIds = reservedBookingSeats.stream()
                 .filter(bs -> "SOLD".equals(bs.getStatus()))
                 .map(bs -> bs.getSeat().getId())
                 .collect(Collectors.toSet());
-                
+
         Set<Integer> holdSeatIds = reservedBookingSeats.stream()
                 .filter(bs -> "HOLD".equals(bs.getStatus()))
                 .map(bs -> bs.getSeat().getId())
                 .collect(Collectors.toSet());
+
+        // Tính giá tập trung qua PricingService (nạp ngữ cảnh suất một lần — tránh N+1)
+        PricingService.PricingContext priceCtx = pricingService.buildContext(showtime);
 
         List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> {
             String status = "AVAILABLE";
@@ -62,15 +66,14 @@ public class SeatService {
             } else if (holdSeatIds.contains(seat.getId())) {
                 status = "HOLD";
             }
-            
-            // In a real app, price should be determined by PricingRule or MovieFormat etc.
-            // For now, assume a base price for the seat type
+
+            // Giá mặc định hiển thị trên sơ đồ = giá Người lớn (ADULT); FE đổi theo priceTable khi chọn loại vé
             return SeatDTO.builder()
                     .seatId(seat.getId())
                     .rowChar(seat.getRowChar())
                     .colNum(seat.getColNum())
                     .seatType(seat.getSeatType().getName())
-                    .price(seat.getSeatType().getPriceModifier())
+                    .price(pricingService.priceFor(priceCtx, seat.getSeatType(), "ADULT"))
                     .status(status)
                     .gridRow(seat.getGridRow())
                     .gridCol(seat.getGridCol())
@@ -81,6 +84,8 @@ public class SeatService {
                 .matrixRow(showtime.getRoom().getMatrixRow() != null ? showtime.getRoom().getMatrixRow() : 9)
                 .matrixCol(showtime.getRoom().getMatrixCol() != null ? showtime.getRoom().getMatrixCol() : 10)
                 .seats(seatDTOs)
+                .audienceLabels(PricingService.audienceLabels())
+                .priceTable(pricingService.buildPriceTable(priceCtx, seatTypeRepository.findAll()))
                 .build();
     }
 
