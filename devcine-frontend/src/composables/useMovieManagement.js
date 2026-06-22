@@ -105,8 +105,11 @@ export function useMovieManagement() {
     }
   };
 
-  const fetchMovies = async () => {
-    isLoading.value = true;
+  // silent = true: refetch ngầm sau khi thao tác (không bật skeleton) để bảng không
+  // bị unmount/mount lại — tránh nháy màn và giữ nguyên vị trí cuộn. Vue diff theo
+  // :key="movie.id" nên chỉ patch đúng dòng thay đổi.
+  const fetchMovies = async ({ silent = false } = {}) => {
+    if (!silent) isLoading.value = true;
     loadError.value = false;
     try {
       const response = await axios.get("/movies");
@@ -118,9 +121,9 @@ export function useMovieManagement() {
       }));
     } catch (error) {
       console.error("Lỗi khi tải danh sách phim:", error);
-      loadError.value = true;
+      if (!silent) loadError.value = true;
     } finally {
-      isLoading.value = false;
+      if (!silent) isLoading.value = false;
     }
   };
 
@@ -292,7 +295,7 @@ export function useMovieManagement() {
 
   const deleteMovie = async (id) => {
     await axios.delete(`/movies/${id}`);
-    await fetchMovies();
+    await fetchMovies({ silent: true });
   };
 
   const saveMovie = async (payload, id) => {
@@ -301,7 +304,7 @@ export function useMovieManagement() {
     } else {
       await axios.post("/movies", payload);
     }
-    await fetchMovies();
+    await fetchMovies({ silent: true });
   };
 
   /** Đổi nhanh trạng thái 1 phim ngay trên dòng (optimistic). */
@@ -324,7 +327,7 @@ export function useMovieManagement() {
     if (!ids.length) return;
     await axios.patch("/movies/bulk-status", { ids, status: newStatus });
     clearSelection();
-    await fetchMovies();
+    await fetchMovies({ silent: true });
   };
 
   const bulkDelete = async () => {
@@ -332,7 +335,7 @@ export function useMovieManagement() {
     if (!ids.length) return;
     await axios.delete("/movies/bulk", { data: { ids } });
     clearSelection();
-    await fetchMovies();
+    await fetchMovies({ silent: true });
   };
 
   return {
