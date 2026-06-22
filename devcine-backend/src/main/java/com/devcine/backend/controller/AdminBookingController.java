@@ -99,6 +99,7 @@ public class AdminBookingController {
             Map<String, Object> s = new HashMap<>();
             s.put("label", seat.getRowChar() + seat.getColNum());
             s.put("seatType", seat.getSeatType() != null ? seat.getSeatType().getName() : "");
+            s.put("ticketType", nn(bs.getTicketType()));
             s.put("price", bs.getPriceSnapshot());
             return s;
         }).collect(Collectors.toList());

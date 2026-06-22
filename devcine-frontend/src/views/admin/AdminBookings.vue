@@ -4,6 +4,7 @@ import { bookingAdminApi } from '@/api/admin/index'
 import { openInvoice, paymentLabel } from '@/utils/invoiceTemplate'
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
+const ticketTypeLabel = (t) => ({ ADULT: 'Người lớn', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }[t] || '')
 
 const isLoading = ref(false)
 const error = ref('')
@@ -113,6 +114,8 @@ const openDetail = async (bookingId) => {
 const detailSeatTotal = computed(() => (detail.value?.seats || []).reduce((a, s) => a + Number(s.price || 0), 0))
 const detailComboTotal = computed(() => (detail.value?.fnbs || []).reduce((a, f) => a + Number(f.price || 0) * f.quantity, 0))
 const detailDiscount = computed(() => Math.max(0, Number(detail.value?.totalPrice || 0) - Number(detail.value?.finalPrice || 0)))
+const detailCheckedIn = computed(() => (detail.value?.tickets || []).filter(t => t.isCheckedIn).length)
+const detailTicketCount = computed(() => (detail.value?.tickets || []).length)
 
 const buildInv = (d) => {
   const groups = {}
@@ -379,7 +382,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer); if (searchTimer) c
               <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Ghế ({{ detail.seats.length }})</p>
               <div class="flex flex-wrap gap-2">
                 <span v-for="(s, i) in detail.seats" :key="i" class="px-3 py-1.5 rounded-lg bg-surface-container-high border border-outline-variant/10 text-xs font-bold text-on-surface">
-                  {{ s.label }} <span class="text-on-surface-variant">· {{ seatTypeLabel(s.seatType) }} · {{ fmt(s.price) }}đ</span>
+                  {{ s.label }} <span class="text-on-surface-variant">· {{ seatTypeLabel(s.seatType) }}<template v-if="ticketTypeLabel(s.ticketType)"> · {{ ticketTypeLabel(s.ticketType) }}</template> · {{ fmt(s.price) }}đ</span>
                 </span>
               </div>
             </div>
@@ -397,7 +400,15 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer); if (searchTimer) c
 
             <!-- Tickets QR -->
             <div v-if="detail.tickets && detail.tickets.length">
-              <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Vé QR ({{ detail.tickets.length }})</p>
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Vé QR ({{ detail.tickets.length }})</p>
+                <span
+                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border"
+                  :class="detailCheckedIn === detailTicketCount
+                    ? 'text-green-400 bg-green-400/10 border-green-400/20'
+                    : 'text-on-surface-variant bg-surface-container-high border-outline-variant/15'"
+                >Đã soát {{ detailCheckedIn }}/{{ detailTicketCount }}</span>
+              </div>
               <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div v-for="(t, i) in detail.tickets" :key="i" class="bg-surface-container-high rounded-xl border border-outline-variant/10 p-3 flex items-center gap-3">
                   <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=0&data=${encodeURIComponent(t.qrCode)}`" alt="QR" class="w-14 h-14 bg-white rounded p-0.5" />
