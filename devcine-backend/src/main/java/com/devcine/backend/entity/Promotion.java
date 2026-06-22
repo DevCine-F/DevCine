@@ -54,4 +54,28 @@ public class Promotion {
     @Column(name = "allow_point_redemption", columnDefinition = "boolean not null default false")
     @Builder.Default
     private Boolean allowPointRedemption = false;
+
+    /** Giá trị đơn tối thiểu để được áp mã (0/null = không yêu cầu). */
+    @Column(name = "min_order_value", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal minOrderValue = BigDecimal.ZERO;
+
+    /** Chỉ áp dụng cho phim này (null = áp dụng mọi phim). */
+    @Column(name = "applicable_movie_id")
+    private Integer applicableMovieId;
+
+    /** Đối tượng áp dụng: ALL (mọi khách) | NEW_CUSTOMER (khách chưa từng mua vé). */
+    @Column(name = "customer_eligibility", length = 20, columnDefinition = "varchar(20) not null default 'ALL'")
+    @Builder.Default
+    private String customerEligibility = "ALL";
+
+    /** Tổng số lượt được dùng (0/null = không giới hạn). */
+    @Column(name = "usage_limit")
+    @Builder.Default
+    private Integer usageLimit = 0;
+
+    /** Số lượt đã dùng (tăng khi voucher được dùng thanh toán thành công). */
+    @Column(name = "used_count", columnDefinition = "integer not null default 0")
+    @Builder.Default
+    private Integer usedCount = 0;
 }

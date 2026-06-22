@@ -105,6 +105,11 @@ public class MarketingController {
                     .isStackable(Boolean.parseBoolean(body.getOrDefault("isStackable", false).toString()))
                     .pointsRequired(body.get("pointsRequired") != null ? Integer.parseInt(body.get("pointsRequired").toString()) : 0)
                     .allowPointRedemption(Boolean.parseBoolean(body.getOrDefault("allowPointRedemption", false).toString()))
+                    .minOrderValue(body.get("minOrderValue") != null ? new BigDecimal(body.get("minOrderValue").toString()) : BigDecimal.ZERO)
+                    .applicableMovieId(body.get("applicableMovieId") != null && !body.get("applicableMovieId").toString().isBlank()
+                            ? Integer.parseInt(body.get("applicableMovieId").toString()) : null)
+                    .customerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL")
+                    .usageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0)
                     .build();
             promotionRepository.save(promo);
             return ResponseEntity.status(201).body(Map.of("success", true, "data", promo));
@@ -140,6 +145,11 @@ public class MarketingController {
             if (body.containsKey("isStackable")) promo.setIsStackable(Boolean.parseBoolean(body.get("isStackable").toString()));
             if (body.containsKey("pointsRequired")) promo.setPointsRequired(body.get("pointsRequired") != null ? Integer.parseInt(body.get("pointsRequired").toString()) : 0);
             if (body.containsKey("allowPointRedemption")) promo.setAllowPointRedemption(Boolean.parseBoolean(body.get("allowPointRedemption").toString()));
+            if (body.containsKey("minOrderValue")) promo.setMinOrderValue(body.get("minOrderValue") != null ? new BigDecimal(body.get("minOrderValue").toString()) : BigDecimal.ZERO);
+            if (body.containsKey("applicableMovieId")) promo.setApplicableMovieId(body.get("applicableMovieId") != null && !body.get("applicableMovieId").toString().isBlank()
+                    ? Integer.parseInt(body.get("applicableMovieId").toString()) : null);
+            if (body.containsKey("customerEligibility")) promo.setCustomerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL");
+            if (body.containsKey("usageLimit")) promo.setUsageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0);
             promotionRepository.save(promo);
             return ResponseEntity.ok(Map.of("success", true, "data", promo));
         } catch (Exception e) {

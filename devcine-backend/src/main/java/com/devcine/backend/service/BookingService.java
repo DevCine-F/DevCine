@@ -189,6 +189,27 @@ public class BookingService {
             }
 
             Promotion promotion = voucher.getPromotion();
+
+            // Điều kiện áp dụng nâng cao (đơn tối thiểu / theo phim / đối tượng / lượt dùng)
+            if (promotion.getMinOrderValue() != null
+                    && totalPrice.compareTo(promotion.getMinOrderValue()) < 0) {
+                throw new RuntimeException("Đơn tối thiểu " + promotion.getMinOrderValue().toBigInteger()
+                        + "đ để áp dụng mã này.");
+            }
+            if (promotion.getApplicableMovieId() != null
+                    && !promotion.getApplicableMovieId().equals(showtime.getMovie().getId())) {
+                throw new RuntimeException("Mã chỉ áp dụng cho phim khác, không dùng được cho suất này.");
+            }
+            if ("NEW_CUSTOMER".equalsIgnoreCase(promotion.getCustomerEligibility())
+                    && bookingRepository.countConfirmedByCustomer(customer.getUserId()) > 0) {
+                throw new RuntimeException("Mã chỉ dành cho khách hàng mới (chưa từng mua vé).");
+            }
+            if (promotion.getUsageLimit() != null && promotion.getUsageLimit() > 0
+                    && promotion.getUsedCount() != null
+                    && promotion.getUsedCount() >= promotion.getUsageLimit()) {
+                throw new RuntimeException("Mã đã hết lượt sử dụng.");
+            }
+
             BigDecimal discount = BigDecimal.ZERO;
             if ("PERCENTAGE".equalsIgnoreCase(promotion.getDiscountType())) {
                 discount = totalPrice.multiply(promotion.getDiscountValue()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
@@ -215,7 +236,15 @@ public class BookingService {
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
                 
         if ("CONFIRMED".equals(booking.getStatus())) {
-            return; // Already processed
+            return; // Idempotent: đơn đã xác nhận → không xử lý/trừ tiền/sinh vé lần 2
+        }
+        if ("EXPIRED".equals(booking.getStatus()) || "CANCELLED".equals(booking.getStatus())) {
+            // Đơn đã hết hạn giữ chỗ (ghế đã nhả) hoặc bị huỷ → không thể hoàn tất
+            throw new RuntimeException("Đơn đã hết hạn giữ chỗ, vui lòng đặt lại.");
+        }
+        // Chỉ hoàn tất đơn còn đang giữ ghế (HOLD); ghế phải vẫn thuộc đơn này
+        if (!"HOLD".equals(booking.getStatus())) {
+            throw new RuntimeException("Trạng thái đơn không hợp lệ để thanh toán.");
         }
         
         // Loyalty points and membership tiers update
@@ -274,11 +303,16 @@ public class BookingService {
         bookingSeatRepository.saveAll(seats);
         ticketRepository.saveAll(tickets);
         
-        // Mark voucher as used
+        // Mark voucher as used + tăng lượt dùng của chương trình khuyến mãi
         if (booking.getVoucher() != null) {
             Voucher v = booking.getVoucher();
             v.setIsUsed(true);
             voucherRepository.save(v);
+            Promotion promo = v.getPromotion();
+            if (promo != null) {
+                promo.setUsedCount((promo.getUsedCount() != null ? promo.getUsedCount() : 0) + 1);
+                promotionRepository.save(promo);
+            }
         }
 
         // Tự trừ tồn kho F&B theo định mức nguyên liệu (BOM) của rạp tương ứng

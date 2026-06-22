@@ -18,8 +18,14 @@ const discountTypeOptions = [
 
 const activeTab = ref('vouchers')
 const cinemasList = ref([])
+const moviesList = ref([])   // danh sách phim cho voucher "áp dụng theo phim"
 const promotions = ref([])
 const combos = ref([])
+
+const eligibilityOptions = [
+  { value: 'ALL', label: 'Mọi khách hàng' },
+  { value: 'NEW_CUSTOMER', label: 'Chỉ khách hàng mới' }
+]
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/marketing'
 
@@ -82,6 +88,10 @@ const newVoucher = ref({
   title: '',
   description: '',
   expiry: '',
+  minOrderValue: null,
+  applicableMovieId: '',
+  customerEligibility: 'ALL',
+  usageLimit: null,
   cinemaMode: 'all',
   selectedCinemas: []
 })
@@ -110,7 +120,7 @@ const isSavingVoucher = ref(false)
 
 const openVoucherDrawer = () => {
   editingVoucherId.value = null
-  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', cinemaMode: 'all', selectedCinemas: [] }
+  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, cinemaMode: 'all', selectedCinemas: [] }
   isVoucherDrawerOpen.value = true
 }
 
@@ -125,6 +135,10 @@ const openEditVoucher = (promo) => {
     pointsRequired: promo.pointsRequired || null,
     title: promo.name || '', description: promo.description || '',
     expiry: promo.endDate ? String(promo.endDate).slice(0, 10) : '',
+    minOrderValue: promo.minOrderValue != null ? Number(promo.minOrderValue) : null,
+    applicableMovieId: promo.applicableMovieId != null ? promo.applicableMovieId : '',
+    customerEligibility: promo.customerEligibility || 'ALL',
+    usageLimit: promo.usageLimit || null,
     cinemaMode: 'all', selectedCinemas: []
   }
   isVoucherDrawerOpen.value = true
@@ -164,7 +178,11 @@ const handleSaveVoucher = async () => {
       discountValue: Number(newVoucher.value.value),
       endDate: newVoucher.value.expiry ? `${newVoucher.value.expiry}T23:59:59` : null,
       allowPointRedemption: !!newVoucher.value.allowPointExchange,
-      pointsRequired: newVoucher.value.allowPointExchange ? Number(newVoucher.value.pointsRequired || 0) : 0
+      pointsRequired: newVoucher.value.allowPointExchange ? Number(newVoucher.value.pointsRequired || 0) : 0,
+      minOrderValue: Number(newVoucher.value.minOrderValue || 0),
+      applicableMovieId: newVoucher.value.applicableMovieId || null,
+      customerEligibility: newVoucher.value.customerEligibility || 'ALL',
+      usageLimit: Number(newVoucher.value.usageLimit || 0)
     }
     if (editingVoucherId.value) {
       await marketingApi.updatePromotion(editingVoucherId.value, payload)
@@ -289,7 +307,12 @@ const fetchMarketingData = async () => {
       endDate: p.endDate,
       isStackable: p.isStackable,
       pointsRequired: p.pointsRequired,
-      allowPointRedemption: p.allowPointRedemption
+      allowPointRedemption: p.allowPointRedemption,
+      minOrderValue: p.minOrderValue,
+      applicableMovieId: p.applicableMovieId,
+      customerEligibility: p.customerEligibility,
+      usageLimit: p.usageLimit,
+      usedCount: p.usedCount
     }))
   } catch (error) {
     showToast('Không thể tải danh sách voucher.', 'error')
@@ -313,6 +336,12 @@ const fetchMarketingData = async () => {
 
 onMounted(async () => {
   fetchMarketingData()
+  try {
+    const { data } = await api.get('/movies')
+    moviesList.value = Array.isArray(data) ? data : []
+  } catch (error) {
+    moviesList.value = []
+  }
   try {
     const response = await api.get('/v1/cinemas')
     cinemasList.value = response.data
@@ -616,6 +645,34 @@ onUnmounted(() => {
           <div class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày hết hạn</label>
             <input v-model="newVoucher.expiry" type="date" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
+          </div>
+
+          <!-- Điều kiện áp dụng nâng cao -->
+          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
+            <p class="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm">rule</span> Điều kiện áp dụng
+            </p>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đơn tối thiểu (VNĐ)</label>
+                <input v-model="newVoucher.minOrderValue" type="number" min="0" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="0 = không yêu cầu" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giới hạn lượt dùng</label>
+                <input v-model="newVoucher.usageLimit" type="number" min="0" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="0 = không giới hạn" />
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Áp dụng theo phim</label>
+              <select v-model="newVoucher.applicableMovieId" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none">
+                <option value="">Tất cả phim</option>
+                <option v-for="m in moviesList" :key="m.id" :value="m.id">{{ m.title || m.titleVietnamese }}</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đối tượng áp dụng</label>
+              <CustomSelect v-model="newVoucher.customerEligibility" :options="eligibilityOptions" customClass="w-full p-4 rounded-xl text-sm border-outline-variant/20" />
+            </div>
           </div>
 
           <div class="space-y-4 pt-4 border-t border-outline-variant/10">
