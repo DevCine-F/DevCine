@@ -1,5 +1,5 @@
 <script setup>
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { paymentApi, voucherApi } from '@/api/customer'
 import { settingsApi } from '@/api/admin'
@@ -8,6 +8,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const store = useBookingStore()
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const paymentMethod = ref('VNPAY')
@@ -39,8 +40,23 @@ const canProceed = computed(() => {
 
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
+// Bắt buộc đăng nhập trước khi rời bước chọn ghế. Store Pinia giữ nguyên suất/ghế đã chọn
+// qua điều hướng SPA, nên sau khi đăng nhập quay lại sẽ vào đúng bước 2 với ghế còn nguyên.
+const showLoginPrompt = ref(false)
+const ensureAuthForBooking = () => {
+  if (authStore.isAuthenticated) return true
+  showLoginPrompt.value = true // hiện modal nhắc đăng nhập thay vì chuyển thẳng
+  return false
+}
+const goToLogin = () => {
+  showLoginPrompt.value = false
+  router.push({ name: 'login', query: { redirect: '/booking?step=2' } })
+}
+
 const goNext = () => {
   if (currentStep.value < steps.length && canProceed.value) {
+    // Rời bước chọn ghế (1 → 2): yêu cầu đăng nhập, chưa đăng nhập thì dắt đi đăng nhập
+    if (currentStep.value === 1 && !ensureAuthForBooking()) return
     currentStep.value++
     scrollTop()
   }
@@ -54,6 +70,8 @@ const goBack = () => {
 const goToStep = (id) => {
   // Cho phép quay lại bất kỳ bước trước; chỉ chặn nhảy tới khi chưa chọn ghế
   if (id > currentStep.value && store.selectedSeats.length === 0) return
+  // Nhảy từ bước chọn ghế sang bước sau cũng cần đăng nhập
+  if (currentStep.value === 1 && id > 1 && !ensureAuthForBooking()) return
   currentStep.value = id
   scrollTop()
 }
@@ -239,6 +257,13 @@ onMounted(async () => {
   await store.fetchSeats()
   await store.fetchFnbs()
   loadBankInfo()
+
+  // Quay lại sau khi đăng nhập: khôi phục đúng bước nếu ghế vẫn còn chọn đủ
+  const resumeStep = Number(route.query.step)
+  if (authStore.isAuthenticated && resumeStep > 1
+      && store.totalTickets > 0 && store.selectedSeats.length === store.totalTickets) {
+    currentStep.value = resumeStep
+  }
 
   if (authStore.isAuthenticated && authStore.user?.id) {
     // Fetch active vouchers
@@ -478,6 +503,26 @@ const proceedToPayment = async () => {
         <span class="material-symbols-outlined text-xl" :class="{ 'animate-pulse': secondsLeft <= 60 }">timer</span>
         <span class="text-sm font-bold">Vui lòng hoàn tất đặt vé trong</span>
         <span class="font-mono font-black text-xl tabular-nums tracking-wider">{{ countdownLabel }}</span>
+      </div>
+    </transition>
+
+    <!-- Modal nhắc đăng nhập trước khi rời bước chọn ghế -->
+    <transition name="fade">
+      <div v-if="showLoginPrompt" class="fixed inset-0 z-[300] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="showLoginPrompt = false"></div>
+        <div class="relative w-full max-w-md bg-surface-container-low border border-outline-variant/15 rounded-3xl p-8 shadow-2xl text-center">
+          <div class="w-16 h-16 mx-auto mb-5 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary text-3xl">lock</span>
+          </div>
+          <h3 class="font-headline text-2xl font-bold text-on-surface mb-2">Bạn chưa đăng nhập</h3>
+          <p class="text-sm text-on-surface-variant mb-7">Hãy đăng nhập để tiếp tục đặt vé nhé! Ghế bạn đang chọn sẽ được giữ lại khi quay lại.</p>
+          <div class="flex gap-3">
+            <button @click="showLoginPrompt = false" class="flex-1 py-3.5 rounded-xl border border-outline-variant/25 text-on-surface-variant font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-colors">Để sau</button>
+            <button @click="goToLogin" class="flex-1 py-3.5 rounded-xl bg-primary text-on-primary font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-base">login</span> Đăng nhập
+            </button>
+          </div>
+        </div>
       </div>
     </transition>
 

@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { authApi } from '../../api/customer/index'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const activeTab = ref('login')
 const isLoading = ref(false)
@@ -23,7 +24,8 @@ const handleLogin = async () => {
     const { token, user } = res.data.data
     const role = user.role.toLowerCase()
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, role)
-    router.push(role === 'admin' || role === 'staff' ? '/admin/dashboard' : '/')
+    // Khách: quay lại trang trước khi bị chặn (vd /booking?step=2) nếu có
+    router.push(role === 'admin' || role === 'staff' ? '/admin/dashboard' : (route.query.redirect || '/'))
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'Đăng nhập thất bại. Kiểm tra lại tài khoản và mật khẩu.'
   } finally {
@@ -42,7 +44,7 @@ const handleRegister = async () => {
     const res = await authApi.login(f.username, f.password)
     const { token, user } = res.data.data
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, user.role.toLowerCase())
-    router.push('/')
+    router.push(route.query.redirect || '/')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.'
   } finally {
