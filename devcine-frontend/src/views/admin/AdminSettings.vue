@@ -31,6 +31,9 @@ const settings = ref({
   contactEmail: 'contact@devcine.com',
   baseTicketPrice: '110.000',
   pointConversionRate: 1000,
+  seatHoldMinutes: 10,
+  maxTicketsPerBooking: 8,
+  bookingLateMinutes: 15,
   maintenanceMode: false,
   bankCode: '',
   bankName: '',
@@ -69,6 +72,9 @@ const loadSettings = async () => {
       else if (item.settingKey === 'CONTACT_EMAIL') settings.value.contactEmail = item.settingValue
       else if (item.settingKey === 'BASE_TICKET_PRICE') settings.value.baseTicketPrice = item.settingValue
       else if (item.settingKey === 'LOYALTY_POINT_RATE') settings.value.pointConversionRate = parseInt(item.settingValue) || 1000
+      else if (item.settingKey === 'SEAT_HOLD_MINUTES') settings.value.seatHoldMinutes = parseInt(item.settingValue) || 10
+      else if (item.settingKey === 'MAX_TICKETS_PER_BOOKING') settings.value.maxTicketsPerBooking = parseInt(item.settingValue) || 8
+      else if (item.settingKey === 'BOOKING_LATE_MINUTES') settings.value.bookingLateMinutes = parseInt(item.settingValue) || 15
       else if (item.settingKey === 'MAINTENANCE_MODE') settings.value.maintenanceMode = item.settingValue === 'true'
       else if (item.settingKey === 'PAYMENT_BANK_CODE') settings.value.bankCode = item.settingValue || ''
       else if (item.settingKey === 'PAYMENT_BANK_NAME') settings.value.bankName = item.settingValue || ''
@@ -84,6 +90,10 @@ const loadSettings = async () => {
 }
 
 const saveSettings = async () => {
+  // Kẹp các tham số nghiệp vụ về khoảng cho phép trước khi lưu
+  settings.value.seatHoldMinutes = Math.min(30, Math.max(3, parseInt(settings.value.seatHoldMinutes) || 10))
+  settings.value.maxTicketsPerBooking = Math.min(20, Math.max(1, parseInt(settings.value.maxTicketsPerBooking) || 8))
+  settings.value.bookingLateMinutes = Math.min(60, Math.max(0, parseInt(settings.value.bookingLateMinutes) || 15))
   isLoading.value = true
   try {
     await Promise.all([
@@ -91,6 +101,9 @@ const saveSettings = async () => {
       settingsApi.save({ settingKey: 'CONTACT_EMAIL', settingValue: settings.value.contactEmail }),
       settingsApi.save({ settingKey: 'BASE_TICKET_PRICE', settingValue: settings.value.baseTicketPrice }),
       settingsApi.save({ settingKey: 'LOYALTY_POINT_RATE', settingValue: settings.value.pointConversionRate.toString() }),
+      settingsApi.save({ settingKey: 'SEAT_HOLD_MINUTES', settingValue: settings.value.seatHoldMinutes.toString() }),
+      settingsApi.save({ settingKey: 'MAX_TICKETS_PER_BOOKING', settingValue: settings.value.maxTicketsPerBooking.toString() }),
+      settingsApi.save({ settingKey: 'BOOKING_LATE_MINUTES', settingValue: settings.value.bookingLateMinutes.toString() }),
       settingsApi.save({ settingKey: 'MAINTENANCE_MODE', settingValue: settings.value.maintenanceMode.toString() }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_CODE', settingValue: settings.value.bankCode }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_NAME', settingValue: settings.value.bankName }),
@@ -174,6 +187,26 @@ onMounted(() => {
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa / lần đặt</label>
+            <div class="relative">
+              <input v-model.number="settings.maxTicketsPerBooking" :disabled="isLoading" type="number" min="1" max="20"
+                     class="w-full bg-surface-container-high border-none text-sm font-bold rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 pr-16 text-on-surface">
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Vé</span>
+            </div>
+            <p class="text-[10px] text-on-surface-variant/70">Chống đầu cơ/phe vé. Khoảng 1–20, mặc định 8.</p>
+          </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bán vé trễ sau giờ chiếu</label>
+            <div class="relative">
+              <input v-model.number="settings.bookingLateMinutes" :disabled="isLoading" type="number" min="0" max="60"
+                     class="w-full bg-surface-container-high border-none text-sm font-bold rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 pr-16 text-on-surface">
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
+            </div>
+            <p class="text-[10px] text-on-surface-variant/70">Sau giờ chiếu vẫn cho mua trong khoảng này. Vd 15 → phim 19:30 bán đến 19:45.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
           <div class="space-y-4 md:col-span-2 p-6 rounded-2xl bg-surface-container-low border border-outline-variant/10 relative overflow-hidden">
             <!-- Decorative background element for space theme -->
             <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
@@ -211,6 +244,24 @@ onMounted(() => {
             <p class="text-xs text-on-surface-variant mt-4 italic opacity-75 relative z-10 border-t border-outline-variant/10 pt-4">
               <span class="text-primary font-bold">Ví dụ:</span> Nếu cấu hình {{ settings.pointConversionRate?.toLocaleString() }} VNĐ, một hoá đơn 85.000 VNĐ sẽ được cộng {{ Math.floor(85000 / (settings.pointConversionRate || 1000)) }} điểm (Hệ thống tự động làm tròn xuống phần dư).
             </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Seat Hold Time Settings -->
+      <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8">
+        <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-2 flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">timer</span>
+          Cấu hình thời gian giữ ghế
+        </h3>
+        <p class="text-xs text-on-surface-variant mb-8">Khi khách chọn ghế và sang bước thanh toán, ghế sẽ được giữ trong khoảng thời gian này. Quá hạn, hệ thống tự động nhả ghế để khách khác đặt.</p>
+
+        <div class="space-y-2 w-full md:w-auto">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian giữ ghế</label>
+          <div class="relative w-full md:w-56">
+            <input v-model.number="settings.seatHoldMinutes" :disabled="isLoading" type="number" min="3" max="30"
+                   class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
+            <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
           </div>
         </div>
       </section>

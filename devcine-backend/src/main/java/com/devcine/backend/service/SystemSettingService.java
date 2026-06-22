@@ -16,6 +16,56 @@ public class SystemSettingService {
 
     private final SystemSettingRepository systemSettingRepository;
 
+    /** Key cấu hình thời gian giữ ghế (phút) trong SystemSetting. */
+    public static final String KEY_SEAT_HOLD_MINUTES = "SEAT_HOLD_MINUTES";
+    public static final int SEAT_HOLD_MIN = 3;
+    public static final int SEAT_HOLD_MAX = 30;
+    public static final int SEAT_HOLD_DEFAULT = 10;
+
+    /** Số vé tối đa cho một lần đặt (chống phe vé). */
+    public static final String KEY_MAX_TICKETS = "MAX_TICKETS_PER_BOOKING";
+    public static final int MAX_TICKETS_MIN = 1;
+    public static final int MAX_TICKETS_MAX = 20;
+    public static final int MAX_TICKETS_DEFAULT = 8;
+
+    /** Số phút sau khi suất bắt đầu vẫn còn cho phép mua vé. */
+    public static final String KEY_BOOKING_LATE_MINUTES = "BOOKING_LATE_MINUTES";
+    public static final int BOOKING_LATE_MIN = 0;
+    public static final int BOOKING_LATE_MAX = 60;
+    public static final int BOOKING_LATE_DEFAULT = 15;
+
+    /** Đọc một setting số nguyên, kẹp trong [min, max]; thiếu/sai → defaultValue. */
+    private int getIntSetting(String key, int min, int max, int defaultValue) {
+        return systemSettingRepository.findById(key)
+                .map(s -> {
+                    try {
+                        int v = Integer.parseInt(s.getSettingValue().trim());
+                        return Math.min(max, Math.max(min, v));
+                    } catch (NumberFormatException | NullPointerException e) {
+                        return defaultValue;
+                    }
+                })
+                .orElse(defaultValue);
+    }
+
+    /** Số vé tối đa/lần đặt (đã kẹp [1, 20], mặc định 8). */
+    public int getMaxTicketsPerBooking() {
+        return getIntSetting(KEY_MAX_TICKETS, MAX_TICKETS_MIN, MAX_TICKETS_MAX, MAX_TICKETS_DEFAULT);
+    }
+
+    /** Số phút còn bán vé sau giờ chiếu (đã kẹp [0, 60], mặc định 15). */
+    public int getBookingLateMinutes() {
+        return getIntSetting(KEY_BOOKING_LATE_MINUTES, BOOKING_LATE_MIN, BOOKING_LATE_MAX, BOOKING_LATE_DEFAULT);
+    }
+
+    /**
+     * Thời gian giữ ghế (phút) admin cấu hình, đã kẹp trong [3, 30]; thiếu/sai → mặc định 10.
+     * Là nguồn DUY NHẤT cho cả luồng giữ ghế (BookingService) lẫn job dọn ghế quá hạn.
+     */
+    public int getSeatHoldMinutes() {
+        return getIntSetting(KEY_SEAT_HOLD_MINUTES, SEAT_HOLD_MIN, SEAT_HOLD_MAX, SEAT_HOLD_DEFAULT);
+    }
+
     public List<SystemSettingResponseDTO> getAllSettings() {
         return systemSettingRepository.findAll().stream()
                 .map(this::mapToDTO)

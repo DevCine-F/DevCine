@@ -26,8 +26,10 @@ public class BookingService {
     private final ShowtimeRepository showtimeRepository;
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
+    private final PromotionRepository promotionRepository;
     private final TicketRepository ticketRepository;
     private final SystemSettingRepository systemSettingRepository;
+    private final SystemSettingService systemSettingService;
     private final NotificationService notificationService;
     private final InventoryService inventoryService;
     private final PricingService pricingService;
@@ -51,6 +53,25 @@ public class BookingService {
         }
         java.util.List<Integer> selectedSeatIds = new java.util.ArrayList<>(ticketTypeBySeat.keySet());
 
+        // Validate số lượng vé: phải có ít nhất 1 ghế và không vượt giới hạn cấu hình (chống phe vé)
+        if (selectedSeatIds.isEmpty()) {
+            throw new RuntimeException("Vui lòng chọn ít nhất 1 ghế.");
+        }
+        int maxTickets = systemSettingService.getMaxTicketsPerBooking();
+        if (selectedSeatIds.size() > maxTickets) {
+            throw new RuntimeException("Mỗi lần đặt tối đa " + maxTickets + " vé.");
+        }
+
+        // Validate thời gian bán: chỉ cho mua trước giờ chiếu + khoảng trễ cho phép (vd 15 phút sau giờ chiếu)
+        int lateMinutes = systemSettingService.getBookingLateMinutes();
+        if (showtime.getStartTime() != null
+                && LocalDateTime.now().isAfter(showtime.getStartTime().plusMinutes(lateMinutes))) {
+            throw new RuntimeException("Suất chiếu đã đóng bán vé.");
+        }
+        if (showtime.getStatus() != null && "CANCELLED".equalsIgnoreCase(showtime.getStatus())) {
+            throw new RuntimeException("Suất chiếu đã bị huỷ.");
+        }
+
         Customer customer = null;
         if (request.getCustomerId() != null) {
             customer = customerRepository.findById(request.getCustomerId()).orElse(null);
@@ -68,13 +89,14 @@ public class BookingService {
         }
 
         // Validate seats
+        int holdMinutes = systemSettingService.getSeatHoldMinutes(); // thời gian giữ ghế admin cấu hình
         List<BookingSeat> existingReservedSeats = bookingSeatRepository.findReservedSeatsByShowtime(request.getShowtimeId());
         for (BookingSeat reserved : existingReservedSeats) {
             if (selectedSeatIds.contains(reserved.getSeat().getId())) {
                 boolean isHold = "HOLD".equals(reserved.getStatus());
-                // Chỗ giữ quá hạn (>10 phút) coi như đã được giải phóng
+                // Chỗ giữ quá hạn (quá thời gian cấu hình) coi như đã được giải phóng
                 boolean isStale = reserved.getBooking().getCreatedAt() != null
-                        && reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(10));
+                        && reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(holdMinutes));
                 // Chính khách này đang giữ ghế đó (vd quay lại từ bước thanh toán) — cho đặt lại ngay
                 boolean isSameCustomer = customer != null
                         && reserved.getBooking().getCustomer() != null

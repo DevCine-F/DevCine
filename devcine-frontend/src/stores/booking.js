@@ -14,6 +14,7 @@ export const useBookingStore = defineStore('booking', {
     bookingStep: 1, // 1: Select Seat, 2: F&B, 3: Payment, 4: Success
     bookingId: null,
     bookingCode: null,
+    heldAt: null, // Thời điểm server tạo đơn giữ ghế (ISO) — mốc bắt đầu đếm ngược
     paymentMethod: null, // Phương thức thanh toán đã chọn (VNPAY/TRANSFER)
     paidAt: null, // Thời điểm thanh toán thành công (ISO string)
     lastHoldError: '', // Thông điệp lỗi giữ ghế gần nhất (để hiển thị cho khách)
@@ -21,6 +22,7 @@ export const useBookingStore = defineStore('booking', {
     priceTable: {}, // tên loại ghế -> (mã đối tượng -> giá)
     audienceLabels: {}, // mã đối tượng -> nhãn
     ticketQuantities: {}, // mã đối tượng -> số lượng vé (chọn TRƯỚC khi chọn ghế)
+    maxTicketsPerBooking: 8, // giới hạn số vé/lần đặt (lấy từ cấu hình admin)
     matrixRow: 9,
     matrixCol: 10,
     availableFnbs: [],
@@ -103,6 +105,7 @@ export const useBookingStore = defineStore('booking', {
       this.finalPrice = 0;
       this.bookingId = null;
       this.bookingCode = null;
+      this.heldAt = null;
       this.paymentMethod = null;
       this.paidAt = null;
       this.lastHoldError = '';
@@ -120,7 +123,11 @@ export const useBookingStore = defineStore('booking', {
       this.calculateTotal();
     },
     setTicketQuantity(code, qty) {
-      const n = Math.max(0, Number(qty) || 0);
+      let n = Math.max(0, Number(qty) || 0);
+      // Không cho tổng số vé vượt giới hạn cấu hình (chống phe vé)
+      const others = this.totalTickets - (Number(this.ticketQuantities[code]) || 0);
+      const allowed = Math.max(0, this.maxTicketsPerBooking - others);
+      if (n > allowed) n = allowed;
       this.ticketQuantities = { ...this.ticketQuantities, [code]: n };
       // Nếu giảm số vé xuống dưới số ghế đang chọn → bỏ bớt ghế thừa
       if (this.selectedSeats.length > this.totalTickets) {
@@ -170,6 +177,7 @@ export const useBookingStore = defineStore('booking', {
         const { data } = await bookingApi.holdSeats(payload);
         this.bookingId = data.id;
         this.bookingCode = data.bookingCode;
+        this.heldAt = data.createdAt || new Date().toISOString(); // mốc đếm ngược (ưu tiên giờ server)
         this.paymentMethod = paymentMethod;
         // Giá cuối do backend tính (đã trừ voucher) — dùng làm số tiền thanh toán chuẩn
         this.finalPrice = data.finalPrice;
@@ -205,6 +213,7 @@ export const useBookingStore = defineStore('booking', {
       this.bookingStep = 1;
       this.bookingId = null;
       this.bookingCode = null;
+      this.heldAt = null;
       this.paymentMethod = null;
       this.paidAt = null;
     }

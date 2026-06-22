@@ -69,6 +69,30 @@ public class DataSeeder {
                 System.out.println("Đã cấu hình mặc định LOYALTY_POINT_RATE = 1000 VNĐ = 1 điểm.");
             }
 
+            if (systemSettingRepository.findById("SEAT_HOLD_MINUTES").isEmpty()) {
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("SEAT_HOLD_MINUTES")
+                        .settingValue("10")
+                        .build());
+                System.out.println("Đã cấu hình mặc định SEAT_HOLD_MINUTES = 10 phút.");
+            }
+
+            if (systemSettingRepository.findById("MAX_TICKETS_PER_BOOKING").isEmpty()) {
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("MAX_TICKETS_PER_BOOKING")
+                        .settingValue("8")
+                        .build());
+                System.out.println("Đã cấu hình mặc định MAX_TICKETS_PER_BOOKING = 8 vé.");
+            }
+
+            if (systemSettingRepository.findById("BOOKING_LATE_MINUTES").isEmpty()) {
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("BOOKING_LATE_MINUTES")
+                        .settingValue("15")
+                        .build());
+                System.out.println("Đã cấu hình mặc định BOOKING_LATE_MINUTES = 15 phút.");
+            }
+
             // Seed roles
             Role adminRole = roleRepository.findByName("ADMIN").orElseGet(()
                     -> roleRepository.save(Role.builder().name("ADMIN").build()));

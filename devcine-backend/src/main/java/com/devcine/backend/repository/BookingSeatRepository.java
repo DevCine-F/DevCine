@@ -6,14 +6,20 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface BookingSeatRepository extends JpaRepository<BookingSeat, Integer> {
-    
+
     @Query("SELECT bs FROM BookingSeat bs JOIN bs.booking b JOIN FETCH bs.seat " +
            "WHERE b.showtime.id = :showtimeId AND (bs.status = 'SOLD' OR bs.status = 'HOLD')")
     List<BookingSeat> findReservedSeatsByShowtime(@Param("showtimeId") Integer showtimeId);
+
+    // Ghế đang HOLD nhưng đơn đã tạo trước mốc cutoff → quá hạn giữ, cần giải phóng
+    @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.booking b " +
+           "WHERE bs.status = 'HOLD' AND b.createdAt < :cutoff")
+    List<BookingSeat> findStaleHolds(@Param("cutoff") LocalDateTime cutoff);
 
     List<BookingSeat> findAllByBookingId(Integer bookingId);
 

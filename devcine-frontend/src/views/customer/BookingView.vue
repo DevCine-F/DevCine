@@ -4,7 +4,7 @@ import { useBookingStore } from '@/stores/booking'
 import { paymentApi, voucherApi } from '@/api/customer'
 import { settingsApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const store = useBookingStore()
 const router = useRouter()
@@ -78,7 +78,66 @@ watch(currentStep, (s) => { if (s === 4) ensureHeld() })
 watch(() => [store.selectedSeats.length, JSON.stringify(store.ticketQuantities), store.selectedFnbs.length, store.selectedVoucher?.id], () => {
   held.value = false
   store.bookingId = null
+  store.heldAt = null
 })
+
+// ===== Đồng hồ đếm ngược thời gian giữ chỗ (bắt đầu từ khi chọn ghế) =====
+const holdMinutes = ref(10)        // số phút giữ ghế (admin cấu hình, mặc định 10)
+const nowTs = ref(Date.now())
+const holdStartTs = ref(0)         // mốc bắt đầu phiên giữ chỗ (lúc chọn ghế đầu tiên)
+let countdownTimer = null
+let expiredHandled = false
+
+const holdDeadline = computed(() => holdStartTs.value ? holdStartTs.value + holdMinutes.value * 60000 : 0)
+const isCountingDown = computed(() => holdStartTs.value > 0)
+const secondsLeft = computed(() => {
+  if (!isCountingDown.value) return null
+  return Math.max(0, Math.floor((holdDeadline.value - nowTs.value) / 1000))
+})
+const countdownLabel = computed(() => {
+  const s = secondsLeft.value
+  if (s == null) return ''
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+})
+
+// Bắt đầu đếm khi khách chọn ghế đầu tiên; dừng/đặt lại khi bỏ hết ghế
+watch(() => store.selectedSeats.length, (n) => {
+  if (n > 0 && holdStartTs.value === 0) {
+    holdStartTs.value = Date.now()
+    expiredHandled = false
+  } else if (n === 0) {
+    holdStartTs.value = 0
+  }
+})
+
+const handleHoldExpired = async () => {
+  if (expiredHandled) return
+  expiredHandled = true
+  holdStartTs.value = 0
+  held.value = false
+  store.bookingId = null
+  store.heldAt = null
+  store.selectedSeats = []         // bỏ ghế đã chọn để khách chọn lại từ đầu
+  store.calculateTotal()
+  await store.fetchSeats()         // làm mới sơ đồ ghế (ghế đã/sẽ được nhả)
+  currentStep.value = 1
+  scrollTop()
+  alert(`Đã hết thời gian giữ chỗ (${holdMinutes.value} phút). Vui lòng chọn lại ghế.`)
+}
+
+watch(secondsLeft, (s) => { if (s === 0) handleHoldExpired() })
+
+onMounted(async () => {
+  try {
+    const { data } = await settingsApi.getAll()
+    const v = parseInt(data.find(i => i.settingKey === 'SEAT_HOLD_MINUTES')?.settingValue)
+    if (!isNaN(v)) holdMinutes.value = Math.min(30, Math.max(3, v))
+    const mt = parseInt(data.find(i => i.settingKey === 'MAX_TICKETS_PER_BOOKING')?.settingValue)
+    if (!isNaN(mt)) store.maxTicketsPerBooking = Math.min(20, Math.max(1, mt))
+  } catch (e) { /* lỗi tải cấu hình → giữ mặc định */ }
+  countdownTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
+})
+onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer) })
 
 // Tạm tính riêng phần ghế (đã gồm giá theo đối tượng) để hiển thị ở sidebar
 const seatsSubtotal = computed(() => {
@@ -411,6 +470,17 @@ const proceedToPayment = async () => {
       </div>
     </div>
 
+    <!-- Banner đếm ngược thời gian giữ ghế (hiện khi đã giữ ghế) -->
+    <transition name="fade">
+      <div v-if="isCountingDown"
+           :class="secondsLeft <= 60 ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-primary/10 border-primary/30 text-primary'"
+           class="mb-8 flex items-center justify-center gap-3 px-6 py-3.5 rounded-2xl border backdrop-blur-sm">
+        <span class="material-symbols-outlined text-xl" :class="{ 'animate-pulse': secondsLeft <= 60 }">timer</span>
+        <span class="text-sm font-bold">Vui lòng hoàn tất đặt vé trong</span>
+        <span class="font-mono font-black text-xl tabular-nums tracking-wider">{{ countdownLabel }}</span>
+      </div>
+    </transition>
+
     <div class="flex flex-col lg:flex-row gap-12">
     <!-- Main Content Area -->
     <div class="flex-grow min-w-0">
@@ -456,15 +526,15 @@ const proceedToPayment = async () => {
                   <span class="material-symbols-outlined text-base">remove</span>
                 </button>
                 <span class="w-6 text-center font-bold tabular-nums">{{ store.ticketQuantities[code] || 0 }}</span>
-                <button @click="setQty(code, 1)"
-                        class="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-high hover:text-primary-container transition-colors">
+                <button @click="setQty(code, 1)" :disabled="store.totalTickets >= store.maxTicketsPerBooking"
+                        class="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-high disabled:opacity-30 hover:text-primary-container transition-colors">
                   <span class="material-symbols-outlined text-base">add</span>
                 </button>
               </div>
             </div>
           </div>
           <div class="mt-4 flex items-center justify-between text-sm">
-            <span class="text-on-surface-variant">Tổng số vé</span>
+            <span class="text-on-surface-variant">Tổng số vé <span class="text-on-surface-variant/60">(tối đa {{ store.maxTicketsPerBooking }} vé/lần)</span></span>
             <span class="font-bold text-primary-container">{{ store.totalTickets }} vé · đã chọn {{ store.selectedSeats.length }} ghế</span>
           </div>
         </div>
