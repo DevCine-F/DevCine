@@ -14,6 +14,11 @@ const isSaving = ref(false)
 const editingItem = ref(null)
 const form = ref({ category: '', question: '', answer: '', displayOrder: 0, isActive: true })
 
+// Dropdown danh mục
+const DEFAULT_CATEGORIES = ['Đặt vé & Thanh toán', 'Thành viên DevCine', 'Quy định rạp', 'Ưu đãi & Khuyến mãi']
+const catDropdownOpen = ref(false)
+const isCustomCat = ref(false)
+
 // Toast
 const toast = ref({ show: false, type: 'success', message: '' })
 let toastTimer = null
@@ -25,9 +30,31 @@ const showToast = (message, type = 'success') => {
 const errMsg = (e, fb) => e?.response?.data?.message || e?.response?.data?.error || fb
 
 const categories = computed(() => [...new Set(faqs.value.map(f => f.category).filter(Boolean))])
+// Danh mục cho dropdown: gộp danh mục mặc định + danh mục đã có trong dữ liệu
+const allCategories = computed(() => [...new Set([...DEFAULT_CATEGORIES, ...categories.value])])
 const filteredFaqs = computed(() =>
   filterCategory.value === 'Tất cả' ? faqs.value : faqs.value.filter(f => f.category === filterCategory.value)
 )
+
+// Thứ tự hiển thị kế tiếp trong một danh mục (max + 1, bắt đầu từ 1)
+const nextOrder = (cat) => {
+  const inCat = faqs.value.filter(f => f.category === cat)
+  return inCat.length ? Math.max(...inCat.map(f => f.displayOrder || 0)) + 1 : 1
+}
+
+const selectCategory = (c) => {
+  form.value.category = c
+  isCustomCat.value = false
+  catDropdownOpen.value = false
+  // Khi thêm mới, tự gợi ý thứ tự kế tiếp của danh mục vừa chọn
+  if (!editingItem.value) form.value.displayOrder = nextOrder(c)
+}
+
+const startCustomCat = () => {
+  isCustomCat.value = true
+  catDropdownOpen.value = false
+  form.value.category = ''
+}
 
 const fetchFaqs = async () => {
   isLoading.value = true
@@ -45,10 +72,14 @@ const fetchFaqs = async () => {
 
 const openModal = (item = null) => {
   editingItem.value = item
+  catDropdownOpen.value = false
   if (item) {
     form.value = { category: item.category, question: item.question, answer: item.answer || '', displayOrder: item.displayOrder ?? 0, isActive: item.isActive ?? true }
+    isCustomCat.value = !!item.category && !allCategories.value.includes(item.category)
   } else {
-    form.value = { category: filterCategory.value !== 'Tất cả' ? filterCategory.value : '', question: '', answer: '', displayOrder: 0, isActive: true }
+    const initCat = filterCategory.value !== 'Tất cả' ? filterCategory.value : ''
+    form.value = { category: initCat, question: '', answer: '', displayOrder: initCat ? nextOrder(initCat) : 1, isActive: true }
+    isCustomCat.value = false
   }
   isModalOpen.value = true
 }
@@ -203,16 +234,47 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Danh mục</label>
-            <input v-model="form.category" list="faq-cats" placeholder="VD: Đặt vé & Thanh toán"
-                   class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm" />
-            <datalist id="faq-cats">
-              <option v-for="c in categories" :key="c" :value="c" />
-            </datalist>
+            <!-- Dropdown tùy biến: luôn hiện đủ danh mục -->
+            <div v-if="!isCustomCat" class="relative">
+              <button type="button" @click="catDropdownOpen = !catDropdownOpen"
+                      class="w-full flex items-center justify-between gap-2 bg-surface-container-high border-none rounded-lg py-3 px-4 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      :class="form.category ? 'text-on-surface' : 'text-on-surface-variant'">
+                <span class="truncate">{{ form.category || 'Chọn danh mục' }}</span>
+                <span class="material-symbols-outlined text-base transition-transform" :class="{ 'rotate-180': catDropdownOpen }">expand_more</span>
+              </button>
+              <template v-if="catDropdownOpen">
+                <!-- Backdrop bắt click ra ngoài -->
+                <div class="fixed inset-0 z-10" @click="catDropdownOpen = false"></div>
+                <div class="absolute z-20 mt-2 w-full bg-surface-container-high border border-outline-variant/20 rounded-lg shadow-2xl overflow-hidden py-1 max-h-60 overflow-y-auto">
+                  <button v-for="c in allCategories" :key="c" type="button" @click="selectCategory(c)"
+                          class="w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors flex items-center justify-between"
+                          :class="form.category === c ? 'text-primary font-bold' : 'text-on-surface'">
+                    <span class="truncate">{{ c }}</span>
+                    <span v-if="form.category === c" class="material-symbols-outlined text-sm">check</span>
+                  </button>
+                  <div class="border-t border-outline-variant/15 my-1"></div>
+                  <button type="button" @click="startCustomCat"
+                          class="w-full text-left px-4 py-2.5 text-sm text-on-surface-variant hover:bg-primary/10 transition-colors flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">add</span> Danh mục mới...
+                  </button>
+                </div>
+              </template>
+            </div>
+            <!-- Nhập danh mục mới -->
+            <div v-else class="relative">
+              <input v-model="form.category" placeholder="Tên danh mục mới"
+                     class="w-full bg-surface-container-high border-none rounded-lg py-3 pl-4 pr-10 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm" />
+              <button type="button" @click="isCustomCat = false; form.category = ''"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-on-surface-variant hover:text-primary" title="Chọn từ danh sách">
+                <span class="material-symbols-outlined text-base">list</span>
+              </button>
+            </div>
           </div>
           <div class="space-y-2">
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Thứ tự hiển thị</label>
             <input v-model.number="form.displayOrder" type="number" min="0"
                    class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm" />
+            <p class="text-[10px] text-on-surface-variant/70">Số nhỏ hiển thị trước, theo từng danh mục.</p>
           </div>
         </div>
         <div class="space-y-2">
