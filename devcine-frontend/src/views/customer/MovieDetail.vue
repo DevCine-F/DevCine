@@ -3,7 +3,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { useAuthStore } from '@/stores/auth'
 import { reviewApi } from '@/api/customer/index'
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
 import api from '@/api/axios'
 
 const route = useRoute()
@@ -15,6 +15,11 @@ const movie = ref({})
 const loading = ref(true)
 const loadError = ref(false)
 const activeDateStr = ref('')
+
+// --- Chi tiết nội dung / Trailer / Lọc rạp ---
+const descExpanded = ref(false)
+const showTrailer = ref(false)
+const selectedCinemaId = ref('')
 
 // --- Đánh giá phim ---
 const reviewsData = ref({ averageRating: 0, totalReviews: 0, reviews: [] })
@@ -85,8 +90,9 @@ const formatDateForUI = (dateString) => {
 }
 
 onMounted(async () => {
-  const movieId = route.params.id || 1 
-  
+  window.addEventListener('keydown', handleKeydown)
+  const movieId = route.params.id || 1
+
   const fetchMovieData = api.get(`/movies/${movieId}`)
     .then(response => {
       movie.value = response.data
@@ -111,11 +117,53 @@ onMounted(async () => {
 
 const onCityChange = async () => {
   const movieId = route.params.id || 1
+  selectedCinemaId.value = '' // đổi thành phố → reset bộ lọc rạp về "Tất cả rạp"
   await store.fetchShowtimes(movieId, store.selectedCity)
   if (uniqueDates.value.length > 0 && !uniqueDates.value.includes(activeDateStr.value)) {
      activeDateStr.value = uniqueDates.value[0]
   }
 }
+
+// Trailer: chuẩn hoá link YouTube (watch?v= / youtu.be / embed) sang dạng nhúng
+const trailerEmbedUrl = computed(() => {
+  const url = movie.value?.trailerUrl
+  if (!url) return ''
+  let m = url.match(/youtu\.be\/([\w-]+)/)
+  if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1`
+  m = url.match(/[?&]v=([\w-]+)/)
+  if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1`
+  return url // đã là embed hoặc link trực tiếp
+})
+
+const openTrailer = () => { showTrailer.value = true }
+const closeTrailer = () => { showTrailer.value = false }
+const handleKeydown = (e) => { if (e.key === 'Escape') closeTrailer() }
+
+// Thể loại phim (gộp tên các Category) cho khối "Chi tiết nội dung"
+const genreText = computed(() => {
+  const g = movie.value?.genres
+  if (!g || g.length === 0) return ''
+  return g.map(x => x.name).filter(Boolean).join(', ')
+})
+
+// Danh sách rạp để đổ vào bộ lọc "cụm rạp" (theo thành phố đang chọn)
+const cinemaOptions = computed(() =>
+  store.cinemaShowtimes.map(c => ({ id: c.cinemaId, name: c.cinemaName }))
+)
+
+// Rạp hiển thị: có suất ở ngày đang chọn + khớp bộ lọc rạp
+const visibleCinemas = computed(() =>
+  store.cinemaShowtimes.filter(c => {
+    const sts = c.showtimesByDate?.[activeDateStr.value]
+    const hasDate = Array.isArray(sts) && sts.length > 0
+    const matchCinema = !selectedCinemaId.value || c.cinemaId === selectedCinemaId.value
+    return hasDate && matchCinema
+  })
+)
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 
 const selectShowtime = (showtime, cinema) => {
   store.setMovie(movie.value)
@@ -249,19 +297,28 @@ const groupShowtimesByFormat = (showtimes) => {
             <p>Khởi chiếu: <span class="text-gray-400">{{ movie.startDate ? new Date(movie.startDate).toLocaleDateString('vi-VN') : 'Đang cập nhật' }}</span></p>
           </div>
           
-          <p class="text-[15px] text-gray-300 leading-relaxed mb-6 line-clamp-4">
+          <p class="text-[15px] text-gray-300 leading-relaxed mb-4" :class="{ 'line-clamp-4': !descExpanded }">
             {{ movie.description || 'Chưa có thông tin nội dung phim.' }}
           </p>
-          
+
+          <!-- Khối thông tin mở rộng khi bấm "Chi tiết nội dung" -->
+          <div v-if="descExpanded" class="text-[15px] text-gray-300 space-y-1.5 mb-6 leading-relaxed border-l-2 border-[#f5c518]/40 pl-4">
+            <p v-if="genreText">Thể loại: <span class="text-gray-400">{{ genreText }}</span></p>
+            <p>Quốc gia: <span class="text-gray-400">{{ movie.country || 'Đang cập nhật' }}</span></p>
+            <p>Ngôn ngữ: <span class="text-gray-400">{{ movie.language || movie.originalLanguage || 'Đang cập nhật' }}</span></p>
+            <p v-if="movie.productionYear">Năm sản xuất: <span class="text-gray-400">{{ movie.productionYear }}</span></p>
+          </div>
+
           <p class="text-[#ff3b30] text-sm font-medium mb-8">
             Kiểm duyệt: {{ movie.ageRating || 'P' }} - Phim được phép phổ biến đến người xem ở độ tuổi tương ứng.
           </p>
-          
+
           <div class="flex items-center gap-8">
-            <button class="text-white hover:text-gray-300 transition-colors text-sm font-semibold flex items-center gap-1">
-              Chi tiết nội dung <span class="material-symbols-outlined text-sm ml-1">arrow_forward</span>
+            <button @click="descExpanded = !descExpanded" class="text-white hover:text-gray-300 transition-colors text-sm font-semibold flex items-center gap-1">
+              {{ descExpanded ? 'Thu gọn' : 'Chi tiết nội dung' }}
+              <span class="material-symbols-outlined text-sm ml-1 transition-transform" :class="{ 'rotate-90': descExpanded }">arrow_forward</span>
             </button>
-            <button class="border-2 border-[#f5c518] text-[#f5c518] px-6 py-2.5 rounded-full flex items-center gap-2 hover:bg-[#f5c518] hover:text-black transition-colors font-bold text-sm">
+            <button v-if="movie.trailerUrl" @click="openTrailer" class="border-2 border-[#f5c518] text-[#f5c518] px-6 py-2.5 rounded-full flex items-center gap-2 hover:bg-[#f5c518] hover:text-black transition-colors font-bold text-sm">
               <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
               Xem trailer
             </button>
@@ -298,8 +355,9 @@ const groupShowtimesByFormat = (showtimes) => {
               <option value="">Toàn quốc</option>
               <option v-for="city in store.cities" :key="city" :value="city">{{ city }}</option>
             </select>
-             <select class="w-full md:w-[150px] py-2 px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-[14px] transition-colors">
+             <select v-model="selectedCinemaId" class="w-full md:w-[150px] py-2 px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-[14px] transition-colors">
               <option value="">Tất cả rạp</option>
+              <option v-for="c in cinemaOptions" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
           </div>
         </div>
@@ -307,33 +365,38 @@ const groupShowtimesByFormat = (showtimes) => {
         <div v-if="store.cinemaShowtimes.length === 0" class="text-center text-gray-500 py-10">
           Chưa có lịch chiếu cho phim này.
         </div>
-        
+
+        <div v-else-if="visibleCinemas.length === 0" class="text-center text-gray-500 py-10">
+          Không có suất chiếu phù hợp với lựa chọn của bạn.
+        </div>
+
         <div class="space-y-0" v-else>
-          <!-- Using a variable to handle zebra striping only for visible items -->
-          <template v-for="(cinema, index) in store.cinemaShowtimes" :key="cinema.cinemaId">
-            <div v-if="cinema.showtimesByDate[activeDateStr]" :class="['py-8 px-6 -mx-6 border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#1a1a1a]' : 'bg-transparent']">
-              <h3 class="font-bold text-[18px] text-white mb-4">{{ cinema.cinemaName }}</h3>
-              
-              <div v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" :key="format" class="flex flex-col md:flex-row md:items-center gap-4 mt-6 first:mt-0">
-                <!-- Left: Format (15-20% width) -->
-                <div class="w-full md:w-[150px] lg:w-[180px] flex-shrink-0">
-                  <span class="text-[14px] text-gray-400 font-bold whitespace-pre-line leading-relaxed">{{ format.replace(' Lồng', '\nLồng').replace(' Phụ', '\nPhụ') }}</span>
-                </div>
-                
-                <!-- Right: Times -->
-                <div class="flex-1 flex flex-wrap items-center gap-3">
-                  <button 
-                    v-for="st in sts" 
-                    :key="st.id" 
-                    @click="selectShowtime(st, cinema)" 
-                    class="bg-[#262626] border border-[#444444] text-gray-200 hover:border-[#f5c518] hover:text-[#f5c518] transition-all px-5 py-2 rounded-[6px] text-[15px] font-bold min-w-[80px]"
-                  >
-                    {{ new Date(st.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}
-                  </button>
-                </div>
+          <div
+            v-for="(cinema, index) in visibleCinemas"
+            :key="cinema.cinemaId"
+            :class="['py-8 px-6 -mx-6 border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#1a1a1a]' : 'bg-transparent']"
+          >
+            <h3 class="font-bold text-[18px] text-white mb-4">{{ cinema.cinemaName }}</h3>
+
+            <div v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" :key="format" class="flex flex-col md:flex-row md:items-center gap-4 mt-6 first:mt-0">
+              <!-- Left: Format (15-20% width) -->
+              <div class="w-full md:w-[150px] lg:w-[180px] flex-shrink-0">
+                <span class="text-[14px] text-gray-400 font-bold whitespace-pre-line leading-relaxed">{{ format.replace(' Lồng', '\nLồng').replace(' Phụ', '\nPhụ') }}</span>
+              </div>
+
+              <!-- Right: Times -->
+              <div class="flex-1 flex flex-wrap items-center gap-3">
+                <button
+                  v-for="st in sts"
+                  :key="st.id"
+                  @click="selectShowtime(st, cinema)"
+                  class="bg-[#262626] border border-[#444444] text-gray-200 hover:border-[#f5c518] hover:text-[#f5c518] transition-all px-5 py-2 rounded-[6px] text-[15px] font-bold min-w-[80px]"
+                >
+                  {{ new Date(st.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}
+                </button>
               </div>
             </div>
-          </template>
+          </div>
         </div>
       </div>
     </section>
@@ -410,6 +473,16 @@ const groupShowtimesByFormat = (showtimes) => {
         </div>
       </div>
     </section>
+
+    <!-- Modal Trailer -->
+    <div v-if="showTrailer" @click.self="closeTrailer" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="relative w-full max-w-[960px] aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+        <button @click="closeTrailer" class="absolute -top-11 right-0 md:top-3 md:right-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-[#f5c518] hover:text-black transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+        <iframe v-if="trailerEmbedUrl" :src="trailerEmbedUrl" class="w-full h-full" frameborder="0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+      </div>
+    </div>
   </main>
 </template>
 
