@@ -47,17 +47,28 @@ public class MailService {
             return;
         }
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(from);
-            helper.setTo(data.toEmail());
-            helper.setSubject("DevCine • Vé điện tử đơn " + data.bookingCode());
-            helper.setText(buildHtml(data), true);
-            mailSender.send(message);
+            doSend(data);
             log.info("Đã gửi vé qua email tới {} cho đơn {}", data.toEmail(), data.bookingCode());
         } catch (Exception e) {
             log.error("Gửi email vé thất bại cho đơn {}: {}", data.bookingCode(), e.getMessage(), e);
         }
+    }
+
+    /**
+     * Gửi đồng bộ, NÉM lỗi ra ngoài — dùng cho endpoint test thủ công để thấy ngay kết quả/lỗi SMTP.
+     */
+    public void sendTicketEmailSync(TicketEmailData data) throws Exception {
+        doSend(data);
+    }
+
+    private void doSend(TicketEmailData data) throws Exception {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        helper.setFrom(from);
+        helper.setTo(data.toEmail());
+        helper.setSubject("DevCine • Vé điện tử đơn " + data.bookingCode());
+        helper.setText(buildHtml(data), true);
+        mailSender.send(message);
     }
 
     private String buildHtml(TicketEmailData data) {
@@ -98,16 +109,16 @@ public class MailService {
 
         return """
                 <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
-                  <div style="background:#e11d48;padding:22px 24px;">
-                    <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine 🎬</div>
-                    <div style="color:#ffe4ec;font-size:13px;margin-top:4px;">Vé điện tử của bạn đã sẵn sàng</div>
+                  <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
+                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine 🎬</div>
+                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">Vé điện tử của bạn đã sẵn sàng</div>
                   </div>
                   <div style="padding:24px;">
                     <p style="font-size:15px;color:#111;margin:0 0 4px;">Xin chào <b>%s</b>,</p>
                     <p style="font-size:14px;color:#555;margin:0 0 18px;">Cảm ơn bạn đã đặt vé tại DevCine. Vui lòng đưa mã QR bên dưới tại quầy để check-in.</p>
 
                     <table style="width:100%%;border-collapse:collapse;background:#fafafa;border-radius:10px;">
-                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Mã đặt vé</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#e11d48;font-size:15px;">%s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Mã đặt vé</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#8a6d00;font-size:15px;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Phim</td><td style="padding:8px 14px;text-align:right;font-weight:600;color:#111;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Rạp / Phòng</td><td style="padding:8px 14px;text-align:right;color:#111;">%s • %s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Suất chiếu</td><td style="padding:8px 14px;text-align:right;color:#111;">%s</td></tr>
