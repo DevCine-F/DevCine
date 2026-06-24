@@ -142,6 +142,11 @@ const handleSave = async () => {
 </script>
 
 <template>
+  <!-- Backdrop: bấm ra ngoài vùng drawer để đóng -->
+  <Transition name="fade">
+    <div v-if="isOpen" class="fixed inset-0 bg-black/40 z-[140]" @click="emit('close')"></div>
+  </Transition>
+
   <Transition name="drawer">
     <div v-if="isOpen" class="fixed inset-y-0 right-0 w-[450px] bg-surface-container border-l border-white/10 shadow-2xl z-[150] flex flex-col">
       <!-- Header -->
@@ -242,5 +247,13 @@ const handleSave = async () => {
 .drawer-enter-from,
 .drawer-leave-to {
   transform: translateX(100%);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
