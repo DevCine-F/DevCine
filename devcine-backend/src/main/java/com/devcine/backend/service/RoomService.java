@@ -1,0 +1,122 @@
+package com.devcine.backend.service;
+
+import com.devcine.backend.dto.request.RoomRequest;
+import com.devcine.backend.dto.response.RoomResponse;
+import com.devcine.backend.entity.Cinema;
+import com.devcine.backend.entity.Room;
+import com.devcine.backend.repository.CinemaRepository;
+import com.devcine.backend.repository.RoomRepository;
+import com.devcine.backend.repository.SeatRepository;
+import com.devcine.backend.repository.ShowtimeRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Set;
+
+@Service
+@RequiredArgsConstructor
+public class RoomService {
+
+    private final RoomRepository roomRepository;
+    private final CinemaRepository cinemaRepository;
+    private final ShowtimeRepository showtimeRepository;
+    private final SeatRepository seatRepository;
+    private final SeatService seatService;
+
+    // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ)
+    private static final Set<String> ALLOWED_TYPES = Set.of("2D", "3D", "IMAX", "4DX", "Sweetbox");
+    private static final Set<String> ALLOWED_STATUS = Set.of("Active", "Maintenance");
+
+    private String clean(String s) {
+        if (s == null) return null;
+        String t = s.trim().replaceAll("\\s+", " ");
+        return t.isEmpty() ? null : t;
+    }
+
+    /** Chuẩn hoá + validate; id null khi tạo mới, khác null khi cập nhật. */
+    private void normalizeAndValidate(RoomRequest req, Integer cinemaId, Integer id) {
+        req.setName(clean(req.getName()));
+        if (req.getType() != null && !ALLOWED_TYPES.contains(req.getType())) {
+            throw new IllegalArgumentException("Loại phòng không hợp lệ");
+        }
+        if (req.getStatus() != null && !ALLOWED_STATUS.contains(req.getStatus())) {
+            throw new IllegalArgumentException("Trạng thái phòng không hợp lệ");
+        }
+        boolean dup = (id == null)
+                ? roomRepository.existsByCinema_IdAndNameIgnoreCase(cinemaId, req.getName())
+                : roomRepository.existsByCinema_IdAndNameIgnoreCaseAndIdNot(cinemaId, req.getName(), id);
+        if (dup) {
+            throw new IllegalArgumentException("Tên phòng đã tồn tại trong cụm rạp này");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<RoomResponse> getRoomsByCinema(Integer cinemaId) {
+        return roomRepository.findByCinemaId(cinemaId).stream()
+                .map(RoomResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional
+    public RoomResponse createRoom(Integer cinemaId, RoomRequest req) {
+        Cinema cinema = cinemaRepository.findById(cinemaId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp"));
+        normalizeAndValidate(req, cinemaId, null);
+
+        Room room = Room.builder()
+                .cinema(cinema)
+                .name(req.getName())
+                .type(req.getType() != null ? req.getType() : "2D")
+                .status(req.getStatus() != null ? req.getStatus() : "Active")
+                .turnaroundTimeMins(req.getTurnaroundTimeMins() != null ? req.getTurnaroundTimeMins() : 15)
+                .matrixRow(req.getMatrixRow())
+                .matrixCol(req.getMatrixCol())
+                .build();
+        room = roomRepository.save(room);
+
+        // Tự sinh lưới ghế mặc định để phòng dùng được ngay
+        seatService.generateDefaultSeats(room.getId(), req.getMatrixRow(), req.getMatrixCol());
+        return RoomResponse.fromEntity(room);
+    }
+
+    @Transactional
+    public RoomResponse updateRoom(Integer roomId, RoomRequest req) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
+        Integer cinemaId = room.getCinema().getId();
+        normalizeAndValidate(req, cinemaId, roomId);
+
+        boolean matrixChanged = !req.getMatrixRow().equals(room.getMatrixRow())
+                || !req.getMatrixCol().equals(room.getMatrixCol());
+        if (matrixChanged && showtimeRepository.existsByRoom_Id(roomId)) {
+            throw new IllegalArgumentException("Phòng đã có suất chiếu, không thể đổi kích thước ma trận ghế");
+        }
+
+        room.setName(req.getName());
+        if (req.getType() != null) room.setType(req.getType());
+        if (req.getStatus() != null) room.setStatus(req.getStatus());
+        if (req.getTurnaroundTimeMins() != null) room.setTurnaroundTimeMins(req.getTurnaroundTimeMins());
+        room.setMatrixRow(req.getMatrixRow());
+        room.setMatrixCol(req.getMatrixCol());
+        roomRepository.save(room);
+
+        if (matrixChanged) {
+            seatRepository.deleteByRoomId(roomId);
+            seatService.generateDefaultSeats(roomId, req.getMatrixRow(), req.getMatrixCol());
+        }
+        return RoomResponse.fromEntity(room);
+    }
+
+    @Transactional
+    public void deleteRoom(Integer roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
+        if (showtimeRepository.existsByRoom_Id(roomId)) {
+            throw new IllegalArgumentException("Phòng đã có suất chiếu, không thể xoá");
+        }
+        seatRepository.deleteByRoomId(roomId);
+        roomRepository.delete(room);
+    }
+}

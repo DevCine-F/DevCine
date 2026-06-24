@@ -15,4 +15,8 @@ public interface RoomRepository extends JpaRepository<Room, Integer> {
 
     /** Đếm số phòng thực tế của một cụm rạp (đồng bộ số phòng hiển thị). */
     long countByCinema_Id(Integer cinemaId);
+
+    // Trùng tên phòng trong cùng 1 cụm rạp (không phân biệt hoa/thường)
+    boolean existsByCinema_IdAndNameIgnoreCase(Integer cinemaId, String name);
+    boolean existsByCinema_IdAndNameIgnoreCaseAndIdNot(Integer cinemaId, String name, Integer id);
 }

@@ -6,7 +6,7 @@ defineProps({
   }
 })
 
-defineEmits(['open-hall'])
+defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
 </script>
 
 <template>
@@ -17,6 +17,7 @@ defineEmits(['open-hall'])
       Cấu hình Phòng chiếu
     </h3>
     <button
+      @click="$emit('add-room')"
       class="bg-primary/10 text-primary px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2"
     >
       <span class="material-symbols-outlined text-sm font-bold"
@@ -26,7 +27,17 @@ defineEmits(['open-hall'])
     </button>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <!-- Empty state -->
+  <div
+    v-if="!halls || halls.length === 0"
+    class="text-center py-20 bg-surface-container-high/40 rounded-2xl border border-dashed border-outline-variant/20"
+  >
+    <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-3 block">meeting_room</span>
+    <h4 class="font-bold text-on-surface mb-1">Chưa có phòng chiếu nào</h4>
+    <p class="text-sm text-on-surface-variant">Bấm "Thêm Phòng" để tạo phòng chiếu đầu tiên cho cụm rạp này.</p>
+  </div>
+
+  <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div
       v-for="hall in halls"
       :key="hall.id"
@@ -101,11 +112,18 @@ defineEmits(['open-hall'])
           Xem Chi tiết & Sơ đồ ghế
         </button>
         <button
+          @click="$emit('edit-room', hall)"
+          title="Sửa phòng"
           class="w-12 h-12 flex items-center justify-center rounded-xl bg-on-surface/5 hover:bg-on-surface/10 text-on-surface-variant transition-all border border-white/5"
         >
-          <span class="material-symbols-outlined text-sm"
-            >settings</span
-          >
+          <span class="material-symbols-outlined text-sm">edit</span>
+        </button>
+        <button
+          @click="$emit('delete-room', hall)"
+          title="Xoá phòng"
+          class="w-12 h-12 flex items-center justify-center rounded-xl bg-red-500/5 hover:bg-red-500/15 text-red-400 transition-all border border-red-500/10"
+        >
+          <span class="material-symbols-outlined text-sm">delete</span>
         </button>
       </div>
     </div>

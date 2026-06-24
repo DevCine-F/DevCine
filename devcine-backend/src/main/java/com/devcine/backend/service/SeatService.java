@@ -113,6 +113,46 @@ public class SeatService {
                 .build();
     }
 
+    /**
+     * Sinh lưới ghế mặc định cho phòng mới: rows × cols ghế loại NORMAL.
+     * rowChar = A..Z (rows ≤ 26), colNum = 1..cols, grid 0-based.
+     */
+    @Transactional
+    public void generateDefaultSeats(Integer roomId, int rows, int cols) {
+        SeatType normal = seatTypeRepository.findAll().stream()
+                .filter(t -> "NORMAL".equalsIgnoreCase(t.getName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Chưa cấu hình loại ghế NORMAL trong hệ thống"));
+        int seatTypeId = normal.getId();
+
+        List<Object[]> cells = new java.util.ArrayList<>();
+        for (int r = 0; r < rows; r++) {
+            String rowChar = String.valueOf((char) ('A' + r));
+            for (int c = 0; c < cols; c++) {
+                cells.add(new Object[]{roomId, rowChar, c + 1, r, c, seatTypeId});
+            }
+        }
+
+        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, is_active) VALUES (?, ?, ?, ?, ?, ?, true)";
+        jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                Object[] d = cells.get(i);
+                ps.setInt(1, (int) d[0]);
+                ps.setString(2, (String) d[1]);
+                ps.setInt(3, (int) d[2]);
+                ps.setInt(4, (int) d[3]);
+                ps.setInt(5, (int) d[4]);
+                ps.setInt(6, (int) d[5]);
+            }
+
+            @Override
+            public int getBatchSize() {
+                return cells.size();
+            }
+        });
+    }
+
     @Transactional
     public void saveSeatLayout(Integer roomId, SeatLayoutRequest request) {
         Room room = roomRepository.findById(roomId)

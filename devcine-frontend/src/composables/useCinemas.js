@@ -37,9 +37,10 @@ export function useCinemas() {
                   id: r.id,
                   name: r.name,
                   type: r.type,
-                  rows: 10, // Mocked for now since DB doesn't have rows/cols
-                  cols: 16,
-                  status: r.status
+                  rows: r.matrixRow || 0,
+                  cols: r.matrixCol || 0,
+                  status: r.status,
+                  turnaroundTimeMins: r.turnaroundTimeMins
               }));
           } catch(e) { console.error(e); }
           
@@ -155,12 +156,57 @@ export function useCinemas() {
     }
   };
 
+  // ===== Quản lý Phòng chiếu (CRUD) =====
+  const showRoomModal = ref(false);
+  const roomModalMode = ref('create');   // 'create' | 'edit'
+  const editingRoom = ref(null);
+
+  const openAddRoom = () => { roomModalMode.value = 'create'; editingRoom.value = null; showRoomModal.value = true; };
+  const openEditRoom = (hall) => { roomModalMode.value = 'edit'; editingRoom.value = hall; showRoomModal.value = true; };
+
+  const submitRoom = async (payload) => {
+    if (!selectedCinema.value) return;
+    try {
+      if (roomModalMode.value === 'edit' && editingRoom.value) {
+        await axios.put(`/rooms/${editingRoom.value.id}`, payload);
+        toast.success(`Đã cập nhật phòng "${payload.name}"`);
+      } else {
+        await axios.post(`/rooms/cinema/${selectedCinema.value.id}`, payload);
+        toast.success(`Đã thêm phòng "${payload.name}"`);
+      }
+      showRoomModal.value = false;
+      await fetchCinemas();   // refresh halls của rạp đang chọn
+    } catch (error) {
+      console.error("Error saving room:", error);
+      toast.error(friendlyError(error, "Lưu phòng thất bại."));
+    }
+  };
+
+  const deleteRoom = async (hall) => {
+    try {
+      await axios.delete(`/rooms/${hall.id}`);
+      toast.success(`Đã xoá phòng "${hall.name}"`);
+      await fetchCinemas();
+    } catch (error) {
+      console.error("Error deleting room:", error);
+      toast.error(friendlyError(error, "Xoá phòng thất bại."));
+    }
+  };
+
   return {
     cinemas,
     selectedCinema,
     fetchCinemas,
     showCreateModal,
     newCinema,
-    handleCreateCinema
+    handleCreateCinema,
+    // Phòng chiếu
+    showRoomModal,
+    roomModalMode,
+    editingRoom,
+    openAddRoom,
+    openEditRoom,
+    submitRoom,
+    deleteRoom
   };
 }

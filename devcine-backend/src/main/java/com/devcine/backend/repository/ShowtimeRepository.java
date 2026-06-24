@@ -36,9 +36,12 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
 
     @Query("SELECT COUNT(s) > 0 FROM Showtime s WHERE s.room.id = :roomId " +
            "AND s.startTime < :endTime AND s.endTime > :startTime")
-    boolean hasConflict(@Param("roomId") Integer roomId, 
-                        @Param("startTime") LocalDateTime startTime, 
+    boolean hasConflict(@Param("roomId") Integer roomId,
+                        @Param("startTime") LocalDateTime startTime,
                         @Param("endTime") LocalDateTime endTime);
+
+    // Phòng có suất chiếu nào không (guard khi sửa kích thước / xoá phòng)
+    boolean existsByRoom_Id(Integer roomId);
 
     @Query("SELECT COALESCE(SUM(r.matrixRow * r.matrixCol), 0) FROM Showtime s JOIN s.room r WHERE s.startTime >= :startDate AND s.startTime <= :endDate")
     long countTotalSeatsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);

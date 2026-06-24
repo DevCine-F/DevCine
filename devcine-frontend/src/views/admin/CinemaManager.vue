@@ -18,6 +18,7 @@ import CinemaFnbTab from "@/components/organisms/admin/CinemaFnbTab.vue";
 import CinemaAnalyticsTab from "@/components/organisms/admin/CinemaAnalyticsTab.vue";
 import CinemaConfigTab from "@/components/organisms/admin/CinemaConfigTab.vue";
 import CreateCinemaModal from "@/components/organisms/admin/CreateCinemaModal.vue";
+import RoomFormModal from "@/components/organisms/admin/RoomFormModal.vue";
 import CleaningSettingsModal from "@/components/organisms/admin/CleaningSettingsModal.vue";
 import CinemaSeatMapView from "@/components/organisms/admin/CinemaSeatMapView.vue";
 import ShowtimeDetailsDrawer from "@/components/organisms/admin/ShowtimeDetailsDrawer.vue";
@@ -28,8 +29,23 @@ const {
   fetchCinemas,
   showCreateModal,
   newCinema,
-  handleCreateCinema
+  handleCreateCinema,
+  showRoomModal,
+  roomModalMode,
+  editingRoom,
+  openAddRoom,
+  openEditRoom,
+  submitRoom,
+  deleteRoom
 } = useCinemas();
+
+// Xác nhận xoá phòng
+const roomToDelete = ref(null);
+const confirmDeleteRoom = (hall) => { roomToDelete.value = hall; };
+const handleConfirmDelete = async () => {
+  if (roomToDelete.value) await deleteRoom(roomToDelete.value);
+  roomToDelete.value = null;
+};
 
 const {
   dates,
@@ -202,6 +218,9 @@ const showCleaningSettingsModal = ref(false);
             v-if="activeTab === 'infrastructure'"
             :halls="selectedCinema.halls"
             @open-hall="openHallDetail"
+            @add-room="openAddRoom"
+            @edit-room="openEditRoom"
+            @delete-room="confirmDeleteRoom"
           />
 
           <CinemaShowtimesTab
@@ -271,6 +290,30 @@ const showCleaningSettingsModal = ref(false);
       @close="showCreateModal = false"
       @create="handleCreateCinema"
     />
+
+    <!-- Thêm / Sửa phòng chiếu -->
+    <RoomFormModal
+      :show="showRoomModal"
+      :mode="roomModalMode"
+      :initial="editingRoom"
+      @close="showRoomModal = false"
+      @submit="submitRoom"
+    />
+
+    <!-- Xác nhận xoá phòng -->
+    <div v-if="roomToDelete" class="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-surface-container-low border border-outline-variant/10 rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
+        <span class="material-symbols-outlined text-5xl text-red-400 mb-3 block">warning</span>
+        <h3 class="text-lg font-bold text-on-surface mb-2">Xoá phòng chiếu?</h3>
+        <p class="text-sm text-on-surface-variant mb-6">
+          Phòng <span class="font-bold text-on-surface">{{ roomToDelete.name }}</span> và toàn bộ ghế của phòng sẽ bị xoá. Thao tác không thể hoàn tác.
+        </p>
+        <div class="flex gap-3">
+          <button @click="roomToDelete = null" class="flex-1 px-4 py-3 rounded-xl border border-white/10 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Huỷ</button>
+          <button @click="handleConfirmDelete" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all">Xoá</button>
+        </div>
+      </div>
+    </div>
 
     <CleaningSettingsModal
       :show="showCleaningSettingsModal"
