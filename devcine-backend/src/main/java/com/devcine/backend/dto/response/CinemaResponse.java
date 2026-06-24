@@ -16,6 +16,7 @@ public class CinemaResponse {
     private String name;
     private String address;
     private String city;
+    private String district;
     private String type;
     private String hotline;
     private Integer rooms;
@@ -34,6 +35,7 @@ public class CinemaResponse {
                 .name(cinema.getName())
                 .address(cinema.getAddress())
                 .city(cinema.getCity())
+                .district(cinema.getDistrict())
                 .type(cinema.getType())
                 .hotline(cinema.getHotline())
                 .rooms(cinema.getRooms())

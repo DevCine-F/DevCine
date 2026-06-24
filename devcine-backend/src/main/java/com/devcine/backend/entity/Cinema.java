@@ -25,6 +25,9 @@ public class Cinema {
     @Column(length = 100)
     private String city;
 
+    @Column(length = 100)
+    private String district;
+
     @Column(length = 50)
     private String type;
 

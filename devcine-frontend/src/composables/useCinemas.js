@@ -14,15 +14,12 @@ export function useCinemas() {
   const newCinema = reactive({
     name: '',
     address: '',
-    city: 'Hồ Chí Minh',
+    city: '',
+    district: '',
     hotline: '',
     type: 'Standard',
-    rooms: 1,
     imageUrl: '',
     description: '',
-    latitude: null,
-    longitude: null,
-    amenities: '',
     status: 'ACTIVE'
   });
 
@@ -113,64 +110,43 @@ export function useCinemas() {
   };
 
   const handleCreateCinema = async () => {
-    if (!newCinema.name || !newCinema.address || !newCinema.rooms) {
-      toast.warning("Vui lòng điền đầy đủ các thông tin bắt buộc!");
-      return;
-    }
-    
+    // Validate/format đã xử lý ở CreateCinemaModal; tại đây chỉ chuẩn hoá payload gửi BE.
     try {
-      const res = await axios.post(API_BASE_URL, {
-        name: newCinema.name,
-        address: newCinema.address,
+      const payload = {
+        name: newCinema.name.trim().replace(/\s+/g, ' '),
+        address: newCinema.address.trim().replace(/\s+/g, ' '),
         type: newCinema.type,
-        hotline: newCinema.hotline,
-        rooms: newCinema.rooms,
-        city: newCinema.city || "Hồ Chí Minh",
-        imageUrl: newCinema.imageUrl || null,
-        description: newCinema.description || null,
-        latitude: newCinema.latitude,
-        longitude: newCinema.longitude,
-        amenities: newCinema.amenities || null,
+        hotline: (newCinema.hotline || '').replace(/\D/g, ''),   // RAW: chỉ chữ số
+        city: newCinema.city.trim(),
+        district: newCinema.district.trim(),
+        imageUrl: (newCinema.imageUrl || '').trim() || null,
+        description: (newCinema.description || '').trim() || null,
         status: newCinema.status || "ACTIVE"
-      });
-      
-      // Add missing mock properties for UI since BE doesn't have them yet
+      };
+
+      const res = await axios.post(API_BASE_URL, payload);
+
+      // Bổ sung field UI mà BE chưa trả (để khớp cấu trúc card trong CinemaManager)
       const savedCinema = {
         ...res.data,
-        stats: {
-          revenue: "0đ",
-          occupancy: "0%",
-          growth: "+0%",
-          admissions: "0",
-          facility: "100%"
-        },
-        halls: Array.from({ length: newCinema.rooms }, (_, i) => ({
-          id: `New_H${i+1}`,
-          name: `Phòng ${i+1}`,
-          type: "2D Standard",
-          rows: 10,
-          cols: 12,
-          status: "Active"
-        })),
+        stats: { revenue: "0đ", occupancy: "0%", growth: "+0%", admissions: "0", facility: "100%" },
+        halls: [],
         staff: [],
         inventory: [],
         shows: []
       };
-
       cinemas.value.push(savedCinema);
-      
+      toast.success(`Đã tạo cụm rạp "${payload.name}"`);
+
       // Reset form
       newCinema.name = '';
       newCinema.address = '';
-      newCinema.city = 'Hồ Chí Minh';
+      newCinema.city = '';
+      newCinema.district = '';
       newCinema.hotline = '';
       newCinema.type = 'Standard';
-      newCinema.rooms = 1;
       newCinema.imageUrl = '';
       newCinema.description = '';
-      newCinema.latitude = null;
-      newCinema.longitude = null;
-      newCinema.amenities = '';
       newCinema.status = 'ACTIVE';
       showCreateModal.value = false;
     } catch (error) {

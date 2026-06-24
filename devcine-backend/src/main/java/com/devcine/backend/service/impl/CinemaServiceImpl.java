@@ -8,11 +8,13 @@ import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.RoomRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.service.CinemaService;
+import com.devcine.backend.service.LocationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,6 +24,55 @@ public class CinemaServiceImpl implements CinemaService {
     private final CinemaRepository cinemaRepository;
     private final StaffRepository staffRepository;
     private final RoomRepository roomRepository;
+    private final LocationService locationService;
+
+    // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ qua API)
+    private static final Set<String> ALLOWED_TYPES = Set.of("Standard", "Premium/IMAX", "Sweetbox", "Gold Class");
+    private static final Set<String> ALLOWED_STATUS = Set.of("ACTIVE", "MAINTENANCE", "CLOSED");
+
+    /** Cắt khoảng trắng đầu/cuối + gộp khoảng trắng kép ở giữa. */
+    private String clean(String s) {
+        if (s == null) return null;
+        String t = s.trim().replaceAll("\\s+", " ");
+        return t.isEmpty() ? null : t;
+    }
+
+    /**
+     * Chuẩn hoá + validate nghiệp vụ cho create/update (an toàn lớp cuối, đồng bộ với FE).
+     * @param id null khi tạo mới; khác null khi cập nhật (loại trừ chính nó khi check trùng tên).
+     */
+    private void normalizeAndValidate(CinemaRequest req, Integer id) {
+        req.setName(clean(req.getName()));
+        req.setAddress(clean(req.getAddress()));
+        req.setCity(clean(req.getCity()));
+        req.setDistrict(clean(req.getDistrict()));
+        req.setDescription(req.getDescription() == null ? null : req.getDescription().trim());
+        if (req.getHotline() != null) req.setHotline(req.getHotline().replaceAll("\\D", ""));
+
+        // Loại cụm rạp & trạng thái: phải nằm trong danh mục cho phép
+        if (req.getType() != null && !ALLOWED_TYPES.contains(req.getType())) {
+            throw new IllegalArgumentException("Loại cụm rạp không hợp lệ");
+        }
+        if (req.getStatus() != null && !ALLOWED_STATUS.contains(req.getStatus())) {
+            throw new IllegalArgumentException("Trạng thái hoạt động không hợp lệ");
+        }
+
+        // Tỉnh/Thành & Quận/Huyện: phải khớp danh mục hành chính (đồng bộ với dropdown FE)
+        if (!locationService.isValidProvince(req.getCity())) {
+            throw new IllegalArgumentException("Tỉnh/Thành phố không hợp lệ");
+        }
+        if (!locationService.isValidDistrict(req.getCity(), req.getDistrict())) {
+            throw new IllegalArgumentException("Quận/Huyện không thuộc Tỉnh/Thành phố đã chọn");
+        }
+
+        // Trùng tên (unique, không phân biệt hoa/thường)
+        boolean dup = (id == null)
+                ? cinemaRepository.existsByNameIgnoreCase(req.getName())
+                : cinemaRepository.existsByNameIgnoreCaseAndIdNot(req.getName(), id);
+        if (dup) {
+            throw new IllegalArgumentException("Tên cụm rạp đã tồn tại trong hệ thống");
+        }
+    }
 
     /** Dựng response và đồng bộ số phòng = số Room thực tế. */
     private CinemaResponse toResponse(Cinema cinema) {
@@ -49,10 +100,12 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional
     public CinemaResponse createCinema(CinemaRequest request) {
+        normalizeAndValidate(request, null);
         Cinema cinema = Cinema.builder()
                 .name(request.getName())
                 .address(request.getAddress())
                 .city(request.getCity())
+                .district(request.getDistrict())
                 .type(request.getType())
                 .hotline(request.getHotline())
                 .rooms(request.getRooms())
@@ -77,12 +130,14 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional
     public CinemaResponse updateCinema(Integer id, CinemaRequest request) {
+        normalizeAndValidate(request, id);
         Cinema cinema = cinemaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
 
         cinema.setName(request.getName());
         cinema.setAddress(request.getAddress());
         cinema.setCity(request.getCity());
+        cinema.setDistrict(request.getDistrict());
         cinema.setType(request.getType());
         cinema.setHotline(request.getHotline());
         if (request.getRooms() != null) cinema.setRooms(request.getRooms());

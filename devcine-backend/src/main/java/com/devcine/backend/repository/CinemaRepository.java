@@ -18,4 +18,8 @@ public interface CinemaRepository extends JpaRepository<Cinema, Integer> {
 
     List<Cinema> findAllByOrderByNameAsc();
     List<Cinema> findByCityIgnoreCaseOrderByNameAsc(String city);
+
+    // Kiểm tra trùng tên cụm rạp (không phân biệt hoa/thường)
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Integer id);
 }
