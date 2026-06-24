@@ -56,6 +56,19 @@ public class CustomerController {
                 if (body.containsKey("fullName") && !body.get("fullName").isBlank()) {
                     user.setFullName(body.get("fullName"));
                 }
+                // Cho phép đổi email — chặn trùng (email là unique) và validate định dạng cơ bản
+                if (body.containsKey("email") && body.get("email") != null && !body.get("email").isBlank()) {
+                    String newEmail = body.get("email").trim();
+                    if (!newEmail.equalsIgnoreCase(user.getEmail())) {
+                        if (!newEmail.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+                            throw new RuntimeException("Email không hợp lệ");
+                        }
+                        if (userRepository.existsByEmail(newEmail)) {
+                            throw new RuntimeException("Email đã được sử dụng");
+                        }
+                        user.setEmail(newEmail);
+                    }
+                }
                 if (body.containsKey("phone")) {
                     user.setPhone(body.get("phone"));
                 }

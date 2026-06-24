@@ -12,7 +12,7 @@ const customer = ref(null)
 const isLoading = ref(true)
 const isSaving = ref(false)
 const isEditing = ref(false)
-const editForm = ref({ fullName: '', phone: '', dob: '' })
+const editForm = ref({ fullName: '', email: '', phone: '', dob: '' })
 
 const fetchProfile = async () => {
   if (!authStore.isAuthenticated || !authStore.user?.id) return
@@ -20,7 +20,7 @@ const fetchProfile = async () => {
   try {
     const { data } = await customerApi.getProfile(authStore.user.id)
     customer.value = data
-    editForm.value = { fullName: data.fullName || '', phone: data.phone || '', dob: data.dob || '' }
+    editForm.value = { fullName: data.fullName || '', email: data.email || '', phone: data.phone || '', dob: data.dob || '' }
   } catch (err) {
     console.error('Failed to fetch profile', err)
     toast.error(friendlyError(err, 'Không tải được thông tin hồ sơ.'))
@@ -30,6 +30,11 @@ const fetchProfile = async () => {
 }
 
 const handleSaveProfile = async () => {
+  const email = editForm.value.email?.trim() || ''
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    toast.error('Email không hợp lệ, vui lòng kiểm tra lại.')
+    return
+  }
   isSaving.value = true
   try {
     const res = await customerApi.updateProfile(authStore.user.id, editForm.value)
@@ -193,6 +198,10 @@ const tierInfo = computed(() => {
           <div>
             <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Họ và tên</label>
             <input v-model="editForm.fullName" type="text" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="Họ và tên" />
+          </div>
+          <div>
+            <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Email</label>
+            <input v-model="editForm.email" type="email" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="email@devcine.com" />
           </div>
           <div>
             <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Số điện thoại</label>

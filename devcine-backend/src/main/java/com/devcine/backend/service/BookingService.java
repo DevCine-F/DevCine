@@ -1,10 +1,12 @@
 package com.devcine.backend.service;
 
+import com.devcine.backend.dto.TicketEmailData;
 import com.devcine.backend.dto.request.BookingRequestDTO;
 import com.devcine.backend.dto.request.FnbSelectionDTO;
 import com.devcine.backend.entity.*;
 import com.devcine.backend.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class BookingService {
 
@@ -34,6 +37,7 @@ public class BookingService {
     private final InventoryService inventoryService;
     private final PricingService pricingService;
     private final UserRepository userRepository;
+    private final MailService mailService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -288,8 +292,9 @@ public class BookingService {
         booking.setPaymentMethod(paymentMethod);
         bookingRepository.save(booking);
         
-        // Update seat status + sinh vé QR — gom saveAll thay vì lưu từng bản ghi (giảm round-trip)
-        List<BookingSeat> seats = bookingSeatRepository.findAllByBookingId(bookingId);
+        // Update seat status + sinh vé QR — gom saveAll thay vì lưu từng bản ghi (giảm round-trip).
+        // Fetch kèm seat (+seatType) trong 1 query để dựng nhãn ghế cho email không bị N+1.
+        List<BookingSeat> seats = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId);
         List<Ticket> tickets = new java.util.ArrayList<>();
         for (BookingSeat bs : seats) {
             bs.setStatus("SOLD");
@@ -333,6 +338,59 @@ public class BookingService {
                     "Đặt vé thành công",
                     "Bạn đã đặt vé xem phim \"" + movieTitle + "\" thành công. Mã đặt vé: " + booking.getBookingCode(),
                     "BOOKING");
+        }
+
+        // Gửi vé điện tử (mã QR) qua email — bất đồng bộ, fail-safe (không rollback nếu mail lỗi)
+        sendTicketEmail(booking, seats, tickets);
+    }
+
+    /**
+     * Dựng dữ liệu phẳng từ đơn vừa xác nhận và đẩy sang {@link MailService} gửi vé qua email.
+     * Chỉ gửi khi đơn có khách hàng kèm email (đơn POS khách vãng lai bỏ qua).
+     */
+    private void sendTicketEmail(Booking booking, List<BookingSeat> seats, List<Ticket> tickets) {
+        try {
+            if (booking.getCustomer() == null || booking.getCustomer().getUser() == null) {
+                return;
+            }
+            User user = booking.getCustomer().getUser();
+            if (user.getEmail() == null || user.getEmail().isBlank()) {
+                return;
+            }
+
+            Showtime showtime = booking.getShowtime();
+            Movie movie = showtime != null ? showtime.getMovie() : null;
+            Room room = showtime != null ? showtime.getRoom() : null;
+            Cinema cinema = room != null ? room.getCinema() : null;
+
+            List<TicketEmailData.SeatLine> seatLines = new java.util.ArrayList<>();
+            for (int i = 0; i < seats.size(); i++) {
+                BookingSeat bs = seats.get(i);
+                Seat seat = bs.getSeat();
+                String label = seat.getRowChar() + seat.getColNum();
+                seatLines.add(new TicketEmailData.SeatLine(label, bs.getTicketType(), tickets.get(i).getQrCode()));
+            }
+
+            List<TicketEmailData.FnbLine> fnbLines = new java.util.ArrayList<>();
+            for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
+                fnbLines.add(new TicketEmailData.FnbLine(bf.getFnbItem().getName(), bf.getQuantity()));
+            }
+
+            mailService.sendTicketEmail(new TicketEmailData(
+                    user.getEmail(),
+                    user.getFullName(),
+                    booking.getBookingCode(),
+                    movie != null ? movie.getTitle() : "Phim",
+                    cinema != null ? cinema.getName() : "",
+                    room != null ? room.getName() : "",
+                    showtime != null ? showtime.getStartTime() : null,
+                    booking.getPaymentMethod(),
+                    booking.getFinalPrice(),
+                    seatLines,
+                    fnbLines));
+        } catch (Exception e) {
+            // Không để lỗi dựng email ảnh hưởng giao dịch đặt vé đã hoàn tất
+            log.error("Lỗi chuẩn bị email vé cho đơn {}: {}", booking.getBookingCode(), e.getMessage(), e);
         }
     }
 }
