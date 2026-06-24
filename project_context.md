@@ -1,7 +1,7 @@
 # DevCine — Project Context
 
 > File ngữ cảnh tổng hợp để đính kèm vào đầu mỗi phiên chat mới, giúp AI nắm nhanh dự án mà không phải đọc lại toàn bộ lịch sử hội thoại.
-> Cập nhật lần cuối: 19/06/2026
+> Cập nhật lần cuối: 24/06/2026
 
 ---
 
@@ -45,7 +45,7 @@ devcine/
 └── devcine-frontend/src/
     ├── components/  views/  layouts/  routers/  stores/  composables(hooks)/  utils/  api/
 ```
-Quy mô hiện tại: **26 controller · 11 service · 34 entity · 30 repository** (BE) · **19 view khách + 20 view admin** (FE).
+Quy mô hiện tại: **31 controller · 21 service · 37 entity** (BE) · **22 view khách + 21 view admin** (FE).
 
 ### 3.2 Quy tắc đặt tên
 | Loại | Quy ước | Ví dụ |
@@ -84,7 +84,7 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 
 ---
 
-## 4. Tiến độ hiện tại (~92% tổng thể)
+## 4. Tiến độ hiện tại (~94% tổng thể)
 
 ### 4.1 ĐÃ hoàn thiện (kết nối FE↔BE↔DB thật)
 **Khách hàng:** Đăng ký/Đăng nhập (JWT), Trang chủ & danh sách phim, Lịch chiếu, Hệ thống rạp, Chi tiết phim + **đánh giá sao/bình luận**, Đặt vé (chọn ghế + F&B + voucher, hold ghế 10', tính giá server), Thanh toán VNPAY + tích điểm/nâng hạng, Hồ sơ cá nhân (xem+sửa), Lịch sử đặt vé, Đổi mật khẩu, **Voucher của tôi**, **Tìm kiếm phim (debounce)**, **Khuyến mãi (Promotion thật)**, **Thông báo (badge + đánh dấu đã đọc)**.
@@ -108,12 +108,29 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 - **Vé QR trong Lịch sử đặt vé:** modal render QR từ `qrCodes` BE trả; sửa N+1 trong `getBookingHistory`.
 - **Seed dữ liệu thật:** 6 phim curated + lịch 3 ngày × 3 phòng × 5 suất = 45 suất; sửa giá ghế NORMAL 110k/VIP 150k/SWEETBOX 300k (cờ `DEMO_SCHEDULE_SEEDED` chạy 1 lần).
 
-### 4.3 CHƯA hoàn thiện (còn lại)
-1. **Màn admin UI cho BOM (định mức) & Bàn giao ca** — backend API đã sẵn, chưa có giao diện riêng.
-2. **Chuẩn hóa `ApiResponse<T>` + `@ControllerAdvice`** đồng nhất toàn backend (nợ kỹ thuật ở 3.4).
-3. **Mở rộng:** đăng nhập Google (OAuth), thêm cổng thanh toán (Momo/ZaloPay).
+### 4.2.2 Đợt 21→24/06/2026 (Pricing, hợp nhất format, trailer, đặt vé nâng cấp)
+- **Pricing Engine cấu hình được:** `PricingService` là nguồn giá DUY NHẤT — `giá = giá_nền(ngày × khung-giờ × đối tượng) + phụ_thu_ghế + phụ_thu_định_dạng`; phòng/định dạng đặc biệt → giá cố định ghi đè. `SeatType.priceModifier` đổi nghĩa thành PHỤ THU. Entity mới `Holiday`, `SpecialSeatPrice`, `PricingRule` mở rộng. Đối tượng rút còn ADULT/STUDENT. `AdminPricing.vue` 5 tab (giá nền, loại ghế, định dạng, ngày lễ, tính thử).
+- **Hợp nhất 2 bảng định dạng:** gộp `Format`→`MovieFormat` (xoá entity `Format`); Danh mục phim + Cấu hình giá + Suất chiếu dùng chung một danh sách.
+- **Trailer Modal tái dùng** (`TrailerModal.vue`): hero trang chủ + chi tiết phim, seed trailer chính thức. Chi tiết phim: synopsis thu/mở + lọc theo cụm rạp.
+- **Đặt vé nâng cấp:** cấu hình thời gian giữ ghế / giới hạn số vé / thời gian mở bán; điều kiện voucher nâng cao + chống thanh toán trùng; yêu cầu đăng nhập khi rời bước chọn ghế (modal nhắc); chọn số lượng vé trước khi chọn ghế.
+- **Dashboard real-data** (filter khoảng thời gian, widget thật); **Admin Movies** (bảng dày, bulk action, thống kê/phim); **Admin Bookings** (loại đối tượng vé + tiến độ check-in).
+- **Tài liệu BA mới:** `Tai_lieu_BA_DevCine.docx` (phân tích nghiệp vụ).
 
-### 4.3 Tài liệu liên quan
+### 4.2.3 ĐANG LÀM DỞ (chưa commit, nằm trong working tree)
+- **Hệ thống Toast + Friendly Error** (`AppToast.vue`, `stores/toast.js`, `utils/friendlyError.js`): hạ tầng đã có nhưng **mới áp 5/43 view** (Vouchers, KhuyenMai, Contact, BookingSuccess, Booking + CustomerLayout). Cần rollout ra toàn bộ view admin và các view khách còn lại để đạt chuẩn "4 trạng thái" của RULES.
+
+### 4.3 CHƯA hoàn thiện (còn lại)
+1. **Màn admin UI cho BOM (định mức) & Bàn giao ca** — backend API (`/api/bom`, `/api/staff/handovers`) đã sẵn; **xác nhận chưa có route/giao diện** trong `routers/admin.js`.
+2. **Chuẩn hóa `ApiResponse<T>` + `@ControllerAdvice`** — **xác nhận (24/06): KHÔNG tồn tại** lớp `ApiResponse` hay `@ControllerAdvice`/`@RestControllerAdvice` nào trong backend; nhiều controller vẫn trả `Map`/entity trực tiếp + `@CrossOrigin(origins="*")`. Đây là nợ kỹ thuật lớn nhất so với chuẩn RULES 1.2 (xem 3.4).
+3. **Hoàn tất rollout Toast** (xem 4.2.3).
+4. **Mở rộng:** đăng nhập Google (OAuth), thêm cổng thanh toán (Momo/ZaloPay).
+
+### 4.4 Nợ kỹ thuật & rủi ro cần xử lý
+- **Secret VNPAY đã lộ trong git history** → cần rotate `tmnCode`/`hashSecret` trên cổng VNPAY.
+- **3 lỗ hổng Dependabot** trên repo GitHub (2 high, 1 moderate).
+- File mẫu còn sót: `StyleGuideView.vue`, `components/common/HelloWorld.vue` — nên dọn.
+
+### 4.5 Tài liệu liên quan
 - `RULES.md` — quy tắc bắt buộc.
 - `docs/` — `ARCHITECTURE.md`, `DATABASE.md`, `API_CONTRACTS.md`, `CRITICAL_PATHS.md`, `SECURITY.md`.
 - `Bao_cao_thong_ke_DevCine.docx` — báo cáo thống kê & phân tích tiến độ (sinh bởi `generate_report.py`).

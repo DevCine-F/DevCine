@@ -21,7 +21,7 @@ DevCine handles the day-to-day operations of a cinema chain — from movie sched
 **Core features:**
 
 - Movie catalog, showtimes, room layouts, and seat maps
-- Online ticket booking with wallet payments and QR code generation
+- Online ticket booking with VNPAY payment and QR code generation
 - F&B ordering, combo recipes (BOM), per-cinema inventory tracking
 - Staff scheduling, shift handovers with cash reconciliation
 - Promotions, vouchers, membership tiers, loyalty points
@@ -100,7 +100,7 @@ devcine/
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md)     | System design, tech choices, data flow                       |
 | [DATABASE.md](docs/DATABASE.md)             | All 33 tables with columns, types, and relationships         |
 | [API_CONTRACTS.md](docs/API_CONTRACTS.md)   | Every endpoint — methods, auth levels, sample payloads       |
-| [CRITICAL_PATHS.md](docs/CRITICAL_PATHS.md) | Booking, check-in, and wallet flows with protected file list |
+| [CRITICAL_PATHS.md](docs/CRITICAL_PATHS.md) | Booking, payment, and check-in flows with protected file list |
 | [SECURITY.md](docs/SECURITY.md)             | Validation, JWT config, rate limiting, CORS policy           |
 
 ---
