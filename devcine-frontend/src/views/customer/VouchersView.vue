@@ -2,8 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { voucherApi, customerApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const authStore = useAuthStore()
+const toastStore = useToastStore()
+const showToast = (message, type = 'success') => toastStore.push(message, type)
 const activeTab = ref('active') // 'active' | 'redeem' | 'history'
 const vouchers = ref([])
 const redeemable = ref([])
@@ -15,15 +19,6 @@ const error = ref('')
 // Trạng thái đổi điểm
 const redeemTarget = ref(null) // promotion đang chờ xác nhận đổi
 const isRedeeming = ref(false)
-
-// Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 const formatDiscount = (v) => {
   if (v.discountType === 'PERCENTAGE') return `Giảm ${Number(v.discountValue)}%`
@@ -137,7 +132,7 @@ const handleClaim = async () => {
     voucherSearch.value = ''
     await fetchVouchers()
   } catch (err) {
-    showToast(err.response?.data?.message || 'Lưu mã thất bại.', 'error')
+    showToast(friendlyError(err, 'Lưu mã thất bại.'), 'error')
   } finally {
     isClaiming.value = false
   }
@@ -165,7 +160,7 @@ const confirmRedeem = async () => {
     redeemTarget.value = null
     await fetchVouchers()
   } catch (err) {
-    showToast(err.response?.data?.message || 'Đổi ưu đãi thất bại.', 'error')
+    showToast(friendlyError(err, 'Đổi ưu đãi thất bại.'), 'error')
   } finally {
     isRedeeming.value = false
   }
@@ -178,7 +173,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (toastTimer) clearTimeout(toastTimer)
   if (lookupTimer) clearTimeout(lookupTimer)
 })
 </script>
@@ -396,16 +390,6 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="[
-        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
-      ]">
-        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
-        {{ toast.message }}
-      </div>
-    </transition>
   </section>
 </template>
 

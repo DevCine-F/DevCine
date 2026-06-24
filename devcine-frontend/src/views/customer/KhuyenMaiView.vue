@@ -1,26 +1,22 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { promotionApi, voucherApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const toastStore = useToastStore()
+const showToast = (message, type = 'success') => toastStore.push(message, type)
 
 const promotions = ref([])
 const isLoading = ref(false)
 const savingId = ref(null)
 const savedIds = ref(new Set())
 
-// Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
-}
-const errMsg = (e, fb) => e?.response?.data?.message || e?.response?.data?.error || fb
+const errMsg = (e, fb) => friendlyError(e, fb)
 
 const fetchPromotions = async () => {
   isLoading.value = true
@@ -87,7 +83,6 @@ const claimCode = async (p) => {
 }
 
 onMounted(fetchPromotions)
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>
 
 <template>
@@ -161,15 +156,6 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         </div>
       </div>
     </section>
-
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
-           class="fixed bottom-8 right-8 z-[200] px-6 py-4 rounded-xl shadow-2xl text-white flex items-center gap-3 max-w-sm">
-        <span class="material-symbols-outlined text-lg">{{ toast.type === 'error' ? 'error' : 'check_circle' }}</span>
-        <span class="text-sm font-bold">{{ toast.message }}</span>
-      </div>
-    </transition>
 
     <!-- Newsletter / CTA -->
     <section class="mt-24 bg-surface-container rounded-sm p-12 border border-outline-variant/20 relative overflow-hidden">

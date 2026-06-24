@@ -1,7 +1,10 @@
 import { ref, computed } from "vue";
 import axios from "@/api/axios";
+import { useToastStore } from "@/stores/toast";
+import { friendlyError } from "@/utils/friendlyError";
 
 export function useShowtimes(selectedCinema) {
+  const toast = useToastStore();
   const draggedShow = ref(null);
   
   const generateDates = () => {
@@ -98,7 +101,7 @@ export function useShowtimes(selectedCinema) {
     if (checkConflict(hallId, show)) {
       show.roomId = originalRoomId;
       show.startTime = originalStartTime;
-      alert("Xung đột lịch chiếu hoặc đè lên thời gian dọn dẹp. Vui lòng chọn giờ/phòng khác!");
+      toast.error("Xung đột lịch chiếu hoặc đè lên thời gian dọn dẹp. Vui lòng chọn giờ/phòng khác!");
     }
     
     draggedShow.value = null;
@@ -108,7 +111,7 @@ export function useShowtimes(selectedCinema) {
     if (!selectedCinema.value) return;
     const dirtyShows = selectedCinema.value.shows.filter(s => s.isDirty);
     if (dirtyShows.length === 0) {
-      alert("Không có lịch chiếu nào thay đổi để xuất bản!");
+      toast.warning("Không có lịch chiếu nào thay đổi để xuất bản!");
       return;
     }
     
@@ -136,10 +139,10 @@ export function useShowtimes(selectedCinema) {
         show.isDirty = false;
         show.fullDateTime = localIsoString;
       }
-      alert("Lịch chiếu đã được xuất bản thành công vào Database!");
+      toast.success("Lịch chiếu đã được xuất bản thành công vào Database!");
     } catch (err) {
       console.error(err);
-      alert("Có lỗi xảy ra khi lưu lịch chiếu!");
+      toast.error(friendlyError(err, "Có lỗi xảy ra khi lưu lịch chiếu!"));
     }
   };
 

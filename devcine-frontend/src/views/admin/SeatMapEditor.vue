@@ -2,8 +2,10 @@
 import { ref } from 'vue'
 import axios from 'axios'
 import SeatMapBuilder from '@/components/admin/SeatMapBuilder.vue'
+import { useToastStore } from '@/stores/toast'
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api'
+const toast = useToastStore()
 
 const layoutData = ref({
   rows: 10,
@@ -25,10 +27,10 @@ const saveLayout = async () => {
       headers: { 'Content-Type': 'application/json' }
     })
     
-    alert('Đã đồng bộ sơ đồ ghế với Server Java thành công!')
+    toast.success('Đã đồng bộ sơ đồ ghế với Server Java thành công!')
   } catch (error) {
     console.error('Lỗi khi lưu sơ đồ ghế:', error)
-    alert('Đã lưu cục bộ, nhưng không thể kết nối tới Server Java để đồng bộ.')
+    toast.warning('Đã lưu cục bộ, nhưng không thể kết nối tới Server Java để đồng bộ.')
   }
 }
 </script>

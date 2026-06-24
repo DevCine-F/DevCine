@@ -5,8 +5,11 @@ import MovieToolbar from "@/components/admin/movies/MovieToolbar.vue";
 import MovieTable from "@/components/admin/movies/MovieTable.vue";
 import MovieFormModal from "@/components/admin/movies/MovieFormModal.vue";
 import MovieDetailModal from "@/components/admin/movies/MovieDetailModal.vue";
+import { useToastStore } from "@/stores/toast";
+import { friendlyError } from "@/utils/friendlyError";
 
 const mm = useMovieManagement();
+const toast = useToastStore();
 
 // ===== Modal state =====
 const showFormModal = ref(false);
@@ -31,7 +34,7 @@ const handleEdit = async (movieSummary) => {
     showFormModal.value = true;
   } catch (error) {
     console.error("Lỗi khi lấy chi tiết phim:", error);
-    alert("Không thể tải thông tin chi tiết phim!");
+    toast.error(friendlyError(error, "Không thể tải thông tin chi tiết phim!"));
   }
 };
 
@@ -41,7 +44,7 @@ const handleSave = async (payload, id) => {
     await mm.saveMovie(payload, id);
   } catch (error) {
     console.error("Lỗi khi lưu phim:", error);
-    alert("Lưu dữ liệu thất bại. Vui lòng tải lại trang!");
+    toast.error(friendlyError(error, "Lưu dữ liệu thất bại. Vui lòng tải lại trang!"));
   }
 };
 
@@ -51,7 +54,7 @@ const handleRowClick = async (movieSummary) => {
     showDetailModal.value = true;
   } catch (error) {
     console.error("Lỗi khi lấy chi tiết phim:", error);
-    alert("Không thể tải thông tin chi tiết phim!");
+    toast.error(friendlyError(error, "Không thể tải thông tin chi tiết phim!"));
   }
 };
 
@@ -61,7 +64,7 @@ const handleDelete = async (id) => {
     await mm.deleteMovie(id);
   } catch (error) {
     console.error("Lỗi khi xóa phim:", error);
-    alert("Xóa phim thất bại. Phim có thể đang được dùng trong suất chiếu.");
+    toast.error(friendlyError(error, "Xóa phim thất bại. Phim có thể đang được dùng trong suất chiếu."));
   }
 };
 
@@ -72,7 +75,7 @@ const handleBulkStatus = async (status) => {
     await mm.bulkUpdateStatus(status);
   } catch (error) {
     console.error("Lỗi đổi trạng thái hàng loạt:", error);
-    alert("Thao tác thất bại. Vui lòng thử lại!");
+    toast.error(friendlyError(error, "Thao tác thất bại. Vui lòng thử lại!"));
   }
 };
 
@@ -82,7 +85,7 @@ const handleBulkDelete = async () => {
     await mm.bulkDelete();
   } catch (error) {
     console.error("Lỗi xóa hàng loạt:", error);
-    alert("Xóa thất bại. Một số phim có thể đang được dùng trong suất chiếu.");
+    toast.error(friendlyError(error, "Xóa thất bại. Một số phim có thể đang được dùng trong suất chiếu."));
   }
 };
 

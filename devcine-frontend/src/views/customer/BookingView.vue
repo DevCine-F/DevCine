@@ -4,12 +4,15 @@ import { useBookingStore } from '@/stores/booking'
 import { paymentApi, voucherApi } from '@/api/customer'
 import { settingsApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const store = useBookingStore()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const toast = useToastStore()
 
 const paymentMethod = ref('VNPAY')
 
@@ -140,7 +143,7 @@ const handleHoldExpired = async () => {
   await store.fetchSeats()         // làm mới sơ đồ ghế (ghế đã/sẽ được nhả)
   currentStep.value = 1
   scrollTop()
-  alert(`Đã hết thời gian giữ chỗ (${holdMinutes.value} phút). Vui lòng chọn lại ghế.`)
+  toast.warning(`Đã hết thời gian giữ chỗ (${holdMinutes.value} phút). Vui lòng chọn lại ghế.`)
 }
 
 watch(secondsLeft, (s) => { if (s === 0) handleHoldExpired() })
@@ -428,28 +431,24 @@ const proceedToPayment = async () => {
           sessionStorage.setItem('bookingState', JSON.stringify(store.$state));
           window.location.href = data.data; // Redirect to VNPAY Sandbox
         } else {
-          alert('Không thể tạo liên kết thanh toán VNPay');
+          toast.error('Không thể tạo liên kết thanh toán. Vui lòng thử lại.');
         }
       } catch (err) {
         console.error(err);
-        alert('Lỗi tạo cổng thanh toán');
+        toast.error(friendlyError(err, 'Không tạo được cổng thanh toán, vui lòng thử lại.'));
       }
     } else {
       const paid = await store.confirmPayment(paymentMethod.value)
       if (paid) {
         router.push('/success')
       } else {
-        alert('Thanh toán thất bại! Vui lòng thử lại.')
+        toast.error('Thanh toán chưa thành công, vui lòng thử lại.')
       }
     }
   } else {
     held.value = false
-    const reason = store.lastHoldError || ''
-    if (/already taken|on hold/i.test(reason)) {
-      alert('Một số ghế bạn chọn vừa được người khác đặt. Vui lòng tải lại sơ đồ ghế và chọn ghế khác.')
-    } else {
-      alert(reason || 'Giữ ghế thất bại. Vui lòng thử lại.')
-    }
+    // store.lastHoldError là message backend → chuẩn hoá sang tiếng Việt, không lộ chuỗi kỹ thuật
+    toast.error(friendlyError(store.lastHoldError, 'Giữ ghế thất bại, vui lòng thử lại.'))
     // Làm mới sơ đồ ghế để cập nhật trạng thái mới nhất
     await store.fetchSeats()
   }

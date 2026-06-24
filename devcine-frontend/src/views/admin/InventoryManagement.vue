@@ -3,8 +3,11 @@ import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/inventory'
+const toast = useToastStore()
 
 const items = ref([])
 const transactions = ref([])
@@ -85,11 +88,11 @@ const saveAudit = async () => {
 const seedInitialItems = async () => {
   try {
     await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/system/seed-all`);
-    alert('Dữ liệu mẫu kho bãi đã được khởi tạo!');
+    toast.success('Dữ liệu mẫu kho bãi đã được khởi tạo!');
     await fetchData();
   } catch (error) {
     console.error('Seeding error:', error);
-    alert('Lỗi khi khởi tạo dữ liệu!');
+    toast.error(friendlyError(error, 'Lỗi khi khởi tạo dữ liệu!'));
   }
 }
 

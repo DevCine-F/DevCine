@@ -1,5 +1,6 @@
 import { ref, computed, watch } from "vue";
 import axios from "@/api/axios";
+import { useToastStore } from "@/stores/toast";
 
 /**
  * Trung tâm logic cho màn Quản lý Phim: tải dữ liệu, lọc, sắp xếp, phân trang
@@ -8,6 +9,7 @@ import axios from "@/api/axios";
  * mà không đổi giao diện component nhờ gói gọn ở đây.
  */
 export function useMovieManagement() {
+  const toast = useToastStore();
   // ===== State danh sách & danh mục =====
   const movies = ref([]);
   const isLoading = ref(false);
@@ -318,7 +320,7 @@ export function useMovieManagement() {
       console.error("Lỗi đổi trạng thái:", error);
       movie.status = prev;
       movie.statusText = statusToText(prev);
-      alert("Đổi trạng thái thất bại. Vui lòng thử lại!");
+      toast.error("Đổi trạng thái thất bại. Vui lòng thử lại!");
     }
   };
 

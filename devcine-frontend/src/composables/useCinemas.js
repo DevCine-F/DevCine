@@ -1,7 +1,10 @@
 import { ref, reactive } from "vue";
 import axios from "@/api/axios";
+import { useToastStore } from "@/stores/toast";
+import { friendlyError } from "@/utils/friendlyError";
 
 export function useCinemas() {
+  const toast = useToastStore();
   const API_BASE_URL = "/v1/cinemas";
   
   const cinemas = ref([]);
@@ -111,7 +114,7 @@ export function useCinemas() {
 
   const handleCreateCinema = async () => {
     if (!newCinema.name || !newCinema.address || !newCinema.rooms) {
-      alert("Vui lòng điền đầy đủ các thông tin bắt buộc!");
+      toast.warning("Vui lòng điền đầy đủ các thông tin bắt buộc!");
       return;
     }
     
@@ -172,7 +175,7 @@ export function useCinemas() {
       showCreateModal.value = false;
     } catch (error) {
       console.error("Error creating cinema:", error);
-      alert("Lỗi khi thêm cụm rạp mới!");
+      toast.error(friendlyError(error, "Lỗi khi thêm cụm rạp mới!"));
     }
   };
 

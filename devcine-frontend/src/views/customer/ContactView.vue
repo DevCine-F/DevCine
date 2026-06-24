@@ -1,10 +1,14 @@
 <script setup>
 import { RouterLink } from 'vue-router'
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { supportApi } from '@/api/customer'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const authStore = useAuthStore()
+const toast = useToastStore()
+const showToast = (message, type = 'success') => toast.push(message, type)
 
 // Ánh xạ chủ đề hiển thị -> mã issueType lưu ở backend
 const SUBJECTS = [
@@ -24,15 +28,6 @@ const form = reactive({
 
 const submitting = ref(false)
 
-// Toast (đồng bộ pattern với các view khách khác)
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
-}
-
 onMounted(() => {
   // Điền sẵn thông tin nếu đã đăng nhập
   if (authStore.user) {
@@ -40,10 +35,6 @@ onMounted(() => {
     form.email = authStore.user.email || ''
     form.phone = authStore.user.phone || ''
   }
-})
-
-onUnmounted(() => {
-  if (toastTimer) clearTimeout(toastTimer)
 })
 
 const handleScrollToForm = () => {
@@ -74,7 +65,7 @@ const handleSubmit = async () => {
     showToast('Đã gửi yêu cầu! Bộ phận CSKH sẽ phản hồi sớm.', 'success')
     form.message = ''
   } catch (err) {
-    showToast(err.response?.data?.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại.', 'error')
+    showToast(friendlyError(err, 'Gửi yêu cầu thất bại. Vui lòng thử lại.'), 'error')
   } finally {
     submitting.value = false
   }
@@ -214,16 +205,6 @@ const handleSubmit = async () => {
       </section>
     </div>
 
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="[
-        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
-      ]">
-        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
-        {{ toast.message }}
-      </div>
-    </transition>
   </main>
 </template>
 

@@ -1,6 +1,10 @@
 <script setup>
 import { ref, watch } from "vue";
 import axios from "@/api/axios";
+import { useToastStore } from "@/stores/toast";
+import { friendlyError } from "@/utils/friendlyError";
+
+const toast = useToastStore();
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -102,7 +106,7 @@ const onPosterChange = async (e) => {
     newMovie.value.posterUrl = await uploadImage(file);
   } catch (error) {
     console.error("Lỗi upload ảnh:", error);
-    alert("Tải ảnh Poster lên Cloudinary thất bại!");
+    toast.error(friendlyError(error, "Tải ảnh Poster lên Cloudinary thất bại!"));
     newMovie.value.posterUrl = oldUrl;
   } finally {
     isUploadingPoster.value = false;
@@ -119,7 +123,7 @@ const onBannerChange = async (e) => {
     newMovie.value.bannerUrl = await uploadImage(file);
   } catch (error) {
     console.error("Lỗi upload ảnh:", error);
-    alert("Tải ảnh Banner lên Cloudinary thất bại!");
+    toast.error(friendlyError(error, "Tải ảnh Banner lên Cloudinary thất bại!"));
     newMovie.value.bannerUrl = oldUrl;
   } finally {
     isUploadingBanner.value = false;
@@ -151,12 +155,12 @@ const handleWheel = (e) => {
 // ===== Lưu =====
 const handleSave = () => {
   if (!newMovie.value.title) {
-    alert("Vui lòng nhập tên phim!");
+    toast.warning("Vui lòng nhập tên phim!");
     return;
   }
   if (newMovie.value.startDate && newMovie.value.endDate) {
     if (new Date(newMovie.value.endDate) < new Date(newMovie.value.startDate)) {
-      alert("⚠️ Lỗi vận hành: Ngày kết thúc không được phép nhỏ hơn ngày khởi chiếu!");
+      toast.warning("Ngày kết thúc không được phép nhỏ hơn ngày khởi chiếu!");
       return;
     }
   }

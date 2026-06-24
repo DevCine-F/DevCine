@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../stores/auth'
+import AppToast from '../components/common/AppToast.vue'
 import logo from '../assets/images/Logo_DevCine_Ngang_XoaNen.png'
 
 const { isLightMode, toggleTheme } = useTheme()
@@ -275,6 +276,9 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
         <router-view />
       </main>
     </div>
+
+    <!-- Toast dùng chung cho toàn khu quản trị -->
+    <AppToast />
   </div>
 </template>
 

@@ -4,6 +4,7 @@ import { RouterView } from 'vue-router'
 import Navbar from '../components/customer/Navbar.vue'
 import Footer from '../components/customer/Footer.vue'
 import StarryBackground from '../components/common/StarryBackground.vue'
+import AppToast from '../components/common/AppToast.vue'
 
 const route = useRoute()
 </script>
@@ -22,6 +23,7 @@ const route = useRoute()
     </main>
 
     <Footer />
+    <AppToast />
   </div>
 </template>
 

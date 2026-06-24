@@ -1,7 +1,10 @@
 import { ref } from "vue";
 import axios from "@/api/axios";
+import { useToastStore } from "@/stores/toast";
+import { friendlyError } from "@/utils/friendlyError";
 
 export function useSeatLayout() {
+  const toast = useToastStore();
   const viewingHall = ref(null);
   const currentSeatMap = ref({});
   const isMouseDown = ref(false);
@@ -130,10 +133,10 @@ export function useSeatLayout() {
       };
 
       await axios.post(`/seats/layout/${viewingHall.value.id}`, payload);
-      alert('Lưu cấu trúc ghế thành công!');
+      toast.success('Lưu cấu trúc ghế thành công!');
     } catch (error) {
       console.error('Error saving seat layout:', error);
-      alert('Có lỗi xảy ra khi lưu cấu trúc ghế.');
+      toast.error(friendlyError(error, 'Có lỗi xảy ra khi lưu cấu trúc ghế.'));
     } finally {
       isSavingLayout.value = false;
     }

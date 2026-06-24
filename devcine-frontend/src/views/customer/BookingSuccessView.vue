@@ -3,9 +3,11 @@ import { RouterLink, useRoute } from 'vue-router'
 import { computed, onMounted, ref } from 'vue'
 import { useBookingStore } from '@/stores/booking'
 import { paymentApi } from '@/api/customer'
+import { useToastStore } from '@/stores/toast'
 
 const route = useRoute()
 const store = useBookingStore()
+const toast = useToastStore()
 
 const isLoading = ref(true)
 const paymentStatus = ref('')
@@ -25,12 +27,12 @@ onMounted(async () => {
         sessionStorage.removeItem('bookingState')
       } else {
         paymentStatus.value = 'failed'
-        alert(data.message || 'Giao dịch thất bại')
+        toast.error('Giao dịch chưa thành công. Vui lòng thử lại hoặc liên hệ hỗ trợ.')
       }
     } catch (err) {
       console.error(err)
       paymentStatus.value = 'failed'
-      alert('Giao dịch thất bại hoặc chữ ký không hợp lệ')
+      toast.error('Giao dịch chưa thành công. Vui lòng thử lại hoặc liên hệ hỗ trợ.')
     } finally {
       isLoading.value = false
     }
