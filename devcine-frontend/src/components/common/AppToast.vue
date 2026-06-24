@@ -25,9 +25,9 @@ const STYLES = {
           v-for="t in toast.toasts"
           :key="t.id"
           :class="STYLES[t.type] || STYLES.info"
-          class="pointer-events-auto flex items-start gap-3 px-4 py-3.5 rounded-xl border backdrop-blur-md shadow-2xl text-white"
+          class="pointer-events-auto flex items-center gap-3 px-4 py-3.5 rounded-xl border backdrop-blur-md shadow-2xl text-white"
         >
-          <span class="material-symbols-outlined text-xl shrink-0 mt-0.5">{{ ICONS[t.type] || ICONS.info }}</span>
+          <span class="material-symbols-outlined text-xl shrink-0">{{ ICONS[t.type] || ICONS.info }}</span>
           <p class="text-sm font-semibold leading-snug flex-1 break-words">{{ t.message }}</p>
           <button
             @click="toast.remove(t.id)"

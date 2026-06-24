@@ -30,6 +30,21 @@ const fetchPromotions = async () => {
   }
 }
 
+// Đánh dấu sẵn các mã user đã lưu từ trước (match theo code) để hiện "Đã lưu"
+const markAlreadySaved = async () => {
+  if (!authStore.isAuthenticated || !authStore.user?.id) return
+  try {
+    const { data } = await voucherApi.getAllVouchers(authStore.user.id)
+    const list = data.data ?? data
+    const ownedCodes = new Set(list.map(v => (v.code || '').toUpperCase()))
+    promotions.value.forEach(p => {
+      if (p.code && ownedCodes.has(p.code.toUpperCase())) savedIds.value.add(p.id)
+    })
+  } catch (e) {
+    console.error('Không tải được voucher đã lưu', e)
+  }
+}
+
 const isPointPromo = (p) => p.allowPointRedemption && Number(p.pointsRequired) > 0
 
 const formatValue = (p) => {
@@ -82,7 +97,10 @@ const claimCode = async (p) => {
   }
 }
 
-onMounted(fetchPromotions)
+onMounted(async () => {
+  await fetchPromotions()
+  await markAlreadySaved()
+})
 </script>
 
 <template>
@@ -132,12 +150,13 @@ onMounted(fetchPromotions)
             {{ formatEnd(promo.endDate) }}.
           </p>
 
-          <!-- Đã lưu -->
-          <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between">
-            <span class="flex items-center gap-2 text-green-400 font-bold text-xs uppercase tracking-widest">
+          <!-- Đã lưu: nút trạng thái (vô hiệu hoá) + link sang Ưu đãi của tôi -->
+          <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between gap-3">
+            <button type="button" disabled
+                    class="self-start flex items-center gap-2 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-lg cursor-default">
               <span class="material-symbols-outlined text-sm">check_circle</span> Đã lưu
-            </span>
-            <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-xs uppercase tracking-widest hover:opacity-80">Ưu đãi của tôi →</RouterLink>
+            </button>
+            <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-xs uppercase tracking-widest hover:opacity-80 shrink-0">Ưu đãi của tôi →</RouterLink>
           </div>
 
           <!-- Nút đổi điểm (mã point) -->
