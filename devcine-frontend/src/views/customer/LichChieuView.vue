@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { showtimeApi } from '@/api/customer'
+import api from '@/api/axios'
 
 const router = useRouter()
 const store = useBookingStore()
@@ -31,6 +32,10 @@ const selectedDate = ref(todayStr)
 const loading = ref(false)
 const loadError = ref(false)
 const allShowtimes = ref([])
+const cinemas = ref([])               // danh sách rạp (lấy city/ảnh từ /v1/cinemas)
+const selectedCinemaId = ref(null)    // rạp đang chọn — null = chưa chọn (hiện màn chọn rạp)
+const cityFilter = ref('Tất cả')      // lọc theo tỉnh/thành ở màn chọn rạp
+const cinemaSearch = ref('')          // ô tìm rạp theo tên/địa chỉ
 
 // ===== Helpers =====
 const toDate = (dt) => {
@@ -65,6 +70,7 @@ const ageDescription = (rating) => {
 const moviesForDate = computed(() => {
   const map = new Map()
   for (const s of allShowtimes.value) {
+    if (selectedCinemaId.value && s.cinemaId !== selectedCinemaId.value) continue
     if (dateKey(s.startTime) !== selectedDate.value) continue
     if (!map.has(s.movieId)) {
       map.set(s.movieId, {
@@ -86,6 +92,59 @@ const moviesForDate = computed(() => {
   }))
 })
 
+// ===== Bước chọn rạp =====
+// Chi tiết rạp (city/ảnh) theo id từ /v1/cinemas
+const cinemaDetailById = computed(() => {
+  const m = new Map()
+  for (const c of cinemas.value) m.set(c.id, c)
+  return m
+})
+
+// Chỉ những rạp ĐANG CÓ suất chiếu (distinct theo cinemaId trong allShowtimes),
+// bổ sung city/ảnh từ /v1/cinemas (fallback nếu thiếu).
+const availableCinemas = computed(() => {
+  const seen = new Map()
+  for (const s of allShowtimes.value) {
+    if (seen.has(s.cinemaId)) continue
+    const detail = cinemaDetailById.value.get(s.cinemaId)
+    seen.set(s.cinemaId, {
+      id: s.cinemaId,
+      name: detail?.name || s.cinemaName,
+      address: detail?.address || s.cinemaAddress,
+      city: detail?.city || 'Khác',
+      imageUrl: detail?.imageUrl || ''
+    })
+  }
+  return Array.from(seen.values())
+})
+
+// Danh sách tỉnh/thành (kèm 'Tất cả') cho hàng chip lọc
+const cityOptions = computed(() => {
+  const set = new Set(availableCinemas.value.map(c => c.city))
+  return ['Tất cả', ...Array.from(set)]
+})
+
+// Chuẩn hoá để tìm không dấu (vd "ho chi minh" khớp "Hồ Chí Minh")
+const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
+
+// Rạp sau khi lọc theo tỉnh/thành + ô tìm kiếm (tên/địa chỉ/tỉnh-thành; không dấu; client-side)
+const filteredCinemas = computed(() => {
+  const q = norm(cinemaSearch.value.trim())
+  return availableCinemas.value.filter(c => {
+    const matchCity = cityFilter.value === 'Tất cả' || c.city === cityFilter.value
+    const matchSearch = !q || norm(c.name).includes(q) || norm(c.address).includes(q) || norm(c.city).includes(q)
+    return matchCity && matchSearch
+  })
+})
+
+const selectedCinema = computed(() => availableCinemas.value.find(c => c.id === selectedCinemaId.value) || null)
+
+const selectCinema = (id) => {
+  selectedCinemaId.value = id
+  selectedDate.value = todayStr
+}
+const changeCinema = () => { selectedCinemaId.value = null }
+
 const goToBooking = (st) => {
   if (st.past) return
   const s = st.raw
@@ -100,8 +159,12 @@ const goToBooking = (st) => {
 const loadShowtimes = async () => {
   loading.value = true; loadError.value = false
   try {
-    const { data } = await showtimeApi.getUpcoming()
-    allShowtimes.value = data || []
+    const [stRes, cinemaRes] = await Promise.all([
+      showtimeApi.getUpcoming(),
+      api.get('/v1/cinemas').catch(() => ({ data: [] }))  // city/ảnh — lỗi cũng không chặn
+    ])
+    allShowtimes.value = stRes.data || []
+    cinemas.value = cinemaRes.data || []
   } catch (e) { console.error(e); loadError.value = true } finally { loading.value = false }
 }
 
@@ -115,22 +178,7 @@ onMounted(loadShowtimes)
       <div class="w-3/4 max-w-md h-[1px] bg-gradient-to-r from-transparent via-[#f5c518]/50 to-transparent"></div>
     </header>
 
-    <!-- Dải ngày -->
-    <div class="flex justify-center gap-2.5 overflow-x-auto no-scrollbar mb-10 px-1 py-2">
-      <button v-for="d in availableDates" :key="d.dateStr" @click="selectedDate = d.dateStr"
-        :class="selectedDate === d.dateStr
-          ? 'bg-gradient-to-b from-[#f5c518] to-[#e0a000] text-black border-transparent shadow-lg shadow-[#f5c518]/25 scale-105'
-          : 'bg-surface-container-high/50 text-on-surface-variant border-outline-variant/20 hover:border-[#f5c518]/50 hover:text-on-surface hover:-translate-y-0.5'"
-        class="flex flex-col items-center justify-center flex-shrink-0 w-[68px] py-3 rounded-xl border transition-all duration-200">
-        <span class="text-[10px] font-bold uppercase tracking-wider"
-          :class="selectedDate === d.dateStr ? 'text-black/65' : 'text-on-surface-variant/80'">{{ d.label }}</span>
-        <span class="text-2xl font-extrabold leading-none my-1">{{ d.dayNum }}</span>
-        <span class="text-[10px] font-semibold"
-          :class="selectedDate === d.dateStr ? 'text-black/65' : 'text-on-surface-variant/60'">Th{{ d.monthInt }}</span>
-      </button>
-    </div>
-
-    <!-- Loading -->
+    <!-- Loading ban đầu -->
     <div v-if="loading" class="grid grid-cols-1 2xl:grid-cols-2 gap-6">
       <div v-for="i in 4" :key="i" class="flex gap-5 p-5 bg-surface-container-low rounded-2xl animate-pulse">
         <div class="w-[120px] aspect-[2/3] bg-white/5 rounded-lg shrink-0"></div>
@@ -150,45 +198,143 @@ onMounted(loadShowtimes)
       <button @click="loadShowtimes" class="px-5 py-2 bg-[#f5c518] text-black rounded-lg font-bold">Thử lại</button>
     </div>
 
-    <!-- Empty -->
-    <div v-else-if="!moviesForDate.length" class="text-center py-20 bg-surface-container-low rounded-2xl">
-      <span class="material-symbols-outlined text-on-surface-variant/50 text-6xl mb-4 block">event_busy</span>
-      <h3 class="font-headline text-2xl font-bold text-on-surface">Không có suất chiếu</h3>
-      <p class="text-on-surface-variant mt-2">Chưa có phim nào chiếu trong ngày này. Thử chọn ngày khác.</p>
-    </div>
+    <!-- ===== BƯỚC 1: Chọn rạp (chưa chọn rạp) ===== -->
+    <section v-else-if="!selectedCinemaId">
+      <!-- Không có rạp nào đang có suất chiếu -->
+      <div v-if="!availableCinemas.length" class="text-center py-20 bg-surface-container-low rounded-2xl">
+        <span class="material-symbols-outlined text-on-surface-variant/50 text-6xl mb-4 block">theaters</span>
+        <h3 class="font-headline text-2xl font-bold text-on-surface">Chưa có rạp nào mở suất chiếu</h3>
+        <p class="text-on-surface-variant mt-2">Vui lòng quay lại sau nhé.</p>
+      </div>
 
-    <!-- Danh sách phim -->
-    <div v-else class="grid grid-cols-1 2xl:grid-cols-2 gap-6">
-      <div v-for="movie in moviesForDate" :key="movie.id"
-        class="flex gap-5 p-5 border border-outline-variant/10 bg-surface-container-low rounded-2xl hover:border-[#f5c518]/30 transition-all">
-        <div class="w-[110px] lg:w-[130px] shrink-0 aspect-[2/3] rounded-lg overflow-hidden bg-surface-container-high">
-          <img :src="movie.posterUrl || '/images/Hopper.webp'" :alt="movie.title" class="w-full h-full object-cover" />
-        </div>
-        <div class="flex-1 min-w-0 flex flex-col">
-          <div class="flex items-start justify-between gap-2 mb-1.5">
-            <span v-if="movie.durationMins" class="text-xs text-on-surface-variant">{{ movie.durationMins }} phút</span>
-            <div class="flex flex-wrap gap-1 justify-end">
-              <span v-for="f in movie.formats" :key="f" class="bg-surface-container-high border border-outline-variant/30 text-on-surface-variant text-[10px] font-bold px-2 py-0.5 rounded">{{ f }}</span>
-            </div>
+      <div v-else>
+        <p class="text-center text-on-surface-variant mb-8 flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[#f5c518]">location_on</span>
+          Vui lòng chọn rạp bạn muốn xem lịch chiếu
+        </p>
+
+        <!-- Bộ lọc: chip Tỉnh/TP + ô tìm rạp -->
+        <div class="flex flex-col lg:flex-row lg:items-center gap-4 mb-8">
+          <div class="flex flex-wrap gap-2 flex-1">
+            <button v-for="city in cityOptions" :key="city" @click="cityFilter = city"
+              :class="cityFilter === city
+                ? 'bg-[#f5c518] text-black border-transparent'
+                : 'bg-surface-container-high/50 text-on-surface-variant border-outline-variant/20 hover:border-[#f5c518]/50 hover:text-on-surface'"
+              class="px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-widest transition-all">
+              {{ city }}
+            </button>
           </div>
-          <h3 class="font-headline text-lg font-bold text-on-surface uppercase leading-tight mb-2">
-            {{ movie.title }} <span v-if="movie.ageRating" class="text-on-surface-variant">- {{ movie.ageRating }}</span>
-          </h3>
-          <p v-if="movie.country" class="text-xs text-on-surface-variant">Xuất xứ: <span class="text-on-surface">{{ movie.country }}</span></p>
-          <p v-if="movie.releaseDate" class="text-xs text-on-surface-variant mt-0.5">Khởi chiếu: <span class="text-on-surface">{{ formatReleaseDate(movie.releaseDate) }}</span></p>
-          <p v-if="ageDescription(movie.ageRating)" class="text-[11px] italic text-on-surface-variant/80 mt-2">{{ ageDescription(movie.ageRating) }}</p>
+          <div class="relative lg:w-72 shrink-0">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">search</span>
+            <input v-model="cinemaSearch" type="text" placeholder="Tìm theo tên rạp hoặc tỉnh/thành..."
+              class="w-full bg-surface-container-high/50 border border-outline-variant/20 text-sm text-on-surface pl-11 pr-9 py-2.5 rounded-full outline-none focus:border-[#f5c518]/50 transition-all placeholder:text-on-surface-variant/40" />
+            <button v-if="cinemaSearch" @click="cinemaSearch = ''"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 hover:text-on-surface">
+              <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
 
-          <div class="mt-auto border-t border-outline-variant/10 pt-3">
-            <p class="text-xs font-bold text-on-surface mb-2">Lịch chiếu</p>
-            <div class="flex flex-wrap gap-2">
-              <button v-for="st in movie.showtimes" :key="st.id" @click="goToBooking(st)" :disabled="st.past"
-                :class="st.past ? 'border-outline-variant/20 text-on-surface-variant/40 line-through cursor-not-allowed' : 'border-outline-variant/30 text-on-surface hover:border-[#f5c518] hover:bg-[#f5c518]/10 hover:text-[#f5c518]'"
-                class="px-4 py-1.5 border text-sm font-bold rounded-md transition-all">{{ st.time }}</button>
+        <!-- Lưới rạp (đã lọc) -->
+        <div v-if="filteredCinemas.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <button v-for="c in filteredCinemas" :key="c.id" @click="selectCinema(c.id)"
+            class="group text-left flex flex-col overflow-hidden rounded-2xl border border-outline-variant/15 bg-surface-container-low hover:border-[#f5c518]/50 hover:-translate-y-1 transition-all duration-200">
+            <div class="h-32 bg-surface-container-high overflow-hidden relative">
+              <img :src="c.imageUrl || '/images/Hopper.webp'" :alt="c.name"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <span class="absolute top-2 left-2 bg-black/60 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">{{ c.city }}</span>
+            </div>
+            <div class="p-5 flex-1 flex flex-col">
+              <h3 class="font-headline text-base font-bold text-on-surface mb-1 group-hover:text-[#f5c518] transition-colors">{{ c.name }}</h3>
+              <p class="text-xs text-on-surface-variant leading-relaxed line-clamp-2 flex-1">{{ c.address }}</p>
+              <span class="mt-4 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#f5c518]">
+                Xem lịch chiếu <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+              </span>
+            </div>
+          </button>
+        </div>
+
+        <!-- Không khớp bộ lọc -->
+        <div v-else class="text-center py-16 bg-surface-container-low rounded-2xl">
+          <span class="material-symbols-outlined text-on-surface-variant/50 text-5xl mb-3 block">search_off</span>
+          <p class="text-on-surface-variant">Không tìm thấy rạp phù hợp.</p>
+          <button @click="cityFilter = 'Tất cả'; cinemaSearch = ''" class="mt-3 text-[#f5c518] font-bold text-sm hover:underline">Xoá bộ lọc</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== BƯỚC 2: Đã chọn rạp — giao diện lịch chiếu ===== -->
+    <template v-else>
+      <!-- Thanh rạp đã chọn + đổi rạp -->
+      <div class="flex items-center justify-between gap-4 mb-8 p-4 rounded-xl border border-[#f5c518]/20 bg-[#f5c518]/5">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="material-symbols-outlined text-[#f5c518] shrink-0">location_on</span>
+          <div class="min-w-0">
+            <p class="font-headline font-bold text-on-surface truncate">{{ selectedCinema?.name }}</p>
+            <p v-if="selectedCinema?.address" class="text-xs text-on-surface-variant truncate">{{ selectedCinema.address }}</p>
+          </div>
+        </div>
+        <button @click="changeCinema"
+          class="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg border border-outline-variant/30 text-on-surface-variant text-xs font-bold uppercase tracking-widest hover:border-[#f5c518] hover:text-[#f5c518] transition-all">
+          <span class="material-symbols-outlined text-sm">sync_alt</span> Đổi rạp
+        </button>
+      </div>
+
+      <!-- Dải ngày -->
+      <div class="flex justify-center gap-2.5 overflow-x-auto no-scrollbar mb-10 px-1 py-2">
+        <button v-for="d in availableDates" :key="d.dateStr" @click="selectedDate = d.dateStr"
+          :class="selectedDate === d.dateStr
+            ? 'bg-gradient-to-b from-[#f5c518] to-[#e0a000] text-black border-transparent shadow-lg shadow-[#f5c518]/25 scale-105'
+            : 'bg-surface-container-high/50 text-on-surface-variant border-outline-variant/20 hover:border-[#f5c518]/50 hover:text-on-surface hover:-translate-y-0.5'"
+          class="flex flex-col items-center justify-center flex-shrink-0 w-[68px] py-3 rounded-xl border transition-all duration-200">
+          <span class="text-[10px] font-bold uppercase tracking-wider"
+            :class="selectedDate === d.dateStr ? 'text-black/65' : 'text-on-surface-variant/80'">{{ d.label }}</span>
+          <span class="text-2xl font-extrabold leading-none my-1">{{ d.dayNum }}</span>
+          <span class="text-[10px] font-semibold"
+            :class="selectedDate === d.dateStr ? 'text-black/65' : 'text-on-surface-variant/60'">Th{{ d.monthInt }}</span>
+        </button>
+      </div>
+
+      <!-- Empty -->
+      <div v-if="!moviesForDate.length" class="text-center py-20 bg-surface-container-low rounded-2xl">
+        <span class="material-symbols-outlined text-on-surface-variant/50 text-6xl mb-4 block">event_busy</span>
+        <h3 class="font-headline text-2xl font-bold text-on-surface">Không có suất chiếu</h3>
+        <p class="text-on-surface-variant mt-2">Rạp này chưa có phim nào chiếu trong ngày này. Thử chọn ngày khác.</p>
+      </div>
+
+      <!-- Danh sách phim -->
+      <div v-else class="grid grid-cols-1 2xl:grid-cols-2 gap-6">
+        <div v-for="movie in moviesForDate" :key="movie.id"
+          class="flex gap-5 p-5 border border-outline-variant/10 bg-surface-container-low rounded-2xl hover:border-[#f5c518]/30 transition-all">
+          <div class="w-[110px] lg:w-[130px] shrink-0 aspect-[2/3] rounded-lg overflow-hidden bg-surface-container-high">
+            <img :src="movie.posterUrl || '/images/Hopper.webp'" :alt="movie.title" class="w-full h-full object-cover" />
+          </div>
+          <div class="flex-1 min-w-0 flex flex-col">
+            <div class="flex items-start justify-between gap-2 mb-1.5">
+              <span v-if="movie.durationMins" class="text-xs text-on-surface-variant">{{ movie.durationMins }} phút</span>
+              <div class="flex flex-wrap gap-1 justify-end">
+                <span v-for="f in movie.formats" :key="f" class="bg-surface-container-high border border-outline-variant/30 text-on-surface-variant text-[10px] font-bold px-2 py-0.5 rounded">{{ f }}</span>
+              </div>
+            </div>
+            <h3 class="font-headline text-lg font-bold text-on-surface uppercase leading-tight mb-2">
+              {{ movie.title }} <span v-if="movie.ageRating" class="text-on-surface-variant">- {{ movie.ageRating }}</span>
+            </h3>
+            <p v-if="movie.country" class="text-xs text-on-surface-variant">Xuất xứ: <span class="text-on-surface">{{ movie.country }}</span></p>
+            <p v-if="movie.releaseDate" class="text-xs text-on-surface-variant mt-0.5">Khởi chiếu: <span class="text-on-surface">{{ formatReleaseDate(movie.releaseDate) }}</span></p>
+            <p v-if="ageDescription(movie.ageRating)" class="text-[11px] italic text-on-surface-variant/80 mt-2">{{ ageDescription(movie.ageRating) }}</p>
+
+            <div class="mt-auto border-t border-outline-variant/10 pt-3">
+              <p class="text-xs font-bold text-on-surface mb-2">Lịch chiếu</p>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="st in movie.showtimes" :key="st.id" @click="goToBooking(st)" :disabled="st.past"
+                  :class="st.past ? 'border-outline-variant/20 text-on-surface-variant/40 line-through cursor-not-allowed' : 'border-outline-variant/30 text-on-surface hover:border-[#f5c518] hover:bg-[#f5c518]/10 hover:text-[#f5c518]'"
+                  class="px-4 py-1.5 border text-sm font-bold rounded-md transition-all">{{ st.time }}</button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </template>
   </main>
 </template>
 
