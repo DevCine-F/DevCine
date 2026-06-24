@@ -3,13 +3,15 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { authApi } from '../../api/customer/index'
+import { useToastStore } from '../../stores/toast'
+import { friendlyError } from '../../utils/friendlyError'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const toast = useToastStore()
 const activeTab = ref('login')
 const isLoading = ref(false)
-const errorMsg = ref('')
 
 // Form fields
 const loginForm = ref({ username: '', password: '' })
@@ -18,16 +20,16 @@ const registerForm = ref({ username: '', email: '', fullName: '', phone: '', pas
 const handleLogin = async () => {
   if (!loginForm.value.username || !loginForm.value.password) return
   isLoading.value = true
-  errorMsg.value = ''
   try {
     const res = await authApi.login(loginForm.value.username, loginForm.value.password)
     const { token, user } = res.data.data
     const role = user.role.toLowerCase()
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, role)
+    toast.success(`Đăng nhập thành công! Chào mừng bạn đã trở lại.`)
     // Khách: quay lại trang trước khi bị chặn (vd /booking?step=2) nếu có
     router.push(role === 'admin' || role === 'staff' ? '/admin/dashboard' : (route.query.redirect || '/'))
   } catch (err) {
-    errorMsg.value = err.response?.data?.message || 'Đăng nhập thất bại. Kiểm tra lại tài khoản và mật khẩu.'
+    toast.error(friendlyError(err, 'Đăng nhập thất bại. Kiểm tra lại tài khoản và mật khẩu.'))
   } finally {
     isLoading.value = false
   }
@@ -37,16 +39,16 @@ const handleRegister = async () => {
   const f = registerForm.value
   if (!f.username || !f.email || !f.password) return
   isLoading.value = true
-  errorMsg.value = ''
   try {
     await authApi.register({ username: f.username, email: f.email, fullName: f.fullName, phone: f.phone, password: f.password })
     // Auto-login after register
     const res = await authApi.login(f.username, f.password)
     const { token, user } = res.data.data
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, user.role.toLowerCase())
+    toast.success('Đăng ký thành công! Chào mừng bạn đến với DevCine.')
     router.push(route.query.redirect || '/')
   } catch (err) {
-    errorMsg.value = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.'
+    toast.error(friendlyError(err, 'Đăng ký thất bại. Vui lòng thử lại.'))
   } finally {
     isLoading.value = false
   }
@@ -90,11 +92,6 @@ const loginDemo = async () => {
         </div>
         
         <!-- Form -->
-        <!-- Error Message -->
-        <div v-if="errorMsg" class="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-xs font-semibold">
-          {{ errorMsg }}
-        </div>
-
         <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="space-y-4">
           <div class="space-y-2">
             <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Tên đăng nhập</label>

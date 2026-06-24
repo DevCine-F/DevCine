@@ -4,8 +4,10 @@ import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
 import { formatDate, formatDateDot } from '@/utils/format'
 import TrailerModal from '@/components/common/TrailerModal.vue'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
-
+const toast = useToastStore()
 const movies = ref([])
 const loading = ref(true)
 const showTrailer = ref(false)
@@ -16,6 +18,7 @@ const fetchMovies = async () => {
     movies.value = response.data
   } catch (error) {
     console.error('Error fetching movies:', error)
+    toast.error(friendlyError(error, 'Không tải được danh sách phim.'))
   } finally {
     loading.value = false
   }

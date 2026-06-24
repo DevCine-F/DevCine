@@ -6,11 +6,14 @@ import { reviewApi } from '@/api/customer/index'
 import { onMounted, ref, computed } from 'vue'
 import api from '@/api/axios'
 import TrailerModal from '@/components/common/TrailerModal.vue'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const route = useRoute()
 const router = useRouter()
 const store = useBookingStore()
 const authStore = useAuthStore()
+const toast = useToastStore()
 
 const movie = ref({})
 const loading = ref(true)
@@ -28,8 +31,6 @@ const myRating = ref(0)
 const hoverRating = ref(0)
 const myComment = ref('')
 const submittingReview = ref(false)
-const reviewError = ref('')
-const reviewSuccess = ref('')
 
 const fetchReviews = async (movieId) => {
   try {
@@ -41,14 +42,12 @@ const fetchReviews = async (movieId) => {
 }
 
 const submitReview = async () => {
-  reviewError.value = ''
-  reviewSuccess.value = ''
   if (!authStore.isAuthenticated || !authStore.user?.id) {
-    reviewError.value = 'Vui lòng đăng nhập để gửi đánh giá.'
+    toast.warning('Vui lòng đăng nhập để gửi đánh giá.')
     return
   }
   if (myRating.value < 1) {
-    reviewError.value = 'Vui lòng chọn số sao đánh giá.'
+    toast.warning('Vui lòng chọn số sao đánh giá.')
     return
   }
   submittingReview.value = true
@@ -59,11 +58,11 @@ const submitReview = async () => {
       rating: myRating.value,
       comment: myComment.value
     })
-    reviewSuccess.value = 'Cảm ơn bạn đã đánh giá!'
+    toast.success('Cảm ơn bạn đã đánh giá!')
     myComment.value = ''
     await fetchReviews(route.params.id)
   } catch (err) {
-    reviewError.value = err.response?.data?.message || 'Gửi đánh giá thất bại.'
+    toast.error(friendlyError(err, 'Gửi đánh giá thất bại.'))
   } finally {
     submittingReview.value = false
   }
@@ -417,9 +416,6 @@ const groupShowtimesByFormat = (showtimes) => {
           </div>
           <textarea v-model="myComment" rows="3" placeholder="Viết nhận xét của bạn về bộ phim..."
                     class="w-full bg-[#262626] border border-white/10 rounded-lg p-4 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#f5c518]/50 transition-colors"></textarea>
-
-          <div v-if="reviewError" class="mt-3 text-xs text-red-400 font-semibold">{{ reviewError }}</div>
-          <div v-if="reviewSuccess" class="mt-3 text-xs text-green-400 font-semibold">{{ reviewSuccess }}</div>
 
           <div class="flex justify-end mt-4">
             <button @click="submitReview" :disabled="submittingReview"

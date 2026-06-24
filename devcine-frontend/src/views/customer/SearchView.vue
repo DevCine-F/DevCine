@@ -3,7 +3,10 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { movieApi } from '@/api/customer/index'
 import api from '@/api/axios'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
+const toast = useToastStore()
 const query = ref('')
 const results = ref([])
 const isLoading = ref(false)
@@ -30,6 +33,7 @@ const runSearch = async (keyword) => {
   } catch (e) {
     console.error('Tìm kiếm thất bại', e)
     results.value = []
+    toast.error(friendlyError(e, 'Tìm kiếm thất bại, vui lòng thử lại.'))
   } finally {
     isLoading.value = false
   }

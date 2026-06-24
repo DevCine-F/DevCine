@@ -3,10 +3,13 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import api from '@/api/axios'
 import { useBookingStore } from '@/stores/booking'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const route = useRoute()
 const router = useRouter()
 const store = useBookingStore()
+const toast = useToastStore()
 
 const cinemaId = Number(route.params.id)
 const cinema = ref(null)
@@ -45,6 +48,7 @@ const fetchAll = async () => {
     if (availableDates.value.length) selectedDate.value = availableDates.value[0]
   } catch (e) {
     console.error('Lỗi tải chi tiết rạp', e)
+    toast.error(friendlyError(e, 'Không tải được thông tin rạp.'))
   } finally {
     loading.value = false
   }

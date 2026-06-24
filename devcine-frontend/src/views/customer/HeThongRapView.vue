@@ -2,7 +2,10 @@
 import { ref, onMounted, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
+const toast = useToastStore()
 const cinemas = ref([])
 const loading = ref(true)
 const selectedCity = ref('Tất cả')
@@ -16,6 +19,7 @@ const fetchCinemas = async () => {
     cinemas.value = data
   } catch (error) {
     console.error('Error fetching cinemas:', error)
+    toast.error(friendlyError(error, 'Không tải được danh sách rạp.'))
   } finally {
     loading.value = false
   }

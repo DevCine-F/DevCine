@@ -2,14 +2,15 @@
 import { ref, onMounted, computed } from 'vue'
 import { customerApi } from '@/api/customer'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 import BookingHistoryView from './BookingHistoryView.vue'
 
 const authStore = useAuthStore()
+const toast = useToastStore()
 const customer = ref(null)
 const isLoading = ref(true)
 const isSaving = ref(false)
-const saveSuccess = ref(false)
-const saveError = ref('')
 const isEditing = ref(false)
 const editForm = ref({ fullName: '', phone: '', dob: '' })
 
@@ -22,6 +23,7 @@ const fetchProfile = async () => {
     editForm.value = { fullName: data.fullName || '', phone: data.phone || '', dob: data.dob || '' }
   } catch (err) {
     console.error('Failed to fetch profile', err)
+    toast.error(friendlyError(err, 'Không tải được thông tin hồ sơ.'))
   } finally {
     isLoading.value = false
   }
@@ -29,16 +31,13 @@ const fetchProfile = async () => {
 
 const handleSaveProfile = async () => {
   isSaving.value = true
-  saveSuccess.value = false
-  saveError.value = ''
   try {
     const res = await customerApi.updateProfile(authStore.user.id, editForm.value)
     customer.value = res.data.data
     isEditing.value = false
-    saveSuccess.value = true
-    setTimeout(() => { saveSuccess.value = false }, 3000)
+    toast.success('Cập nhật hồ sơ thành công.')
   } catch (err) {
-    saveError.value = err.response?.data?.message || 'Cập nhật thất bại.'
+    toast.error(friendlyError(err, 'Cập nhật thất bại.'))
   } finally {
     isSaving.value = false
   }
@@ -189,14 +188,6 @@ const tierInfo = computed(() => {
           </div>
         </div>
 
-        <!-- Success / Error banners -->
-        <div v-if="saveSuccess" class="mt-4 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded text-green-400 text-xs font-semibold flex items-center gap-2">
-          <span class="material-symbols-outlined text-sm">check_circle</span> Cập nhật hồ sơ thành công.
-        </div>
-        <div v-if="saveError" class="mt-4 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-xs font-semibold flex items-center gap-2">
-          <span class="material-symbols-outlined text-sm">error</span> {{ saveError }}
-        </div>
-
         <!-- Edit Form -->
         <div v-if="isEditing" class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -223,7 +214,7 @@ const tierInfo = computed(() => {
               <span class="material-symbols-outlined text-sm">edit</span> Chỉnh sửa
             </button>
             <template v-else>
-              <button @click="isEditing = false; saveError = ''" class="text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant">Huỷ</button>
+              <button @click="isEditing = false" class="text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant">Huỷ</button>
               <button @click="handleSaveProfile" :disabled="isSaving" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 bg-primary-container text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60">
                 <span v-if="isSaving" class="material-symbols-outlined text-sm animate-spin">autorenew</span>
                 <span v-else class="material-symbols-outlined text-sm">save</span>
