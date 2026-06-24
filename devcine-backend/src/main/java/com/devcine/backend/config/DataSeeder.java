@@ -430,6 +430,29 @@ public class DataSeeder {
                 }
             }
 
+            // Backfill trailer chính thức cho phim mẫu (idempotent — chỉ ghi khi đang trống,
+            // KHÔNG đè trailer admin tự nhập). Link trailer chính thức trên YouTube.
+            {
+                java.util.Map<String, String> trailerBySlug = java.util.Map.of(
+                        "mai-2024", "https://www.youtube.com/watch?v=EX6clvId19s",
+                        "lat-mat-7-mot-dieu-uoc", "https://www.youtube.com/watch?v=d1ZHdosjNX8",
+                        "dao-pho-va-piano", "https://www.youtube.com/watch?v=qn1t_biQigc",
+                        "dune-part-two", "https://www.youtube.com/watch?v=WUBQdC__fC4",
+                        "kung-fu-panda-4", "https://www.youtube.com/watch?v=_inKs4eeHiI",
+                        "godzilla-x-kong", "https://www.youtube.com/watch?v=lV1OOlGwExM");
+                List<Movie> trailerUpdates = new java.util.ArrayList<>();
+                trailerBySlug.forEach((slug, url) -> movieRepository.findBySlug(slug).ifPresent(m -> {
+                    if (m.getTrailerUrl() == null || m.getTrailerUrl().isBlank()) {
+                        m.setTrailerUrl(url);
+                        trailerUpdates.add(m);
+                    }
+                }));
+                if (!trailerUpdates.isEmpty()) {
+                    movieRepository.saveAll(trailerUpdates);
+                    System.out.println("Đã cập nhật trailer cho " + trailerUpdates.size() + " phim mẫu.");
+                }
+            }
+
             // Seed lịch chiếu mẫu MỘT LẦN (cờ DEMO_SCHEDULE_SEEDED) — dùng riêng các phim mẫu,
             // dọn các suất sắp tới cũ (dữ liệu test lẫn lộn) rồi tạo lịch 3 ngày sạch sẽ.
             boolean demoScheduleSeeded = systemSettingRepository.findById("DEMO_SCHEDULE_SEEDED").isPresent();

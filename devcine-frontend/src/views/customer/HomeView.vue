@@ -3,10 +3,12 @@ import { ref, onMounted, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
 import { formatDate, formatDateDot } from '@/utils/format'
+import TrailerModal from '@/components/common/TrailerModal.vue'
 
 
 const movies = ref([])
 const loading = ref(true)
+const showTrailer = ref(false)
 
 const fetchMovies = async () => {
   try {
@@ -51,7 +53,7 @@ const getGenreNames = (movie) => {
           {{ featuredMovie.description || 'Trải nghiệm điện ảnh đỉnh cao cùng những siêu phẩm bom tấn tại DevCine.' }}
         </p>
         <div class="flex items-center space-x-4">
-          <button class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center space-x-3 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
+          <button v-if="featuredMovie.trailerUrl" @click="showTrailer = true" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center space-x-3 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
             <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
             <span>XEM TRAILER</span>
           </button>
@@ -304,5 +306,8 @@ const getGenreNames = (movie) => {
         </div>
       </section>
     </main>
+
+    <!-- Modal Trailer phim nổi bật -->
+    <TrailerModal :show="showTrailer" :url="featuredMovie?.trailerUrl" @close="showTrailer = false" />
   </div>
 </template>

@@ -3,8 +3,9 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { useAuthStore } from '@/stores/auth'
 import { reviewApi } from '@/api/customer/index'
-import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import api from '@/api/axios'
+import TrailerModal from '@/components/common/TrailerModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,7 +91,6 @@ const formatDateForUI = (dateString) => {
 }
 
 onMounted(async () => {
-  window.addEventListener('keydown', handleKeydown)
   const movieId = route.params.id || 1
 
   const fetchMovieData = api.get(`/movies/${movieId}`)
@@ -124,20 +124,7 @@ const onCityChange = async () => {
   }
 }
 
-// Trailer: chuẩn hoá link YouTube (watch?v= / youtu.be / embed) sang dạng nhúng
-const trailerEmbedUrl = computed(() => {
-  const url = movie.value?.trailerUrl
-  if (!url) return ''
-  let m = url.match(/youtu\.be\/([\w-]+)/)
-  if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1`
-  m = url.match(/[?&]v=([\w-]+)/)
-  if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1`
-  return url // đã là embed hoặc link trực tiếp
-})
-
 const openTrailer = () => { showTrailer.value = true }
-const closeTrailer = () => { showTrailer.value = false }
-const handleKeydown = (e) => { if (e.key === 'Escape') closeTrailer() }
 
 // Thể loại phim (gộp tên các Category) cho khối "Chi tiết nội dung"
 const genreText = computed(() => {
@@ -160,10 +147,6 @@ const visibleCinemas = computed(() =>
     return hasDate && matchCinema
   })
 )
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
 
 const selectShowtime = (showtime, cinema) => {
   store.setMovie(movie.value)
@@ -475,14 +458,7 @@ const groupShowtimesByFormat = (showtimes) => {
     </section>
 
     <!-- Modal Trailer -->
-    <div v-if="showTrailer" @click.self="closeTrailer" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="relative w-full max-w-[960px] aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
-        <button @click="closeTrailer" class="absolute -top-11 right-0 md:top-3 md:right-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-[#f5c518] hover:text-black transition-colors">
-          <span class="material-symbols-outlined">close</span>
-        </button>
-        <iframe v-if="trailerEmbedUrl" :src="trailerEmbedUrl" class="w-full h-full" frameborder="0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
-      </div>
-    </div>
+    <TrailerModal :show="showTrailer" :url="movie.trailerUrl" @close="showTrailer = false" />
   </main>
 </template>
 

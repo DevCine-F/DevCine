@@ -17,6 +17,7 @@ public class MovieSummaryDTO {
     private String country;
     private String status;
     private String posterUrl;
+    private String trailerUrl;
     private java.time.LocalDate releaseDate;
     private java.time.LocalDate endDate;
     private String ageRating;

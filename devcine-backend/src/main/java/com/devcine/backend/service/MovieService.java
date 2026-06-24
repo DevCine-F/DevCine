@@ -73,6 +73,7 @@ public class MovieService {
                 .country(movie.getCountry())
                 .status(movie.getStatus())
                 .posterUrl(movie.getPosterUrl())
+                .trailerUrl(movie.getTrailerUrl())
                 .releaseDate(movie.getReleaseDate())
                 .endDate(movie.getEndDate())
                 .ageRating(movie.getAgeRating())
