@@ -1,11 +1,14 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
 
 // Composables
 import { useCinemas } from "@/composables/useCinemas";
 import { useShowtimes } from "@/composables/useShowtimes";
 import { useSeatLayout } from "@/composables/useSeatLayout";
+import { useToastStore } from "@/stores/toast";
+
+const toast = useToastStore();
 
 // Organisms
 import CinemaCard from "@/components/organisms/admin/CinemaCard.vue";
@@ -82,6 +85,32 @@ const tabs = [
   { id: "config", label: "Cấu hình", icon: "settings" },
 ];
 
+// ===== Bộ lọc theo địa điểm (Tỉnh/TP + Quận/Huyện) =====
+const filterCity = ref("Tất cả");
+const filterDistrict = ref("Tất cả");
+
+const cityOptions = computed(() => {
+  const set = new Set(cinemas.value.map(c => c.city).filter(Boolean));
+  return ["Tất cả", ...Array.from(set)];
+});
+
+const districtOptions = computed(() => {
+  const pool = filterCity.value === "Tất cả"
+    ? cinemas.value
+    : cinemas.value.filter(c => c.city === filterCity.value);
+  const set = new Set(pool.map(c => c.district).filter(Boolean));
+  return ["Tất cả", ...Array.from(set)];
+});
+
+// Đổi tỉnh thì reset quận
+watch(filterCity, () => { filterDistrict.value = "Tất cả"; });
+
+const filteredCinemas = computed(() => cinemas.value.filter(c => {
+  const matchCity = filterCity.value === "Tất cả" || c.city === filterCity.value;
+  const matchDistrict = filterDistrict.value === "Tất cả" || c.district === filterDistrict.value;
+  return matchCity && matchDistrict;
+}));
+
 const openCinemaDetail = (cinema) => {
   selectedCinema.value = cinema;
 };
@@ -100,6 +129,15 @@ const showSeatMapModal = ref(false);
 const openShowtimeDetails = (show) => {
   selectedShowtime.value = show;
   showDrawer.value = true;
+};
+
+// Chỉ mở drawer Thêm suất chiếu khi cụm rạp đã có phòng chiếu
+const handleAddShowtime = () => {
+  if (!selectedCinema.value?.halls || selectedCinema.value.halls.length === 0) {
+    toast.warning("Cụm rạp chưa có phòng chiếu. Vui lòng thêm phòng ở tab \"Phòng chiếu\" trước.");
+    return;
+  }
+  showAddShowtimeDrawer.value = true;
 };
 
 const closeDrawer = () => {
@@ -167,13 +205,41 @@ const showCleaningSettingsModal = ref(false);
         </button>
       </header>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Bộ lọc theo địa điểm -->
+      <div class="flex flex-wrap items-center gap-4 mb-8">
+        <span class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+          <span class="material-symbols-outlined text-base text-primary">filter_alt</span> Lọc theo địa điểm
+        </span>
+        <div class="relative">
+          <select v-model="filterCity" class="bg-surface-container-high border border-outline-variant/20 text-sm text-on-surface rounded-xl pl-4 pr-9 py-2.5 outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer">
+            <option v-for="city in cityOptions" :key="city" :value="city" class="bg-surface-container-high">{{ city === 'Tất cả' ? 'Tất cả Tỉnh/TP' : city }}</option>
+          </select>
+          <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">expand_more</span>
+        </div>
+        <div class="relative">
+          <select v-model="filterDistrict" class="bg-surface-container-high border border-outline-variant/20 text-sm text-on-surface rounded-xl pl-4 pr-9 py-2.5 outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer">
+            <option v-for="d in districtOptions" :key="d" :value="d" class="bg-surface-container-high">{{ d === 'Tất cả' ? 'Tất cả Quận/Huyện' : d }}</option>
+          </select>
+          <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">expand_more</span>
+        </div>
+        <button v-if="filterCity !== 'Tất cả' || filterDistrict !== 'Tất cả'" @click="filterCity = 'Tất cả'; filterDistrict = 'Tất cả'"
+          class="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline">Xoá lọc</button>
+        <span class="ml-auto text-xs text-on-surface-variant">{{ filteredCinemas.length }} cụm rạp</span>
+      </div>
+
+      <div v-if="filteredCinemas.length" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <CinemaCard
-          v-for="cinema in cinemas"
+          v-for="cinema in filteredCinemas"
           :key="cinema.id"
           :cinema="cinema"
           @click="openCinemaDetail(cinema)"
         />
+      </div>
+
+      <!-- Không khớp bộ lọc -->
+      <div v-else class="text-center py-20 bg-surface-container-low rounded-2xl border border-outline-variant/10">
+        <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-3 block">location_off</span>
+        <p class="text-on-surface-variant">Không có cụm rạp nào ở địa điểm này.</p>
       </div>
     </div>
 
@@ -237,7 +303,7 @@ const showCleaningSettingsModal = ref(false);
             :get-end-time="getEndTime"
             @update:selectedDate="(d) => selectedDate = d"
             @open-settings="showCleaningSettingsModal = true"
-            @add-showtime="showAddShowtimeDrawer = true"
+            @add-showtime="handleAddShowtime"
             @publish="handlePublish"
             @dragstart="onDragStart"
             @drop="onDrop"
