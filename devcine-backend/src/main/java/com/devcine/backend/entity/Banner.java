@@ -24,6 +24,15 @@ public class Banner {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    // Chế độ hiển thị: IMAGE = ảnh nguyên bản admin upload; MOVIE = dựng theo thông tin phim
+    @Column(name = "mode", length = 20)
+    @Builder.Default
+    private String mode = "IMAGE";
+
+    // ID phim được chọn khi mode = MOVIE
+    @Column(name = "movie_id")
+    private Integer movieId;
+
     @Column(length = 50)
     private String placement;
 

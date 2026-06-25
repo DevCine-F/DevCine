@@ -56,6 +56,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/marketing/promotions/active").permitAll()
                 // Tin khuyến mãi — GET công khai (ghi vẫn được @PreAuthorize bảo vệ); /all yêu cầu auth
                 .requestMatchers(HttpMethod.GET, "/api/promo-articles", "/api/promo-articles/*").permitAll()
+                // Banner trang chủ — chỉ endpoint /active công khai; CRUD vẫn cần auth + @PreAuthorize
+                .requestMatchers(HttpMethod.GET, "/api/banners/active").permitAll()
                 .requestMatchers("/api/payment/vnpay_return").permitAll()
                 .requestMatchers("/api/system/**").permitAll()
                 .requestMatchers("/api/upload/**").permitAll()

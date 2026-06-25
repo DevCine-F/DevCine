@@ -23,6 +23,12 @@ public class BannerController {
         return ResponseEntity.ok(bannerRepository.findAllByOrderByIdDesc());
     }
 
+    // Công khai: banner đang hiển thị cho khách (đang bật + còn hạn), dùng cho trang chủ.
+    @GetMapping("/active")
+    public ResponseEntity<?> getActiveBanners(@RequestParam(defaultValue = "HOME") String placement) {
+        return ResponseEntity.ok(bannerRepository.findActiveBanners(placement, LocalDateTime.now()));
+    }
+
     @PostMapping
     @PreAuthorize("@perm.can('banners','add')")
     public ResponseEntity<?> createBanner(@RequestBody Map<String, Object> body) {
@@ -31,6 +37,8 @@ public class BannerController {
                     .title((String) body.get("title"))
                     .imageUrl((String) body.get("imageUrl"))
                     .link((String) body.get("link"))
+                    .mode((String) body.getOrDefault("mode", "IMAGE"))
+                    .movieId(body.get("movieId") != null ? ((Number) body.get("movieId")).intValue() : null)
                     .placement((String) body.getOrDefault("placement", "HOME"))
                     .isActive(body.get("isActive") == null || Boolean.TRUE.equals(body.get("isActive")))
                     .displayOrder(body.get("order") != null ? ((Number) body.get("order")).intValue() : 0)
@@ -54,6 +62,8 @@ public class BannerController {
             if (body.containsKey("title")) banner.setTitle((String) body.get("title"));
             if (body.containsKey("imageUrl")) banner.setImageUrl((String) body.get("imageUrl"));
             if (body.containsKey("link")) banner.setLink((String) body.get("link"));
+            if (body.containsKey("mode")) banner.setMode((String) body.get("mode"));
+            if (body.containsKey("movieId")) banner.setMovieId(body.get("movieId") != null ? ((Number) body.get("movieId")).intValue() : null);
             if (body.containsKey("placement")) banner.setPlacement((String) body.get("placement"));
             if (body.containsKey("isActive")) banner.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
             if (body.containsKey("order")) banner.setDisplayOrder(((Number) body.get("order")).intValue());

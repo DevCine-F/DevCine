@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { promoArticleApi } from '@/api/customer/index'
 import { formatDate, formatDateDot } from '@/utils/format'
@@ -9,10 +9,91 @@ import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
 const toast = useToastStore()
+const router = useRouter()
 const movies = ref([])
 const loading = ref(true)
 const showTrailer = ref(false)
 const promoArticles = ref([])
+
+// ===== Hero carousel: banner admin (2 chế độ) + fallback phim đang chiếu =====
+const currentSlide = ref(0)
+const activeTrailer = ref(null)
+const banners = ref([])
+const bannerMovies = ref({}) // movieId -> chi tiết phim (cho banner chế độ MOVIE)
+let slideTimer = null
+
+const goToSlide = (i) => {
+  const n = slides.value.length
+  if (!n) return
+  currentSlide.value = (i + n) % n
+  restartAutoSlide()
+}
+const nextSlide = () => goToSlide(currentSlide.value + 1)
+const prevSlide = () => goToSlide(currentSlide.value - 1)
+
+// Thời gian dừng ở mỗi slide: slide phát trailer nền -> 15s; còn lại -> 8s
+const slideDelay = () => {
+  const s = slides.value[currentSlide.value]
+  return (canPlayBg && s && s.kind === 'movie' && ytId(s.movie?.trailerUrl)) ? 15000 : 8000
+}
+const restartAutoSlide = () => {
+  clearTimeout(slideTimer)
+  if (slides.value.length > 1) {
+    slideTimer = setTimeout(() => {
+      currentSlide.value = (currentSlide.value + 1) % slides.value.length
+      restartAutoSlide()
+    }, slideDelay())
+  }
+}
+
+const openTrailer = (movie) => {
+  if (!movie?.trailerUrl) return
+  activeTrailer.value = movie
+  showTrailer.value = true
+}
+
+// ===== Trailer nền (background video) cho slide phim =====
+const showVideo = ref(false)   // true sau khi ảnh hiện ~1.2s -> trailer mờ vào
+const muted = ref(true)
+const videoEl = ref(null)
+const setVideoRef = (el) => { videoEl.value = el }
+const canPlayBg = typeof window !== 'undefined' && !window.matchMedia('(max-width: 768px)').matches
+let videoTimer = null
+
+const ytId = (url) => {
+  if (!url) return ''
+  let m = url.match(/youtu\.be\/([\w-]+)/); if (m) return m[1]
+  m = url.match(/[?&]v=([\w-]+)/); if (m) return m[1]
+  m = url.match(/embed\/([\w-]+)/); if (m) return m[1]
+  return ''
+}
+const bgTrailerUrl = (movie) => {
+  const id = ytId(movie?.trailerUrl)
+  if (!id) return ''
+  return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&enablejsapi=1&iv_load_policy=3&fs=0`
+}
+
+// Mỗi khi đổi slide: ẩn video, reset tiếng, hẹn hiện lại nếu slide là phim có trailer (desktop)
+const maybeStartVideo = () => {
+  showVideo.value = false
+  muted.value = true
+  clearTimeout(videoTimer)
+  const s = slides.value[currentSlide.value]
+  if (canPlayBg && s && s.kind === 'movie' && ytId(s.movie?.trailerUrl)) {
+    videoTimer = setTimeout(() => { showVideo.value = true }, 1200)
+  }
+}
+watch(currentSlide, maybeStartVideo)
+
+const toggleSound = () => {
+  muted.value = !muted.value
+  const win = videoEl.value?.contentWindow
+  if (!win) return
+  win.postMessage(JSON.stringify({ event: 'command', func: muted.value ? 'mute' : 'unMute', args: [] }), '*')
+  if (!muted.value) win.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [70] }), '*')
+}
+
+onUnmounted(() => { clearTimeout(slideTimer); clearTimeout(videoTimer) })
 
 const fetchPromoArticles = async () => {
   try {
@@ -35,14 +116,48 @@ const fetchMovies = async () => {
   }
 }
 
-onMounted(() => {
-  fetchMovies()
+const fetchBanners = async () => {
+  try {
+    const { data } = await api.get('/banners/active')
+    banners.value = Array.isArray(data) ? data : (data.data ?? [])
+    // Tải chi tiết phim cho các banner chế độ MOVIE
+    const movieIds = [...new Set(banners.value.filter(b => b.mode === 'MOVIE' && b.movieId).map(b => b.movieId))]
+    const results = await Promise.allSettled(movieIds.map(id => api.get(`/movies/${id}`)))
+    const map = {}
+    results.forEach((r, idx) => { if (r.status === 'fulfilled') map[movieIds[idx]] = r.value.data })
+    bannerMovies.value = map
+  } catch (error) {
+    console.error('Không tải được banner', error)
+  }
+}
+
+onMounted(async () => {
   fetchPromoArticles()
+  await Promise.all([fetchMovies(), fetchBanners()])
+  restartAutoSlide()
+  maybeStartVideo()
 })
 
 const nowShowingMovies = computed(() => movies.value.filter(m => m.status === 'active'))
 const upcomingMovies = computed(() => movies.value.filter(m => m.status === 'upcoming'))
-const featuredMovie = computed(() => nowShowingMovies.value[0] || movies.value[0])
+
+// Slide hợp nhất: ưu tiên banner admin; nếu chưa có banner nào -> fallback phim đang chiếu
+const slides = computed(() => {
+  if (banners.value.length) {
+    return banners.value
+      .map(b => b.mode === 'MOVIE'
+        ? (bannerMovies.value[b.movieId] ? { kind: 'movie', key: `b${b.id}`, movie: bannerMovies.value[b.movieId] } : null)
+        : { kind: 'image', key: `b${b.id}`, imageUrl: b.imageUrl, link: b.link, title: b.title })
+      .filter(Boolean)
+  }
+  return nowShowingMovies.value.slice(0, 6).map(m => ({ kind: 'movie', key: `m${m.id}`, movie: m }))
+})
+
+const onImageBannerClick = (link) => {
+  if (!link) return
+  if (/^https?:\/\//i.test(link)) window.open(link, '_blank', 'noopener')
+  else router.push(link)
+}
 
 const getGenreNames = (movie) => {
   if (!movie.genres) return 'ĐANG CẬP NHẬT'
@@ -52,31 +167,93 @@ const getGenreNames = (movie) => {
 
 <template>
   <div>
-    <!-- Hero Banner -->
-    <section v-if="featuredMovie" class="relative h-screen w-full overflow-hidden">
-      <div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 scale-105" 
-           :style="{ backgroundImage: `url(${featuredMovie.posterUrl || '/images/Hopper.webp'})` }">
-        <div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent"></div>
-        <div class="absolute inset-0 bg-gradient-to-r from-surface via-transparent to-transparent"></div>
-      </div>
-      <div class="relative z-10 h-full flex flex-col justify-center px-10 max-w-[1440px] mx-auto">
-        <span class="text-primary-container font-label text-xs font-bold tracking-[0.2em] mb-4 uppercase">ĐANG CHIẾU TẠI RẠP</span>
-        <h1 class="font-headline text-7xl md:text-8xl font-extrabold text-white tracking-tighter mb-6 leading-none max-w-3xl uppercase">
-          {{ featuredMovie.titleVietnamese || featuredMovie.title }}
-        </h1>
-        <p class="text-on-surface-variant text-lg max-w-xl mb-10 leading-relaxed font-body line-clamp-3">
-          {{ featuredMovie.description || 'Trải nghiệm điện ảnh đỉnh cao cùng những siêu phẩm bom tấn tại DevCine.' }}
-        </p>
-        <div class="flex items-center space-x-4">
-          <button v-if="featuredMovie.trailerUrl" @click="showTrailer = true" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center space-x-3 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
-            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-            <span>XEM TRAILER</span>
-          </button>
-          <router-link :to="`/movie/${featuredMovie.id}`" class="border border-outline-variant text-white px-10 py-4 rounded-lg font-headline font-bold hover:bg-white/10 active:scale-95 transition-all inline-block">
-            ĐẶT VÉ NGAY
-          </router-link>
+    <!-- Hero carousel full màn hình: banner ảnh (nguyên bản) hoặc banner theo phim -->
+    <section v-if="slides.length" class="relative h-screen w-full overflow-hidden group/hero">
+      <div class="flex h-full transition-transform duration-500 ease-out" :style="{ transform: `translateX(-${currentSlide * 100}%)` }">
+        <div v-for="(slide, i) in slides" :key="slide.key" class="relative w-full h-full shrink-0 overflow-hidden">
+
+          <!-- CHẾ ĐỘ ẢNH: hiển thị nguyên ảnh, không phủ chữ -->
+          <template v-if="slide.kind === 'image'">
+            <img :src="slide.imageUrl" :alt="slide.title || 'Banner'"
+                 class="w-full h-full object-cover" :class="slide.link ? 'cursor-pointer' : ''"
+                 @click="onImageBannerClick(slide.link)" />
+          </template>
+
+          <!-- CHẾ ĐỘ THEO PHIM: backdrop phủ kín màn, chữ dồn bên trái (kiểu Chiếu Phim Quốc Gia) -->
+          <template v-else>
+            <!-- Nền: ưu tiên ảnh ngang (bannerUrl); nếu chỉ có poster dọc thì làm mờ cho đỡ vỡ -->
+            <div class="absolute inset-0 bg-cover bg-center"
+                 :class="slide.movie.bannerUrl ? 'scale-105' : 'blur-xl scale-110 opacity-70'"
+                 :style="{ backgroundImage: `url(${slide.movie.bannerUrl || slide.movie.posterUrl || '/images/Hopper.webp'})` }"></div>
+
+            <!-- Trailer nền: chỉ slide active + có trailer + desktop; ảnh hiện trước rồi video mờ vào -->
+            <div v-if="i === currentSlide && showVideo && bgTrailerUrl(slide.movie)"
+                 class="absolute inset-0 overflow-hidden transition-opacity duration-700"
+                 :class="showVideo ? 'opacity-100' : 'opacity-0'">
+              <iframe :ref="setVideoRef" :src="bgTrailerUrl(slide.movie)"
+                      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-screen h-[56.25vw] min-h-screen min-w-[177.78vh] pointer-events-none"
+                      frameborder="0" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            </div>
+
+            <div class="absolute inset-0 bg-gradient-to-r from-surface via-surface/85 to-surface/20"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-transparent"></div>
+
+            <div class="relative z-10 h-full flex items-center px-10 md:px-16 max-w-[1440px] mx-auto">
+              <div class="max-w-xl">
+                <span class="text-primary-container font-label text-xs font-bold tracking-[0.2em] mb-4 uppercase block">Đang chiếu tại rạp</span>
+                <router-link :to="`/movie/${slide.movie.id}`" class="block">
+                  <h1 class="font-headline text-5xl md:text-7xl font-extrabold text-white tracking-tighter mb-5 leading-none uppercase line-clamp-2 hover:text-primary-container transition-colors">
+                    {{ slide.movie.titleVietnamese || slide.movie.title }}
+                  </h1>
+                </router-link>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-on-surface-variant text-sm mb-4">
+                  <span v-if="slide.movie.genres && slide.movie.genres.length" class="text-primary-container font-bold uppercase tracking-wide text-xs">{{ getGenreNames(slide.movie) }}</span>
+                  <span v-if="slide.movie.country">{{ slide.movie.country }}</span>
+                  <span v-if="slide.movie.durationMins" class="flex items-center gap-1"><span class="material-symbols-outlined text-base">schedule</span>{{ slide.movie.durationMins }} phút</span>
+                  <span v-if="slide.movie.ageRating" class="bg-error-container text-white text-[10px] font-bold px-2 py-0.5 rounded">{{ slide.movie.ageRating }}</span>
+                </div>
+                <p v-if="slide.movie.director" class="text-sm text-on-surface-variant mb-1"><span class="text-on-surface-variant/60">Đạo diễn:</span> {{ slide.movie.director }}</p>
+                <p v-if="slide.movie.castMembers" class="text-sm text-on-surface-variant mb-4 line-clamp-1"><span class="text-on-surface-variant/60">Diễn viên:</span> {{ slide.movie.castMembers }}</p>
+                <p v-if="slide.movie.description" class="text-base text-on-surface-variant/90 leading-relaxed line-clamp-3 mb-4">{{ slide.movie.description }}</p>
+                <p v-if="slide.movie.releaseDate" class="text-sm text-on-surface-variant mb-8"><span class="text-on-surface-variant/60">Khởi chiếu:</span> {{ formatDateDot(slide.movie.releaseDate) }}</p>
+                <div class="flex items-center gap-4 flex-wrap">
+                  <router-link :to="`/movie/${slide.movie.id}`" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
+                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">confirmation_number</span> MUA VÉ NGAY
+                  </router-link>
+                  <button v-if="slide.movie.trailerUrl" @click="openTrailer(slide.movie)" class="border border-outline-variant text-white px-10 py-4 rounded-lg font-headline font-bold hover:bg-white/10 active:scale-95 transition-all flex items-center gap-2">
+                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span> TRAILER
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
+
+      <!-- Mũi tên 2 lề -->
+      <template v-if="slides.length > 1">
+        <button @click="prevSlide" aria-label="Slide trước"
+                class="absolute left-6 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-black/30 backdrop-blur border border-white/10 text-white flex items-center justify-center opacity-60 hover:opacity-100 hover:bg-primary-container hover:text-on-primary transition-all">
+          <span class="material-symbols-outlined">chevron_left</span>
+        </button>
+        <button @click="nextSlide" aria-label="Slide sau"
+                class="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-black/30 backdrop-blur border border-white/10 text-white flex items-center justify-center opacity-60 hover:opacity-100 hover:bg-primary-container hover:text-on-primary transition-all">
+          <span class="material-symbols-outlined">chevron_right</span>
+        </button>
+      </template>
+
+      <!-- Chấm chỉ slide -->
+      <div v-if="slides.length > 1" class="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex gap-2.5">
+        <button v-for="(slide, i) in slides" :key="slide.key" @click="goToSlide(i)" :aria-label="`Slide ${i + 1}`"
+                class="h-2 rounded-full transition-all"
+                :class="i === currentSlide ? 'w-8 bg-primary-container' : 'w-2 bg-white/40 hover:bg-white/70'"></button>
+      </div>
+
+      <!-- Nút bật/tắt tiếng trailer nền -->
+      <button v-if="showVideo" @click="toggleSound" :aria-label="muted ? 'Bật tiếng' : 'Tắt tiếng'"
+              class="absolute bottom-9 right-8 z-20 w-11 h-11 rounded-full bg-black/40 backdrop-blur border border-white/10 text-white flex items-center justify-center hover:bg-primary-container hover:text-on-primary transition-all">
+        <span class="material-symbols-outlined">{{ muted ? 'volume_off' : 'volume_up' }}</span>
+      </button>
     </section>
 
     <!-- Main Content Area -->
@@ -139,7 +316,7 @@ const getGenreNames = (movie) => {
           <div v-if="promoArticles[2]" class="glass-card rounded-xl p-4">
             <h3 class="font-headline font-bold text-[#f5c518] mb-3 uppercase text-[10px] line-clamp-1">{{ promoArticles[2].title }}</h3>
             <p class="text-on-surface-variant leading-relaxed mb-4 text-[8px] line-clamp-3">{{ promoArticles[2].description }}</p>
-            <router-link to="/khuyen-mai" class="w-full border border-primary-container text-primary-container font-headline text-[8px] font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-1.5 inline-block text-center">XEM CHI TIẾT</router-link>
+            <router-link :to="`/khuyen-mai/${promoArticles[2].id}`" class="w-full border border-primary-container text-primary-container font-headline text-[8px] font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-1.5 inline-block text-center">XEM CHI TIẾT</router-link>
           </div>
         </aside>
       </div>
@@ -316,6 +493,6 @@ const getGenreNames = (movie) => {
     </main>
 
     <!-- Modal Trailer phim nổi bật -->
-    <TrailerModal :show="showTrailer" :url="featuredMovie?.trailerUrl" @close="showTrailer = false" />
+    <TrailerModal :show="showTrailer" :url="activeTrailer?.trailerUrl" @close="showTrailer = false" />
   </div>
 </template>
