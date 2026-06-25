@@ -110,7 +110,7 @@ public class MailService {
         return """
                 <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
                   <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
-                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine 🎬</div>
+                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
                     <div style="color:#6b5200;font-size:13px;margin-top:4px;">Vé điện tử của bạn đã sẵn sàng</div>
                   </div>
                   <div style="padding:24px;">
