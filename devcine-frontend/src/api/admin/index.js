@@ -50,6 +50,14 @@ export const marketingApi = {
   issueVoucher: (promoId, customerId) => api.post(`/marketing/promotions/${promoId}/issue-voucher`, { customerId }),
 };
 
+export const promoArticleApi = {
+  getAll: () => api.get('/promo-articles/all'),
+  create: (data) => api.post('/promo-articles', data),
+  update: (id, data) => api.put(`/promo-articles/${id}`, data),
+  toggle: (id) => api.patch(`/promo-articles/${id}/toggle`),
+  delete: (id) => api.delete(`/promo-articles/${id}`),
+};
+
 export const customerApi = {
   list: (q) => api.get('/customers', { params: q ? { q } : {} }),
 };

@@ -62,6 +62,11 @@ export const promotionApi = {
   getActive: () => api.get('/marketing/promotions/active'),
 };
 
+export const promoArticleApi = {
+  getActive: () => api.get('/promo-articles'),
+  getDetail: (id) => api.get(`/promo-articles/${id}`),
+};
+
 export const notificationApi = {
   getForCustomer: (customerId) => api.get(`/notifications/customer/${customerId}`),
   getUnreadCount: (customerId) => api.get(`/notifications/customer/${customerId}/unread-count`),

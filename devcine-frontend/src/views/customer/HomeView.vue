@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
+import { promoArticleApi } from '@/api/customer/index'
 import { formatDate, formatDateDot } from '@/utils/format'
 import TrailerModal from '@/components/common/TrailerModal.vue'
 import { useToastStore } from '@/stores/toast'
@@ -11,6 +12,16 @@ const toast = useToastStore()
 const movies = ref([])
 const loading = ref(true)
 const showTrailer = ref(false)
+const promoArticles = ref([])
+
+const fetchPromoArticles = async () => {
+  try {
+    const { data } = await promoArticleApi.getActive()
+    promoArticles.value = Array.isArray(data) ? data : (data.data ?? [])
+  } catch (error) {
+    console.error('Không tải được tin khuyến mãi', error)
+  }
+}
 
 const fetchMovies = async () => {
   try {
@@ -26,6 +37,7 @@ const fetchMovies = async () => {
 
 onMounted(() => {
   fetchMovies()
+  fetchPromoArticles()
 })
 
 const nowShowingMovies = computed(() => movies.value.filter(m => m.status === 'active'))
@@ -112,29 +124,22 @@ const getGenreNames = (movie) => {
 
         <!-- Right Column: Sidebar -->
         <aside class="lg:w-[18%] space-y-12">
-          <div>
+          <div v-if="promoArticles.length">
             <h2 class="font-headline text-lg font-bold tracking-tight mb-8 border-l-4 border-primary-container pl-4 uppercase">KHUYẾN MẠI</h2>
             <div class="space-y-6">
-              <div class="group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
-                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" src="/images/Hopper.webp"/>
+              <RouterLink v-for="promo in promoArticles.slice(0, 2)" :key="promo.id" to="/khuyen-mai" class="block group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
+                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" :src="promo.imageUrl || '/images/Hopper.webp'"/>
                 <div class="p-2.5">
-                  <h4 class="font-headline font-bold text-white uppercase mb-1 text-[9px] leading-tight">COMBO HÈ RỰC RỠ</h4>
-                  <p class="text-on-surface-variant text-[8px] leading-snug">Giảm ngay 20% khi mua kèm 2 vé xem phim.</p>
+                  <h4 class="font-headline font-bold text-white uppercase mb-1 text-[9px] leading-tight line-clamp-1">{{ promo.title }}</h4>
+                  <p class="text-on-surface-variant text-[8px] leading-snug line-clamp-2">{{ promo.description }}</p>
                 </div>
-              </div>
-              <div class="group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge" style="animation-delay: 4s">
-                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" src="/images/Hopper.webp"/>
-                <div class="p-2.5">
-                  <h4 class="font-headline font-bold text-white uppercase mb-1 text-[9px] leading-tight">ƯU ĐÃI HỌC SINH</h4>
-                  <p class="text-on-surface-variant text-[8px] leading-snug">Đồng giá vé chỉ 45k cho HSSV vào ngày thường.</p>
-                </div>
-              </div>
+              </RouterLink>
             </div>
           </div>
-          <div class="glass-card rounded-xl p-4">
-            <h3 class="font-headline font-bold text-[#f5c518] mb-3 uppercase text-[10px]">GIỜ VÀNG GIÁ VÉ</h3>
-            <p class="text-on-surface-variant leading-relaxed mb-4 text-[8px]">Mọi suất chiếu trước 12:00 sáng Thứ Hai đến Thứ Năm chỉ với 50.000 VNĐ.</p>
-            <router-link to="/contact" class="w-full border border-primary-container text-primary-container font-headline text-[8px] font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-1.5 inline-block text-center">XEM CHI TIẾT</router-link>
+          <div v-if="promoArticles[2]" class="glass-card rounded-xl p-4">
+            <h3 class="font-headline font-bold text-[#f5c518] mb-3 uppercase text-[10px] line-clamp-1">{{ promoArticles[2].title }}</h3>
+            <p class="text-on-surface-variant leading-relaxed mb-4 text-[8px] line-clamp-3">{{ promoArticles[2].description }}</p>
+            <router-link to="/khuyen-mai" class="w-full border border-primary-container text-primary-container font-headline text-[8px] font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-1.5 inline-block text-center">XEM CHI TIẾT</router-link>
           </div>
         </aside>
       </div>

@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import api from '@/api/axios'
-import { marketingApi, customerApi } from '@/api/admin/index'
+import { marketingApi, customerApi, promoArticleApi } from '@/api/admin/index'
 import CustomSelect from '@/components/common/CustomSelect.vue'
 
 const filterStatus = ref('all')
@@ -33,35 +33,15 @@ const isVoucherDrawerOpen = ref(false)
 const isComboDrawerOpen = ref(false)
 const isArticleDrawerOpen = ref(false)
 
-const articles = ref([
-  {
-    id: 1,
-    title: 'COMBO HÈ RỰC RỠ',
-    description: 'Giảm ngay 20% khi mua kèm 2 vé xem phim.',
-    image: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=500&auto=format&fit=crop',
-    startDate: '2026-06-01',
-    endDate: '2026-08-31',
-    status: 'active'
-  },
-  {
-    id: 2,
-    title: 'ƯU ĐÃI HỌC SINH',
-    description: 'Đồng giá vé chỉ 45K cho HSSV vào ngày thường.',
-    image: 'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=500&auto=format&fit=crop',
-    startDate: '2026-05-01',
-    endDate: '2026-12-31',
-    status: 'active'
-  },
-  {
-    id: 3,
-    title: 'GIỜ VÀNG GIÁ VÉ',
-    description: 'Mọi suất chiếu trước 12:00 sáng Thứ Hai đến Thứ Năm chỉ với 50.000 VNĐ.',
-    image: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?q=80&w=500&auto=format&fit=crop',
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    status: 'inactive'
-  }
-])
+// ===== Tin khuyến mãi (Promo Articles) — dữ liệu thật =====
+const articles = ref([])
+const isLoadingArticles = ref(false)
+const articleSearch = ref('')
+const editingArticleId = ref(null)
+const isSavingArticle = ref(false)
+const isUploadingArticleImage = ref(false)
+const articleDeleteTarget = ref(null)
+const isDeletingArticle = ref(false)
 
 const newArticle = ref({
   title: '',
@@ -73,9 +53,134 @@ const newArticle = ref({
   status: 'active'
 })
 
+// Lọc theo từ khoá + trạng thái (client-side)
+const filteredArticles = computed(() => {
+  const q = articleSearch.value.trim().toLowerCase()
+  return articles.value.filter(a => {
+    const matchQ = !q || (a.title || '').toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q)
+    const matchStatus = filterStatus.value === 'all'
+      || (filterStatus.value === 'active' && a.status === 'active')
+      || (filterStatus.value === 'inactive' && a.status === 'inactive')
+    return matchQ && matchStatus
+  })
+})
+
+const fetchArticles = async () => {
+  isLoadingArticles.value = true
+  try {
+    const { data } = await promoArticleApi.getAll()
+    articles.value = (Array.isArray(data) ? data : []).map(a => ({
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      image: a.imageUrl,
+      content: a.content,
+      startDate: a.startDate || '',
+      endDate: a.endDate || '',
+      status: a.isActive ? 'active' : 'inactive'
+    }))
+  } catch (err) {
+    showToast('Không thể tải danh sách tin khuyến mãi.', 'error')
+  } finally {
+    isLoadingArticles.value = false
+  }
+}
+
 const openArticleDrawer = () => {
+  editingArticleId.value = null
   newArticle.value = { title: '', description: '', image: '', startDate: '', endDate: '', content: '', status: 'active' }
   isArticleDrawerOpen.value = true
+}
+
+const openEditArticle = (article) => {
+  editingArticleId.value = article.id
+  newArticle.value = {
+    title: article.title || '',
+    description: article.description || '',
+    image: article.image || '',
+    startDate: article.startDate ? String(article.startDate).slice(0, 10) : '',
+    endDate: article.endDate ? String(article.endDate).slice(0, 10) : '',
+    content: article.content || '',
+    status: article.status || 'active'
+  }
+  isArticleDrawerOpen.value = true
+}
+
+// Upload ảnh tin lên Cloudinary qua /api/upload (giống màn Thực đơn F&B)
+const handleArticleImageUpload = async (e) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+  isUploadingArticleImage.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const { data } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    newArticle.value.image = data.url
+    showToast('Tải ảnh lên thành công.')
+  } catch (err) {
+    showToast('Tải ảnh thất bại.', 'error')
+  } finally {
+    isUploadingArticleImage.value = false
+    e.target.value = '' // cho phép chọn lại cùng file
+  }
+}
+
+const handleSaveArticle = async () => {
+  if (!newArticle.value.title?.trim()) {
+    showToast('Vui lòng nhập tiêu đề tin khuyến mãi.', 'error')
+    return
+  }
+  isSavingArticle.value = true
+  try {
+    const payload = {
+      title: newArticle.value.title.trim(),
+      description: newArticle.value.description?.trim() || null,
+      imageUrl: newArticle.value.image || null,
+      content: newArticle.value.content?.trim() || null,
+      startDate: newArticle.value.startDate || null,
+      endDate: newArticle.value.endDate || null,
+      isActive: newArticle.value.status === 'active'
+    }
+    if (editingArticleId.value) {
+      await promoArticleApi.update(editingArticleId.value, payload)
+      showToast('Cập nhật tin khuyến mãi thành công.')
+    } else {
+      await promoArticleApi.create(payload)
+      showToast('Đăng tin khuyến mãi thành công.')
+    }
+    isArticleDrawerOpen.value = false
+    await fetchArticles()
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Lưu tin khuyến mãi thất bại.', 'error')
+  } finally {
+    isSavingArticle.value = false
+  }
+}
+
+const handleToggleArticle = async (article) => {
+  const prev = article.status
+  article.status = prev === 'active' ? 'inactive' : 'active' // optimistic
+  try {
+    await promoArticleApi.toggle(article.id)
+  } catch (err) {
+    article.status = prev // revert nếu lỗi
+    showToast('Đổi trạng thái thất bại.', 'error')
+  }
+}
+
+const confirmDeleteArticle = async () => {
+  if (!articleDeleteTarget.value) return
+  isDeletingArticle.value = true
+  try {
+    await promoArticleApi.delete(articleDeleteTarget.value.id)
+    showToast('Đã xoá tin khuyến mãi.')
+    articleDeleteTarget.value = null
+    await fetchArticles()
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Xoá thất bại.', 'error')
+  } finally {
+    isDeletingArticle.value = false
+  }
 }
 
 
@@ -149,9 +254,6 @@ const openComboDrawer = () => {
   isComboDrawerOpen.value = true
 }
 
-const toggleStatus = (item) => {
-  item.status = item.status === 'Active' || item.status === 'active' ? 'inactive' : 'active'
-}
 
 // Toast
 const toast = ref({ show: false, type: 'success', message: '' })
@@ -336,6 +438,7 @@ const fetchMarketingData = async () => {
 
 onMounted(async () => {
   fetchMarketingData()
+  fetchArticles()
   try {
     const { data } = await api.get('/movies')
     moviesList.value = Array.isArray(data) ? data : []
@@ -531,7 +634,7 @@ onUnmounted(() => {
       <div class="flex justify-between items-center bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
         <div class="relative w-80">
           <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
-          <input type="text" placeholder="Tìm kiếm tin khuyến mãi..." class="w-full bg-surface-container-highest border-none rounded-lg pl-10 pr-4 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none">
+          <input v-model="articleSearch" type="text" placeholder="Tìm kiếm tin khuyến mãi..." class="w-full bg-surface-container-highest border-none rounded-lg pl-10 pr-4 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none">
         </div>
         <div class="flex gap-4 w-48">
           <CustomSelect 
@@ -555,10 +658,27 @@ onUnmounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="article in articles" :key="article.id" class="border-b border-outline-variant/5 hover:bg-white/5 transition-colors group">
+            <!-- Loading -->
+            <tr v-if="isLoadingArticles" v-for="i in 3" :key="'sk' + i" class="border-b border-outline-variant/5">
+              <td class="p-4"><div class="w-16 h-12 bg-surface-container-highest rounded animate-pulse"></div></td>
+              <td class="p-4"><div class="h-4 w-48 bg-surface-container-highest rounded animate-pulse"></div></td>
+              <td class="p-4"><div class="h-4 w-24 bg-surface-container-highest rounded animate-pulse"></div></td>
+              <td class="p-4"></td>
+              <td class="p-4"></td>
+            </tr>
+            <!-- Empty -->
+            <tr v-else-if="filteredArticles.length === 0">
+              <td colspan="5" class="py-16 text-center">
+                <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">campaign</span>
+                <p class="text-on-surface-variant text-sm font-semibold">{{ articleSearch || filterStatus !== 'all' ? 'Không tìm thấy tin phù hợp.' : 'Chưa có tin khuyến mãi nào. Bấm "Tạo Tin Khuyến Mãi" để đăng tin.' }}</p>
+              </td>
+            </tr>
+            <!-- Data -->
+            <tr v-else v-for="article in filteredArticles" :key="article.id" class="border-b border-outline-variant/5 hover:bg-white/5 transition-colors group">
               <td class="p-4">
-                <div class="w-16 h-12 bg-surface-container-highest rounded overflow-hidden">
-                  <img :src="article.image" class="w-full h-full object-cover" />
+                <div class="w-16 h-12 bg-surface-container-highest rounded overflow-hidden flex items-center justify-center">
+                  <img v-if="article.image" :src="article.image" class="w-full h-full object-cover" />
+                  <span v-else class="material-symbols-outlined text-on-surface-variant/40 text-xl">image</span>
                 </div>
               </td>
               <td class="p-4">
@@ -567,21 +687,21 @@ onUnmounted(() => {
               </td>
               <td class="p-4">
                 <div class="flex flex-col gap-1">
-                  <span class="text-xs text-on-surface font-mono">{{ article.startDate }}</span>
-                  <span class="text-[10px] text-on-surface-variant font-mono">đến {{ article.endDate }}</span>
+                  <span class="text-xs text-on-surface font-mono">{{ article.startDate || '—' }}</span>
+                  <span class="text-[10px] text-on-surface-variant font-mono">đến {{ article.endDate || '—' }}</span>
                 </div>
               </td>
               <td class="p-4 text-center">
-                <button @click="toggleStatus(article)" :class="article.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'" class="material-symbols-outlined text-3xl transition-colors">
+                <button @click="handleToggleArticle(article)" :class="article.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'" class="material-symbols-outlined text-3xl transition-colors" :title="article.status === 'active' ? 'Đang hiển thị' : 'Đang ẩn'">
                   {{ article.status === 'active' ? 'toggle_on' : 'toggle_off' }}
                 </button>
               </td>
               <td class="p-4 text-right">
                 <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click="openArticleDrawer" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-primary flex items-center justify-center transition-colors">
+                  <button @click="openEditArticle(article)" title="Chỉnh sửa" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-primary flex items-center justify-center transition-colors">
                     <span class="material-symbols-outlined text-sm">edit</span>
                   </button>
-                  <button class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-red-400 flex items-center justify-center transition-colors">
+                  <button @click="articleDeleteTarget = article" title="Xoá" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-red-400 flex items-center justify-center transition-colors">
                     <span class="material-symbols-outlined text-sm">delete</span>
                   </button>
                 </div>
@@ -818,8 +938,8 @@ onUnmounted(() => {
         <!-- Drawer Header -->
         <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
           <div>
-            <h3 class="font-headline font-black uppercase italic text-primary text-xl">Thêm Tin Khuyến Mãi</h3>
-            <p class="text-xs text-on-surface-variant mt-1 uppercase tracking-widest font-bold">Cập nhật nội dung hiển thị trên trang chủ</p>
+            <h3 class="font-headline font-black uppercase italic text-primary text-xl">{{ editingArticleId ? 'Sửa Tin Khuyến Mãi' : 'Thêm Tin Khuyến Mãi' }}</h3>
+            <p class="text-xs text-on-surface-variant mt-1 uppercase tracking-widest font-bold">Nội dung hiển thị ở trang Khuyến mãi</p>
           </div>
           <button @click="isArticleDrawerOpen = false" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
             <span class="material-symbols-outlined">close</span>
@@ -828,13 +948,21 @@ onUnmounted(() => {
         
         <!-- Drawer Body (Scrollable) -->
         <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
-          <!-- Image Upload Mock -->
+          <!-- Image Upload (Cloudinary) -->
           <div class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ảnh Banner / Thumbnail</label>
-            <div class="w-full h-40 bg-surface-container-highest border-2 border-dashed border-outline-variant/20 rounded-2xl flex flex-col items-center justify-center text-on-surface-variant hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer">
-              <span class="material-symbols-outlined text-3xl mb-2">cloud_upload</span>
-              <span class="text-xs font-bold uppercase tracking-widest">Kéo thả ảnh hoặc click để tải lên</span>
-            </div>
+            <label class="relative block w-full h-40 bg-surface-container-highest border-2 border-dashed border-outline-variant/20 rounded-2xl overflow-hidden flex flex-col items-center justify-center text-on-surface-variant hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer">
+              <img v-if="newArticle.image" :src="newArticle.image" class="absolute inset-0 w-full h-full object-cover" />
+              <div v-if="newArticle.image" class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span class="text-xs font-bold uppercase tracking-widest text-white">Đổi ảnh khác</span>
+              </div>
+              <template v-if="!newArticle.image">
+                <span v-if="isUploadingArticleImage" class="material-symbols-outlined text-3xl mb-2 animate-spin">progress_activity</span>
+                <span v-else class="material-symbols-outlined text-3xl mb-2">cloud_upload</span>
+                <span class="text-xs font-bold uppercase tracking-widest">{{ isUploadingArticleImage ? 'Đang tải lên...' : 'Click để tải ảnh lên' }}</span>
+              </template>
+              <input type="file" accept="image/*" class="hidden" @change="handleArticleImageUpload" :disabled="isUploadingArticleImage" />
+            </label>
           </div>
 
           <div class="space-y-2">
@@ -891,7 +1019,7 @@ onUnmounted(() => {
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
           <button @click="isArticleDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Tin Tức</button>
+          <button @click="handleSaveArticle" :disabled="isSavingArticle || isUploadingArticleImage" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-60">{{ isSavingArticle ? 'Đang lưu...' : (editingArticleId ? 'Cập nhật tin' : 'Đăng tin') }}</button>
         </div>
       </div>
     </div>
@@ -1003,6 +1131,20 @@ onUnmounted(() => {
         <div class="flex gap-3 mt-6">
           <button @click="deleteTarget = null" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>
           <button @click="confirmDeleteVoucher" :disabled="isDeleting" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-60">{{ isDeleting ? 'Đang xoá...' : 'Xoá' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete article confirm modal -->
+    <div v-if="articleDeleteTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="articleDeleteTarget = null"></div>
+      <div class="relative w-full max-w-sm bg-surface-container-low border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
+        <span class="material-symbols-outlined text-4xl text-red-400 mb-3">warning</span>
+        <h3 class="text-lg font-bold font-headline text-white mb-2">Xoá tin khuyến mãi?</h3>
+        <p class="text-sm text-on-surface-variant">Bạn chắc chắn muốn xoá tin <span class="font-bold text-primary">{{ articleDeleteTarget.title }}</span>? Hành động này không thể hoàn tác.</p>
+        <div class="flex gap-3 mt-6">
+          <button @click="articleDeleteTarget = null" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>
+          <button @click="confirmDeleteArticle" :disabled="isDeletingArticle" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-60">{{ isDeletingArticle ? 'Đang xoá...' : 'Xoá' }}</button>
         </div>
       </div>
     </div>

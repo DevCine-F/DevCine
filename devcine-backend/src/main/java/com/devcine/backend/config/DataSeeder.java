@@ -17,6 +17,8 @@ import com.devcine.backend.entity.FnbItem;
 import com.devcine.backend.entity.Movie;
 import com.devcine.backend.entity.MovieFormat;
 import com.devcine.backend.entity.PricingRule;
+import com.devcine.backend.entity.PromoArticle;
+import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.Room;
 import com.devcine.backend.entity.SeatType;
@@ -29,6 +31,8 @@ import com.devcine.backend.repository.FaqRepository;
 import com.devcine.backend.repository.FnbItemRepository;
 import com.devcine.backend.repository.MovieFormatRepository;
 import com.devcine.backend.repository.PricingRuleRepository;
+import com.devcine.backend.repository.PromoArticleRepository;
+import com.devcine.backend.repository.PromotionRepository;
 import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.RoomRepository;
@@ -59,7 +63,9 @@ public class DataSeeder {
             CustomerRepository customerRepository,
             FnbItemRepository fnbItemRepository,
             ShowtimeRepository showtimeRepository,
-            FaqRepository faqRepository) {
+            FaqRepository faqRepository,
+            PromoArticleRepository promoArticleRepository,
+            PromotionRepository promotionRepository) {
         return args -> {
             if (systemSettingRepository.findById("LOYALTY_POINT_RATE").isEmpty()) {
                 systemSettingRepository.save(SystemSetting.builder()
@@ -646,6 +652,127 @@ public class DataSeeder {
                 cinemaRepository.save(c2);
                 System.out.println("Đã bổ sung thông tin mở rộng cho cụm rạp DevCine Bitexco.");
             }
+
+            // Seed tin khuyến mãi mẫu (idempotent: chỉ khi bảng trống)
+            if (promoArticleRepository.count() == 0) {
+                List<PromoArticle> articles = List.of(
+                        PromoArticle.builder()
+                                .title("COMBO HÈ RỰC RỠ")
+                                .description("Giảm ngay 20% khi mua kèm 2 vé xem phim.")
+                                .imageUrl("https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000&auto=format&fit=crop")
+                                .content("Mùa hè này, DevCine chiêu đãi bạn combo bắp nước siêu hời! Giảm ngay 20% tổng giá trị combo khi mua kèm tối thiểu 2 vé xem phim cho bất kỳ suất chiếu nào. Áp dụng tại toàn bộ cụm rạp DevCine trên toàn quốc.")
+                                .startDate(LocalDate.of(2026, 6, 1))
+                                .endDate(LocalDate.of(2026, 8, 31))
+                                .isActive(true)
+                                .displayOrder(1)
+                                .createdAt(LocalDateTime.now())
+                                .build(),
+                        PromoArticle.builder()
+                                .title("ƯU ĐÃI HỌC SINH - SINH VIÊN")
+                                .description("Đồng giá vé chỉ 45K cho HSSV vào ngày thường.")
+                                .imageUrl("https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=1000&auto=format&fit=crop")
+                                .content("Chỉ cần xuất trình thẻ học sinh - sinh viên còn hiệu lực tại quầy, bạn được mua vé đồng giá 45.000đ cho mọi suất chiếu 2D từ Thứ Hai đến Thứ Sáu (trừ ngày lễ). Mỗi thẻ áp dụng tối đa 1 vé/suất.")
+                                .startDate(LocalDate.of(2026, 5, 1))
+                                .endDate(LocalDate.of(2026, 12, 31))
+                                .isActive(true)
+                                .displayOrder(2)
+                                .createdAt(LocalDateTime.now())
+                                .build(),
+                        PromoArticle.builder()
+                                .title("GIỜ VÀNG GIÁ VÉ")
+                                .description("Mọi suất chiếu trước 12:00 từ Thứ Hai đến Thứ Năm chỉ với 50.000 VNĐ.")
+                                .imageUrl("https://images.unsplash.com/photo-1440404653325-ab127d49abc1?q=80&w=1000&auto=format&fit=crop")
+                                .content("Khởi đầu ngày mới cùng điện ảnh! Tất cả các suất chiếu bắt đầu trước 12:00 trưa từ Thứ Hai đến Thứ Năm hàng tuần đồng giá chỉ 50.000đ/vé (ghế thường, định dạng 2D). Số lượng có hạn theo từng suất.")
+                                .startDate(LocalDate.of(2026, 1, 1))
+                                .endDate(LocalDate.of(2026, 12, 31))
+                                .isActive(true)
+                                .displayOrder(3)
+                                .createdAt(LocalDateTime.now())
+                                .build()
+                );
+                promoArticleRepository.saveAll(articles);
+                System.out.println("Đã seed " + articles.size() + " tin khuyến mãi mẫu.");
+            }
+
+            // Bổ sung tin khuyến mãi demo (idempotent theo tiêu đề) — đủ dữ liệu để test phân trang
+            List<PromoArticle> demoArticles = List.of(
+                    demoArticle("KHAI TRƯƠNG CỤM RẠP DEVCINE THỦ ĐỨC", "Giảm 50% toàn bộ vé trong tuần lễ khai trương.",
+                            "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1000&auto=format&fit=crop",
+                            "Chào mừng cụm rạp DevCine Thủ Đức chính thức đi vào hoạt động! Trong tuần lễ khai trương, toàn bộ vé xem phim được giảm 50% (áp dụng mọi định dạng, mọi suất chiếu). Nhanh tay đặt vé để trải nghiệm phòng chiếu Laser 4K mới nhất.", 4),
+                    demoArticle("THỨ TƯ VUI VẺ - VÉ ĐỒNG GIÁ 55K", "Mọi suất chiếu Thứ Tư hàng tuần đồng giá chỉ 55.000đ.",
+                            "https://images.unsplash.com/photo-1485095329183-d0797f0e2c0a?q=80&w=1000&auto=format&fit=crop",
+                            "Giữa tuần đừng buồn! Mỗi Thứ Tư, tất cả các suất chiếu 2D đồng giá chỉ 55.000đ/vé cho mọi khách hàng, không giới hạn số lượng. Áp dụng tại toàn hệ thống DevCine.", 5),
+                    demoArticle("ĐÊM PHIM KINH DỊ HALLOWEEN", "Marathon phim kinh dị xuyên đêm, tặng bắp rang vị bí ngô.",
+                            "https://images.unsplash.com/photo-1509281373149-e957c6296406?q=80&w=1000&auto=format&fit=crop",
+                            "Sự kiện đặc biệt mùa Halloween: marathon 3 phim kinh dị bom tấn xuyên đêm cùng phần quà bắp rang vị bí ngô độc quyền. Vé sự kiện giới hạn — đặt sớm để giữ chỗ.", 6),
+                    demoArticle("SINH NHẬT DEVCINE - QUÀ TẶNG BẤT NGỜ", "Tặng voucher 100K cho thành viên có sinh nhật trong tháng.",
+                            "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?q=80&w=1000&auto=format&fit=crop",
+                            "Mừng sinh nhật DevCine, tất cả thành viên có ngày sinh trong tháng sẽ nhận ngay voucher 100.000đ vào mục 'Ưu đãi của tôi'. Đừng quên cập nhật ngày sinh trong hồ sơ để nhận quà nhé!", 7),
+                    demoArticle("COMBO GIA ĐÌNH CUỐI TUẦN", "Mua 4 vé tặng 1 bắp lớn và 2 nước ngọt.",
+                            "https://images.unsplash.com/photo-1542204165-65bf26472b9b?q=80&w=1000&auto=format&fit=crop",
+                            "Cuối tuần trọn niềm vui bên gia đình: mua 4 vé bất kỳ trong cùng một hoá đơn, tặng ngay 1 bắp lớn và 2 ly nước ngọt size vừa. Áp dụng cho suất chiếu Thứ Bảy và Chủ Nhật.", 8)
+            );
+            int seededArticles = 0;
+            for (PromoArticle a : demoArticles) {
+                if (!promoArticleRepository.existsByTitleIgnoreCase(a.getTitle())) {
+                    promoArticleRepository.save(a);
+                    seededArticles++;
+                }
+            }
+            if (seededArticles > 0) System.out.println("Đã bổ sung " + seededArticles + " tin khuyến mãi demo.");
+
+            // Seed voucher/khuyến mãi demo (idempotent theo mã code) — đủ dữ liệu test phân trang
+            LocalDateTime promoStart = LocalDateTime.now().minusDays(1);
+            LocalDateTime promoEnd = LocalDateTime.of(2026, 12, 31, 23, 59, 59);
+            List<Promotion> demoPromos = List.of(
+                    demoPromo("WELCOME10", "Chào mừng thành viên mới", "PERCENTAGE", new BigDecimal("10"), promoStart, promoEnd, false, 0),
+                    demoPromo("WEEKEND20", "Cuối tuần rực rỡ", "PERCENTAGE", new BigDecimal("20"), promoStart, promoEnd, false, 0),
+                    demoPromo("POPCORN50", "Giảm 50K combo bắp nước", "FIXED_AMOUNT", new BigDecimal("50000"), promoStart, promoEnd, false, 0),
+                    demoPromo("MIDNIGHT25", "Suất khuya giá sốc", "PERCENTAGE", new BigDecimal("25"), promoStart, promoEnd, false, 0),
+                    demoPromo("BIRTHDAY30", "Quà sinh nhật DevCine", "PERCENTAGE", new BigDecimal("30"), promoStart, promoEnd, false, 0),
+                    demoPromo("FAMILY15", "Ưu đãi gia đình", "PERCENTAGE", new BigDecimal("15"), promoStart, promoEnd, false, 0),
+                    demoPromo("POINT200", "Đổi điểm - Giảm 25%", "PERCENTAGE", new BigDecimal("25"), promoStart, promoEnd, true, 200),
+                    demoPromo("POINT500", "Đổi điểm - Giảm 100K", "FIXED_AMOUNT", new BigDecimal("100000"), promoStart, promoEnd, true, 500)
+            );
+            int seededPromos = 0;
+            for (Promotion p : demoPromos) {
+                if (!promotionRepository.existsByCodeIgnoreCase(p.getCode())) {
+                    promotionRepository.save(p);
+                    seededPromos++;
+                }
+            }
+            if (seededPromos > 0) System.out.println("Đã bổ sung " + seededPromos + " voucher khuyến mãi demo.");
         };
+    }
+
+    /** Dựng nhanh một tin khuyến mãi demo (đang bật, có thời gian hiển thị trong năm). */
+    private PromoArticle demoArticle(String title, String desc, String imageUrl, String content, int order) {
+        return PromoArticle.builder()
+                .title(title)
+                .description(desc)
+                .imageUrl(imageUrl)
+                .content(content)
+                .startDate(LocalDate.of(2026, 1, 1))
+                .endDate(LocalDate.of(2026, 12, 31))
+                .isActive(true)
+                .displayOrder(order)
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    /** Dựng nhanh một promotion/voucher demo công khai. */
+    private Promotion demoPromo(String code, String name, String type, BigDecimal value,
+                                LocalDateTime start, LocalDateTime end, boolean allowPoint, int points) {
+        return Promotion.builder()
+                .code(code)
+                .name(name)
+                .description(name)
+                .discountType(type)
+                .discountValue(value)
+                .startDate(start)
+                .endDate(end)
+                .allowPointRedemption(allowPoint)
+                .pointsRequired(points)
+                .build();
     }
 }

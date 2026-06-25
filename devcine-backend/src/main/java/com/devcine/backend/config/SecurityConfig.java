@@ -54,6 +54,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/faqs/**").permitAll()
                 // Danh sách khuyến mãi đang chạy — công khai cho trang Khuyến mãi
                 .requestMatchers(HttpMethod.GET, "/api/marketing/promotions/active").permitAll()
+                // Tin khuyến mãi — GET công khai (ghi vẫn được @PreAuthorize bảo vệ); /all yêu cầu auth
+                .requestMatchers(HttpMethod.GET, "/api/promo-articles", "/api/promo-articles/*").permitAll()
                 .requestMatchers("/api/payment/vnpay_return").permitAll()
                 .requestMatchers("/api/system/**").permitAll()
                 .requestMatchers("/api/upload/**").permitAll()

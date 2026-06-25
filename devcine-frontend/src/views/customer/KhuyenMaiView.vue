@@ -1,7 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { promotionApi, voucherApi } from '@/api/customer/index'
+import { promotionApi, voucherApi, promoArticleApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
@@ -16,7 +16,71 @@ const isLoading = ref(false)
 const savingId = ref(null)
 const savedIds = ref(new Set())
 
+// Tin khuyến mãi (nội dung biên tập)
+const articles = ref([])
+const isLoadingArticles = ref(false)
+const detailArticle = ref(null)
+
 const errMsg = (e, fb) => friendlyError(e, fb)
+
+const fetchArticles = async () => {
+  isLoadingArticles.value = true
+  try {
+    const { data } = await promoArticleApi.getActive()
+    articles.value = Array.isArray(data) ? data : (data.data ?? [])
+  } catch (e) {
+    console.error('Không tải được tin khuyến mãi', e)
+  } finally {
+    isLoadingArticles.value = false
+  }
+}
+
+const formatArticleDate = (iso) => {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('vi-VN')
+}
+
+const openArticleDetail = (article) => { detailArticle.value = article }
+const closeArticleDetail = () => { detailArticle.value = null }
+
+// ===== Phân trang riêng cho từng khu — mỗi trang 2 dòng (3 cột × 2 = 6 mục) =====
+const PER_PAGE = 6
+const articlePage = ref(1)
+const promoPage = ref(1)
+
+const articleTotalPages = computed(() => Math.max(1, Math.ceil(articles.value.length / PER_PAGE)))
+const promoTotalPages = computed(() => Math.max(1, Math.ceil(promotions.value.length / PER_PAGE)))
+
+const pagedArticles = computed(() => {
+  const start = (articlePage.value - 1) * PER_PAGE
+  return articles.value.slice(start, start + PER_PAGE)
+})
+const pagedPromotions = computed(() => {
+  const start = (promoPage.value - 1) * PER_PAGE
+  return promotions.value.slice(start, start + PER_PAGE)
+})
+
+// Giữ nút vừa bấm ở nguyên vị trí trên màn hình sau khi lưới đổi chiều cao → không bị nhảy/cuộn trang
+const keepAnchored = (evt, apply) => {
+  const el = evt?.currentTarget
+  const before = el ? el.getBoundingClientRect().top : null
+  apply()
+  nextTick(() => {
+    if (el && before != null) {
+      const delta = el.getBoundingClientRect().top - before
+      if (delta) window.scrollBy(0, delta)
+    }
+  })
+}
+
+const goArticlePage = (n, evt) => {
+  if (n < 1 || n > articleTotalPages.value || n === articlePage.value) return
+  keepAnchored(evt, () => { articlePage.value = n })
+}
+const goPromoPage = (n, evt) => {
+  if (n < 1 || n > promoTotalPages.value || n === promoPage.value) return
+  keepAnchored(evt, () => { promoPage.value = n })
+}
 
 const fetchPromotions = async () => {
   isLoading.value = true
@@ -98,6 +162,7 @@ const claimCode = async (p) => {
 }
 
 onMounted(async () => {
+  fetchArticles()
   await fetchPromotions()
   await markAlreadySaved()
 })
@@ -117,7 +182,72 @@ onMounted(async () => {
         Nâng tầm trải nghiệm điện ảnh của bạn với những gói ưu đãi độc quyền. Từ những combo bắp nước chủ đề đến các chương trình dành riêng cho thành viên DevCine.
       </p>
     </header>
-    
+
+    <!-- ===== Tin khuyến mãi (nội dung biên tập) ===== -->
+    <section v-if="isLoadingArticles" class="mb-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div v-for="i in 3" :key="'a' + i" class="h-80 bg-surface-container-low rounded-2xl animate-pulse border border-outline-variant/10"></div>
+    </section>
+
+    <section v-else-if="articles.length > 0" class="mb-20">
+      <div class="flex items-end justify-between mb-8">
+        <h2 class="text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface">Tin khuyến mãi</h2>
+        <span class="text-on-surface-variant text-sm font-bold uppercase tracking-widest">{{ articles.length }} chương trình</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <article v-for="article in pagedArticles" :key="article.id"
+                 class="group bg-surface-container-low rounded-2xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/40 transition-all duration-300">
+          <!-- Ảnh -->
+          <div class="aspect-[16/10] relative overflow-hidden bg-surface-container-high">
+            <img v-if="article.imageUrl" :src="article.imageUrl" :alt="article.title"
+                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+            <div v-else class="w-full h-full flex items-center justify-center">
+              <span class="material-symbols-outlined text-5xl text-outline-variant">image</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
+            <div class="absolute top-3 left-3 bg-primary-container text-on-primary px-3 py-1 font-bold text-[10px] uppercase tracking-widest rounded-sm">Ưu đãi</div>
+          </div>
+
+          <!-- Nội dung -->
+          <div class="p-6 flex flex-col flex-grow">
+            <h3 class="text-lg font-headline font-bold text-on-surface uppercase italic leading-snug mb-2 line-clamp-2">{{ article.title }}</h3>
+            <p class="text-on-surface-variant text-sm leading-relaxed mb-4 flex-grow line-clamp-3">{{ article.description }}</p>
+            <div class="flex items-center justify-between gap-3">
+              <span v-if="article.endDate" class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Đến {{ formatArticleDate(article.endDate) }}
+              </span>
+              <span v-else></span>
+              <button @click="openArticleDetail(article)"
+                      class="shrink-0 flex items-center gap-1.5 bg-primary-container/10 border border-primary-container/30 text-primary-container font-bold text-xs uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-primary-container/20 transition-all">
+                Xem chi tiết
+                <span class="material-symbols-outlined text-sm">arrow_forward</span>
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <!-- Phân trang khu Tin khuyến mãi -->
+      <nav v-if="articleTotalPages > 1" class="flex justify-center items-center gap-2 mt-10">
+        <button @click="goArticlePage(articlePage - 1, $event)" :disabled="articlePage === 1"
+                class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-lg">chevron_left</span>
+        </button>
+        <button v-for="n in articleTotalPages" :key="'ap' + n" @click="goArticlePage(n, $event)"
+                :class="n === articlePage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary-container'"
+                class="min-w-10 h-10 px-3 flex items-center justify-center rounded-lg border font-bold text-sm transition-colors">
+          {{ n }}
+        </button>
+        <button @click="goArticlePage(articlePage + 1, $event)" :disabled="articlePage === articleTotalPages"
+                class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-lg">chevron_right</span>
+        </button>
+      </nav>
+    </section>
+
+    <!-- Tiêu đề khu voucher (chỉ hiện khi đã có mục Tin ở trên để phân tách) -->
+    <h2 v-if="articles.length > 0" class="text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-8">Mã ưu đãi & Voucher</h2>
+
     <!-- Promotions Grid -->
     <!-- Loading -->
     <section v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -133,7 +263,7 @@ onMounted(async () => {
 
     <!-- Danh sách khuyến mãi đang chạy -->
     <section v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      <div v-for="promo in promotions" :key="promo.id"
+      <div v-for="promo in pagedPromotions" :key="promo.id"
            class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300">
         <div class="h-40 relative bg-gradient-to-br from-primary-container/20 to-surface-container-high flex items-center justify-center">
           <span class="text-4xl font-headline font-extrabold text-primary-container">{{ formatValue(promo) }}</span>
@@ -176,20 +306,52 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- Newsletter / CTA -->
-    <section class="mt-24 bg-surface-container rounded-sm p-12 border border-outline-variant/20 relative overflow-hidden">
-      <div class="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
-      <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-        <div class="max-w-xl">
-          <h2 class="text-3xl font-headline font-bold text-on-surface mb-2">Đừng bỏ lỡ bất kỳ ưu đãi nào.</h2>
-          <p class="text-on-surface-variant">Đăng ký nhận tin để được thông báo về các suất chiếu sớm và mã giảm giá độc quyền dành riêng cho bạn.</p>
-        </div>
-        <div class="flex w-full md:w-auto gap-2">
-          <input class="bg-surface-container-lowest border-outline-variant/30 focus:border-primary-container focus:ring-0 text-on-surface px-6 py-3 rounded-sm w-full md:min-w-[300px]" placeholder="Email của bạn" type="email"/>
-          <button class="bg-primary-container text-on-primary px-8 py-3 rounded-sm font-bold uppercase tracking-widest text-xs hover:opacity-90 transition-opacity shrink-0">Đăng ký</button>
+    <!-- Phân trang khu Voucher -->
+    <nav v-if="!isLoading && promoTotalPages > 1" class="flex justify-center items-center gap-2 mt-10">
+      <button @click="goPromoPage(promoPage - 1, $event)" :disabled="promoPage === 1"
+              class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+        <span class="material-symbols-outlined text-lg">chevron_left</span>
+      </button>
+      <button v-for="n in promoTotalPages" :key="'pp' + n" @click="goPromoPage(n, $event)"
+              :class="n === promoPage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary-container'"
+              class="min-w-10 h-10 px-3 flex items-center justify-center rounded-lg border font-bold text-sm transition-colors">
+        {{ n }}
+      </button>
+      <button @click="goPromoPage(promoPage + 1, $event)" :disabled="promoPage === promoTotalPages"
+              class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+        <span class="material-symbols-outlined text-lg">chevron_right</span>
+      </button>
+    </nav>
+
+    <!-- Modal chi tiết tin khuyến mãi -->
+    <transition name="fade">
+      <div v-if="detailArticle" class="fixed inset-0 z-[1000] flex items-center justify-center p-4" @click.self="closeArticleDetail">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-2xl bg-surface-container-low border border-outline-variant/20 rounded-2xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
+          <!-- Ảnh hero -->
+          <div class="relative aspect-[16/9] bg-surface-container-high shrink-0">
+            <img v-if="detailArticle.imageUrl" :src="detailArticle.imageUrl" :alt="detailArticle.title" class="w-full h-full object-cover" />
+            <div v-else class="w-full h-full flex items-center justify-center">
+              <span class="material-symbols-outlined text-6xl text-outline-variant">image</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+            <button @click="closeArticleDetail" class="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <!-- Nội dung -->
+          <div class="flex-1 overflow-y-auto p-8">
+            <h3 class="text-2xl md:text-3xl font-headline font-extrabold uppercase italic text-on-surface mb-3">{{ detailArticle.title }}</h3>
+            <div v-if="detailArticle.startDate || detailArticle.endDate" class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary-container mb-5">
+              <span class="material-symbols-outlined text-sm">event</span>
+              {{ formatArticleDate(detailArticle.startDate) }}<template v-if="detailArticle.endDate"> — {{ formatArticleDate(detailArticle.endDate) }}</template>
+            </div>
+            <p v-if="detailArticle.description" class="text-on-surface font-semibold mb-4">{{ detailArticle.description }}</p>
+            <p class="text-on-surface-variant leading-relaxed whitespace-pre-line">{{ detailArticle.content || 'Đang cập nhật nội dung chi tiết.' }}</p>
+          </div>
         </div>
       </div>
-    </section>
+    </transition>
   </main>
 </template>
 
