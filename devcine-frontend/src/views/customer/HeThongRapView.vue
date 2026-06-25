@@ -11,8 +11,6 @@ const loading = ref(true)
 const selectedCity = ref('Tất cả')
 const searchQuery = ref('')
 
-const FALLBACK_IMG = 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=1200&q=80'
-
 const fetchCinemas = async () => {
   try {
     const { data } = await api.get('/v1/cinemas')
@@ -150,18 +148,17 @@ onMounted(fetchCinemas)
             <RouterLink
               v-for="cinema in filteredCinemas" :key="cinema.id"
               :to="`/he-thong-rap/${cinema.id}`"
-              class="flex gap-5 p-5 rounded-3xl bg-surface-container-low border border-outline-variant/10 hover:border-primary/40 transition-all duration-300 group"
+              class="flex gap-5 p-7 rounded-3xl bg-surface-container-low border border-outline-variant/10 hover:border-primary/40 transition-all duration-300 group"
             >
-              <div class="w-36 h-36 rounded-2xl overflow-hidden shrink-0 border border-outline-variant/20 relative">
-                <img :src="cinema.imageUrl || FALLBACK_IMG" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"/>
-                <span class="absolute top-2 left-2 px-2 py-0.5 bg-black/70 backdrop-blur text-[0.6rem] font-bold uppercase tracking-widest rounded-full text-on-surface">{{ cinema.type }}</span>
-              </div>
-              <div class="flex flex-col justify-between py-1 min-w-0 flex-grow">
+              <div class="flex flex-col justify-between min-w-0 flex-grow">
                 <div>
-                  <h4 class="font-bold text-lg group-hover:text-primary transition-colors truncate mb-1">{{ cinema.name }}</h4>
+                  <div class="flex items-start justify-between gap-4 mb-2.5">
+                    <h4 class="font-bold text-lg group-hover:text-primary transition-colors truncate">{{ cinema.name }}</h4>
+                    <span class="shrink-0 px-2.5 py-1 bg-primary/10 border border-primary/30 text-[0.6rem] font-bold uppercase tracking-widest rounded-full text-primary">{{ cinema.type }}</span>
+                  </div>
                   <p class="text-[0.8rem] text-on-surface-variant line-clamp-2 leading-relaxed opacity-70">{{ cinema.address }}</p>
                 </div>
-                <div class="flex items-center gap-5 mt-3 flex-wrap">
+                <div class="flex items-center gap-6 mt-6 pt-5 border-t border-outline-variant/10 flex-wrap">
                   <div class="flex items-center gap-1.5 opacity-70">
                     <span class="material-symbols-outlined text-sm">meeting_room</span>
                     <span class="text-[0.7rem] font-bold uppercase tracking-widest">{{ cinema.rooms }} Phòng</span>

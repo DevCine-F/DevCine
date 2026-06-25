@@ -17,8 +17,6 @@ const showtimes = ref([])
 const loading = ref(true)
 const selectedDate = ref('')
 
-const FALLBACK_IMG = 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=1600&q=80'
-
 // ---- Parse thời gian (backend trả mảng [y,m,d,h,min] hoặc chuỗi ISO) ----
 const getDateString = (dt) => {
   if (!dt) return ''
@@ -141,23 +139,39 @@ onMounted(fetchAll)
       </div>
 
       <template v-else-if="cinema">
-        <!-- Hero banner -->
-        <section class="relative rounded-3xl overflow-hidden mb-10 border border-outline-variant/10">
-          <img :src="cinema.imageUrl || FALLBACK_IMG" class="w-full h-72 md:h-80 object-cover" />
-          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
-          <div class="absolute bottom-0 left-0 p-8 md:p-10 w-full">
-            <div class="flex items-center gap-3 mb-3">
-              <span class="px-3 py-1 bg-primary/90 text-on-primary text-[0.65rem] font-bold uppercase tracking-widest rounded-full">{{ cinema.type }}</span>
+        <!-- Hero banner (tối giản, không dùng ảnh rạp) -->
+        <section class="relative rounded-3xl overflow-hidden mb-10 bg-surface-container-low border border-outline-variant/10">
+          <!-- Dải vàng accent bên trái -->
+          <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-primary"></div>
+
+          <div class="pl-8 md:pl-12 pr-8 md:pr-12 py-9 md:py-12">
+            <div class="flex items-center gap-3 mb-5 flex-wrap">
+              <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/30 text-[0.65rem] font-bold uppercase tracking-widest rounded-full">{{ cinema.type }}</span>
               <span class="flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-widest"
                     :class="cinema.status === 'ACTIVE' || !cinema.status ? 'text-green-400' : 'text-amber-400'">
                 <span class="w-2 h-2 rounded-full" :class="cinema.status === 'ACTIVE' || !cinema.status ? 'bg-green-400 animate-pulse' : 'bg-amber-400'"></span>
                 {{ statusLabel(cinema.status) }}
               </span>
             </div>
-            <h1 class="text-3xl md:text-5xl font-bold font-headline tracking-tight mb-2">{{ cinema.name }}</h1>
+
+            <h1 class="text-4xl md:text-6xl font-bold font-headline tracking-tight mb-4 max-w-3xl">{{ cinema.name }}</h1>
+
             <p class="text-on-surface-variant text-sm md:text-base flex items-center gap-2 max-w-2xl">
               <span class="material-symbols-outlined text-base text-primary">location_on</span> {{ cinema.address }}
             </p>
+
+            <!-- Thông tin nhanh -->
+            <div class="flex flex-wrap items-center gap-x-7 gap-y-2 mt-7 pt-6 border-t border-outline-variant/10 text-sm text-on-surface-variant">
+              <span v-if="cinema.rooms" class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-lg">meeting_room</span>{{ cinema.rooms }} phòng chiếu
+              </span>
+              <span v-if="cinema.hotline" class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-lg">call</span><span class="font-mono">{{ cinema.hotline }}</span>
+              </span>
+              <span class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-lg">event_available</span>{{ availableDates.length }} ngày có suất chiếu
+              </span>
+            </div>
           </div>
         </section>
 

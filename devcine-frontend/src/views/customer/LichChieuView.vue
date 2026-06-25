@@ -239,9 +239,8 @@ onMounted(loadShowtimes)
         <div v-if="filteredCinemas.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <button v-for="c in filteredCinemas" :key="c.id" @click="selectCinema(c.id)"
             class="group text-left flex flex-col overflow-hidden rounded-2xl border border-outline-variant/15 bg-surface-container-low hover:border-[#f5c518]/50 hover:-translate-y-1 transition-all duration-200">
-            <div class="h-32 bg-surface-container-high overflow-hidden relative">
-              <img :src="c.imageUrl || '/images/Hopper.webp'" :alt="c.name"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+            <div class="h-32 bg-surface-container-high overflow-hidden relative flex items-center justify-center">
+              <span class="material-symbols-outlined text-5xl text-[#f5c518]/25 group-hover:text-[#f5c518]/40 transition-colors">theaters</span>
               <span class="absolute top-2 left-2 bg-black/60 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">{{ c.city }}</span>
             </div>
             <div class="p-5 flex-1 flex flex-col">
