@@ -1,8 +1,6 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import api from '@/api/axios'
 
 const activeTab = ref('camera') // 'camera' or 'manual'
 const qrCodeInput = ref('')
@@ -65,7 +63,14 @@ const startCamera = async () => {
     if (!window.Html5Qrcode) {
       throw new Error('Không thể tải thư viện quét mã QR')
     }
-    
+
+    // Chờ Vue render lại khung quét trước khi khởi tạo (sau màn kết quả #qr-reader bị gỡ khỏi DOM)
+    await nextTick()
+    if (!document.getElementById('qr-reader')) {
+      // Khung chưa sẵn sàng (vd vừa rời màn kết quả/đổi tab) — sẽ tự khởi động lại khi quay về tab camera
+      return
+    }
+
     html5QrCode = new window.Html5Qrcode('qr-reader')
     isScannerActive.value = true
     
@@ -108,7 +113,7 @@ const handleCheckIn = async (code) => {
   checkInResult.value = null
   
   try {
-    const response = await axios.post(`${API_BASE_URL}/tickets/check-in`, null, {
+    const response = await api.post('/tickets/check-in', null, {
       params: { qrCode: code }
     })
     
