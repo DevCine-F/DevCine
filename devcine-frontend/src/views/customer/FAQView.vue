@@ -136,7 +136,7 @@ onMounted(fetchFaqs)
         <div v-else class="space-y-4">
           <details v-for="(f, idx) in displayedFaqs" :key="f.id" class="group glass-card rounded-2xl overflow-hidden" :open="idx === 0">
             <summary class="flex items-center justify-between p-6 cursor-pointer list-none">
-              <h4 class="font-headline font-semibold text-lg md:text-xl text-on-surface group-hover:text-primary-container transition-colors pr-4">{{ f.question }}</h4>
+              <p class="font-body font-semibold text-lg md:text-xl text-on-surface group-hover:text-primary-container transition-colors pr-4">{{ f.question }}</p>
               <span class="material-symbols-outlined text-neutral-500 group-open:rotate-180 transition-transform shrink-0">expand_more</span>
             </summary>
             <div class="px-6 pb-7 text-on-surface-variant font-body leading-relaxed whitespace-pre-line">{{ f.answer }}</div>
