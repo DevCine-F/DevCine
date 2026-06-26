@@ -82,6 +82,12 @@ export const ticketingApi = {
   pay: (payload) => api.post('/ticketing/pay', payload),
 };
 
+export const reviewAdminApi = {
+  list: () => api.get('/reviews/admin/list'),
+  toggle: (id) => api.put(`/reviews/${id}/visibility`),
+  delete: (id) => api.delete(`/reviews/${id}`),
+};
+
 export const staffApi = {
   list: (params) => api.get('/staff/list', { params }),
   create: (data) => api.post('/staff', data),

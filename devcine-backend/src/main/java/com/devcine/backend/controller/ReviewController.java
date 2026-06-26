@@ -4,6 +4,7 @@ import com.devcine.backend.entity.Review;
 import com.devcine.backend.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -31,7 +32,39 @@ public class ReviewController {
 
             Review review = reviewService.createOrUpdateReview(movieId, customerId, rating, comment);
             return ResponseEntity.status(201).body(Map.of("success", true, "id", review.getId()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Gửi đánh giá thất bại."));
+        }
+    }
+
+    // ===== Quản trị: kiểm duyệt đánh giá (method security bảo vệ dù URL GET là permitAll) =====
+
+    @GetMapping("/admin/list")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getAllForAdmin() {
+        return ResponseEntity.ok(reviewService.getAllForAdmin());
+    }
+
+    @PutMapping("/{id}/visibility")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> toggleVisibility(@PathVariable Integer id) {
+        try {
+            boolean hidden = reviewService.toggleHidden(id);
+            return ResponseEntity.ok(Map.of("success", true, "hidden", hidden));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteReview(@PathVariable Integer id) {
+        try {
+            reviewService.deleteReview(id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
     }

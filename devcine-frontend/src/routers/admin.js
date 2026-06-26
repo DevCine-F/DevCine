@@ -127,6 +127,11 @@ export default [
         path: 'customers',
         name: 'admin-customers',
         component: () => import('../views/admin/AdminCustomers.vue')
+      },
+      {
+        path: 'reviews',
+        name: 'admin-reviews',
+        component: () => import('../views/admin/AdminReviews.vue')
       }
     ]
   }

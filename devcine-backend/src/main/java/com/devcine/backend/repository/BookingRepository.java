@@ -62,6 +62,12 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.customer.userId = :customerId AND b.status = 'CONFIRMED'")
     long countConfirmedByCustomer(@Param("customerId") Integer customerId);
 
+    /** Khách đã từng mua vé (đơn CONFIRMED) cho 1 phim hay chưa — điều kiện được phép đánh giá. */
+    @Query("SELECT COUNT(b) > 0 FROM Booking b JOIN b.showtime s " +
+           "WHERE b.customer.userId = :customerId AND s.movie.id = :movieId AND b.status = 'CONFIRMED'")
+    boolean hasConfirmedBookingForMovie(@Param("customerId") Integer customerId,
+                                        @Param("movieId") Integer movieId);
+
     // Danh sách hoá đơn cho admin (lọc + phân trang). Param luôn non-null để tránh bẫy null-param Postgres.
     @Query(value = "SELECT b FROM Booking b " +
            "JOIN FETCH b.showtime s JOIN FETCH s.movie m JOIN FETCH s.room r " +

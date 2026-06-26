@@ -119,6 +119,11 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="font-semibold text-sm">Khách hàng</span>
         </router-link>
 
+        <router-link to="/admin/reviews" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">reviews</span>
+          <span class="font-semibold text-sm">Đánh giá phim</span>
+        </router-link>
+
         <router-link to="/admin/customer-support" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">support_agent</span>
           <span class="font-semibold text-sm">Chăm sóc khách hàng</span>

@@ -36,6 +36,11 @@ public class Review {
     @Column(columnDefinition = "TEXT")
     private String comment;
 
+    /** Cờ kiểm duyệt: true = bị ẩn khỏi trang công khai (admin ẩn). Mặc định hiện. */
+    @Column(name = "hidden", columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean hidden = false;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

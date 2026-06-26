@@ -26,11 +26,28 @@ const showTrailer = ref(false)
 const selectedCinemaId = ref('')
 
 // --- Đánh giá phim ---
-const reviewsData = ref({ averageRating: 0, totalReviews: 0, reviews: [] })
+const reviewsData = ref({ averageRating: 0, totalReviews: 0, reviews: [], distribution: {} })
 const myRating = ref(0)
 const hoverRating = ref(0)
 const myComment = ref('')
 const submittingReview = ref(false)
+const reviewFilter = ref(0) // 0 = tất cả; 1..5 = lọc theo số sao
+
+// Phân phối sao 5→1 kèm % để vẽ thanh
+const ratingDistribution = computed(() => {
+  const dist = reviewsData.value.distribution || {}
+  const total = reviewsData.value.totalReviews || 0
+  return [5, 4, 3, 2, 1].map(star => {
+    const count = dist[String(star)] || 0
+    return { star, count, percent: total ? Math.round((count / total) * 100) : 0 }
+  })
+})
+
+// Danh sách đánh giá sau khi lọc theo số sao
+const filteredReviews = computed(() => {
+  const list = reviewsData.value.reviews || []
+  return reviewFilter.value ? list.filter(r => r.rating === reviewFilter.value) : list
+})
 
 const fetchReviews = async (movieId) => {
   try {
@@ -401,6 +418,30 @@ const groupShowtimesByFormat = (showtimes) => {
           </div>
         </div>
 
+        <!-- Phân phối sao -->
+        <div v-if="reviewsData.totalReviews > 0" class="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 mb-6">
+          <p class="text-sm font-bold text-white mb-4 uppercase tracking-wider">Phân phối đánh giá</p>
+          <div class="space-y-2">
+            <button v-for="d in ratingDistribution" :key="d.star"
+                    @click="reviewFilter = reviewFilter === d.star ? 0 : d.star"
+                    class="w-full flex items-center gap-3 group"
+                    :class="reviewFilter === d.star ? 'opacity-100' : 'opacity-90 hover:opacity-100'">
+              <span class="flex items-center gap-1 w-12 shrink-0 text-xs font-bold"
+                    :class="reviewFilter === d.star ? 'text-[#f5c518]' : 'text-gray-400'">
+                {{ d.star }} <span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+              </span>
+              <div class="flex-1 h-2.5 rounded-full bg-white/10 overflow-hidden">
+                <div class="h-full rounded-full bg-[#f5c518] transition-all duration-300" :style="{ width: d.percent + '%' }"></div>
+              </div>
+              <span class="w-10 shrink-0 text-right text-xs text-gray-400">{{ d.count }}</span>
+            </button>
+          </div>
+          <p v-if="reviewFilter" class="text-[11px] text-gray-400 mt-3">
+            Đang lọc theo {{ reviewFilter }} sao —
+            <button @click="reviewFilter = 0" class="text-[#f5c518] hover:underline font-semibold">bỏ lọc</button>
+          </p>
+        </div>
+
         <!-- Form gửi đánh giá -->
         <div class="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 mb-10">
           <p class="text-sm font-bold text-white mb-3 uppercase tracking-wider">Chia sẻ cảm nhận của bạn</p>
@@ -426,8 +467,8 @@ const groupShowtimesByFormat = (showtimes) => {
         </div>
 
         <!-- Danh sách đánh giá -->
-        <div v-if="reviewsData.reviews.length > 0" class="space-y-5">
-          <div v-for="rv in reviewsData.reviews" :key="rv.id" class="border-b border-white/5 pb-5 last:border-0">
+        <div v-if="filteredReviews.length > 0" class="space-y-5">
+          <div v-for="rv in filteredReviews" :key="rv.id" class="border-b border-white/5 pb-5 last:border-0">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-full bg-[#f5c518]/15 flex items-center justify-center text-[#f5c518] font-bold text-xs">
@@ -446,6 +487,10 @@ const groupShowtimesByFormat = (showtimes) => {
             </div>
             <p v-if="rv.comment" class="text-sm text-gray-300 leading-relaxed pl-12">{{ rv.comment }}</p>
           </div>
+        </div>
+        <div v-else-if="reviewFilter" class="text-center py-10 text-gray-500 text-sm">
+          Không có đánh giá {{ reviewFilter }} sao nào.
+          <button @click="reviewFilter = 0" class="text-[#f5c518] hover:underline font-semibold ml-1">Xem tất cả</button>
         </div>
         <div v-else class="text-center py-10 text-gray-500 text-sm">
           Chưa có đánh giá nào. Hãy là người đầu tiên đánh giá bộ phim này!
