@@ -6,10 +6,12 @@ import MovieTable from "@/components/admin/movies/MovieTable.vue";
 import MovieFormModal from "@/components/admin/movies/MovieFormModal.vue";
 import MovieDetailModal from "@/components/admin/movies/MovieDetailModal.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirmStore } from "@/stores/confirm";
 import { friendlyError } from "@/utils/friendlyError";
 
 const mm = useMovieManagement();
 const toast = useToastStore();
+const confirm = useConfirmStore();
 
 // ===== Modal state =====
 const showFormModal = ref(false);
@@ -59,7 +61,13 @@ const handleRowClick = async (movieSummary) => {
 };
 
 const handleDelete = async (id) => {
-  if (!confirm("Bạn có chắc chắn muốn xóa bộ phim này?")) return;
+  const ok = await confirm.show({
+    title: "Xoá phim",
+    message: "Bạn có chắc chắn muốn xoá bộ phim này?",
+    confirmText: "Xoá",
+    tone: "danger",
+  });
+  if (!ok) return;
   try {
     await mm.deleteMovie(id);
   } catch (error) {
@@ -70,7 +78,13 @@ const handleDelete = async (id) => {
 
 const handleBulkStatus = async (status) => {
   const labels = { active: "Đang chiếu", upcoming: "Sắp chiếu", archived: "Lưu trữ" };
-  if (!confirm(`Đổi trạng thái ${mm.selectionCount.value} phim sang "${labels[status]}"?`)) return;
+  const ok = await confirm.show({
+    title: "Đổi trạng thái phim",
+    message: `Đổi trạng thái ${mm.selectionCount.value} phim sang "${labels[status]}"?`,
+    confirmText: "Đồng ý",
+    tone: "primary",
+  });
+  if (!ok) return;
   try {
     await mm.bulkUpdateStatus(status);
   } catch (error) {
@@ -80,7 +94,13 @@ const handleBulkStatus = async (status) => {
 };
 
 const handleBulkDelete = async () => {
-  if (!confirm(`Xóa ${mm.selectionCount.value} phim đã chọn? Hành động không thể hoàn tác.`)) return;
+  const ok = await confirm.show({
+    title: "Xoá phim đã chọn",
+    message: `Xoá ${mm.selectionCount.value} phim đã chọn? Hành động không thể hoàn tác.`,
+    confirmText: "Xoá",
+    tone: "danger",
+  });
+  if (!ok) return;
   try {
     await mm.bulkDelete();
   } catch (error) {

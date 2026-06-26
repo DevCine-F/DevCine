@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import { useConfirmStore } from '@/stores/confirm';
+
+const confirm = useConfirmStore();
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080") + "/api";
 
@@ -54,7 +57,14 @@ const saveQuota = async () => {
 };
 
 const deleteQuota = async (id) => {
-    if (!confirm("Xác nhận hủy điều phối này?")) return;
+    const ok = await confirm.show({
+      title: 'Huỷ điều phối',
+      message: 'Xác nhận huỷ điều phối này?',
+      confirmText: 'Huỷ điều phối',
+      cancelText: 'Đóng',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await axios.delete(`${API_BASE_URL}/scheduling/quotas/${id}`);
     await fetchData();
 };

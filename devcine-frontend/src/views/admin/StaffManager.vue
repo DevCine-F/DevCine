@@ -2,10 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { staffApi, cinemaListApi } from '@/api/admin/index'
 import { useToastStore } from '@/stores/toast'
+import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 import AppModal from '@/components/common/AppModal.vue'
 
 const toast = useToastStore()
+const confirm = useConfirmStore()
 
 const staff = ref([])
 const cinemas = ref([])
@@ -165,8 +167,16 @@ const saveStaff = async () => {
 }
 
 const toggleActive = async (person) => {
-  const turningOff = person.isActive
-  if (turningOff && !confirm(`Tạm ngưng làm việc của "${person.fullName}"? Nhân viên sẽ không đăng nhập được.`)) return
+  if (person.isActive) {
+    const ok = await confirm.show({
+      title: 'Tạm ngưng nhân viên',
+      message: `Tạm ngưng làm việc của "${person.fullName}"? Nhân viên sẽ không đăng nhập được vào hệ thống.`,
+      confirmText: 'Tạm ngưng',
+      cancelText: 'Giữ nguyên',
+      tone: 'danger',
+    })
+    if (!ok) return
+  }
   try {
     const { data } = await staffApi.toggle(person.userId)
     person.isActive = data.isActive

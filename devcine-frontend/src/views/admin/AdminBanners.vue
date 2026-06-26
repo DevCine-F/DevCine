@@ -3,9 +3,11 @@ import { ref, onMounted } from 'vue'
 import { bannerApi } from '@/api/admin/index'
 import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
+import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 
 const toast = useToastStore()
+const confirm = useConfirmStore()
 
 const banners = ref([])
 const isLoading = ref(false)
@@ -207,7 +209,13 @@ const persistOrder = async () => {
 }
 
 const deleteBanner = async (id) => {
-  if (!confirm('Bạn có chắc chắn muốn xoá banner này?')) return
+  const ok = await confirm.show({
+    title: 'Xoá banner',
+    message: 'Bạn có chắc chắn muốn xoá banner này? Hành động không thể hoàn tác.',
+    confirmText: 'Xoá',
+    tone: 'danger',
+  })
+  if (!ok) return
   try {
     await bannerApi.delete(id)
     banners.value = banners.value.filter(b => b.id !== id)

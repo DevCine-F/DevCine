@@ -4,6 +4,7 @@ import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../stores/auth'
 import AppToast from '../components/common/AppToast.vue'
+import ConfirmModal from '../components/common/ConfirmModal.vue'
 import logo from '../assets/images/Logo_DevCine_Ngang_XoaNen.png'
 
 const { isLightMode, toggleTheme } = useTheme()
@@ -279,6 +280,7 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
 
     <!-- Toast dùng chung cho toàn khu quản trị -->
     <AppToast />
+    <ConfirmModal />
   </div>
 </template>
 

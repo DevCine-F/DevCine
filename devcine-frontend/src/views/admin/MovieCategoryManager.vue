@@ -3,6 +3,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
+import { useConfirmStore } from '@/stores/confirm'
+
+const confirm = useConfirmStore()
 
 const genres = ref([])
 const formats = ref([])
@@ -107,7 +110,13 @@ const saveItem = async () => {
 }
 
 const deleteItem = async (item) => {
-  if (!confirm(`Bạn có chắc muốn xóa ${tabLabel.value} "${item.code || item.name}"?`)) return
+  const ok = await confirm.show({
+    title: 'Xoá mục',
+    message: `Bạn có chắc muốn xoá ${tabLabel.value} "${item.code || item.name}"?`,
+    confirmText: 'Xoá',
+    tone: 'danger',
+  })
+  if (!ok) return
   try {
     await api.delete(`/categories/${activeTab.value}/${item.id}`)
     showToast('Đã xóa ' + tabLabel.value)

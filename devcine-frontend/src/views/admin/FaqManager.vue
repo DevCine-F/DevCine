@@ -3,6 +3,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
+import { useConfirmStore } from '@/stores/confirm'
+
+const confirm = useConfirmStore()
 
 const faqs = ref([])
 const isLoading = ref(false)
@@ -124,7 +127,13 @@ const toggleActive = async (item) => {
 }
 
 const deleteItem = async (item) => {
-  if (!confirm(`Xóa câu hỏi "${item.question}"?`)) return
+  const ok = await confirm.show({
+    title: 'Xoá câu hỏi',
+    message: `Xoá câu hỏi "${item.question}"?`,
+    confirmText: 'Xoá',
+    tone: 'danger',
+  })
+  if (!ok) return
   try {
     await api.delete(`/faqs/${item.id}`)
     showToast('Đã xóa câu hỏi')

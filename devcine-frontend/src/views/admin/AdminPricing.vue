@@ -1,6 +1,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { pricingApi } from '@/api/admin'
+import { useConfirmStore } from '@/stores/confirm'
+
+const confirm = useConfirmStore()
 
 const loading = ref(true)
 const loadError = ref(false)
@@ -142,7 +145,13 @@ const addHoliday = async () => {
 }
 
 const removeHoliday = async (h) => {
-  if (!confirm(`Xoá ngày lễ "${h.name}" (${h.holidayDate})?`)) return
+  const ok = await confirm.show({
+    title: 'Xoá ngày lễ',
+    message: `Xoá ngày lễ "${h.name}" (${h.holidayDate})?`,
+    confirmText: 'Xoá',
+    tone: 'danger',
+  })
+  if (!ok) return
   try {
     await pricingApi.deleteHoliday(h.id)
     holidays.value = holidays.value.filter(x => x.id !== h.id)
