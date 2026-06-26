@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.devcine.backend.entity.Cinema;
+import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.Faq;
 import com.devcine.backend.entity.FnbItem;
@@ -36,6 +37,7 @@ import com.devcine.backend.repository.PromotionRepository;
 import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.RoomRepository;
+import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.SeatTypeRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.SystemSettingRepository;
@@ -60,6 +62,7 @@ public class DataSeeder {
             SystemSettingRepository systemSettingRepository,
             RoleRepository roleRepository,
             UserRepository userRepository,
+            StaffRepository staffRepository,
             CustomerRepository customerRepository,
             FnbItemRepository fnbItemRepository,
             ShowtimeRepository showtimeRepository,
@@ -742,6 +745,49 @@ public class DataSeeder {
                 }
             }
             if (seededPromos > 0) System.out.println("Đã bổ sung " + seededPromos + " voucher khuyến mãi demo.");
+
+            // Seed nhân viên demo trải đều 2 cơ sở (idempotent: chỉ khi bảng nhân viên trống)
+            if (staffRepository.count() == 0) {
+                Role staffRoleSeed = roleRepository.findByName("STAFF").orElse(null);
+                Cinema cs1 = cinemaRepository.findById(1).orElse(null);
+                Cinema cs2 = cinemaRepository.findById(2).orElse(null);
+                if (staffRoleSeed != null) {
+                    // {username, fullName, email, phone, staffCode, cinema}
+                    Object[][] seeds = {
+                            {"nv_huy",  "Trần Quang Huy",  "huy.tran@devcine.com",  "0905111222", "NV001", cs1},
+                            {"nv_lan",  "Nguyễn Thị Lan",  "lan.nguyen@devcine.com", "0905333444", "NV002", cs1},
+                            {"nv_minh", "Lê Hoàng Minh",   "minh.le@devcine.com",   "0905555666", "NV003", cs1},
+                            {"nv_thao", "Phạm Thu Thảo",   "thao.pham@devcine.com", "0905777888", "NV004", cs2},
+                            {"nv_dat",  "Vũ Tiến Đạt",     "dat.vu@devcine.com",    "0905999000", "NV005", cs2}
+                    };
+                    int seededStaff = 0;
+                    for (Object[] sd : seeds) {
+                        String username = (String) sd[0];
+                        String email = (String) sd[2];
+                        if (userRepository.existsByUsername(username) || userRepository.existsByEmail(email)) continue;
+                        User u = User.builder()
+                                .username(username)
+                                .email(email)
+                                .fullName((String) sd[1])
+                                .phone((String) sd[3])
+                                .passwordHash(passwordEncoder.encode("Staff@123"))
+                                .role(staffRoleSeed)
+                                .isActive(true)
+                                .createdAt(LocalDateTime.now())
+                                .build();
+                        userRepository.save(u);
+                        Staff st = Staff.builder()
+                                .user(u)
+                                .staffCode((String) sd[4])
+                                .cinema((Cinema) sd[5])
+                                .build();
+                        staffRepository.save(st);
+                        seededStaff++;
+                    }
+                    if (seededStaff > 0)
+                        System.out.println("Đã seed " + seededStaff + " nhân viên demo trải 2 cơ sở (mật khẩu Staff@123).");
+                }
+            }
         };
     }
 

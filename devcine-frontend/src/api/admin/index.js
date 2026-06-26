@@ -82,6 +82,18 @@ export const ticketingApi = {
   pay: (payload) => api.post('/ticketing/pay', payload),
 };
 
+export const staffApi = {
+  list: (params) => api.get('/staff/list', { params }),
+  create: (data) => api.post('/staff', data),
+  update: (id, data) => api.put(`/staff/${id}`, data),
+  toggle: (id) => api.put(`/staff/${id}/toggle`),
+};
+
+// Danh sách cơ sở (cụm rạp) cho dropdown lọc/gán nhân viên — endpoint công khai GET
+export const cinemaListApi = {
+  getAll: () => api.get('/v1/cinemas'),
+};
+
 export const pricingApi = {
   getConfig: () => api.get('/pricing/config'),
   saveBaseMatrix: (rules) => api.put('/pricing/base-matrix', { rules }),

@@ -1,21 +1,30 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.entity.Cinema;
+import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.Shift;
 import com.devcine.backend.entity.ShiftHandover;
 import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.StaffSchedule;
+import com.devcine.backend.entity.User;
+import com.devcine.backend.repository.CinemaRepository;
+import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.ShiftHandoverRepository;
 import com.devcine.backend.repository.ShiftRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.StaffScheduleRepository;
+import com.devcine.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,18 +39,167 @@ public class StaffController {
     private final StaffScheduleRepository staffScheduleRepository;
     private final ShiftRepository shiftRepository;
     private final ShiftHandoverRepository shiftHandoverRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final CinemaRepository cinemaRepository;
+    private final PasswordEncoder passwordEncoder;
 
+    private static String str(Object o) {
+        return o == null ? "" : o.toString().trim();
+    }
+
+    // Gói thông tin một nhân viên trả về FE (dùng HashMap vì có field cho phép null)
+    private Map<String, Object> toStaffMap(Staff s) {
+        User u = s.getUser();
+        Map<String, Object> m = new HashMap<>();
+        m.put("userId", s.getUserId());
+        m.put("staffCode", s.getStaffCode());
+        m.put("username", u != null ? u.getUsername() : null);
+        m.put("fullName", u != null ? u.getFullName() : "Nhân viên");
+        m.put("email", u != null ? u.getEmail() : null);
+        m.put("phone", u != null ? u.getPhone() : null);
+        m.put("avatarUrl", u != null ? u.getAvatarUrl() : null);
+        m.put("role", u != null && u.getRole() != null ? u.getRole().getName() : "STAFF");
+        m.put("isActive", u != null && Boolean.TRUE.equals(u.getIsActive()));
+        m.put("joinDate", u != null && u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
+        m.put("cinemaId", s.getCinema() != null ? s.getCinema().getId() : null);
+        m.put("cinemaName", s.getCinema() != null ? s.getCinema().getName() : null);
+        return m;
+    }
+
+    /**
+     * Danh sách nhân viên + bộ lọc theo cơ sở / trạng thái / từ khoá.
+     * Lọc trong Java (dữ liệu nhỏ) để tránh gotcha lower(null) của Postgres khi truyền param null vào JPQL.
+     */
     @GetMapping("/list")
-    public ResponseEntity<?> getAllStaff() {
-        List<Staff> staffList = staffRepository.findAll();
-        List<Map<String, Object>> result = staffList.stream().map(s -> Map.<String, Object>of(
-                "userId", s.getUserId(),
-                "staffCode", s.getStaffCode() != null ? s.getStaffCode() : "",
-                "fullName", s.getUser() != null ? s.getUser().getFullName() : "Nhân viên",
-                "email", s.getUser() != null ? s.getUser().getEmail() : "",
-                "phone", s.getUser() != null && s.getUser().getPhone() != null ? s.getUser().getPhone() : ""
-        )).collect(Collectors.toList());
+    @PreAuthorize("@perm.can('staff_management','view')")
+    public ResponseEntity<?> getAllStaff(
+            @RequestParam(required = false) Integer cinemaId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status) {
+        final String kw = q != null ? q.trim().toLowerCase() : "";
+        List<Map<String, Object>> result = staffRepository.findAllWithDetails().stream()
+                .filter(s -> cinemaId == null || (s.getCinema() != null && cinemaId.equals(s.getCinema().getId())))
+                .filter(s -> {
+                    if (status == null || status.isBlank() || status.equalsIgnoreCase("ALL")) return true;
+                    boolean active = s.getUser() != null && Boolean.TRUE.equals(s.getUser().getIsActive());
+                    return status.equalsIgnoreCase("ACTIVE") == active;
+                })
+                .filter(s -> {
+                    if (kw.isEmpty()) return true;
+                    User u = s.getUser();
+                    String name = u != null && u.getFullName() != null ? u.getFullName().toLowerCase() : "";
+                    String email = u != null && u.getEmail() != null ? u.getEmail().toLowerCase() : "";
+                    String code = s.getStaffCode() != null ? s.getStaffCode().toLowerCase() : "";
+                    return name.contains(kw) || email.contains(kw) || code.contains(kw);
+                })
+                .map(this::toStaffMap)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(result);
+    }
+
+    @PostMapping
+    @PreAuthorize("@perm.can('staff_management','add')")
+    @Transactional
+    public ResponseEntity<?> createStaff(@RequestBody Map<String, Object> body) {
+        try {
+            String username = str(body.get("username"));
+            String email = str(body.get("email"));
+            String fullName = str(body.get("fullName"));
+            String password = str(body.get("password"));
+            if (username.isBlank() || email.isBlank() || fullName.isBlank() || password.isBlank())
+                throw new IllegalArgumentException("Vui lòng nhập đầy đủ họ tên, tài khoản, email và mật khẩu.");
+            if (userRepository.existsByUsername(username))
+                throw new IllegalArgumentException("Tài khoản đăng nhập đã tồn tại.");
+            if (userRepository.existsByEmail(email))
+                throw new IllegalArgumentException("Email đã được sử dụng.");
+
+            Role role = roleRepository.findByName("STAFF")
+                    .orElseThrow(() -> new IllegalArgumentException("Hệ thống chưa cấu hình vai trò STAFF."));
+
+            User u = User.builder()
+                    .username(username)
+                    .email(email)
+                    .fullName(fullName)
+                    .phone(str(body.get("phone")).isBlank() ? null : str(body.get("phone")))
+                    .passwordHash(passwordEncoder.encode(password))
+                    .role(role)
+                    .isActive(true)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            userRepository.save(u);
+
+            Staff staff = Staff.builder()
+                    .user(u)
+                    .staffCode(str(body.get("staffCode")).isBlank() ? null : str(body.get("staffCode")))
+                    .cinema(resolveCinema(body.get("cinemaId")))
+                    .build();
+            staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
+
+            return ResponseEntity.status(201).body(Map.of("success", true, "userId", u.getId()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không tạo được nhân viên: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("@perm.can('staff_management','edit')")
+    @Transactional
+    public ResponseEntity<?> updateStaff(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
+        try {
+            Staff staff = staffRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhân viên."));
+            User u = staff.getUser();
+            if (u == null) throw new IllegalArgumentException("Nhân viên không hợp lệ.");
+
+            if (body.containsKey("fullName") && !str(body.get("fullName")).isBlank())
+                u.setFullName(str(body.get("fullName")));
+            if (body.containsKey("phone"))
+                u.setPhone(str(body.get("phone")).isBlank() ? null : str(body.get("phone")));
+            if (body.containsKey("email")) {
+                String email = str(body.get("email"));
+                if (!email.isBlank() && !email.equalsIgnoreCase(u.getEmail())) {
+                    if (userRepository.existsByEmail(email))
+                        throw new IllegalArgumentException("Email đã được sử dụng.");
+                    u.setEmail(email);
+                }
+            }
+            if (body.containsKey("isActive"))
+                u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
+            userRepository.save(u);
+
+            if (body.containsKey("staffCode"))
+                staff.setStaffCode(str(body.get("staffCode")).isBlank() ? null : str(body.get("staffCode")));
+            if (body.containsKey("cinemaId"))
+                staff.setCinema(resolveCinema(body.get("cinemaId")));
+            staffRepository.save(staff);
+
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không cập nhật được nhân viên: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/toggle")
+    @PreAuthorize("@perm.can('staff_management','edit')")
+    @Transactional
+    public ResponseEntity<?> toggleStaff(@PathVariable Integer id) {
+        Staff staff = staffRepository.findById(id).orElse(null);
+        if (staff == null || staff.getUser() == null)
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không tìm thấy nhân viên."));
+        User u = staff.getUser();
+        u.setIsActive(!Boolean.TRUE.equals(u.getIsActive()));
+        userRepository.save(u);
+        return ResponseEntity.ok(Map.of("success", true, "isActive", u.getIsActive()));
+    }
+
+    private Cinema resolveCinema(Object cinemaId) {
+        if (cinemaId == null || str(cinemaId).isBlank()) return null;
+        return cinemaRepository.findById(Integer.parseInt(str(cinemaId))).orElse(null);
     }
 
     @GetMapping("/shifts")
