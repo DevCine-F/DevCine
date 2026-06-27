@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useThemeStore } from '@/stores/theme'
@@ -9,6 +9,26 @@ import { authApi } from '@/api/customer/index'
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+
+// Token còn hạn? (giải mã exp trong JWT)
+const isTokenValid = (token) => {
+  if (!token) return false
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return !payload.exp || payload.exp * 1000 > Date.now()
+  } catch {
+    return false
+  }
+}
+
+// Đã đăng nhập (admin/staff) + phiên còn hợp lệ -> vào thẳng trang tổng quan
+onMounted(() => {
+  if (authStore.isAuthenticated
+      && (authStore.role === 'admin' || authStore.role === 'staff')
+      && isTokenValid(authStore.token)) {
+    router.replace('/admin/dashboard')
+  }
+})
 
 const username = ref('')
 const password = ref('')
