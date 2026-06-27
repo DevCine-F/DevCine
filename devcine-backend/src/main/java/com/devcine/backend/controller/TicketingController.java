@@ -3,6 +3,8 @@ package com.devcine.backend.controller;
 import com.devcine.backend.entity.*;
 import com.devcine.backend.repository.*;
 import com.devcine.backend.service.BookingService;
+import com.devcine.backend.service.ConcessionService;
+import com.devcine.backend.service.PosHoldService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,8 @@ public class TicketingController {
     private final FnbItemRepository fnbItemRepository;
     private final CustomerRepository customerRepository;
     private final BookingService bookingService;
+    private final ConcessionService concessionService;
+    private final PosHoldService posHoldService;
     private final BookingRepository bookingRepository;
     private final TicketRepository ticketRepository;
 
@@ -134,6 +138,82 @@ public class TicketingController {
                     "message", "Thanh toán thành công",
                     "tickets", tickets
             ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    // Bán nhanh bắp nước độc lập tại quầy (Concession Only) — không suất chiếu / không ghế
+    @PostMapping("/concession")
+    @Transactional
+    public ResponseEntity<?> concessionCheckout(@RequestBody Map<String, Object> body) {
+        try {
+            String paymentMethod = (String) body.getOrDefault("paymentMethod", "CASH");
+            Integer customerId = body.get("customerId") != null
+                    ? Integer.parseInt(body.get("customerId").toString()) : null;
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> fnbsRaw = (List<Map<String, Object>>) body.get("fnbs");
+            List<FnbSelectionDTO> fnbs = fnbsRaw == null ? List.of() : fnbsRaw.stream()
+                    .map(m -> FnbSelectionDTO.builder()
+                            .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
+                            .quantity(Integer.parseInt(m.get("quantity").toString()))
+                            .build())
+                    .collect(Collectors.toList());
+
+            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "saleId", sale.getId(),
+                    "saleCode", sale.getSaleCode(),
+                    "message", "Thanh toán thành công"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    // ===== Hoá đơn chờ có vé: giữ ghế thật trong DB (khoá toàn hệ thống) =====
+
+    // Giữ đơn vé → tạo booking HOLD (ghế chuyển HOLD, online/quầy khác lập tức không chọn được)
+    // Không gắn @Transactional ở controller: holdSeats đã @Transactional; tránh lỗi "403 che 500"
+    // (commit rollback-only) làm mất message lỗi "ghế đã bị đặt".
+    @PostMapping("/hold")
+    public ResponseEntity<?> createHold(@RequestBody Map<String, Object> body) {
+        try {
+            Integer showtimeId = Integer.parseInt(body.get("showtimeId").toString());
+            @SuppressWarnings("unchecked")
+            List<Integer> seatIds = (List<Integer>) body.get("seatIds");
+            Integer customerId = body.get("customerId") != null
+                    ? Integer.parseInt(body.get("customerId").toString()) : null;
+
+            com.devcine.backend.dto.request.BookingRequestDTO req =
+                    com.devcine.backend.dto.request.BookingRequestDTO.builder()
+                            .showtimeId(showtimeId)
+                            .seatIds(seatIds)
+                            .customerId(customerId)
+                            .paymentMethod("POS_HOLD")
+                            .build();
+
+            Booking booking = bookingService.holdSeats(req);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "bookingId", booking.getId(),
+                    "bookingCode", booking.getBookingCode()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    // Nhả ghế của đơn chờ (huỷ đơn / hết giờ) → ghế về AVAILABLE ngay theo thời gian thực
+    @PostMapping("/hold/{bookingId}/release")
+    public ResponseEntity<?> releaseHold(@PathVariable Integer bookingId) {
+        try {
+            String status = posHoldService.releaseHold(bookingId);
+            return ResponseEntity.ok(Map.of("success", true, "status", status));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }

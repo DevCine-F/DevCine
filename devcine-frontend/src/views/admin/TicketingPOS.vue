@@ -43,6 +43,459 @@ const showToast = (message, type = 'success') => {
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
 
+const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+
+// ===== Định dạng & validate suất chiếu =====
+const isPastShowtime = (st) => !!(st?.startTime) && new Date(st.startTime).getTime() < Date.now()
+// Giờ 24h (HH:mm)
+const fmtTime = (iso) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+// Mã suất chiếu theo chuẩn nội bộ: SC-YYYYMMDD-<id>
+const showtimeCode = (st) => {
+  if (!st?.startTime) return ''
+  const d = new Date(st.startTime)
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  return `SC-${ymd}-${String(st.id).padStart(2, '0')}`
+}
+// Nhãn định dạng phòng in đậm, tô màu để tránh nhân viên chọn nhầm
+const formatTone = (name) => {
+  const n = String(name || '').toUpperCase()
+  if (n.includes('IMAX')) return 'text-cyan-300 border-cyan-400/40 bg-cyan-500/10'
+  if (n.includes('GOLD')) return 'text-amber-300 border-amber-400/40 bg-amber-500/10'
+  return 'text-on-surface border-outline-variant/25 bg-surface-container-highest'
+}
+
+// ===== Giữ ghế tạm thời (Seat Holding Timer) + đồng bộ trạng thái ghế real-time =====
+const HOLD_SECONDS = 5 * 60       // 5 phút giữ ghế
+const SEAT_POLL_MS = 12000        // 12s/lần kiểm tra ghế bị kênh khác đặt
+const holdRemaining = ref(0)      // giây còn lại
+let holdTimer = null
+let seatPollTimer = null
+const holdActive = computed(() => holdRemaining.value > 0 && selectedSeats.value.length > 0)
+const holdMmSs = computed(() => {
+  const s = Math.max(0, holdRemaining.value)
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+})
+const holdUrgent = computed(() => holdRemaining.value > 0 && holdRemaining.value <= 60)
+
+const startHoldTimer = () => {
+  holdRemaining.value = HOLD_SECONDS
+  if (holdTimer) clearInterval(holdTimer)
+  holdTimer = setInterval(() => {
+    holdRemaining.value--
+    if (holdRemaining.value <= 0) expireHold()
+  }, 1000)
+}
+const stopHoldTimer = () => {
+  if (holdTimer) { clearInterval(holdTimer); holdTimer = null }
+  holdRemaining.value = 0
+}
+const expireHold = () => {
+  stopHoldTimer()
+  selectedSeats.value = []
+  showToast('Hết thời gian giữ ghế — ghế đã được giải phóng cho khách khác. Vui lòng chọn lại.', 'error')
+  currentStep.value = 2
+  refreshSeats()
+}
+
+// Tải lại trạng thái ghế; gỡ khỏi giỏ ghế vừa bị App/Web/quầy khác mua
+const refreshSeats = async () => {
+  if (!selectedShowtime.value) return
+  try {
+    const { data } = await ticketingApi.getSeats(selectedShowtime.value.id)
+    const fresh = data.seats
+      ? data
+      : { matrixRow: seatData.value.matrixRow, matrixCol: seatData.value.matrixCol, seats: Array.isArray(data) ? data : [] }
+    seatData.value = fresh
+    const freeIds = new Set(fresh.seats.filter(s => s.status === 'AVAILABLE').map(s => s.seatId))
+    const lost = selectedSeats.value.filter(s => !freeIds.has(s.seatId))
+    if (lost.length) {
+      selectedSeats.value = selectedSeats.value.filter(s => freeIds.has(s.seatId))
+      showToast(`Ghế ${lost.map(s => s.rowChar + s.colNum).join(', ')} vừa bị khách khác đặt — đã gỡ khỏi đơn.`, 'error')
+      if (selectedSeats.value.length === 0) stopHoldTimer()
+    }
+  } catch (_) { /* im lặng — lần poll sau thử lại */ }
+}
+const startSeatPolling = () => {
+  if (seatPollTimer) clearInterval(seatPollTimer)
+  seatPollTimer = setInterval(() => {
+    if (selectedShowtime.value && currentStep.value >= 2 && currentStep.value <= 5) refreshSeats()
+  }, SEAT_POLL_MS)
+}
+const stopSeatPolling = () => { if (seatPollTimer) { clearInterval(seatPollTimer); seatPollTimer = null } }
+
+// ===== Hoá đơn chờ (Hold Order / Pending List) — lưu localStorage để bền qua refresh =====
+const HELD_KEY = 'devcine_pos_held_orders'
+const HELD_SEQ_KEY = 'devcine_pos_hold_seq'
+const heldOrders = ref([])
+const showHeldPanel = ref(false)
+const loadHeldOrders = () => {
+  try { heldOrders.value = JSON.parse(localStorage.getItem(HELD_KEY) || '[]') } catch { heldOrders.value = [] }
+}
+const persistHeld = () => { try { localStorage.setItem(HELD_KEY, JSON.stringify(heldOrders.value)) } catch (_) {} }
+const nextHoldCode = () => {
+  const seq = parseInt(localStorage.getItem(HELD_SEQ_KEY) || '0', 10) + 1
+  localStorage.setItem(HELD_SEQ_KEY, String(seq))
+  return 'HOLD-' + String(seq).padStart(3, '0')
+}
+const canHoldOrder = computed(() => {
+  if (saleMode.value === 'FNB') return selectedCombos.value.length > 0
+  return !!selectedShowtime.value && selectedSeats.value.length > 0
+})
+const isHolding = ref(false)
+const holdCurrentOrder = async () => {
+  if (!canHoldOrder.value) { showToast('Chưa có gì để giữ đơn (giỏ hàng đang trống).', 'error'); return }
+  // Giới hạn số đơn chờ cùng lúc để tránh treo rác bộ nhớ tạm
+  if (heldOrders.value.length >= HELD_MAX) {
+    showToast(`Tối đa ${HELD_MAX} đơn chờ cùng lúc. Hãy xử lý bớt đơn đang treo trước.`, 'error')
+    return
+  }
+  // Đơn CÓ VÉ → tạo HOLD trong DB để khoá ghế toàn hệ thống (online/quầy khác không chọn được)
+  let bookingId = null
+  if (saleMode.value === 'TICKET') {
+    isHolding.value = true
+    try {
+      const { data } = await ticketingApi.hold({
+        showtimeId: selectedShowtime.value.id,
+        seatIds: selectedSeats.value.map(s => s.seatId),
+        customerId: member.value ? member.value.customerId : null,
+      })
+      if (!data.success) { showToast(data.message || 'Không giữ được ghế.', 'error'); return }
+      bookingId = data.bookingId
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Không giữ được ghế (có thể vừa bị đặt).', 'error')
+      return
+    } finally {
+      isHolding.value = false
+    }
+  }
+  const code = nextHoldCode()
+  heldOrders.value.unshift({
+    code,
+    createdAt: Date.now(),
+    mode: saleMode.value,
+    bookingId,
+    // Lưu lại bước hiện tại để khi "Gọi lại" đưa thẳng về đúng màn hình (vd thanh toán)
+    step: saleMode.value === 'FNB' ? fnbStep.value : currentStep.value,
+    showtime: selectedShowtime.value ? JSON.parse(JSON.stringify(selectedShowtime.value)) : null,
+    seats: JSON.parse(JSON.stringify(selectedSeats.value)),
+    combos: JSON.parse(JSON.stringify(selectedCombos.value)),
+    member: member.value ? JSON.parse(JSON.stringify(member.value)) : null,
+    // Số tiền GỐC trên biên lai tạm tính — KHÔNG lấy số tiền khách đưa đang gõ dở
+    total: totalPrice.value,
+  })
+  // Huỷ/đóng luồng thanh toán đang mở (pop-up tiền mặt / QR) khi chuyển đơn sang chờ
+  showCashModal.value = false
+  showQrModal.value = false
+  cashGiven.value = 0
+  persistHeld()
+  showToast(saleMode.value === 'TICKET'
+    ? `Đã giữ đơn ${code}. Ghế đã được khoá trên toàn hệ thống.`
+    : `Đã giữ đơn ${code}. Gọi lại bất cứ lúc nào ở "Đơn chờ".`, 'success')
+  softReset()
+}
+const restoreHeldOrder = async (o) => {
+  // Đơn chờ F&B độc lập: khôi phục thẳng giỏ món, không cần suất/ghế
+  if (o.mode === 'FNB') {
+    saleMode.value = 'FNB'
+    selectedShowtime.value = null
+    selectedSeats.value = []
+    selectedCombos.value = o.combos || []
+    member.value = o.member || null
+    concessionSale.value = null
+    // Đưa về đúng bước đã giữ (vd đang ở màn thanh toán) thay vì bắt làm lại
+    fnbStep.value = o.step || 1
+    showHeldPanel.value = false
+    heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
+    persistHeld()
+    return
+  }
+  // Vé phim: suất đã quá giờ → nhả ghế + bỏ đơn chờ (đơn đã vô dụng)
+  if (isPastShowtime(o.showtime)) {
+    if (o.bookingId) { try { await ticketingApi.releaseHold(o.bookingId) } catch (_) {} }
+    heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
+    persistHeld()
+    showToast(`Suất chiếu của đơn ${o.code} đã quá giờ — đã huỷ đơn chờ và nhả ghế.`, 'error')
+    return
+  }
+  // Nhả HOLD của đơn này (ghế về AVAILABLE) trước khi tái dựng + kiểm tra ghế còn không.
+  // Đồng thời double-check: nếu đơn đã CONFIRMED (đã thanh toán) thì không cho gọi lại.
+  if (o.bookingId) {
+    try {
+      const { data } = await ticketingApi.releaseHold(o.bookingId)
+      if (data.status === 'CONFIRMED') {
+        heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
+        persistHeld()
+        showHeldPanel.value = false
+        showToast(`Đơn ${o.code} đã được thanh toán trước đó — không thể gọi lại.`, 'error')
+        return
+      }
+    } catch (_) { /* nhả lỗi: scheduler sẽ dọn; vẫn tiếp tục kiểm tra ghế thực tế */ }
+  }
+  saleMode.value = 'TICKET'
+  selectedShowtime.value = o.showtime
+  selectedCombos.value = o.combos || []
+  member.value = o.member || null
+  showHeldPanel.value = false
+  currentStep.value = 2
+  isLoadingSeats.value = true
+  try {
+    const { data } = await ticketingApi.getSeats(o.showtime.id)
+    seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
+    // Quét lại tính khả dụng theo thời gian thực: ghế đã bị bán trong lúc chờ sẽ bị loại,
+    // GIỮ LẠI phần bắp nước hợp lệ; chỉ phần vé trùng bị gỡ khỏi biên lai tạm tính.
+    const byId = new Map(seatData.value.seats.map(s => [s.seatId, s]))
+    const restored = []; const lost = []
+    for (const s of (o.seats || [])) {
+      const cur = byId.get(s.seatId)
+      if (cur && cur.status === 'AVAILABLE') restored.push(cur); else lost.push(s)
+    }
+    selectedSeats.value = restored
+    if (lost.length) {
+      const labels = lost.map(s => s.rowChar + s.colNum).join(', ')
+      showToast(`Ghế ${labels} đã được bán cho khách hàng khác, vui lòng chọn lại ghế mới.`, 'error')
+    }
+    if (restored.length) startHoldTimer()
+    startSeatPolling()
+    // Mất ghế → buộc về bước chọn ghế để chọn lại; còn nguyên → về đúng bước đã giữ (vd thanh toán)
+    currentStep.value = lost.length ? 2 : (o.step || 2)
+  } catch (_) {
+    showToast('Không tải được sơ đồ ghế của đơn chờ.', 'error')
+  } finally {
+    isLoadingSeats.value = false
+  }
+  heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
+  persistHeld()
+}
+const deleteHeldOrder = (o) => {
+  // Đơn có vé → nhả ghế HOLD về AVAILABLE ngay theo thời gian thực
+  if (o.bookingId) { ticketingApi.releaseHold(o.bookingId).catch(() => {}) }
+  heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
+  persistHeld()
+  showToast(`Đã huỷ đơn chờ ${o.code}${o.bookingId ? ' — ghế được giải phóng' : ''}.`, 'success')
+}
+
+// Cấu hình đơn chờ
+const HELD_MAX = 10                  // tối đa số đơn chờ cùng lúc / quầy
+const HELD_TICKET_TTL = HOLD_SECONDS // đơn chờ CÓ VÉ hết hạn sau 5 phút (giải phóng ghế)
+const nowTs = ref(Date.now())        // nhịp đồng hồ 1s để countdown/tuổi đơn cập nhật reactive
+let nowTimer = null
+
+// Số giây còn lại của đơn chờ có vé (null = đơn F&B, không hết hạn)
+const heldRemainingSec = (o) => {
+  if (o.mode === 'FNB' || !(o.seats && o.seats.length)) return null
+  return Math.max(0, HELD_TICKET_TTL - Math.floor((nowTs.value - o.createdAt) / 1000))
+}
+const heldCountdown = (o) => {
+  const s = heldRemainingSec(o)
+  if (s == null) return ''
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+// Tự xoá đơn chờ có vé khi hết giờ giữ → giải phóng ghế cho khách khác
+const sweepExpiredHolds = () => {
+  const expired = heldOrders.value.filter(o => heldRemainingSec(o) === 0)
+  if (!expired.length) return
+  // Nhả ghế HOLD của các đơn vừa hết giờ về AVAILABLE
+  expired.forEach(o => { if (o.bookingId) ticketingApi.releaseHold(o.bookingId).catch(() => {}) })
+  heldOrders.value = heldOrders.value.filter(o => heldRemainingSec(o) !== 0)
+  persistHeld()
+  showToast(`Đơn chờ ${expired.map(o => o.code).join(', ')} đã hết giờ giữ — ghế được giải phóng.`, 'error')
+}
+const heldAgeLabel = (ts) => {
+  const mins = Math.floor((nowTs.value - ts) / 60000)
+  if (mins < 1) return 'vừa xong'
+  if (mins < 60) return `${mins} phút trước`
+  return `${Math.floor(mins / 60)} giờ trước`
+}
+
+// Xác nhận trước khi xoá đơn chờ (chống bấm nhầm)
+const confirmDeleteHold = ref(null)
+const askDeleteHeldOrder = (o) => { confirmDeleteHold.value = o }
+const cancelDeleteHeldOrder = () => { confirmDeleteHold.value = null }
+const confirmDeleteHeldOrder = () => {
+  if (confirmDeleteHold.value) deleteHeldOrder(confirmDeleteHold.value)
+  confirmDeleteHold.value = null
+}
+
+// Dọn khu làm việc về bước 1 mà KHÔNG tải lại danh sách suất/combo (dùng sau khi giữ đơn)
+const softReset = () => {
+  stopHoldTimer(); stopSeatPolling()
+  currentStep.value = 1
+  selectedShowtime.value = null
+  seatData.value = { matrixRow: 9, matrixCol: 10, seats: [] }
+  selectedSeats.value = []
+  selectedCombos.value = []
+  member.value = null
+  cardNumberInput.value = ''
+  cardError.value = ''
+  concessionSale.value = null
+  fnbStep.value = 1
+  showCashModal.value = false
+  showQrModal.value = false
+  cashGiven.value = 0
+}
+
+// ===== Hai luồng bán: TICKET (vé + F&B) và FNB (bán nhanh bắp nước độc lập) =====
+const saleMode = ref('TICKET')     // 'TICKET' | 'FNB'
+const fnbStep = ref(1)             // luồng F&B: 1 = chọn món, 2 = thanh toán, 3 = hoàn tất
+const concessionSale = ref(null)   // kết quả đơn F&B đã thanh toán
+
+const switchMode = (mode) => {
+  if (saleMode.value === mode) return
+  saleMode.value = mode
+  // Đổi luồng → dọn sạch khu làm việc để tránh lẫn dữ liệu giữa 2 kiểu bán
+  stopHoldTimer(); stopSeatPolling()
+  selectedShowtime.value = null
+  seatData.value = { matrixRow: 9, matrixCol: 10, seats: [] }
+  selectedSeats.value = []
+  selectedCombos.value = []
+  member.value = null
+  cardNumberInput.value = ''
+  cardError.value = ''
+  completedBooking.value = null
+  concessionSale.value = null
+  currentStep.value = 1
+  fnbStep.value = 1
+  showCashModal.value = false
+  showQrModal.value = false
+  cashGiven.value = 0
+}
+
+// Sẵn sàng thanh toán: TICKET cần ghế, FNB cần ít nhất 1 món
+const checkoutReady = () => {
+  if (saleMode.value === 'FNB') {
+    if (selectedCombos.value.length === 0) { showToast('Chưa chọn món nào.', 'error'); return false }
+    return true
+  }
+  if (selectedSeats.value.length === 0) { showToast('Chưa chọn ghế.', 'error'); return false }
+  return true
+}
+
+const processConcessionPayment = async (method) => {
+  if (selectedCombos.value.length === 0) { showToast('Chưa chọn món nào.', 'error'); return }
+  paymentMethod.value = method
+  isPaying.value = true
+  try {
+    const payload = {
+      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity })),
+      customerId: member.value ? member.value.customerId : null,
+      paymentMethod: method,
+    }
+    const { data } = await ticketingApi.concession(payload)
+    if (data.success) {
+      concessionSale.value = data
+      showCashModal.value = false
+      showQrModal.value = false
+      fnbStep.value = 3
+    } else {
+      showToast(data.message || 'Thanh toán thất bại.', 'error')
+    }
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Thanh toán thất bại.', 'error')
+  } finally {
+    isPaying.value = false
+  }
+}
+
+// ===== Hoá đơn bắp nước độc lập (không vé/QR) =====
+const buildConcessionInvoiceHtml = () => {
+  const saleCode = esc(concessionSale.value?.saleCode)
+  const printedAt = new Date().toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const itemRows = selectedCombos.value
+    .map(c => `<tr><td>${esc(c.name)}</td><td class="c">${c.quantity}</td><td class="r">${fmt(c.price)}đ</td><td class="r b">${fmt(c.price * c.quantity)}đ</td></tr>`)
+    .join('')
+  return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
+<title>Hoá đơn ${saleCode} — DevCine</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,Arial,sans-serif;background:#efe8da;color:#26221b;padding:34px 20px;font-size:14px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .serif{font-family:'Playfair Display',Georgia,serif}
+  .g{background:linear-gradient(135deg,#e6c878,#c4992f);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .bar{display:flex;justify-content:center;gap:12px;max-width:620px;margin:0 auto 26px}
+  .bar button{border:0;border-radius:999px;padding:13px 30px;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+  .btn-print{background:linear-gradient(135deg,#dcb869,#b8902f);color:#1c1a17;box-shadow:0 8px 22px rgba(184,144,47,.4)}
+  .btn-close{background:#fff;color:#6b6456;border:1px solid #ddd4c1}
+  .bill{max-width:620px;margin:0 auto;background:#fffdf8;border-radius:20px;overflow:hidden;box-shadow:0 30px 70px rgba(40,34,22,.18);border:1px solid #ece3d0}
+  .bill-head{display:flex;justify-content:space-between;align-items:center;padding:32px 40px 26px;background:linear-gradient(160deg,#211d16,#14110c);color:#f3ecdc;position:relative}
+  .bill-head::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#b8902f,#e6c878,#b8902f)}
+  .brand{display:flex;align-items:center;gap:14px}
+  .mono{width:50px;height:50px;border-radius:14px;background:linear-gradient(135deg,#e9cd80,#b8902f);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;color:#1c1a17;flex:none}
+  .brand-name{font-size:24px;font-weight:800;letter-spacing:.2em;line-height:1}
+  .brand-tag{font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:#a89c81;margin-top:6px}
+  .doc{text-align:right}
+  .doc-t{font-size:17px;letter-spacing:.3em;text-transform:uppercase;color:#e6c878}
+  .doc-meta{margin-top:11px;font-size:11px;line-height:1.9;color:#a89c81}
+  .doc-meta b{color:#f3ecdc;font-weight:600}
+  .feature{display:flex;align-items:center;gap:14px;padding:22px 40px;border-bottom:1px solid #efe6d3}
+  .feature .ico{width:44px;height:44px;border-radius:12px;background:#f7efe0;display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+  .feature h2{font-size:21px;font-weight:700;color:#211d16}
+  .feature p{color:#8c836d;font-size:12px;margin-top:4px}
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#a89c81;text-align:left;padding:18px 40px 8px;font-weight:700}
+  thead th.c{text-align:center}thead th.r{text-align:right}
+  tbody td{padding:13px 40px;font-size:13.5px;border-top:1px solid #f3ecdd;color:#3a342a}
+  td.c{text-align:center}td.r{text-align:right;font-variant-numeric:tabular-nums}td.b{font-weight:700;color:#211d16}
+  .summary{padding:16px 40px 8px;display:flex;flex-direction:column;align-items:flex-end}
+  .s-grand{display:flex;justify-content:space-between;align-items:baseline;width:min(320px,100%);padding-top:16px;border-top:2px solid #211d16}
+  .s-grand span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#8c836d;font-weight:700}
+  .s-grand b{font-size:30px;font-weight:800;color:#211d16;font-variant-numeric:tabular-nums;line-height:1}
+  .s-grand b .u{font-size:16px;color:#b8902f;margin-left:3px}
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:18px;padding:20px 40px;background:#faf4e9;border-top:1px solid #efe6d3}
+  .foot .pm{font-size:12px;color:#6f6755}.foot .pm b{color:#26221b;font-weight:600}
+  .stamp{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#b8902f;border:1.5px solid #dcb869;border-radius:9px;padding:9px 15px;transform:rotate(-4deg);white-space:nowrap;flex:none}
+  .thanks{text-align:center;font-style:italic;font-size:14px;color:#9a8f76;padding:18px}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.bill{box-shadow:none;border-radius:0;max-width:100%;border:0;margin:0}}
+</style></head>
+<body>
+  <div class="bar">
+    <button class="btn-print" onclick="window.print()">🖨 In hoá đơn</button>
+    <button class="btn-close" onclick="window.close()">Đóng</button>
+  </div>
+  <section class="bill">
+    <div class="bill-head">
+      <div class="brand">
+        <div class="mono serif">D</div>
+        <div><div class="brand-name">DEV<span class="g">CINE</span></div><div class="brand-tag">Cinema · Quầy bắp nước</div></div>
+      </div>
+      <div class="doc">
+        <div class="doc-t serif">Hoá Đơn</div>
+        <div class="doc-meta">Số: <b>${saleCode}</b><br/>Ngày in: <b>${esc(printedAt)}</b><br/>Quầy: <b>POS · Concession</b></div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="ico">🍿</div>
+      <div><h2 class="serif">Bắp nước &amp; Combo</h2><p>Bán nhanh tại quầy — không kèm vé xem phim</p></div>
+    </div>
+    <table>
+      <thead><tr><th>Nội dung</th><th class="c">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead>
+      <tbody>${itemRows}</tbody>
+    </table>
+    <div class="summary">
+      <div class="s-grand"><span>Tổng thanh toán</span><b class="serif">${fmt(comboTotal.value)}<span class="u">đ</span></b></div>
+    </div>
+    <div class="foot">
+      <div class="pm">Phương thức: <b>${esc(paymentLabel(paymentMethod.value))}</b>${member.value ? `<br/>Thành viên: <b>${esc(member.value.fullName)}</b> · ${esc(member.value.membershipTier)}` : ''}</div>
+      <div class="stamp">Đã thanh toán</div>
+    </div>
+    <div class="thanks serif">Cảm ơn quý khách &amp; hẹn gặp lại tại DevCine</div>
+  </section>
+</body></html>`
+}
+const printConcessionInvoice = () => {
+  if (!concessionSale.value) return
+  const win = window.open('', '_blank')
+  if (!win) { showToast('Trình duyệt đã chặn cửa sổ. Hãy cho phép pop-up để in hoá đơn.', 'error'); return }
+  win.document.open(); win.document.write(buildConcessionInvoiceHtml()); win.document.close()
+}
+const newConcessionSale = () => {
+  selectedCombos.value = []
+  member.value = null
+  cardNumberInput.value = ''
+  cardError.value = ''
+  concessionSale.value = null
+  fnbStep.value = 1
+}
+
 const fetchData = async () => {
   isLoading.value = true
   error.value = ''
@@ -61,13 +514,19 @@ const fetchData = async () => {
 }
 
 const selectShowtime = async (st) => {
+  if (isPastShowtime(st)) {
+    showToast('Suất chiếu đã quá giờ phát sóng — không thể bán vé.', 'error')
+    return
+  }
   selectedShowtime.value = st
   selectedSeats.value = []
+  stopHoldTimer()
   isLoadingSeats.value = true
   currentStep.value = 2
   try {
     const { data } = await ticketingApi.getSeats(st.id)
     seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
+    startSeatPolling()
   } catch (err) {
     showToast('Không tải được sơ đồ ghế.', 'error')
     seatData.value = { matrixRow: 9, matrixCol: 10, seats: [] }
@@ -89,6 +548,9 @@ const toggleSeat = (seat) => {
   const idx = selectedSeats.value.findIndex(s => s.seatId === seat.seatId)
   if (idx > -1) selectedSeats.value.splice(idx, 1)
   else selectedSeats.value.push(seat)
+  // Bắt đầu/đặt lại bộ đếm giữ ghế khi có ghế; dừng khi bỏ hết ghế
+  if (selectedSeats.value.length > 0) { if (!holdTimer) startHoldTimer() }
+  else stopHoldTimer()
 }
 
 const seatClass = (seat) => {
@@ -104,14 +566,21 @@ const seatClass = (seat) => {
   return `${base} ${byType} cursor-pointer`
 }
 
-// F&B
+// F&B — giới hạn 1–99 phần/món tránh gõ nhầm làm sai hoá đơn
+const MAX_FNB_QTY = 99
 const addCombo = (cb) => {
   const existing = selectedCombos.value.find(c => c.id === cb.id)
-  if (existing) existing.quantity++
-  else selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1 })
+  if (existing) {
+    if (existing.quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
+    existing.quantity++
+  } else {
+    selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1 })
+  }
 }
 const changeComboQty = (item, delta) => {
-  item.quantity += delta
+  const next = item.quantity + delta
+  if (next > MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
+  item.quantity = next
   if (item.quantity <= 0) {
     const idx = selectedCombos.value.findIndex(c => c.id === item.id)
     if (idx > -1) selectedCombos.value.splice(idx, 1)
@@ -132,8 +601,6 @@ const seatTypeBreakdown = computed(() => {
   }
   return Object.values(map)
 })
-
-const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 
 // ---- Thanh toán tiền mặt ----
 const MAX_CASH = 100_000_000 // giới hạn 100 triệu tránh tràn số / gõ nhầm thừa số 0
@@ -220,12 +687,12 @@ const loadBankInfo = async () => {
 }
 
 const openCashModal = () => {
-  if (selectedSeats.value.length === 0) { showToast('Chưa chọn ghế.', 'error'); return }
+  if (!checkoutReady()) return
   cashGiven.value = 0
   showCashModal.value = true
 }
 const openQrModal = () => {
-  if (selectedSeats.value.length === 0) { showToast('Chưa chọn ghế.', 'error'); return }
+  if (!checkoutReady()) return
   showQrModal.value = true
 }
 
@@ -246,6 +713,7 @@ const checkMemberCard = async () => {
 const clearMember = () => { member.value = null; cardNumberInput.value = ''; cardError.value = '' }
 
 const processPayment = async (method) => {
+  if (saleMode.value === 'FNB') return processConcessionPayment(method)
   if (selectedSeats.value.length === 0) {
     showToast('Chưa chọn ghế.', 'error')
     return
@@ -263,6 +731,8 @@ const processPayment = async (method) => {
     const { data } = await ticketingApi.pay(payload)
     if (data.success) {
       completedBooking.value = data
+      stopHoldTimer()
+      stopSeatPolling()
       showCashModal.value = false
       showQrModal.value = false
       currentStep.value = 6
@@ -570,6 +1040,8 @@ const openQrFullscreen = () => {
 }
 
 const resetPOS = () => {
+  stopHoldTimer()
+  stopSeatPolling()
   currentStep.value = 1
   selectedShowtime.value = null
   seatData.value = { matrixRow: 9, matrixCol: 10, seats: [] }
@@ -579,14 +1051,25 @@ const resetPOS = () => {
   cardNumberInput.value = ''
   cardError.value = ''
   completedBooking.value = null
+  concessionSale.value = null
+  fnbStep.value = 1
   showCashModal.value = false
   showQrModal.value = false
   cashGiven.value = 0
   fetchData()
 }
 
-onMounted(() => { fetchData(); loadBankInfo() })
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
+onMounted(() => {
+  fetchData(); loadBankInfo(); loadHeldOrders()
+  // Nhịp 1s: cập nhật countdown/tuổi đơn chờ + tự dọn đơn hết giờ
+  nowTimer = setInterval(() => { nowTs.value = Date.now(); sweepExpiredHolds() }, 1000)
+})
+onUnmounted(() => {
+  if (toastTimer) clearTimeout(toastTimer)
+  stopHoldTimer()
+  stopSeatPolling()
+  if (nowTimer) clearInterval(nowTimer)
+})
 </script>
 
 <template>
@@ -603,20 +1086,72 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         </div>
       </div>
 
-      <div class="flex items-center gap-1.5">
-        <div v-for="i in 6" :key="i" class="flex items-center gap-1.5">
-          <div :class="currentStep >= i ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant/40'"
-               class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all">{{ i }}</div>
-          <div v-if="i < 6" class="w-6 h-0.5 bg-outline-variant/20"></div>
+      <div class="flex items-center gap-4">
+        <!-- Chọn luồng bán -->
+        <div class="flex items-center gap-1 p-1 bg-surface-container-high rounded-xl border border-outline-variant/10">
+          <button @click="switchMode('TICKET')"
+                  :class="saleMode === 'TICKET' ? 'bg-primary text-on-primary shadow' : 'text-on-surface-variant hover:text-on-surface'"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all">
+            <span class="material-symbols-outlined text-base">confirmation_number</span> Vé + F&B
+          </button>
+          <button @click="switchMode('FNB')"
+                  :class="saleMode === 'FNB' ? 'bg-primary text-on-primary shadow' : 'text-on-surface-variant hover:text-on-surface'"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all">
+            <span class="material-symbols-outlined text-base">lunch_dining</span> Bán nhanh F&B
+          </button>
+        </div>
+
+        <!-- Stepper bán vé -->
+        <div v-if="saleMode === 'TICKET'" class="flex items-center gap-1.5">
+          <div v-for="i in 6" :key="i" class="flex items-center gap-1.5">
+            <div :class="currentStep >= i ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant/40'"
+                 class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all">{{ i }}</div>
+            <div v-if="i < 6" class="w-6 h-0.5 bg-outline-variant/20"></div>
+          </div>
+        </div>
+        <!-- Stepper bán nhanh F&B (2 bước) -->
+        <div v-else class="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider">
+          <span :class="fnbStep >= 1 ? 'text-primary' : 'text-on-surface-variant/40'" class="flex items-center gap-1.5">
+            <span :class="fnbStep >= 1 ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant/40'" class="w-6 h-6 rounded-full flex items-center justify-center">1</span> Chọn món
+          </span>
+          <span class="w-6 h-0.5 bg-outline-variant/20"></span>
+          <span :class="fnbStep >= 2 ? 'text-primary' : 'text-on-surface-variant/40'" class="flex items-center gap-1.5">
+            <span :class="fnbStep >= 2 ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant/40'" class="w-6 h-6 rounded-full flex items-center justify-center">2</span> Thanh toán
+          </span>
         </div>
       </div>
 
-      <AppButton variant="outline" @click="resetPOS">Hủy giao dịch</AppButton>
+      <div class="flex items-center gap-2.5">
+        <!-- Đồng hồ giữ ghế -->
+        <div v-if="holdActive"
+             :class="holdUrgent ? 'bg-red-500/15 border-red-500/40 text-red-300 animate-pulse' : 'bg-primary/10 border-primary/30 text-primary'"
+             class="flex items-center gap-2 px-3.5 py-2 rounded-xl border" title="Thời gian giữ ghế còn lại">
+          <span class="material-symbols-outlined text-base">timer</span>
+          <span class="text-sm font-black tabular-nums tracking-wider">{{ holdMmSs }}</span>
+        </div>
+
+        <!-- Giữ đơn (Hold Order) — vô hiệu hoá khi giỏ trống -->
+        <button @click="holdCurrentOrder" :disabled="!canHoldOrder || isHolding"
+                :class="(canHoldOrder && !isHolding) ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20' : 'bg-surface-container-high border-outline-variant/10 text-on-surface-variant/40 cursor-not-allowed'"
+                class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-base">{{ isHolding ? 'progress_activity' : 'pause_circle' }}</span> {{ isHolding ? 'Đang giữ...' : 'Giữ đơn' }}
+        </button>
+
+        <!-- Danh sách đơn chờ -->
+        <button @click="showHeldPanel = true"
+                class="relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/15 text-on-surface text-[11px] font-black uppercase tracking-wider hover:border-primary/40 transition-all">
+          <span class="material-symbols-outlined text-base">receipt_long</span> Đơn chờ
+          <span v-if="heldOrders.length" class="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-on-primary text-[10px] font-black flex items-center justify-center">{{ heldOrders.length }}</span>
+        </button>
+
+        <AppButton variant="outline" @click="resetPOS">Hủy giao dịch</AppButton>
+      </div>
     </header>
 
     <main class="flex-grow grid grid-cols-12 gap-5 overflow-hidden">
       <div class="col-span-9 bg-surface border border-outline-variant/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
 
+        <template v-if="saleMode === 'TICKET'">
         <!-- Step 1: Showtime -->
         <div v-if="currentStep === 1" class="p-6 space-y-8 overflow-y-auto custom-scrollbar">
           <h2 class="text-xl font-black uppercase italic tracking-tighter text-on-surface flex items-center gap-3">
@@ -635,19 +1170,26 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 
           <div v-else class="grid grid-cols-2 gap-6">
             <div v-for="st in showtimes" :key="st.id" @click="selectShowtime(st)"
-                 class="p-6 bg-surface-container-high rounded-3xl border border-outline-variant/10 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group">
+                 :class="isPastShowtime(st) ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-primary/50 hover:bg-primary/5 cursor-pointer'"
+                 class="relative p-6 bg-surface-container-high rounded-3xl border border-outline-variant/10 transition-all group">
+              <span v-if="isPastShowtime(st)"
+                    class="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-[9px] font-black uppercase tracking-widest">Quá giờ</span>
               <div class="flex gap-6">
                 <div class="w-24 h-36 bg-surface-container-highest rounded-xl overflow-hidden shadow-lg border border-outline-variant/10">
                   <img :src="st.moviePoster || '/images/Hopper.webp'" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 </div>
-                <div class="flex flex-col justify-between py-1">
+                <div class="flex flex-col justify-between py-1 min-w-0">
                   <div>
-                    <h3 class="font-black text-lg uppercase tracking-tight text-on-surface group-hover:text-primary transition-colors">{{ st.movieTitle }}</h3>
-                    <p class="text-[10px] font-bold text-on-surface-variant uppercase mt-1">{{ st.formatName }} • {{ st.roomName }}</p>
-                    <p class="text-[10px] font-bold text-on-surface-variant/70 mt-1">{{ new Date(st.startTime).toLocaleDateString('vi-VN') }}</p>
+                    <p class="text-[9px] font-black text-on-surface-variant/60 uppercase tracking-[0.15em] mb-1 font-mono">{{ showtimeCode(st) }}</p>
+                    <h3 class="font-black text-lg uppercase tracking-tight text-on-surface group-hover:text-primary transition-colors truncate">{{ st.movieTitle }}</h3>
+                    <div class="flex items-center gap-2 mt-2">
+                      <span :class="formatTone(st.formatName)" class="px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider">{{ String(st.formatName).toUpperCase() }}</span>
+                      <span class="text-[10px] font-bold text-on-surface-variant uppercase">{{ st.roomName }}</span>
+                    </div>
+                    <p class="text-[10px] font-bold text-on-surface-variant/70 mt-1.5">{{ new Date(st.startTime).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) }}</p>
                   </div>
-                  <span class="px-4 py-2 bg-primary/10 text-primary text-sm font-black italic rounded-xl border border-primary/20 w-fit mt-3">
-                    {{ new Date(st.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+                  <span class="px-4 py-2 bg-primary/10 text-primary text-sm font-black italic rounded-xl border border-primary/20 w-fit mt-3 tabular-nums">
+                    {{ fmtTime(st.startTime) }}
                   </span>
                 </div>
               </div>
@@ -906,6 +1448,163 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
             </AppButton>
           </div>
         </div>
+        </template>
+
+        <!-- ===== Luồng bán nhanh F&B (Concession Only) ===== -->
+        <template v-else>
+          <!-- FNB Step 1: Chọn món -->
+          <div v-if="fnbStep === 1" class="p-6 flex flex-col h-full overflow-hidden">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-xl font-black uppercase italic tracking-tighter text-on-surface flex items-center gap-3">
+                <span class="w-8 h-1 bg-primary rounded-full"></span> Bán nhanh bắp nước & combo
+              </h2>
+              <span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">Khách vãng lai · Không cần vé</span>
+            </div>
+
+            <div v-if="isLoading" class="grid grid-cols-3 gap-5">
+              <div v-for="i in 6" :key="i" class="h-28 bg-surface-container-high rounded-3xl animate-pulse"></div>
+            </div>
+            <div v-else-if="combos.length === 0" class="flex-grow flex items-center justify-center text-on-surface-variant text-sm">
+              Chưa có món F&B. Thêm ở "Thực đơn F&B / Combo".
+            </div>
+            <div v-else class="grid grid-cols-3 gap-5 flex-grow overflow-y-auto custom-scrollbar pr-2 content-start">
+              <div v-for="cb in combos" :key="cb.id" class="p-5 bg-surface-container-high rounded-3xl border border-outline-variant/10 flex gap-4 hover:border-primary/30 transition-all">
+                <div class="w-16 h-16 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
+                  <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
+                  <span v-else class="material-symbols-outlined text-on-surface-variant/40">fastfood</span>
+                </div>
+                <div class="flex flex-col justify-between flex-grow min-w-0">
+                  <div>
+                    <h3 class="text-sm font-black uppercase text-on-surface truncate">{{ cb.name }}</h3>
+                    <p class="text-[11px] text-on-surface-variant line-clamp-1">{{ cb.description }}</p>
+                  </div>
+                  <div class="flex items-center justify-between mt-2">
+                    <span class="text-base font-black text-primary italic">{{ fmt(cb.price) }}đ</span>
+                    <button @click="addCombo(cb)" class="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center hover:bg-primary/20 transition-colors">
+                      <span class="material-symbols-outlined text-sm">add</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Giỏ F&B + nút Thanh toán -->
+            <div class="mt-4 rounded-2xl border border-primary/20 bg-primary/5 flex items-center gap-3 pl-4 pr-3 py-2.5">
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="material-symbols-outlined text-primary text-lg">shopping_bag</span>
+                <h3 class="text-[10px] font-black uppercase tracking-widest text-primary leading-none">Giỏ F&B</h3>
+                <span class="text-[10px] font-bold text-on-surface-variant whitespace-nowrap">· {{ selectedCombos.length }} món</span>
+              </div>
+              <div class="flex-grow min-w-0 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                <p v-if="selectedCombos.length === 0" class="text-[11px] text-on-surface-variant/60 whitespace-nowrap">Chọn món để thêm vào giỏ.</p>
+                <div v-for="item in selectedCombos" :key="item.id" class="shrink-0 flex items-stretch gap-3 bg-surface-container-high rounded-2xl border border-outline-variant/10 pl-4 pr-2.5 py-2">
+                  <div class="flex flex-col justify-center leading-tight">
+                    <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
+                    <span class="text-[12px] font-black italic text-primary whitespace-nowrap tabular-nums">{{ fmt(item.price * item.quantity) }}đ</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 pl-3 border-l border-outline-variant/10">
+                    <button @click="changeComboQty(item, -1)" class="w-6 h-6 rounded-lg bg-surface-container-lowest border border-outline-variant/15 text-on-surface-variant flex items-center justify-center hover:bg-primary hover:text-black hover:border-primary active:scale-90 transition-all">
+                      <span class="material-symbols-outlined text-[16px] leading-none">remove</span>
+                    </button>
+                    <span class="w-5 text-center text-[13px] font-black tabular-nums text-on-surface">{{ item.quantity }}</span>
+                    <button @click="changeComboQty(item, 1)" class="w-6 h-6 rounded-lg bg-primary/15 border border-primary/30 text-primary flex items-center justify-center hover:bg-primary hover:text-black active:scale-90 transition-all">
+                      <span class="material-symbols-outlined text-[16px] leading-none">add</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="shrink-0 flex items-center gap-3 pl-3 border-l border-primary/15">
+                <div class="text-right hidden sm:block">
+                  <p class="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant leading-none mb-0.5">Tạm tính</p>
+                  <p class="text-base font-black italic text-primary tracking-tighter leading-none">{{ fmt(comboTotal) }}đ</p>
+                </div>
+                <AppButton :disabled="selectedCombos.length === 0" @click="fnbStep = 2">Thanh toán</AppButton>
+              </div>
+            </div>
+          </div>
+
+          <!-- FNB Step 2: Thanh toán -->
+          <div v-if="fnbStep === 2" class="p-6 space-y-8 overflow-y-auto custom-scrollbar h-full">
+            <div class="flex justify-between items-center">
+              <h2 class="text-xl font-black uppercase italic tracking-tighter text-on-surface flex items-center gap-3">
+                <span class="w-8 h-1 bg-primary rounded-full"></span> Thanh toán bắp nước
+              </h2>
+              <AppButton variant="ghost" @click="fnbStep = 1">Quay lại</AppButton>
+            </div>
+            <div class="grid grid-cols-2 gap-8">
+              <div class="bg-surface-container-high p-8 rounded-3xl border border-outline-variant/10 space-y-4">
+                <p class="text-[10px] font-black text-primary uppercase tracking-widest">Chi tiết hóa đơn</p>
+                <div v-for="c in selectedCombos" :key="c.id" class="flex justify-between text-xs font-bold text-on-surface-variant uppercase border-b border-outline-variant/10 pb-3">
+                  <span>{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
+                  <span class="text-on-surface">{{ fmt(c.price * c.quantity) }}đ</span>
+                </div>
+                <div class="pt-3 flex justify-between items-end">
+                  <p class="text-[10px] font-black text-on-surface-variant uppercase">Tổng cộng</p>
+                  <p class="text-4xl font-black italic text-primary tracking-tighter">{{ fmt(totalPrice) }}đ</p>
+                </div>
+              </div>
+              <div class="space-y-6">
+                <div class="bg-primary/5 border border-primary/20 p-8 rounded-3xl space-y-4">
+                  <p class="text-[10px] font-black text-primary uppercase tracking-widest">Thành viên (tùy chọn — để tích điểm)</p>
+                  <div v-if="!member" class="space-y-3">
+                    <input v-model="cardNumberInput" type="tel" inputmode="numeric" placeholder="Số điện thoại khách hàng..." class="w-full bg-surface-container-high border border-outline-variant/10 rounded-2xl py-3 px-5 text-on-surface text-sm font-bold outline-none focus:border-primary/50" />
+                    <p v-if="cardError" class="text-xs text-red-400 font-bold">{{ cardError }}</p>
+                    <AppButton variant="primary" class="w-full" @click="checkMemberCard" :disabled="isCheckingCard">{{ isCheckingCard ? 'Đang kiểm tra...' : 'Kiểm tra' }}</AppButton>
+                  </div>
+                  <div v-else class="space-y-2 text-on-surface">
+                    <div class="flex justify-between items-center">
+                      <p class="text-sm font-black uppercase">{{ member.fullName }}</p>
+                      <span class="px-2 py-1 bg-primary text-on-primary text-[8px] font-black rounded uppercase">{{ member.membershipTier }}</span>
+                    </div>
+                    <p v-if="member.phone" class="text-xs text-on-surface-variant">SĐT: <span class="font-bold">{{ member.phone }}</span></p>
+                    <p class="text-xs text-on-surface-variant">Điểm tích lũy: <span class="text-primary font-bold">{{ fmt(member.loyaltyPoints) }}</span></p>
+                    <button @click="clearMember" class="text-[10px] text-on-surface-variant hover:text-red-400 font-bold uppercase">Bỏ thẻ</button>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openCashModal" :disabled="isPaying">
+                    <span class="material-symbols-outlined">payments</span> Tiền mặt
+                  </AppButton>
+                  <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openQrModal" :disabled="isPaying">
+                    <span class="material-symbols-outlined">qr_code_2</span> Chuyển khoản QR
+                  </AppButton>
+                </div>
+                <p v-if="isPaying" class="text-center text-xs text-on-surface-variant">Đang xử lý thanh toán...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- FNB Step 3: Done -->
+          <div v-if="fnbStep === 3" class="p-6 flex flex-col items-center justify-center text-center h-full space-y-8">
+            <div class="w-24 h-24 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center shadow-2xl shadow-green-500/20">
+              <span class="material-symbols-outlined text-6xl">check_circle</span>
+            </div>
+            <div>
+              <h2 class="text-4xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
+              <p class="text-on-surface-variant font-bold mt-2 uppercase tracking-widest text-xs">Giao bắp nước cho khách</p>
+            </div>
+            <div class="bg-surface-container-high p-8 rounded-3xl border border-outline-variant/10 w-full max-w-md space-y-6 text-left">
+              <div class="flex justify-between items-center">
+                <div>
+                  <p class="text-[10px] font-black text-primary uppercase">Mã hoá đơn</p>
+                  <p class="text-xl font-black text-on-surface">{{ concessionSale?.saleCode }}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[10px] font-black text-primary uppercase">Tổng tiền</p>
+                  <p class="text-xl font-black text-primary italic">{{ fmt(comboTotal) }}đ</p>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-4">
+              <AppButton variant="primary" size="lg" class="flex items-center gap-3" @click="printConcessionInvoice">
+                <span class="material-symbols-outlined">print</span> In hoá đơn
+              </AppButton>
+              <AppButton variant="outline" size="lg" class="flex items-center gap-3" @click="newConcessionSale">
+                <span class="material-symbols-outlined">add_circle</span> Giao dịch mới
+              </AppButton>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- Right: Cart summary -->
@@ -914,8 +1613,13 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
           <span class="material-symbols-outlined text-primary">receipt_long</span>
           <h2 class="text-sm font-black uppercase tracking-[0.2em] text-primary">Biên lai tạm tính</h2>
         </div>
-        <div v-if="selectedShowtime" class="space-y-5 flex-grow overflow-y-auto custom-scrollbar pr-1">
-          <div class="pb-5 border-b border-outline-variant/10">
+        <div v-if="selectedShowtime || selectedCombos.length" class="space-y-5 flex-grow overflow-y-auto custom-scrollbar pr-1">
+          <div v-if="saleMode === 'FNB'" class="pb-5 border-b border-outline-variant/10">
+            <p class="text-[10px] font-bold text-primary uppercase tracking-wider mb-1.5">Bán nhanh F&B</p>
+            <h3 class="text-base font-black uppercase italic text-on-surface leading-tight">Bắp nước & Combo</h3>
+            <p class="text-xs text-on-surface-variant mt-1.5">Khách vãng lai · không kèm vé</p>
+          </div>
+          <div v-if="selectedShowtime" class="pb-5 border-b border-outline-variant/10">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Phim & Suất</p>
             <h3 class="text-base font-black uppercase italic text-on-surface leading-tight">{{ selectedShowtime.movieTitle }}</h3>
             <p class="text-xs text-on-surface-variant mt-1.5">{{ selectedShowtime.roomName }} • {{ selectedShowtime.formatName }}</p>
@@ -939,7 +1643,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         </div>
         <div v-else class="flex-grow flex flex-col items-center justify-center text-on-surface-variant/40 gap-2">
           <span class="material-symbols-outlined text-4xl">shopping_cart</span>
-          <p class="text-xs font-semibold">Chưa chọn suất chiếu</p>
+          <p class="text-xs font-semibold">{{ saleMode === 'FNB' ? 'Chưa chọn món nào' : 'Chưa chọn suất chiếu' }}</p>
         </div>
 
         <div class="pt-5 mt-3 border-t border-outline-variant/10 flex justify-between items-center">
@@ -985,6 +1689,10 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
           </div>
           <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
             <AppButton variant="ghost" class="flex-1" @click="showCashModal = false">Hủy</AppButton>
+            <button v-if="canHoldOrder" @click="holdCurrentOrder" :disabled="isPaying || isHolding"
+                    class="flex items-center justify-center gap-1.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition-all disabled:opacity-40" title="Lưu đơn vào danh sách chờ (giữ số tiền gốc)">
+              <span class="material-symbols-outlined text-base">{{ isHolding ? 'progress_activity' : 'pause_circle' }}</span> {{ isHolding ? 'Đang giữ...' : 'Giữ đơn' }}
+            </button>
             <AppButton variant="primary" class="flex-1" :disabled="!canConfirmCash || isPaying" @click="processPayment('CASH')">
               {{ isPaying ? 'Đang xử lý...' : 'Xác nhận thanh toán' }}
             </AppButton>
@@ -1038,11 +1746,109 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
       </div>
     </transition>
 
+    <!-- Panel: Danh sách hoá đơn chờ (Hold Orders) -->
+    <transition name="fade">
+      <div v-if="showHeldPanel" class="fixed inset-0 z-[1200] flex justify-end bg-black/60 backdrop-blur-sm" @click.self="showHeldPanel = false">
+        <aside class="w-full max-w-md h-full bg-surface border-l border-outline-variant/15 shadow-2xl flex flex-col">
+          <div class="px-6 py-5 border-b border-outline-variant/10 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary">receipt_long</span>
+              <div>
+                <h3 class="text-base font-black uppercase italic tracking-tighter text-on-surface leading-none">Hoá đơn chờ</h3>
+                <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">{{ heldOrders.length }} đơn đang giữ</p>
+              </div>
+            </div>
+            <button @click="showHeldPanel = false" class="w-8 h-8 rounded-lg hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <div v-if="heldOrders.length === 0" class="flex-grow flex flex-col items-center justify-center text-on-surface-variant/40 gap-3 px-8 text-center">
+            <span class="material-symbols-outlined text-5xl">inbox</span>
+            <p class="text-sm font-semibold">Chưa có đơn nào đang chờ.</p>
+            <p class="text-xs">Bấm <b class="text-primary">Giữ đơn</b> khi cần xử lý khách tiếp theo trong hàng đợi.</p>
+          </div>
+
+          <div v-else class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-3">
+            <div v-for="o in heldOrders" :key="o.code"
+                 class="p-4 bg-surface-container-high rounded-2xl border border-outline-variant/10 hover:border-primary/30 transition-all">
+              <div class="flex items-center justify-between mb-2">
+                <span class="px-2.5 py-1 rounded-lg bg-primary/15 border border-primary/30 text-primary text-[11px] font-black tracking-wider font-mono">{{ o.code }}</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{{ heldAgeLabel(o.createdAt) }}</span>
+                  <!-- Đếm ngược giữ ghế (chỉ đơn có vé) -->
+                  <span v-if="heldRemainingSec(o) != null"
+                        :class="heldRemainingSec(o) <= 60 ? 'bg-red-500/15 border-red-500/40 text-red-300 animate-pulse' : 'bg-primary/10 border-primary/30 text-primary'"
+                        class="flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-black tabular-nums" title="Thời gian giữ ghế còn lại">
+                    <span class="material-symbols-outlined text-[13px]">timer</span>{{ heldCountdown(o) }}
+                  </span>
+                </div>
+              </div>
+              <h4 class="text-sm font-black uppercase text-on-surface truncate">{{ o.mode === 'FNB' ? 'Bán nhanh F&B' : o.showtime?.movieTitle }}</h4>
+              <p v-if="o.mode === 'FNB'" class="text-[11px] text-on-surface-variant mt-0.5">Khách vãng lai · không kèm vé</p>
+              <p v-else class="text-[11px] text-on-surface-variant mt-0.5">{{ String(o.showtime?.formatName).toUpperCase() }} • {{ o.showtime?.roomName }} • {{ fmtTime(o.showtime?.startTime) }}</p>
+              <div class="flex items-center gap-2 mt-2 flex-wrap">
+                <template v-if="o.mode === 'FNB'">
+                  <span class="material-symbols-outlined text-sm text-on-surface-variant">lunch_dining</span>
+                  <span class="text-xs font-bold text-primary">{{ (o.combos || []).length }} món · {{ (o.combos || []).reduce((a, c) => a + c.quantity, 0) }} phần</span>
+                </template>
+                <template v-else>
+                  <span class="material-symbols-outlined text-sm text-on-surface-variant">event_seat</span>
+                  <span class="text-xs font-bold text-primary">{{ (o.seats || []).map(s => s.rowChar + s.colNum).join(', ') }}</span>
+                  <span v-if="o.combos?.length" class="text-[10px] text-on-surface-variant">· {{ o.combos.length }} món F&B</span>
+                </template>
+              </div>
+              <div class="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/10">
+                <span class="text-base font-black italic text-primary tabular-nums">{{ fmt(o.total) }}đ</span>
+                <div class="flex items-center gap-2">
+                  <button @click="askDeleteHeldOrder(o)"
+                          class="w-9 h-9 rounded-lg bg-surface-container-lowest border border-outline-variant/15 text-on-surface-variant hover:text-red-400 hover:border-red-500/30 flex items-center justify-center transition-all" title="Huỷ đơn chờ">
+                    <span class="material-symbols-outlined text-lg">delete</span>
+                  </button>
+                  <button @click="restoreHeldOrder(o)"
+                          class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary text-[11px] font-black uppercase tracking-wider hover:brightness-110 transition-all" title="Khôi phục đơn">
+                    <span class="material-symbols-outlined text-base">restore</span> Gọi lại
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 border-t border-outline-variant/10 flex items-center gap-2 text-[10px] text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm">info</span>
+            Ghế đã bị bán trong lúc chờ sẽ tự loại khi gọi lại đơn.
+          </div>
+        </aside>
+      </div>
+    </transition>
+
+    <!-- Modal: Xác nhận huỷ đơn chờ -->
+    <transition name="fade">
+      <div v-if="confirmDeleteHold" class="fixed inset-0 z-[1250] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="cancelDeleteHeldOrder">
+        <div class="w-full max-w-sm bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
+          <div class="p-7 text-center space-y-4">
+            <div class="w-16 h-16 mx-auto rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+              <span class="material-symbols-outlined text-3xl text-red-400">delete_forever</span>
+            </div>
+            <div>
+              <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Huỷ hoá đơn chờ?</h3>
+              <p class="text-sm text-on-surface-variant mt-2">Bạn có chắc chắn muốn huỷ đơn chờ
+                <b class="text-primary font-mono">{{ confirmDeleteHold.code }}</b>? Ghế đang giữ (nếu có) sẽ được giải phóng.</p>
+            </div>
+          </div>
+          <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
+            <AppButton variant="ghost" class="flex-1" @click="cancelDeleteHeldOrder">Không</AppButton>
+            <AppButton variant="primary" class="flex-1 !bg-red-500 !border-red-500" @click="confirmDeleteHeldOrder">Huỷ đơn</AppButton>
+          </div>
+        </div>
+      </div>
+    </transition>
+
     <!-- Toast -->
     <transition name="fade">
       <div v-if="toast.show" :class="[
-        'fixed top-6 right-6 z-[1300] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
+        'fixed top-20 right-6 z-[1300] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 border',
+        toast.type === 'success' ? 'bg-green-600 border-green-400 text-white' : 'bg-red-600 border-red-400 text-white'
       ]">
         <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
         {{ toast.message }}

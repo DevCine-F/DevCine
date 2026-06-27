@@ -1,0 +1,61 @@
+package com.devcine.backend.service;
+
+import com.devcine.backend.entity.Booking;
+import com.devcine.backend.entity.BookingSeat;
+import com.devcine.backend.repository.BookingRepository;
+import com.devcine.backend.repository.BookingSeatRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+/**
+ * Hỗ trợ "Hoá đơn chờ" tại POS: giải phóng (release) một booking đang giữ ghế (HOLD)
+ * khi nhân viên huỷ đơn chờ hoặc đơn hết giờ giữ.
+ *
+ * <p>Tách khỏi {@code BookingService} (file bảo vệ) — chỉ thao tác repository có sẵn,
+ * không sửa nghiệp vụ đặt/thanh toán hiện hành. Việc TẠO hold tái dùng
+ * {@code BookingService.holdSeats} nên không cần lặp lại ở đây.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PosHoldService {
+
+    private final BookingRepository bookingRepository;
+    private final BookingSeatRepository bookingSeatRepository;
+
+    /**
+     * Nhả ghế của một đơn chờ về AVAILABLE (đặt bookingSeat HOLD → EXPIRED, booking → CANCELLED).
+     *
+     * @return trạng thái xử lý: {@code NOT_FOUND} | {@code CONFIRMED} (đã thanh toán, không nhả)
+     *         | {@code RELEASED}
+     */
+    @Transactional
+    public String releaseHold(Integer bookingId) {
+        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        if (booking == null) {
+            return "NOT_FOUND";
+        }
+        // Đơn đã thanh toán xong → tuyệt đối không nhả ghế (chống bán trùng / mất vé đã bán)
+        if ("CONFIRMED".equals(booking.getStatus())) {
+            return "CONFIRMED";
+        }
+
+        List<BookingSeat> seats = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId);
+        for (BookingSeat bs : seats) {
+            if ("HOLD".equals(bs.getStatus())) {
+                bs.setStatus("EXPIRED");
+            }
+        }
+        bookingSeatRepository.saveAll(seats);
+
+        booking.setStatus("CANCELLED");
+        bookingRepository.save(booking);
+
+        log.info("Đã nhả {} ghế của đơn chờ {} (booking #{}).", seats.size(), booking.getBookingCode(), bookingId);
+        return "RELEASED";
+    }
+}

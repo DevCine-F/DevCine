@@ -80,6 +80,9 @@ export const ticketingApi = {
   getCombos: () => api.get('/fnbs'),
   memberCard: (cardNumber) => api.get(`/ticketing/member-card/${cardNumber}`),
   pay: (payload) => api.post('/ticketing/pay', payload),
+  concession: (payload) => api.post('/ticketing/concession', payload),
+  hold: (payload) => api.post('/ticketing/hold', payload),
+  releaseHold: (bookingId) => api.post(`/ticketing/hold/${bookingId}/release`),
 };
 
 export const reviewAdminApi = {
