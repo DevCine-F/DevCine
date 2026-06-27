@@ -20,11 +20,10 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody Map<String, String> body) {
         try {
             var result = authService.register(
-                    body.get("username"),
                     body.get("email"),
                     body.get("password"),
-                    body.getOrDefault("fullName", body.getOrDefault("full_name", body.get("username"))),
-                    body.getOrDefault("phone", "")
+                    body.getOrDefault("fullName", body.get("full_name")),
+                    body.get("phone")
             );
             return ResponseEntity.status(201).body(Map.of("success", true, "data", result));
         } catch (Exception e) {
@@ -35,7 +34,9 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletRequest request) {
         try {
-            var result = authService.login(body.get("username"), body.get("password"), extractIp(request));
+            // Nhận 'identifier' (SĐT/email); fallback 'username' để tương thích trang admin & client cũ
+            String identifier = body.getOrDefault("identifier", body.get("username"));
+            var result = authService.login(identifier, body.get("password"), extractIp(request));
             return ResponseEntity.ok(Map.of("success", true, "data", result));
         } catch (Exception e) {
             return ResponseEntity.status(401).body(Map.of("success", false, "message", e.getMessage()));

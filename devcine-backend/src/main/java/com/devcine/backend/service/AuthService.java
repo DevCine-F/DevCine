@@ -26,17 +26,29 @@ public class AuthService {
     private final AuditLogService auditLogService;
 
     @Transactional
-    public Map<String, Object> register(String username, String email, String password,
-                                         String fullName, String phone) {
-        if (userRepository.existsByUsername(username)) {
-            throw new RuntimeException("Tên đăng nhập đã tồn tại");
+    public Map<String, Object> register(String email, String password, String fullName, String phone) {
+        // Tất cả các trường bắt buộc
+        if (fullName == null || fullName.isBlank()
+                || email == null || email.isBlank()
+                || phone == null || phone.isBlank()
+                || password == null || password.isBlank()) {
+            throw new RuntimeException("Vui lòng nhập đầy đủ họ tên, email, số điện thoại và mật khẩu");
         }
         if (userRepository.existsByEmail(email)) {
-            throw new RuntimeException("Email đã được sử dụng");
+            throw new RuntimeException("Email này đã được sử dụng");
+        }
+        if (userRepository.existsByPhone(phone)) {
+            throw new RuntimeException("Số điện thoại này đã được sử dụng");
         }
 
         Role customerRole = roleRepository.findByName("CUSTOMER")
                 .orElseGet(() -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
+
+        // Username là cột bắt buộc & duy nhất -> tự sinh từ số điện thoại (định danh đăng nhập mới)
+        String username = phone;
+        if (userRepository.existsByUsername(username)) {
+            username = phone + "_" + (System.currentTimeMillis() % 100000);
+        }
 
         User user = User.builder()
                 .username(username)
@@ -57,7 +69,7 @@ public class AuthService {
                 .build();
         customerRepository.save(customer);
 
-        log.info("Registered new customer: {}", username);
+        log.info("Registered new customer by phone: {}", phone);
         return Map.of(
                 "id", user.getId(),
                 "username", user.getUsername(),
@@ -67,16 +79,18 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> login(String username, String password, String ipAddress) {
-        User user = userRepository.findByUsernameWithRole(username)
-                .orElseThrow(() -> new RuntimeException("Tên đăng nhập hoặc mật khẩu không đúng"));
+    public Map<String, Object> login(String identifier, String password, String ipAddress) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new RuntimeException("Vui lòng nhập số điện thoại hoặc email");
+        }
+        // Có thể có nhiều ứng viên (dữ liệu lịch sử trùng SĐT) -> chọn user khớp mật khẩu
+        User user = userRepository.findByLoginIdentifier(identifier.trim()).stream()
+                .filter(u -> passwordEncoder.matches(password, u.getPasswordHash()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Số điện thoại/email hoặc mật khẩu không đúng"));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             throw new RuntimeException("Tài khoản đã bị vô hiệu hóa");
-        }
-
-        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            throw new RuntimeException("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         String role = user.getRole().getName();
@@ -87,7 +101,7 @@ public class AuthService {
             auditLogService.record(user.getId(), "LOGIN", "auth", ipAddress);
         }
 
-        log.info("User logged in: {}", username);
+        log.info("User logged in: {}", user.getUsername());
         return Map.of(
                 "token", token,
                 "user", Map.of(

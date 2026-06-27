@@ -79,7 +79,7 @@ export const supportApi = {
 };
 
 export const authApi = {
-  login: (username, password) => api.post('/auth/login', { username, password }),
+  login: (identifier, password) => api.post('/auth/login', { identifier, password }),
   register: (data) => api.post('/auth/register', data),
   changePassword: (userId, oldPassword, newPassword) =>
     api.put('/auth/change-password', { userId, oldPassword, newPassword }),
