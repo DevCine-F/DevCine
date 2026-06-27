@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
@@ -44,6 +44,20 @@ const tabLabel = computed(() =>
     : activeTab.value === 'formats' ? 'định dạng'
       : 'mục kiểm duyệt'
 )
+
+// ===== Phân trang (client-side, dùng chung 3 tab) =====
+const PAGE_SIZE = 8
+const currentPage = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(currentList.value.length / PAGE_SIZE)))
+const pagedList = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return currentList.value.slice(start, start + PAGE_SIZE)
+})
+// Đổi tab -> về trang 1
+watch(activeTab, () => { currentPage.value = 1 })
+// Khi danh sách co lại (xoá / lọc) mà trang hiện tại vượt quá -> kẹp lại
+watch(totalPages, (tp) => { if (currentPage.value > tp) currentPage.value = tp })
+const goToPage = (p) => { if (p >= 1 && p <= totalPages.value) currentPage.value = p }
 
 const fetchData = async () => {
   isLoading.value = true
@@ -211,7 +225,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
             </td>
           </tr>
           <!-- Success / data rows -->
-          <tr v-else v-for="item in currentList"
+          <tr v-else v-for="item in pagedList"
               :key="item.id" class="group hover:bg-white/5 transition-colors">
             <td class="px-8 py-4 text-xs font-mono text-on-surface-variant">#{{ item.id }}</td>
             <td class="px-8 py-4">
@@ -237,6 +251,30 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
           </tr>
         </tbody>
       </table>
+
+      <!-- Phân trang -->
+      <div v-if="!isLoading && !loadError && currentList.length > 0"
+           class="flex items-center justify-between gap-4 px-8 py-4 border-t border-outline-variant/10 bg-surface-container-high/20">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, currentList.length) }}
+          / {{ currentList.length }} {{ tabLabel }}
+        </p>
+        <div v-if="totalPages > 1" class="flex items-center gap-1.5">
+          <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
+                  class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <span class="material-symbols-outlined text-lg">chevron_left</span>
+          </button>
+          <button v-for="p in totalPages" :key="p" @click="goToPage(p)"
+                  :class="p === currentPage ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-white/10'"
+                  class="min-w-8 h-8 px-2 flex items-center justify-center rounded-lg text-xs font-bold transition-colors">
+            {{ p }}
+          </button>
+          <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
+                  class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <span class="material-symbols-outlined text-lg">chevron_right</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Modal -->
@@ -270,7 +308,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
     <transition name="fade">
       <div v-if="toast.show"
            :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
-           class="fixed bottom-8 right-8 z-[200] px-6 py-4 rounded-xl shadow-2xl text-white flex items-center gap-3 max-w-sm">
+           class="fixed bottom-8 right-8 z-[1100] px-6 py-4 rounded-xl shadow-2xl text-white flex items-center gap-3 max-w-sm">
         <span class="material-symbols-outlined text-lg">
           {{ toast.type === 'error' ? 'error' : 'check_circle' }}
         </span>
