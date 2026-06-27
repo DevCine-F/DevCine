@@ -58,21 +58,23 @@ public class TicketingController {
         return ResponseEntity.ok(items);
     }
 
-    // Tra cứu khách hàng theo thẻ thành viên (userId làm số thẻ)
-    @GetMapping("/member-card/{cardNumber}")
-    public ResponseEntity<?> lookupMemberCard(@PathVariable String cardNumber) {
+    // Tra cứu khách hàng theo SỐ ĐIỆN THOẠI để tích điểm tại quầy
+    @GetMapping("/member-card/{phone}")
+    public ResponseEntity<?> lookupMemberCard(@PathVariable String phone) {
         try {
-            Integer customerId = Integer.parseInt(cardNumber);
-            Customer customer = customerRepository.findById(customerId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thẻ thành viên"));
+            String p = phone == null ? "" : phone.trim().replaceAll("\\s+", "").replaceFirst("^\\+84", "0");
+            if (p.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Vui lòng nhập số điện thoại"));
+            }
+            Customer customer = customerRepository.findByUserPhone(p).stream().findFirst()
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với số điện thoại này"));
             return ResponseEntity.ok(Map.of(
                     "customerId", customer.getUserId(),
                     "fullName", customer.getUser() != null ? customer.getUser().getFullName() : "Khách hàng",
+                    "phone", customer.getUser() != null && customer.getUser().getPhone() != null ? customer.getUser().getPhone() : "",
                     "membershipTier", customer.getMembershipTier() != null ? customer.getMembershipTier() : "BRONZE",
                     "loyaltyPoints", customer.getLoyaltyPoints() != null ? customer.getLoyaltyPoints() : 0
             ));
-        } catch (NumberFormatException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Số thẻ không hợp lệ"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

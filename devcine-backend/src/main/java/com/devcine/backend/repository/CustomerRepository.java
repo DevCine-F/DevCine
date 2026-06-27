@@ -15,6 +15,10 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     @Query("SELECT c FROM Customer c JOIN FETCH c.user u ORDER BY u.createdAt DESC")
     List<Customer> findAllWithUser();
 
+    /** Tra cứu khách hàng theo số điện thoại (POS tích điểm). Trả List để xử lý dữ liệu trùng. */
+    @Query("SELECT c FROM Customer c JOIN FETCH c.user u WHERE u.phone = :phone")
+    List<Customer> findByUserPhone(@Param("phone") String phone);
+
     /** Lọc khách hàng theo từ khoá tên/email/sđt (q không null). */
     @Query("SELECT c FROM Customer c JOIN FETCH c.user u WHERE " +
            "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')) " +

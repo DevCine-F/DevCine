@@ -136,8 +136,28 @@ const seatTypeBreakdown = computed(() => {
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 
 // ---- Thanh toán tiền mặt ----
+const MAX_CASH = 100_000_000 // giới hạn 100 triệu tránh tràn số / gõ nhầm thừa số 0
+
+// Ô nhập có format dấu chấm nghìn; nguồn dữ liệu thật vẫn là cashGiven (number)
+const cashGivenDisplay = computed({
+  get: () => (cashGiven.value ? cashGiven.value.toLocaleString('vi-VN') : ''),
+  set: (val) => {
+    const digits = String(val).replace(/\D/g, '') // chỉ giữ chữ số
+    let n = digits ? parseInt(digits, 10) : 0
+    if (n > MAX_CASH) n = MAX_CASH // chặn vượt trần
+    cashGiven.value = n
+  },
+})
+
 const changeDue = computed(() => Math.max(0, Number(cashGiven.value || 0) - totalPrice.value))
 const canConfirmCash = computed(() => Number(cashGiven.value || 0) >= totalPrice.value && totalPrice.value > 0)
+// Thông điệp validate dưới ô nhập
+const cashError = computed(() => {
+  const given = Number(cashGiven.value || 0)
+  if (given === 0) return 'Vui lòng nhập số tiền khách đưa.'
+  if (given < totalPrice.value) return `Tiền khách đưa chưa đủ (còn thiếu ${fmt(totalPrice.value - given)}đ).`
+  return ''
+})
 const cashSuggestions = computed(() => {
   const t = totalPrice.value
   if (t <= 0) return []
@@ -819,7 +839,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
               <div class="bg-primary/5 border border-primary/20 p-8 rounded-3xl space-y-4">
                 <p class="text-[10px] font-black text-primary uppercase tracking-widest">Thành viên (tùy chọn — để tích điểm)</p>
                 <div v-if="!member" class="space-y-3">
-                  <input v-model="cardNumberInput" placeholder="Số thẻ (ID khách hàng)..." class="w-full bg-surface-container-high border border-outline-variant/10 rounded-2xl py-3 px-5 text-on-surface text-sm font-bold outline-none focus:border-primary/50" />
+                  <input v-model="cardNumberInput" type="tel" inputmode="numeric" placeholder="Số điện thoại khách hàng..." class="w-full bg-surface-container-high border border-outline-variant/10 rounded-2xl py-3 px-5 text-on-surface text-sm font-bold outline-none focus:border-primary/50" />
                   <p v-if="cardError" class="text-xs text-red-400 font-bold">{{ cardError }}</p>
                   <AppButton variant="primary" class="w-full" @click="checkMemberCard" :disabled="isCheckingCard">{{ isCheckingCard ? 'Đang kiểm tra...' : 'Kiểm tra' }}</AppButton>
                 </div>
@@ -828,6 +848,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
                     <p class="text-sm font-black uppercase">{{ member.fullName }}</p>
                     <span class="px-2 py-1 bg-primary text-on-primary text-[8px] font-black rounded uppercase">{{ member.membershipTier }}</span>
                   </div>
+                  <p v-if="member.phone" class="text-xs text-on-surface-variant">SĐT: <span class="font-bold">{{ member.phone }}</span></p>
                   <p class="text-xs text-on-surface-variant">Điểm tích lũy: <span class="text-primary font-bold">{{ fmt(member.loyaltyPoints) }}</span></p>
                   <button @click="clearMember" class="text-[10px] text-on-surface-variant hover:text-red-400 font-bold uppercase">Bỏ thẻ</button>
                 </div>
@@ -943,8 +964,15 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiền khách đưa</label>
-              <input v-model.number="cashGiven" type="number" min="0" placeholder="0"
-                     class="w-full bg-surface-container-high border border-outline-variant/10 rounded-2xl py-3.5 px-5 text-on-surface text-xl font-black outline-none focus:border-primary/50 tabular-nums" />
+              <div class="relative">
+                <input v-model="cashGivenDisplay" type="text" inputmode="numeric" maxlength="13" placeholder="0"
+                       :class="cashError ? 'border-red-500/60' : 'border-outline-variant/10 focus:border-primary/50'"
+                       class="w-full bg-surface-container-high border rounded-2xl py-3.5 pl-5 pr-9 text-on-surface text-xl font-black outline-none tabular-nums" />
+                <span class="absolute right-5 top-1/2 -translate-y-1/2 text-on-surface-variant font-black pointer-events-none">đ</span>
+              </div>
+              <p v-if="cashError" class="text-xs text-red-400 font-bold flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">error</span>{{ cashError }}
+              </p>
               <div class="flex flex-wrap gap-2 pt-1">
                 <button v-for="s in cashSuggestions" :key="s" @click="cashGiven = s"
                         class="px-3 py-1.5 rounded-lg bg-surface-container-high border border-outline-variant/10 text-[11px] font-bold text-on-surface hover:border-primary/40 hover:text-primary transition-all tabular-nums">{{ fmt(s) }}đ</button>
@@ -1013,7 +1041,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
     <!-- Toast -->
     <transition name="fade">
       <div v-if="toast.show" :class="[
-        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
+        'fixed top-6 right-6 z-[1300] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
         toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
       ]">
         <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
