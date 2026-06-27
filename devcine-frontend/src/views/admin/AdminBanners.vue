@@ -5,6 +5,7 @@ import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
+import { prepareImageForUpload } from '@/utils/imageUpload'
 
 const toast = useToastStore()
 const confirm = useConfirmStore()
@@ -83,10 +84,18 @@ const closeModal = () => { isModalOpen.value = false }
 const handleImageUpload = async (e) => {
   const file = e.target.files?.[0]
   if (!file) return
+  let prepared
+  try {
+    prepared = await prepareImageForUpload(file)
+  } catch (err) {
+    toast.error(err.message)
+    e.target.value = ''
+    return
+  }
   isUploading.value = true
   try {
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', prepared)
     const { data } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     form.value.imageUrl = data.url
     toast.success('Tải ảnh lên thành công.')

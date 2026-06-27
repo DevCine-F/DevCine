@@ -4,6 +4,7 @@ import axios from 'axios'
 import api from '@/api/axios'
 import { marketingApi, customerApi, promoArticleApi } from '@/api/admin/index'
 import CustomSelect from '@/components/common/CustomSelect.vue'
+import { prepareImageForUpload } from '@/utils/imageUpload'
 
 const filterStatus = ref('all')
 const statusOptions = [
@@ -110,10 +111,18 @@ const openEditArticle = (article) => {
 const handleArticleImageUpload = async (e) => {
   const file = e.target.files?.[0]
   if (!file) return
+  let prepared
+  try {
+    prepared = await prepareImageForUpload(file)
+  } catch (err) {
+    showToast(err.message, 'error')
+    e.target.value = ''
+    return
+  }
   isUploadingArticleImage.value = true
   try {
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', prepared)
     const { data } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     newArticle.value.image = data.url
     showToast('Tải ảnh lên thành công.')

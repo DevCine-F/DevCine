@@ -3,6 +3,7 @@ import { ref, watch } from "vue";
 import axios from "@/api/axios";
 import { useToastStore } from "@/stores/toast";
 import { friendlyError } from "@/utils/friendlyError";
+import { validateImageFile, compressImage } from "@/utils/imageUpload";
 
 const toast = useToastStore();
 
@@ -88,8 +89,9 @@ const triggerPosterInput = () => {
 const triggerBannerInput = () => bannerInput.value.click();
 
 const uploadImage = async (file) => {
+  const prepared = await compressImage(file); // nén/thu nhỏ trước khi upload
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", prepared);
   const response = await axios.post("/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
@@ -99,6 +101,7 @@ const uploadImage = async (file) => {
 const onPosterChange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  try { validateImageFile(file); } catch (err) { toast.error(err.message); e.target.value = ""; return; }
   const oldUrl = newMovie.value.posterUrl;
   newMovie.value.posterUrl = URL.createObjectURL(file);
   isUploadingPoster.value = true;
@@ -116,6 +119,7 @@ const onPosterChange = async (e) => {
 const onBannerChange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  try { validateImageFile(file); } catch (err) { toast.error(err.message); e.target.value = ""; return; }
   const oldUrl = newMovie.value.bannerUrl;
   newMovie.value.bannerUrl = URL.createObjectURL(file);
   isUploadingBanner.value = true;

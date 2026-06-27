@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
 import { fnbApi } from '@/api/admin/index'
+import { prepareImageForUpload } from '@/utils/imageUpload'
 
 const items = ref([])
 const isLoading = ref(false)
@@ -65,10 +66,18 @@ const openEdit = (item) => {
 const handleUpload = async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
+  let prepared
+  try {
+    prepared = await prepareImageForUpload(file)
+  } catch (err) {
+    showToast(err.message, 'error')
+    event.target.value = ''
+    return
+  }
   isUploading.value = true
   try {
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', prepared)
     const { data } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     form.value.imageUrl = data.url
   } catch (err) {

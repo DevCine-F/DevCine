@@ -4,11 +4,13 @@ import { RouterLink, useRouter } from 'vue-router'
 import { promotionApi, voucherApi, promoArticleApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
+import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+const confirm = useConfirmStore()
 const showToast = (message, type = 'success') => toastStore.push(message, type)
 
 const promotions = ref([])
@@ -19,7 +21,6 @@ const savedIds = ref(new Set())
 // Tin khuyến mãi (nội dung biên tập)
 const articles = ref([])
 const isLoadingArticles = ref(false)
-const detailArticle = ref(null)
 
 const errMsg = (e, fb) => friendlyError(e, fb)
 
@@ -39,9 +40,6 @@ const formatArticleDate = (iso) => {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('vi-VN')
 }
-
-const openArticleDetail = (article) => { detailArticle.value = article }
-const closeArticleDetail = () => { detailArticle.value = null }
 
 // ===== Phân trang riêng cho từng khu — mỗi trang 2 dòng (3 cột × 2 = 6 mục) =====
 const PER_PAGE = 6
@@ -133,7 +131,13 @@ const requireLogin = () => {
 // Mã đổi-điểm: trừ điểm rồi lưu voucher
 const redeemPoints = async (p) => {
   if (!requireLogin()) return
-  if (!confirm(`Dùng ${Number(p.pointsRequired).toLocaleString('vi-VN')} điểm để đổi mã "${p.code}"?`)) return
+  const ok = await confirm.show({
+    title: 'Đổi điểm lấy ưu đãi',
+    message: `Dùng ${Number(p.pointsRequired).toLocaleString('vi-VN')} điểm để đổi mã "${p.code}"?`,
+    confirmText: 'Đổi điểm',
+    tone: 'primary',
+  })
+  if (!ok) return
   savingId.value = p.id
   try {
     await voucherApi.redeem(authStore.user.id, p.id)
@@ -217,11 +221,11 @@ onMounted(async () => {
                 Đến {{ formatArticleDate(article.endDate) }}
               </span>
               <span v-else></span>
-              <button @click="openArticleDetail(article)"
+              <RouterLink :to="`/khuyen-mai/${article.id}`"
                       class="shrink-0 flex items-center gap-1.5 bg-primary-container/10 border border-primary-container/30 text-primary-container font-bold text-xs uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-primary-container/20 transition-all">
                 Xem chi tiết
                 <span class="material-symbols-outlined text-sm">arrow_forward</span>
-              </button>
+              </RouterLink>
             </div>
           </div>
         </article>
@@ -323,35 +327,6 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <!-- Modal chi tiết tin khuyến mãi -->
-    <transition name="fade">
-      <div v-if="detailArticle" class="fixed inset-0 z-[1000] flex items-center justify-center p-4" @click.self="closeArticleDetail">
-        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
-        <div class="relative w-full max-w-2xl bg-surface-container-low border border-outline-variant/20 rounded-2xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
-          <!-- Ảnh hero -->
-          <div class="relative aspect-[16/9] bg-surface-container-high shrink-0">
-            <img v-if="detailArticle.imageUrl" :src="detailArticle.imageUrl" :alt="detailArticle.title" class="w-full h-full object-cover" />
-            <div v-else class="w-full h-full flex items-center justify-center">
-              <span class="material-symbols-outlined text-6xl text-outline-variant">image</span>
-            </div>
-            <div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
-            <button @click="closeArticleDetail" class="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors">
-              <span class="material-symbols-outlined">close</span>
-            </button>
-          </div>
-          <!-- Nội dung -->
-          <div class="flex-1 overflow-y-auto p-8">
-            <h3 class="text-2xl md:text-3xl font-headline font-extrabold uppercase italic text-on-surface mb-3">{{ detailArticle.title }}</h3>
-            <div v-if="detailArticle.startDate || detailArticle.endDate" class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary-container mb-5">
-              <span class="material-symbols-outlined text-sm">event</span>
-              {{ formatArticleDate(detailArticle.startDate) }}<template v-if="detailArticle.endDate"> — {{ formatArticleDate(detailArticle.endDate) }}</template>
-            </div>
-            <p v-if="detailArticle.description" class="text-on-surface font-semibold mb-4">{{ detailArticle.description }}</p>
-            <p class="text-on-surface-variant leading-relaxed whitespace-pre-line">{{ detailArticle.content || 'Đang cập nhật nội dung chi tiết.' }}</p>
-          </div>
-        </div>
-      </div>
-    </transition>
   </main>
 </template>
 

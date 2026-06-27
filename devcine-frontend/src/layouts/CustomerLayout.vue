@@ -5,6 +5,7 @@ import Navbar from '../components/customer/Navbar.vue'
 import Footer from '../components/customer/Footer.vue'
 import StarryBackground from '../components/common/StarryBackground.vue'
 import AppToast from '../components/common/AppToast.vue'
+import ConfirmModal from '../components/common/ConfirmModal.vue'
 
 const route = useRoute()
 </script>
@@ -24,6 +25,7 @@ const route = useRoute()
 
     <Footer />
     <AppToast />
+    <ConfirmModal />
   </div>
 </template>
 
