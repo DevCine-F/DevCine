@@ -280,6 +280,11 @@ const HELD_TICKET_TTL = HOLD_SECONDS // đơn chờ CÓ VÉ hết hạn sau 5 ph
 const nowTs = ref(Date.now())        // nhịp đồng hồ 1s để countdown/tuổi đơn cập nhật reactive
 let nowTimer = null
 
+// Chỉ hiện suất chưa tới giờ chiếu; suất quá giờ tự ẩn theo nhịp đồng hồ
+const visibleShowtimes = computed(() =>
+  showtimes.value.filter(st => !(st?.startTime && new Date(st.startTime).getTime() < nowTs.value))
+)
+
 // Số giây còn lại của đơn chờ có vé (null = đơn F&B, không hết hạn)
 const heldRemainingSec = (o) => {
   if (o.mode === 'FNB' || !(o.seats && o.seats.length)) return null
@@ -1162,18 +1167,15 @@ onUnmounted(() => {
             <div v-for="i in 4" :key="i" class="h-44 bg-surface-container-high rounded-3xl animate-pulse"></div>
           </div>
           <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm">{{ error }}</div>
-          <div v-else-if="showtimes.length === 0" class="py-20 text-center border border-dashed border-outline-variant/20 rounded-3xl">
+          <div v-else-if="visibleShowtimes.length === 0" class="py-20 text-center border border-dashed border-outline-variant/20 rounded-3xl">
             <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-3">event_busy</span>
             <p class="text-on-surface-variant font-semibold">Không có suất chiếu nào hôm nay/sắp tới.</p>
             <p class="text-xs text-on-surface-variant/60 mt-1">Tạo suất chiếu ở "Lịch chiếu & Điều phối".</p>
           </div>
 
           <div v-else class="grid grid-cols-2 gap-6">
-            <div v-for="st in showtimes" :key="st.id" @click="selectShowtime(st)"
-                 :class="isPastShowtime(st) ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-primary/50 hover:bg-primary/5 cursor-pointer'"
-                 class="relative p-6 bg-surface-container-high rounded-3xl border border-outline-variant/10 transition-all group">
-              <span v-if="isPastShowtime(st)"
-                    class="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-[9px] font-black uppercase tracking-widest">Quá giờ</span>
+            <div v-for="st in visibleShowtimes" :key="st.id" @click="selectShowtime(st)"
+                 class="relative p-6 bg-surface-container-high rounded-3xl border border-outline-variant/10 transition-all group hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
               <div class="flex gap-6">
                 <div class="w-24 h-36 bg-surface-container-highest rounded-xl overflow-hidden shadow-lg border border-outline-variant/10">
                   <img :src="st.moviePoster || '/images/Hopper.webp'" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
