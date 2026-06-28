@@ -38,6 +38,7 @@ public class BookingService {
     private final PricingService pricingService;
     private final UserRepository userRepository;
     private final MailService mailService;
+    private final SeatLockService seatLockService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -307,7 +308,17 @@ public class BookingService {
         }
         bookingSeatRepository.saveAll(seats);
         ticketRepository.saveAll(tickets);
-        
+
+        // Ghế đã bán → broadcast real-time cho mọi quầy POS & khách online khóa cứng ghế này
+        // (best-effort: lỗi messaging không được làm hỏng giao dịch thanh toán đã hoàn tất)
+        if (booking.getShowtime() != null) {
+            List<Integer> soldSeatIds = seats.stream()
+                    .filter(bs -> bs.getSeat() != null)
+                    .map(bs -> bs.getSeat().getId())
+                    .toList();
+            seatLockService.markSold(booking.getShowtime().getId(), soldSeatIds);
+        }
+
         // Mark voucher as used + tăng lượt dùng của chương trình khuyến mãi
         if (booking.getVoucher() != null) {
             Voucher v = booking.getVoucher();

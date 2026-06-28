@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { ticketingApi, settingsApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
 
@@ -116,12 +117,39 @@ const refreshSeats = async () => {
   } catch (_) { /* im lặng — lần poll sau thử lại */ }
 }
 const startSeatPolling = () => {
+  if (selectedShowtime.value) seatRealtime.connect(selectedShowtime.value.id) // khóa ghế real-time
   if (seatPollTimer) clearInterval(seatPollTimer)
   seatPollTimer = setInterval(() => {
     if (selectedShowtime.value && currentStep.value >= 2 && currentStep.value <= 5) refreshSeats()
   }, SEAT_POLL_MS)
 }
-const stopSeatPolling = () => { if (seatPollTimer) { clearInterval(seatPollTimer); seatPollTimer = null } }
+const stopSeatPolling = () => {
+  if (seatPollTimer) { clearInterval(seatPollTimer); seatPollTimer = null }
+  seatRealtime.disconnect() // rời bước chọn ghế → nhả khóa của mình + ngắt WebSocket
+}
+
+// ===== Khóa ghế real-time (WebSocket/STOMP) — đồng bộ với quầy POS khác & khách online =====
+const seatRealtime = useSeatRealtime({
+  by: 'Quầy POS',
+  // Ghế mình vừa chọn nhưng quầy khác đã giành trước → gỡ khỏi đơn + báo lỗi
+  onDenied: (seatId) => {
+    const lost = selectedSeats.value.find(s => s.seatId === seatId)
+    selectedSeats.value = selectedSeats.value.filter(s => s.seatId !== seatId)
+    if (selectedSeats.value.length === 0) stopHoldTimer()
+    const label = lost ? lost.rowChar + lost.colNum : 'này'
+    showToast(`Ghế ${label} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
+  },
+  // Ghế bị bán ở nơi khác trong lúc đang chọn → gỡ khỏi đơn nếu có
+  onSold: (seatIds) => {
+    const lost = selectedSeats.value.filter(s => seatIds.includes(s.seatId))
+    if (lost.length) {
+      selectedSeats.value = selectedSeats.value.filter(s => !seatIds.includes(s.seatId))
+      if (selectedSeats.value.length === 0) stopHoldTimer()
+      showToast(`Ghế ${lost.map(s => s.rowChar + s.colNum).join(', ')} vừa được bán ở quầy khác — đã gỡ khỏi đơn.`, 'error')
+    }
+  },
+})
+const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 
 // ===== Hoá đơn chờ (Hold Order / Pending List) — lưu localStorage để bền qua refresh =====
 const HELD_KEY = 'devcine_pos_held_orders'
@@ -551,8 +579,18 @@ const rowLabel = (gridRow) => {
 const toggleSeat = (seat) => {
   if (!seat || seat.status !== 'AVAILABLE') return
   const idx = selectedSeats.value.findIndex(s => s.seatId === seat.seatId)
-  if (idx > -1) selectedSeats.value.splice(idx, 1)
-  else selectedSeats.value.push(seat)
+  if (idx > -1) {
+    selectedSeats.value.splice(idx, 1)
+    seatRealtime.deselect(seat.seatId) // nhả khóa real-time cho quầy khác chọn được
+  } else {
+    // Ghế đang bị quầy khác giữ (real-time) → chặn ngay, không cho chọn
+    if (isSeatLockedByOthers(seat)) {
+      showToast(`Ghế ${seat.rowChar + seat.colNum} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
+      return
+    }
+    selectedSeats.value.push(seat)
+    seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
+  }
   // Bắt đầu/đặt lại bộ đếm giữ ghế khi có ghế; dừng khi bỏ hết ghế
   if (selectedSeats.value.length > 0) { if (!holdTimer) startHoldTimer() }
   else stopHoldTimer()
@@ -563,6 +601,8 @@ const seatClass = (seat) => {
   if (!seat) return ''
   if (seat.status === 'SOLD') return `${base} bg-surface-container-high border-white/5 text-on-surface-variant/20 cursor-not-allowed opacity-40`
   if (seat.status === 'HOLD') return `${base} bg-yellow-500/10 border-yellow-500/30 text-yellow-500/60 cursor-not-allowed`
+  // Ghế đang bị quầy khác / khách online giữ real-time → khóa xám, không cho click
+  if (isSeatLockedByOthers(seat)) return `${base} bg-yellow-500/10 border-yellow-500/30 text-yellow-500/60 cursor-not-allowed`
   if (isSelected(seat)) return `${base} bg-primary border-primary text-on-primary shadow-lg shadow-primary/30 cursor-pointer scale-105`
   const byType = {
     VIP: 'bg-red-900/40 border-red-500/40 text-red-200 hover:border-red-400',

@@ -6,6 +6,7 @@ import { settingsApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const store = useBookingStore()
@@ -13,6 +14,25 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToastStore()
+
+// ===== Khóa ghế real-time (WebSocket/STOMP) — đồng bộ với quầy POS & khách online khác =====
+const seatRealtime = useSeatRealtime({
+  by: 'Khách online',
+  onDenied: (seatId) => {
+    const seat = store.selectedSeats.find(s => s.seatId === seatId)
+    if (seat) store.toggleSeat(seat) // gỡ ghế đã giành hụt khỏi lựa chọn
+    const label = seat ? seat.rowChar + seat.colNum : 'này'
+    toast.error(`Ghế ${label} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
+  },
+  onSold: (seatIds) => {
+    const lost = store.selectedSeats.filter(s => seatIds.includes(s.seatId))
+    lost.forEach(seat => store.toggleSeat(seat))
+    if (lost.length) {
+      toast.error(`Ghế ${lost.map(s => s.rowChar + s.colNum).join(', ')} vừa được bán ở nơi khác — đã gỡ khỏi lựa chọn.`)
+    }
+  },
+})
+const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 
 const paymentMethod = ref('VNPAY')
 
@@ -158,7 +178,10 @@ onMounted(async () => {
   } catch (e) { /* lỗi tải cấu hình → giữ mặc định */ }
   countdownTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
 })
-onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer) })
+onUnmounted(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
+  seatRealtime.disconnect() // rời trang → nhả khóa ghế + ngắt WebSocket
+})
 
 // Tạm tính riêng phần ghế (đã gồm giá theo đối tượng) để hiển thị ở sidebar
 const seatsSubtotal = computed(() => {
@@ -260,6 +283,7 @@ onMounted(async () => {
   await store.fetchSeats()
   await store.fetchFnbs()
   loadBankInfo()
+  seatRealtime.connect(store.selectedShowtime.id) // bật khóa ghế real-time
 
   // Quay lại sau khi đăng nhập: khôi phục đúng bước nếu ghế vẫn còn chọn đủ
   const resumeStep = Number(route.query.step)
@@ -360,8 +384,19 @@ watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
 })
 
 const handleSeatClick = (seat) => {
-  if (seat.status === 'AVAILABLE') {
+  if (seat.status !== 'AVAILABLE') return
+  const wasSelected = store.selectedSeats.some(s => s.seatId === seat.seatId)
+  if (wasSelected) {
     store.toggleSeat(seat)
+    seatRealtime.deselect(seat.seatId) // nhả khóa real-time
+  } else {
+    // Ghế đang bị POS/khách khác giữ real-time → chặn ngay
+    if (isSeatLockedByOthers(seat)) {
+      toast.error(`Ghế ${seat.rowChar + seat.colNum} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
+      return
+    }
+    store.toggleSeat(seat)
+    seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
   }
 }
 
@@ -390,8 +425,9 @@ const isHiddenBecauseSweetbox = (row, col) => {
 
 const getBookingSeatClass = (seat) => {
   const isSelected = isSeatSelected(seat);
-  const isAvailable = seat.status === 'AVAILABLE';
-  const type = seat.seatType; 
+  // Ghế bị nơi khác giữ real-time coi như không khả dụng (khóa xám, không click được)
+  const isAvailable = seat.status === 'AVAILABLE' && !isSeatLockedByOthers(seat);
+  const type = seat.seatType;
   
   const baseClasses = 'flex items-center justify-center text-[10px] font-bold transition-all duration-200';
   const shadowClasses = 'shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]';

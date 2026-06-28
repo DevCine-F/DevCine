@@ -48,6 +48,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- WebSocket (STOMP) — khóa ghế real-time, broadcast trạng thái ghế giữa các quầy POS & khách online -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
         <!-- Gửi email vé điện tử qua SMTP (Gmail) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -34,6 +34,8 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public — không cần token
+                // WebSocket handshake khóa ghế real-time (STOMP) — bảo vệ ở tầng nghiệp vụ, không qua JWT filter
+                .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/movies/**").permitAll()
                 .requestMatchers("/api/showtimes/**").permitAll()
