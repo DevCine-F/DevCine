@@ -4,17 +4,29 @@ import com.devcine.backend.entity.Movie;
 import com.devcine.backend.entity.Showtime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
-    
+
+    /**
+     * Nạp suất chiếu kèm khóa ghi bi quan (SELECT ... FOR UPDATE) — dùng khi giữ ghế ở POS/booking
+     * để tuần tự hóa các lệnh giữ ghế cùng một suất, chống bán trùng do race check-then-act.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Showtime s WHERE s.id = :id")
+    Optional<Showtime> findByIdForUpdate(@Param("id") Integer id);
+
+
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
            "WHERE s.movie.id = :movieId AND m.status = 'active' AND s.startTime >= :now " +
            "ORDER BY s.startTime ASC")
@@ -58,6 +70,10 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     /** Tổng số suất chiếu đã lên lịch cho 1 phim. */
     @Query("SELECT COUNT(s) FROM Showtime s WHERE s.movie.id = :movieId")
     long countByMovieId(@Param("movieId") Integer movieId);
+
+    /** Số suất chiếu CÒN HOẠT ĐỘNG (chưa diễn ra) của 1 phim — chặn xoá/ngừng chiếu/ẩn. */
+    @Query("SELECT COUNT(s) FROM Showtime s WHERE s.movie.id = :movieId AND s.startTime > :now")
+    long countFutureByMovieId(@Param("movieId") Integer movieId, @Param("now") LocalDateTime now);
 
     /** Sức chứa của các suất ĐÃ diễn ra (startTime <= now) — mẫu số cho tỷ lệ lấp đầy. */
     @Query("SELECT COALESCE(SUM(r.matrixRow * r.matrixCol), 0) FROM Showtime s JOIN s.room r " +

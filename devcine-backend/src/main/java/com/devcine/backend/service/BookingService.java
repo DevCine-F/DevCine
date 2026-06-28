@@ -41,7 +41,8 @@ public class BookingService {
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
-        Showtime showtime = showtimeRepository.findById(request.getShowtimeId())
+        // Khóa ghi bi quan trên suất → tuần tự hóa mọi lệnh giữ ghế cùng suất, chống bán trùng (race)
+        Showtime showtime = showtimeRepository.findByIdForUpdate(request.getShowtimeId())
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
 
         // Chuẩn hoá danh sách ghế kèm loại vé: ưu tiên seatSelections, fallback seatIds (ADULT)
@@ -101,12 +102,11 @@ public class BookingService {
                 // Chỗ giữ quá hạn (quá thời gian cấu hình) coi như đã được giải phóng
                 boolean isStale = reserved.getBooking().getCreatedAt() != null
                         && reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(holdMinutes));
-                // Chính khách này đang giữ ghế đó (vd quay lại từ bước thanh toán) — cho đặt lại ngay
-                boolean isSameCustomer = customer != null
-                        && reserved.getBooking().getCustomer() != null
-                        && customer.getUserId().equals(reserved.getBooking().getCustomer().getUserId());
 
-                if (isHold && (isStale || isSameCustomer)) {
+                // CHỈ nhả chỗ giữ đã quá hạn. Trước đây còn nhả khi "cùng member" → cho phép
+                // 2 phiên cùng tài khoản cướp ghế của nhau (bán trùng). Nay bỏ, kết hợp khóa
+                // bi quan ở trên để mỗi ghế chỉ một đơn còn sống giữ tại một thời điểm.
+                if (isHold && isStale) {
                     // Giải phóng chỗ giữ cũ để tránh khoá ghế trùng và rác HOLD
                     reserved.setStatus("EXPIRED");
                     bookingSeatRepository.save(reserved);
