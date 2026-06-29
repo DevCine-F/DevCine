@@ -60,3 +60,9 @@ bin/
 .env
 .env.*
 !.env.example
+
+# ==========================================
+# AI tooling (CodeGraph, agent skills)
+# ==========================================
+.codegraph/
+.agents/

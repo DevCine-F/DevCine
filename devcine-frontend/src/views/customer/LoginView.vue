@@ -141,6 +141,78 @@ const loginDemo = () => {
   showLoginPassword.value = true
   toast.info('Đã điền tài khoản demo. Bấm "Đăng nhập" để tiếp tục.')
 }
+
+// ===== Quên mật khẩu: dùng định danh (SĐT/email) đã nhập ở ô đăng nhập =====
+// → backend gửi OTP về email ĐÃ ĐĂNG KÝ của tài khoản (người dùng không tự nhập email)
+const forgotMode = ref(false)
+const forgotStep = ref(1) // 1: nhập mã OTP, 2: đặt mật khẩu mới
+const forgotLoading = ref(false)
+const showNewPassword = ref(false)
+const forgotIdentifier = ref('')   // định danh tài khoản (SĐT/email) lấy từ ô đăng nhập
+const forgotMaskedEmail = ref('')  // email đã che do backend trả về, để hiển thị
+const forgotForm = ref({ otp: '', newPassword: '', confirmPassword: '' })
+
+const closeForgot = () => { forgotMode.value = false }
+
+// Bấm "Quên mật khẩu?": lấy định danh từ ô đăng nhập, gửi OTP ngay rồi vào màn nhập mã
+const openForgot = async () => {
+  const err = validateIdentifier(loginForm.value.identifier)
+  if (err) { loginErrors.value.identifier = err; toast.error('Nhập số điện thoại hoặc email của bạn ở ô đăng nhập trước.'); return }
+  const raw = loginForm.value.identifier.trim()
+  forgotIdentifier.value = raw.includes('@') ? raw : normalizePhone(raw)
+  forgotMode.value = true
+  forgotStep.value = 1
+  forgotMaskedEmail.value = ''
+  forgotForm.value = { otp: '', newPassword: '', confirmPassword: '' }
+  await sendOtp()
+}
+
+const sendOtp = async () => {
+  forgotLoading.value = true
+  try {
+    const res = await authApi.forgotPassword(forgotIdentifier.value)
+    forgotMaskedEmail.value = res.data?.maskedEmail || ''
+    toast.success('Đã gửi mã xác minh tới email của tài khoản. Vui lòng kiểm tra hộp thư (cả mục Spam).')
+  } catch (err) {
+    toast.error(friendlyError(err, 'Không gửi được mã xác minh. Vui lòng thử lại.'))
+    // Không tìm thấy tài khoản / lỗi gửi → thoát chế độ quên mật khẩu nếu chưa có mã nào
+    if (!forgotMaskedEmail.value) forgotMode.value = false
+  } finally {
+    forgotLoading.value = false
+  }
+}
+
+const verifyOtpStep = async () => {
+  const otp = forgotForm.value.otp.trim()
+  if (!/^\d{6}$/.test(otp)) { toast.error('Mã xác minh gồm 6 chữ số.'); return }
+  forgotLoading.value = true
+  try {
+    await authApi.verifyOtp(forgotIdentifier.value, otp)
+    forgotStep.value = 2
+  } catch (err) {
+    toast.error(friendlyError(err, 'Mã xác minh không đúng hoặc đã hết hạn.'))
+  } finally {
+    forgotLoading.value = false
+  }
+}
+
+const submitNewPassword = async () => {
+  const { newPassword, confirmPassword } = forgotForm.value
+  if (!STRONG_RE.test(newPassword)) { toast.error('Mật khẩu 8–32 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.'); return }
+  if (newPassword !== confirmPassword) { toast.error('Mật khẩu xác nhận không khớp.'); return }
+  forgotLoading.value = true
+  try {
+    await authApi.resetPassword(forgotIdentifier.value, forgotForm.value.otp.trim(), newPassword)
+    toast.success('Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.')
+    loginForm.value.password = ''
+    activeTab.value = 'login'
+    forgotMode.value = false
+  } catch (err) {
+    toast.error(friendlyError(err, 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.'))
+  } finally {
+    forgotLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -167,6 +239,8 @@ const loginDemo = () => {
           <p class="text-on-surface-variant">Hãy nhập thông tin để truy cập tài khoản DevCine của bạn.</p>
         </div>
         
+        <!-- ===== Đăng nhập / Đăng ký (ẩn khi đang quên mật khẩu) ===== -->
+        <template v-if="!forgotMode">
         <!-- Tabs -->
         <div class="flex gap-8 border-b border-outline-variant/20 mb-6">
           <button @click="activeTab = 'login'" :class="['pb-4 font-bold text-sm uppercase tracking-widest transition-all', activeTab === 'login' ? 'text-[#f5c518] border-b-2 border-[#f5c518]' : 'text-neutral-500 hover:text-[#f5c518] border-b-2 border-transparent']">Đăng nhập</button>
@@ -202,6 +276,9 @@ const loginDemo = () => {
             <p v-if="loginErrors.password" class="text-red-400 text-xs flex items-center gap-1">
               <span class="material-symbols-outlined text-sm">error</span>{{ loginErrors.password }}
             </p>
+          </div>
+          <div class="flex justify-end">
+            <button type="button" @click="openForgot" class="text-xs font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors">Quên mật khẩu?</button>
           </div>
           <button type="submit" :disabled="isLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
             {{ isLoading ? 'Đang đăng nhập...' : 'Đăng nhập' }}
@@ -298,6 +375,74 @@ const loginDemo = () => {
               Vào trang Admin
             </button>
           </div>
+        </div>
+        </template>
+
+        <!-- ===== Quên mật khẩu (wizard 3 bước) ===== -->
+        <div v-else class="space-y-5">
+          <button type="button" @click="closeForgot" class="flex items-center gap-1 text-xs font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors">
+            <span class="material-symbols-outlined text-base">arrow_back</span> Quay lại đăng nhập
+          </button>
+
+          <!-- Chỉ báo tiến trình -->
+          <div class="flex items-center gap-2">
+            <div v-for="s in 2" :key="s" class="flex-1 h-1 rounded-full transition-colors" :class="forgotStep >= s ? 'bg-[#f5c518]' : 'bg-outline-variant/20'"></div>
+          </div>
+
+          <!-- Bước 1: Nhập mã OTP (mã đã tự gửi về email tài khoản) -->
+          <form v-if="forgotStep === 1" @submit.prevent="verifyOtpStep" class="space-y-4">
+            <div>
+              <h3 class="text-lg font-bold text-on-surface">Nhập mã xác minh</h3>
+              <p class="text-sm text-on-surface-variant mt-1">
+                Mã 6 số đã được gửi tới email
+                <b class="text-on-surface">{{ forgotMaskedEmail || 'của tài khoản' }}</b>. Mã có hiệu lực trong 10 phút.
+              </p>
+            </div>
+            <div class="space-y-2">
+              <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Mã xác minh (OTP)</label>
+              <input v-model="forgotForm.otp" type="text" inputmode="numeric" maxlength="6" placeholder="------"
+                     @input="forgotForm.otp = forgotForm.otp.replace(/\D/g, '')"
+                     class="w-full bg-surface-container-lowest border-none py-4 px-4 text-on-surface text-center text-2xl font-bold tracking-[0.5em] placeholder:text-neutral-700 placeholder:tracking-[0.3em] rounded-sm transition-all focus:ring-1 focus:ring-[#f5c518]"/>
+            </div>
+            <button type="submit" :disabled="forgotLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+              {{ forgotLoading ? 'Đang xác minh...' : 'Xác minh' }}
+            </button>
+            <div class="text-right text-xs">
+              <button type="button" @click="sendOtp" :disabled="forgotLoading" class="font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors disabled:opacity-50">Gửi lại mã</button>
+            </div>
+          </form>
+
+          <!-- Bước 2: Đặt mật khẩu mới -->
+          <form v-else @submit.prevent="submitNewPassword" class="space-y-4">
+            <div>
+              <h3 class="text-lg font-bold text-on-surface">Đặt mật khẩu mới</h3>
+              <p class="text-sm text-on-surface-variant mt-1">Tạo mật khẩu mới cho tài khoản của bạn.</p>
+            </div>
+            <div class="space-y-2">
+              <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Mật khẩu mới</label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">lock</span>
+                <input v-model="forgotForm.newPassword" :type="showNewPassword ? 'text' : 'password'" placeholder="••••••••"
+                       class="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-12 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all focus:ring-1 focus:ring-[#f5c518]"/>
+                <button type="button" @click="showNewPassword = !showNewPassword"
+                        class="absolute right-2 inset-y-0 flex items-center px-2 text-outline-variant hover:text-[#f5c518] transition-colors">
+                  <span class="material-symbols-outlined text-lg leading-none">{{ showNewPassword ? 'visibility_off' : 'visibility' }}</span>
+                </button>
+              </div>
+              <p class="text-neutral-500 text-[11px]">8–32 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</p>
+            </div>
+            <div class="space-y-2">
+              <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Xác nhận mật khẩu</label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">lock</span>
+                <input v-model="forgotForm.confirmPassword" :type="showNewPassword ? 'text' : 'password'" placeholder="••••••••"
+                       class="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all focus:ring-1 focus:ring-[#f5c518]"/>
+              </div>
+            </div>
+            <button type="submit" :disabled="forgotLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+              {{ forgotLoading ? 'Đang lưu...' : 'Đặt lại mật khẩu' }}
+            </button>
+          </form>
         </div>
       </div>
     </div>

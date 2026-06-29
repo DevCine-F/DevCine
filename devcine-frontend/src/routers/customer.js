@@ -29,6 +29,11 @@ export default [
         component: () => import('../views/customer/KhuyenMaiView.vue')
       },
       {
+        path: 'khuyen-mai/:id',
+        name: 'promo-article-detail',
+        component: () => import('../views/customer/PromoArticleDetailView.vue')
+      },
+      {
         path: 'movie/:id',
         name: 'movie-detail',
         component: () => import('../views/customer/MovieDetail.vue')

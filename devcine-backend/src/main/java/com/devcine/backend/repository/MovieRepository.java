@@ -32,6 +32,12 @@ public interface MovieRepository extends JpaRepository<Movie, Integer> {
     /** Đếm số phim đang gắn 1 thể loại — chặn xoá thể loại đang được sử dụng. */
     long countByGenres_Id(Integer categoryId);
 
+    /** Trùng tên phim khi THÊM mới. */
+    boolean existsByTitleIgnoreCase(String title);
+
+    /** Trùng tên phim khi CẬP NHẬT (loại trừ chính nó). */
+    boolean existsByTitleIgnoreCaseAndIdNot(String title, Integer id);
+
     /** Cập nhật trạng thái hàng loạt cho nhiều phim trong 1 query (bulk action). */
     @Modifying
     @Query("UPDATE Movie m SET m.status = :status WHERE m.id IN :ids")

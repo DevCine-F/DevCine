@@ -33,6 +33,11 @@ public interface UserRepository extends JpaRepository<User, Integer> {
            "WHERE u.phone = :id OR LOWER(u.email) = LOWER(:id) OR u.username = :id")
     List<User> findByLoginIdentifier(@Param("id") String id);
 
+    // Tìm tài khoản theo email (không phân biệt hoa thường) — dùng cho quên mật khẩu.
+    // Trả List để tránh NonUnique nếu dữ liệu lịch sử trùng; service lấy bản ghi đầu.
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
+    List<User> findByEmailIgnoreCase(@Param("email") String email);
+
     @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt >= :startDate AND u.createdAt <= :endDate AND u.role.id = 3")
     long countNewUsersByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

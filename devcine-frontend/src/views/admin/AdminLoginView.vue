@@ -3,12 +3,15 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useThemeStore } from '@/stores/theme'
+import { useToastStore } from '@/stores/toast'
 import StarryBackground from '@/components/common/StarryBackground.vue'
+import AppToast from '@/components/common/AppToast.vue'
 import { authApi } from '@/api/customer/index'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const toast = useToastStore()
 
 // Token còn hạn? (giải mã exp trong JWT)
 const isTokenValid = (token) => {
@@ -27,14 +30,23 @@ onMounted(() => {
       && (authStore.role === 'admin' || authStore.role === 'staff')
       && isTokenValid(authStore.token)) {
     router.replace('/admin/dashboard')
+    return
+  }
+  // Ghi nhớ: tự điền tên đăng nhập đã lưu lần trước
+  const saved = localStorage.getItem(REMEMBER_KEY)
+  if (saved) {
+    username.value = saved
+    rememberMe.value = true
   }
 })
+
+const REMEMBER_KEY = 'admin_remember_username'
 
 const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const isLoading = ref(false)
-const errorMsg = ref('')
+const rememberMe = ref(false)
 
 const loginAsAdmin = async (e) => {
   if (e && e.preventDefault) e.preventDefault()
@@ -43,16 +55,19 @@ const loginAsAdmin = async (e) => {
   const pass = password.value || '123'
 
   isLoading.value = true
-  errorMsg.value = ''
   try {
     const res = await authApi.login(user, pass)
     const { token, user: userData } = res.data.data
     const role = userData.role.toLowerCase()
 
     if (role !== 'admin' && role !== 'staff') {
-      errorMsg.value = 'Tài khoản không có quyền truy cập hệ thống quản trị.'
+      toast.error('Tài khoản không có quyền truy cập hệ thống quản trị.')
       return
     }
+
+    // Ghi nhớ tên đăng nhập cho lần sau (hoặc xoá nếu bỏ chọn)
+    if (rememberMe.value) localStorage.setItem(REMEMBER_KEY, user)
+    else localStorage.removeItem(REMEMBER_KEY)
 
     themeStore.triggerWarp()
     await new Promise(resolve => setTimeout(resolve, 800))
@@ -60,7 +75,7 @@ const loginAsAdmin = async (e) => {
     authStore.login({ id: userData.id, username: userData.username, email: userData.email, fullName: userData.fullName }, token, role)
     router.push('/admin/dashboard')
   } catch (err) {
-    errorMsg.value = err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng.'
+    toast.error(err.response?.data?.message || 'Số điện thoại/email hoặc mật khẩu không đúng.')
   } finally {
     isLoading.value = false
   }
@@ -83,11 +98,6 @@ const loginAsAdmin = async (e) => {
           <p class="text-white/60 text-sm tracking-widest uppercase">Hệ Thống Quản Trị</p>
         </div>
 
-        <!-- Error -->
-        <div v-if="errorMsg" class="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold">
-          {{ errorMsg }}
-        </div>
-
         <!-- Form -->
         <form @submit.prevent="loginAsAdmin" class="space-y-8">
 
@@ -107,12 +117,11 @@ const loginAsAdmin = async (e) => {
             </button>
           </div>
 
-          <div class="flex justify-between items-center pt-2">
+          <div class="flex items-center pt-2">
             <div class="flex items-center gap-2">
-              <input type="checkbox" id="remember" class="w-4 h-4 rounded border-white/30 bg-white/10 text-[#f5c518] focus:ring-0 focus:ring-offset-0 cursor-pointer" />
+              <input v-model="rememberMe" type="checkbox" id="remember" class="w-4 h-4 rounded border-white/30 bg-white/10 text-[#f5c518] focus:ring-0 focus:ring-offset-0 cursor-pointer" />
               <label for="remember" class="text-xs text-white/60 cursor-pointer hover:text-white transition-colors">Ghi nhớ</label>
             </div>
-            <a href="#" class="text-xs text-white/60 hover:text-[#f5c518] transition-colors">Quên mật khẩu?</a>
           </div>
 
           <!-- Submit Button -->
@@ -127,7 +136,7 @@ const loginAsAdmin = async (e) => {
       
       <!-- Footer text -->
       <div class="mt-8 text-center">
-        <p class="text-white/30 text-[10px] uppercase tracking-widest">© 2026 DevCine. Protected System.</p>
+        <p class="text-white/30 text-[10px] uppercase tracking-widest">| SU26 | DevCine | DATN |</p>
       </div>
     </div>
 
@@ -137,6 +146,9 @@ const loginAsAdmin = async (e) => {
         <span class="material-symbols-outlined text-sm">vpn_key</span>
       </button>
     </div>
+
+    <!-- Toast dùng chung (trang login không nằm trong layout nên tự mount tại đây) -->
+    <AppToast />
   </main>
 </template>
 

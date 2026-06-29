@@ -1,6 +1,7 @@
 import { ref, computed, watch } from "vue";
 import axios from "@/api/axios";
 import { useToastStore } from "@/stores/toast";
+import { friendlyError } from "@/utils/friendlyError";
 
 /**
  * Trung tâm logic cho màn Quản lý Phim: tải dữ liệu, lọc, sắp xếp, phân trang
@@ -255,6 +256,21 @@ export function useMovieManagement() {
     page.value = 1;
   };
 
+  // Toast Info khi tìm kiếm/lọc không ra kết quả (debounce để không bắn liên tục khi gõ)
+  let noResultTimer = null;
+  watch(
+    () => (hasActiveFilters.value && !isLoading.value ? filteredMovies.value.length : -1),
+    (count) => {
+      if (noResultTimer) clearTimeout(noResultTimer);
+      if (count !== 0) return;
+      noResultTimer = setTimeout(() => {
+        if (hasActiveFilters.value && filteredMovies.value.length === 0 && movies.value.length > 0) {
+          toast.info("Không tìm thấy bộ phim nào phù hợp với điều kiện lọc.");
+        }
+      }, 600);
+    },
+  );
+
   // ---------- Chọn nhiều ----------
   const isSelected = (id) => selectedIds.value.has(id);
 
@@ -296,48 +312,80 @@ export function useMovieManagement() {
   };
 
   const deleteMovie = async (id) => {
+    const title = movies.value.find((m) => m.id === id)?.title || "";
     await axios.delete(`/movies/${id}`);
     await fetchMovies({ silent: true });
+    toast.success(title ? `Xóa phim "${title}" thành công. Dữ liệu đã được gỡ bỏ.` : "Xóa phim thành công.");
   };
 
   const saveMovie = async (payload, id) => {
     if (id) {
       await axios.put(`/movies/${id}`, payload);
+      await fetchMovies({ silent: true });
+      toast.success("Cập nhật thông tin phim thành công!");
     } else {
       await axios.post("/movies", payload);
+      await fetchMovies({ silent: true });
+      toast.success(payload?.title ? `Phim "${payload.title}" đã được thêm vào hệ thống.` : "Thêm phim mới thành công!");
     }
-    await fetchMovies({ silent: true });
   };
 
-  /** Đổi nhanh trạng thái 1 phim ngay trên dòng (optimistic). */
+  /** Đổi nhanh trạng thái 1 phim ngay trên dòng (optimistic + validate nghiệp vụ phía BE). */
   const quickUpdateStatus = async (movie, newStatus) => {
     const prev = movie.status;
     movie.status = newStatus;
     movie.statusText = statusToText(newStatus);
     try {
-      await axios.patch("/movies/bulk-status", { ids: [movie.id], status: newStatus });
+      const res = await axios.patch("/movies/bulk-status", { ids: [movie.id], status: newStatus });
+      const blocked = res.data?.blocked || [];
+      // BE chặn theo nghiệp vụ (chưa có lịch chiếu / còn suất chưa hoàn tất / còn vé chờ) → hoàn tác
+      if ((res.data?.updated ?? 0) === 0 && blocked.length) {
+        movie.status = prev;
+        movie.statusText = statusToText(prev);
+        toast.error(blocked[0]);
+        return;
+      }
+      toast.success(`Chuyển trạng thái phim "${movie.title}" sang "${statusToText(newStatus)}" thành công.`);
     } catch (error) {
       console.error("Lỗi đổi trạng thái:", error);
       movie.status = prev;
       movie.statusText = statusToText(prev);
-      toast.error("Đổi trạng thái thất bại. Vui lòng thử lại!");
+      toast.error(friendlyError(error, "Đổi trạng thái thất bại. Vui lòng thử lại!"));
     }
   };
 
   const bulkUpdateStatus = async (newStatus) => {
     const ids = [...selectedIds.value];
     if (!ids.length) return;
-    await axios.patch("/movies/bulk-status", { ids, status: newStatus });
+    const res = await axios.patch("/movies/bulk-status", { ids, status: newStatus });
+    const updated = res.data?.updated ?? 0;
+    const blocked = res.data?.blocked || [];
     clearSelection();
     await fetchMovies({ silent: true });
+    if (updated > 0 && !blocked.length) {
+      toast.success(`Đã cập nhật trạng thái ${updated} phim thành công.`);
+    } else if (updated > 0 && blocked.length) {
+      toast.warning(`Cập nhật ${updated} phim. ${blocked.length} phim bị bỏ qua — ${blocked[0]}`);
+    } else {
+      toast.error(blocked[0] || "Không có phim nào được cập nhật.");
+    }
   };
 
   const bulkDelete = async () => {
     const ids = [...selectedIds.value];
     if (!ids.length) return;
-    await axios.delete("/movies/bulk", { data: { ids } });
+    const res = await axios.delete("/movies/bulk", { data: { ids } });
+    const deleted = res.data?.deleted ?? 0;
+    const blocked = res.data?.blocked || [];
     clearSelection();
     await fetchMovies({ silent: true });
+    if (deleted > 0 && !blocked.length) {
+      toast.success(`Đã xóa thành công ${deleted} bộ phim được chọn.`);
+    } else if (deleted > 0 && blocked.length) {
+      toast.warning(`Xóa thành công ${deleted} phim. Có ${blocked.length} phim không thể xóa do đang có lịch chiếu hoặc giao dịch bán vé.`);
+    } else {
+      toast.error(`Không thể xóa ${blocked.length} phim do đang có lịch chiếu hoặc lịch sử giao dịch.`);
+    }
   };
 
   return {
