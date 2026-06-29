@@ -61,6 +61,43 @@ public class MailService {
         doSend(data);
     }
 
+    /**
+     * Gửi mã OTP đặt lại mật khẩu (đồng bộ, NÉM lỗi để service báo người dùng nếu SMTP lỗi).
+     *
+     * @param toEmail email người nhận
+     * @param code    mã OTP 6 số
+     * @param ttlMin  số phút hiệu lực (đưa vào nội dung mail)
+     */
+    public void sendOtpEmail(String toEmail, String code, int ttlMin) throws Exception {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        helper.setFrom(from);
+        helper.setTo(toEmail);
+        helper.setSubject("DevCine • Mã xác minh đặt lại mật khẩu");
+        helper.setText(buildOtpHtml(code, ttlMin), true);
+        mailSender.send(message);
+    }
+
+    private String buildOtpHtml(String code, int ttlMin) {
+        return """
+                <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
+                  <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
+                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
+                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">Yêu cầu đặt lại mật khẩu</div>
+                  </div>
+                  <div style="padding:28px 24px;">
+                    <p style="font-size:15px;color:#111;margin:0 0 14px;">Bạn (hoặc ai đó) vừa yêu cầu đặt lại mật khẩu tài khoản DevCine.</p>
+                    <p style="font-size:14px;color:#555;margin:0 0 18px;">Nhập mã xác minh dưới đây để tiếp tục:</p>
+                    <div style="text-align:center;margin:8px 0 20px;">
+                      <span style="display:inline-block;font-size:34px;font-weight:800;letter-spacing:10px;color:#111;background:#faf6e6;border:1px dashed #e0b400;border-radius:10px;padding:14px 22px;">%s</span>
+                    </div>
+                    <p style="font-size:13px;color:#888;margin:0;">Mã có hiệu lực trong <b>%d phút</b>. Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời. — DevCine Cinema</p>
+                  </div>
+                </div>
+                """.formatted(escape(code), ttlMin);
+    }
+
     private void doSend(TicketEmailData data) throws Exception {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");

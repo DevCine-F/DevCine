@@ -1,6 +1,7 @@
 package com.devcine.backend.controller;
 
 import com.devcine.backend.service.AuthService;
+import com.devcine.backend.service.PasswordResetService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> body) {
@@ -69,6 +71,43 @@ public class AuthController {
             Integer userId = Integer.valueOf(body.get("userId"));
             authService.changePassword(userId, body.get("oldPassword"), body.get("newPassword"));
             return ResponseEntity.ok(Map.of("success", true, "message", "Đổi mật khẩu thành công"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    // ===== Quên mật khẩu (khách hàng) — gửi OTP về email, xác minh rồi đặt mật khẩu mới =====
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
+        try {
+            // Nhận 'identifier' (SĐT/email đã nhập ở ô đăng nhập); gửi OTP về email đã đăng ký của tài khoản
+            String identifier = body.getOrDefault("identifier", body.get("email"));
+            String maskedEmail = passwordResetService.requestReset(identifier);
+            return ResponseEntity.ok(Map.of("success", true, "maskedEmail", maskedEmail,
+                    "message", "Đã gửi mã xác minh tới email của tài khoản."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> body) {
+        try {
+            String identifier = body.getOrDefault("identifier", body.get("email"));
+            passwordResetService.verifyOtp(identifier, body.get("otp"));
+            return ResponseEntity.ok(Map.of("success", true, "message", "Mã hợp lệ"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
+        try {
+            String identifier = body.getOrDefault("identifier", body.get("email"));
+            passwordResetService.resetPassword(identifier, body.get("otp"), body.get("newPassword"));
+            return ResponseEntity.ok(Map.of("success", true, "message", "Đặt lại mật khẩu thành công"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
