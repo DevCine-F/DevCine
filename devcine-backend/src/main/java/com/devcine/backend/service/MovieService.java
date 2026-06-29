@@ -12,7 +12,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import com.devcine.backend.dto.response.MovieStatsResponse;
 import com.devcine.backend.dto.response.MovieStatsResponse.ClassRevenue;
@@ -93,12 +95,19 @@ public class MovieService {
     }
 
     public Movie createMovie(Movie movie) {
+        if (movie.getTitle() != null && movieRepository.existsByTitleIgnoreCase(movie.getTitle().trim())) {
+            throw new IllegalStateException("Thêm phim thất bại. Tên phim hoặc mã ID đã tồn tại trên hệ thống!");
+        }
         return movieRepository.save(movie);
     }
 
     public Movie updateMovie(Integer id, Movie movieDetails) {
         Movie existingMovie = movieRepository.findById(id).orElse(null);
         if (existingMovie != null) {
+            if (movieDetails.getTitle() != null
+                    && movieRepository.existsByTitleIgnoreCaseAndIdNot(movieDetails.getTitle().trim(), id)) {
+                throw new IllegalStateException("Cập nhật thất bại. Tên phim đã tồn tại trên hệ thống!");
+            }
             existingMovie.setTitle(movieDetails.getTitle());
             existingMovie.setSlug(movieDetails.getSlug());
             existingMovie.setDurationMins(movieDetails.getDurationMins());
@@ -133,26 +142,97 @@ public class MovieService {
         return null;
     }
 
+    @Transactional
     public void deleteMovie(Integer id) {
+        Movie m = movieRepository.findById(id).orElse(null);
+        if (m == null) return;
+        String reason = blockDeleteReason(id);
+        if (reason != null) {
+            throw new IllegalStateException(reason);
+        }
         movieRepository.deleteById(id);
     }
 
-    /** Cập nhật trạng thái cho nhiều phim cùng lúc (bulk action). */
-    @Transactional
-    public int bulkUpdateStatus(List<Integer> ids, String status) {
-        if (ids == null || ids.isEmpty() || status == null || status.isBlank()) {
-            return 0;
+    /** Lý do KHÔNG cho xoá cứng phim (null = được phép xoá). Bảo vệ dữ liệu hoá đơn/lịch chiếu. */
+    private String blockDeleteReason(Integer id) {
+        if (bookingRepository.countTicketsByMovie(id) > 0) {
+            return "Không thể xóa phim này! Phim đã phát sinh lịch sử hóa đơn/giao dịch bán vé. "
+                    + "Bạn chỉ có thể chuyển sang trạng thái 'Ngừng chiếu'.";
         }
-        return movieRepository.bulkUpdateStatus(ids, status);
+        if (showtimeRepository.countByMovieId(id) > 0) {
+            return "Không thể xóa! Phim đang có lịch chiếu được lên lịch sẵn. Vui lòng xóa lịch chiếu trước.";
+        }
+        return null;
     }
 
-    /** Xoá nhiều phim cùng lúc (bulk action). */
-    @Transactional
-    public void bulkDelete(List<Integer> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return;
+    /** Lý do KHÔNG cho đổi sang trạng thái mới (null = hợp lệ); kèm tên phim cho thông báo. */
+    private String blockStatusReason(Integer id, String title, String status, LocalDateTime now) {
+        if ("active".equalsIgnoreCase(status) && showtimeRepository.countByMovieId(id) == 0) {
+            return "Không thể chuyển '" + title + "' sang 'Đang chiếu'. Phim chưa được cấu hình lịch chiếu hợp lệ!";
         }
-        movieRepository.deleteAllById(ids);
+        if ("archived".equalsIgnoreCase(status)) {
+            if (showtimeRepository.countFutureByMovieId(id, now) > 0) {
+                return "Không thể ngừng chiếu '" + title + "'. Hiện vẫn còn suất chiếu chưa hoàn tất!";
+            }
+            if (bookingRepository.countActiveHoldsByMovie(id) > 0) {
+                return "Không thể ngừng chiếu '" + title + "'. Có vé đang chờ thanh toán!";
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Đổi trạng thái nhiều phim (cũng dùng cho đổi nhanh 1 phim). Validate từng phim;
+     * trả về {@code {updated, blocked:[lý do...]}} để FE hiện toast chi tiết / một phần.
+     */
+    @Transactional
+    public Map<String, Object> bulkUpdateStatus(List<Integer> ids, String status) {
+        List<String> blocked = new ArrayList<>();
+        List<Integer> okIds = new ArrayList<>();
+        if (ids != null && status != null && !status.isBlank()) {
+            LocalDateTime now = LocalDateTime.now();
+            for (Integer id : ids) {
+                Movie m = movieRepository.findById(id).orElse(null);
+                if (m == null) continue;
+                String reason = blockStatusReason(id, m.getTitle(), status, now);
+                if (reason != null) {
+                    blocked.add(reason);
+                    continue;
+                }
+                okIds.add(id);
+            }
+        }
+        int updated = okIds.isEmpty() ? 0 : movieRepository.bulkUpdateStatus(okIds, status);
+        Map<String, Object> result = new HashMap<>();
+        result.put("updated", updated);
+        result.put("blocked", blocked);
+        return result;
+    }
+
+    /**
+     * Xoá nhiều phim. Validate từng phim (hoá đơn / lịch chiếu); trả
+     * {@code {deleted, blocked:[tên phim...]}} để FE hiện toast thành công một phần.
+     */
+    @Transactional
+    public Map<String, Object> bulkDelete(List<Integer> ids) {
+        List<String> blocked = new ArrayList<>();
+        int deleted = 0;
+        if (ids != null) {
+            for (Integer id : ids) {
+                Movie m = movieRepository.findById(id).orElse(null);
+                if (m == null) continue;
+                if (blockDeleteReason(id) != null) {
+                    blocked.add(m.getTitle());
+                    continue;
+                }
+                movieRepository.deleteById(id);
+                deleted++;
+            }
+        }
+        Map<String, Object> result = new HashMap<>();
+        result.put("deleted", deleted);
+        result.put("blocked", blocked);
+        return result;
     }
 
     /** Thống kê vận hành thật theo phim cho modal chi tiết. */

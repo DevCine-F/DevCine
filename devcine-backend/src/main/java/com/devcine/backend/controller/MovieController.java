@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import com.devcine.backend.dto.response.MovieStatsResponse;
 import com.devcine.backend.dto.response.MovieSummaryDTO;
 @RestController
@@ -60,42 +61,52 @@ public class MovieController {
         return ResponseEntity.ok(movieService.getMovieStats(id));
     }
 
-    /** Đổi trạng thái hàng loạt. */
+    /** Đổi trạng thái hàng loạt (cũng dùng cho đổi nhanh 1 phim) — trả {updated, blocked[]}. */
     @PatchMapping("/bulk-status")
     @PreAuthorize("@perm.can('movies','edit')")
-    public ResponseEntity<Void> bulkUpdateStatus(@Valid @RequestBody MovieBulkRequest request) {
-        movieService.bulkUpdateStatus(request.getIds(), request.getStatus());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> bulkUpdateStatus(@Valid @RequestBody MovieBulkRequest request) {
+        return ResponseEntity.ok(movieService.bulkUpdateStatus(request.getIds(), request.getStatus()));
     }
 
-    /** Xoá hàng loạt. */
+    /** Xoá hàng loạt — trả {deleted, blocked[]} để FE hiện toast thành công một phần. */
     @DeleteMapping("/bulk")
     @PreAuthorize("@perm.can('movies','delete')")
-    public ResponseEntity<Void> bulkDelete(@Valid @RequestBody MovieBulkRequest request) {
-        movieService.bulkDelete(request.getIds());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> bulkDelete(@Valid @RequestBody MovieBulkRequest request) {
+        return ResponseEntity.ok(movieService.bulkDelete(request.getIds()));
     }
 
     @PostMapping
     @PreAuthorize("@perm.can('movies','add')")
-    public Movie createMovie(@RequestBody Movie movie) {
-        return movieService.createMovie(movie);
+    public ResponseEntity<?> createMovie(@RequestBody Movie movie) {
+        try {
+            return ResponseEntity.ok(movieService.createMovie(movie));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("@perm.can('movies','edit')")
-    public ResponseEntity<Movie> updateMovie(@PathVariable Integer id, @RequestBody Movie movie) {
-        Movie updatedMovie = movieService.updateMovie(id, movie);
-        if (updatedMovie != null) {
-            return ResponseEntity.ok(updatedMovie);
+    public ResponseEntity<?> updateMovie(@PathVariable Integer id, @RequestBody Movie movie) {
+        try {
+            Movie updatedMovie = movieService.updateMovie(id, movie);
+            if (updatedMovie != null) {
+                return ResponseEntity.ok(updatedMovie);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
-        return ResponseEntity.notFound().build();
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("@perm.can('movies','delete')")
-    public ResponseEntity<Void> deleteMovie(@PathVariable Integer id) {
-        movieService.deleteMovie(id);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> deleteMovie(@PathVariable Integer id) {
+        try {
+            movieService.deleteMovie(id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 }

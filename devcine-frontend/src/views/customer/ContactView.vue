@@ -103,7 +103,7 @@ const handleSubmit = async () => {
           <router-link to="/faq" class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
             <span class="material-symbols-outlined text-4xl text-primary-container mb-6 block">confirmation_number</span>
             <h3 class="text-xl font-headline font-bold text-on-background mb-2">Chính sách vé</h3>
-            <p class="text-on-surface-variant text-sm font-body mb-4">Thông tin chi tiết về hoàn tiền, đổi trả và các quy định về độ tuổi xem phim.</p>
+            <p class="text-on-surface-variant text-sm font-body mb-4">Thông tin chi tiết về dịch vụ vé và các quy định về độ tuổi xem phim.</p>
             <span class="text-primary-container font-label text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all">Xem thêm <span class="material-symbols-outlined text-sm">arrow_forward</span></span>
           </router-link>
           <router-link to="/khuyen-mai" class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
