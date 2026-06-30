@@ -85,9 +85,9 @@ export const authApi = {
     api.put('/auth/change-password', { userId, oldPassword, newPassword }),
   getProfile: (userId) => api.get(`/auth/profile/${userId}`),
   updateProfile: (data) => api.put('/auth/profile', data),
-  // Quên mật khẩu: từ định danh (SĐT/email) đăng nhập → gửi OTP về email tài khoản → xác minh → đặt lại
-  forgotPassword: (identifier) => api.post('/auth/forgot-password', { identifier }),
-  verifyOtp: (identifier, otp) => api.post('/auth/verify-otp', { identifier, otp }),
-  resetPassword: (identifier, otp, newPassword) => api.post('/auth/reset-password', { identifier, otp, newPassword }),
+  // Quên mật khẩu: nhập email → nếu email có trong hệ thống thì gửi OTP → xác minh → đặt mật khẩu mới
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  verifyOtp: (email, otp) => api.post('/auth/verify-otp', { email, otp }),
+  resetPassword: (email, otp, newPassword) => api.post('/auth/reset-password', { email, otp, newPassword }),
 };
 

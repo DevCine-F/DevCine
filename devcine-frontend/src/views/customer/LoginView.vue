@@ -142,41 +142,33 @@ const loginDemo = () => {
   toast.info('Đã điền tài khoản demo. Bấm "Đăng nhập" để tiếp tục.')
 }
 
-// ===== Quên mật khẩu: dùng định danh (SĐT/email) đã nhập ở ô đăng nhập =====
-// → backend gửi OTP về email ĐÃ ĐĂNG KÝ của tài khoản (người dùng không tự nhập email)
+// ===== Quên mật khẩu: nhập email → nếu email có trong hệ thống thì gửi OTP → xác minh → đặt lại =====
 const forgotMode = ref(false)
-const forgotStep = ref(1) // 1: nhập mã OTP, 2: đặt mật khẩu mới
+const forgotStep = ref(1) // 1: nhập email, 2: nhập mã OTP, 3: đặt mật khẩu mới
 const forgotLoading = ref(false)
 const showNewPassword = ref(false)
-const forgotIdentifier = ref('')   // định danh tài khoản (SĐT/email) lấy từ ô đăng nhập
-const forgotMaskedEmail = ref('')  // email đã che do backend trả về, để hiển thị
-const forgotForm = ref({ otp: '', newPassword: '', confirmPassword: '' })
+const forgotForm = ref({ email: '', otp: '', newPassword: '', confirmPassword: '' })
 
-const closeForgot = () => { forgotMode.value = false }
-
-// Bấm "Quên mật khẩu?": lấy định danh từ ô đăng nhập, gửi OTP ngay rồi vào màn nhập mã
-const openForgot = async () => {
-  const err = validateIdentifier(loginForm.value.identifier)
-  if (err) { loginErrors.value.identifier = err; toast.error('Nhập số điện thoại hoặc email của bạn ở ô đăng nhập trước.'); return }
-  const raw = loginForm.value.identifier.trim()
-  forgotIdentifier.value = raw.includes('@') ? raw : normalizePhone(raw)
+const openForgot = () => {
   forgotMode.value = true
   forgotStep.value = 1
-  forgotMaskedEmail.value = ''
-  forgotForm.value = { otp: '', newPassword: '', confirmPassword: '' }
-  await sendOtp()
+  forgotForm.value = { email: '', otp: '', newPassword: '', confirmPassword: '' }
+  // Tiện: nếu ô đăng nhập đang là email thì điền sẵn
+  const id = loginForm.value.identifier.trim()
+  if (id.includes('@')) forgotForm.value.email = id
 }
+const closeForgot = () => { forgotMode.value = false }
 
 const sendOtp = async () => {
+  const email = forgotForm.value.email.trim()
+  if (!EMAIL_RE.test(email)) { toast.error('Email không đúng định dạng (vd: ten@domain.com).'); return }
   forgotLoading.value = true
   try {
-    const res = await authApi.forgotPassword(forgotIdentifier.value)
-    forgotMaskedEmail.value = res.data?.maskedEmail || ''
-    toast.success('Đã gửi mã xác minh tới email của tài khoản. Vui lòng kiểm tra hộp thư (cả mục Spam).')
+    await authApi.forgotPassword(email)
+    toast.success('Đã gửi mã xác minh tới email của bạn. Vui lòng kiểm tra hộp thư (cả mục Spam).')
+    forgotStep.value = 2
   } catch (err) {
     toast.error(friendlyError(err, 'Không gửi được mã xác minh. Vui lòng thử lại.'))
-    // Không tìm thấy tài khoản / lỗi gửi → thoát chế độ quên mật khẩu nếu chưa có mã nào
-    if (!forgotMaskedEmail.value) forgotMode.value = false
   } finally {
     forgotLoading.value = false
   }
@@ -187,8 +179,8 @@ const verifyOtpStep = async () => {
   if (!/^\d{6}$/.test(otp)) { toast.error('Mã xác minh gồm 6 chữ số.'); return }
   forgotLoading.value = true
   try {
-    await authApi.verifyOtp(forgotIdentifier.value, otp)
-    forgotStep.value = 2
+    await authApi.verifyOtp(forgotForm.value.email.trim(), otp)
+    forgotStep.value = 3
   } catch (err) {
     toast.error(friendlyError(err, 'Mã xác minh không đúng hoặc đã hết hạn.'))
   } finally {
@@ -202,8 +194,9 @@ const submitNewPassword = async () => {
   if (newPassword !== confirmPassword) { toast.error('Mật khẩu xác nhận không khớp.'); return }
   forgotLoading.value = true
   try {
-    await authApi.resetPassword(forgotIdentifier.value, forgotForm.value.otp.trim(), newPassword)
+    await authApi.resetPassword(forgotForm.value.email.trim(), forgotForm.value.otp.trim(), newPassword)
     toast.success('Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.')
+    loginForm.value.identifier = forgotForm.value.email.trim()
     loginForm.value.password = ''
     activeTab.value = 'login'
     forgotMode.value = false
@@ -386,17 +379,33 @@ const submitNewPassword = async () => {
 
           <!-- Chỉ báo tiến trình -->
           <div class="flex items-center gap-2">
-            <div v-for="s in 2" :key="s" class="flex-1 h-1 rounded-full transition-colors" :class="forgotStep >= s ? 'bg-[#f5c518]' : 'bg-outline-variant/20'"></div>
+            <div v-for="s in 3" :key="s" class="flex-1 h-1 rounded-full transition-colors" :class="forgotStep >= s ? 'bg-[#f5c518]' : 'bg-outline-variant/20'"></div>
           </div>
 
-          <!-- Bước 1: Nhập mã OTP (mã đã tự gửi về email tài khoản) -->
-          <form v-if="forgotStep === 1" @submit.prevent="verifyOtpStep" class="space-y-4">
+          <!-- Bước 1: Nhập email -->
+          <form v-if="forgotStep === 1" @submit.prevent="sendOtp" class="space-y-4">
+            <div>
+              <h3 class="text-lg font-bold text-on-surface">Quên mật khẩu</h3>
+              <p class="text-sm text-on-surface-variant mt-1">Nhập email tài khoản. Nếu email có trong hệ thống, chúng tôi sẽ gửi mã xác minh 6 số tới hộp thư của bạn.</p>
+            </div>
+            <div class="space-y-2">
+              <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Email tài khoản</label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant text-lg">mail</span>
+                <input v-model="forgotForm.email" type="email" placeholder="email@example.com"
+                       class="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all focus:ring-1 focus:ring-[#f5c518]"/>
+              </div>
+            </div>
+            <button type="submit" :disabled="forgotLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+              {{ forgotLoading ? 'Đang gửi...' : 'Gửi mã xác minh' }}
+            </button>
+          </form>
+
+          <!-- Bước 2: Nhập mã OTP -->
+          <form v-else-if="forgotStep === 2" @submit.prevent="verifyOtpStep" class="space-y-4">
             <div>
               <h3 class="text-lg font-bold text-on-surface">Nhập mã xác minh</h3>
-              <p class="text-sm text-on-surface-variant mt-1">
-                Mã 6 số đã được gửi tới email
-                <b class="text-on-surface">{{ forgotMaskedEmail || 'của tài khoản' }}</b>. Mã có hiệu lực trong 10 phút.
-              </p>
+              <p class="text-sm text-on-surface-variant mt-1">Mã 6 số đã được gửi tới <b class="text-on-surface">{{ forgotForm.email }}</b>. Mã có hiệu lực trong 10 phút.</p>
             </div>
             <div class="space-y-2">
               <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Mã xác minh (OTP)</label>
@@ -407,12 +416,13 @@ const submitNewPassword = async () => {
             <button type="submit" :disabled="forgotLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
               {{ forgotLoading ? 'Đang xác minh...' : 'Xác minh' }}
             </button>
-            <div class="text-right text-xs">
+            <div class="flex items-center justify-between text-xs">
+              <button type="button" @click="forgotStep = 1" class="font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors">Đổi email</button>
               <button type="button" @click="sendOtp" :disabled="forgotLoading" class="font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors disabled:opacity-50">Gửi lại mã</button>
             </div>
           </form>
 
-          <!-- Bước 2: Đặt mật khẩu mới -->
+          <!-- Bước 3: Đặt mật khẩu mới -->
           <form v-else @submit.prevent="submitNewPassword" class="space-y-4">
             <div>
               <h3 class="text-lg font-bold text-on-surface">Đặt mật khẩu mới</h3>
