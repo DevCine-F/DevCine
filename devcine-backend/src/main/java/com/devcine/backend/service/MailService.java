@@ -1,24 +1,27 @@
 package com.devcine.backend.service;
 
-import com.devcine.backend.dto.TicketEmailData;
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
-
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
+import com.devcine.backend.dto.TicketEmailData;
+
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 /**
- * Gửi email vé điện tử (mã QR + thông tin suất chiếu) sau khi thanh toán thành công.
- * Chạy bất đồng bộ ({@link Async}) và nuốt lỗi gửi mail để KHÔNG ảnh hưởng giao dịch đặt vé.
+ * Gửi email vé điện tử (mã QR + thông tin suất chiếu) sau khi thanh toán thành
+ * công. Chạy bất đồng bộ ({@link Async}) và nuốt lỗi gửi mail để KHÔNG ảnh
+ * hưởng giao dịch đặt vé.
  */
 @Service
 @Slf4j
@@ -33,8 +36,8 @@ public class MailService {
     @Value("${mail.enabled:true}")
     private boolean enabled;
 
-    private static final DateTimeFormatter TIME_FMT =
-            DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy");
+    private static final DateTimeFormatter TIME_FMT
+            = DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy");
 
     @Async
     public void sendTicketEmail(TicketEmailData data) {
@@ -55,18 +58,20 @@ public class MailService {
     }
 
     /**
-     * Gửi đồng bộ, NÉM lỗi ra ngoài — dùng cho endpoint test thủ công để thấy ngay kết quả/lỗi SMTP.
+     * Gửi đồng bộ, NÉM lỗi ra ngoài — dùng cho endpoint test thủ công để thấy
+     * ngay kết quả/lỗi SMTP.
      */
     public void sendTicketEmailSync(TicketEmailData data) throws Exception {
         doSend(data);
     }
 
     /**
-     * Gửi mã OTP đặt lại mật khẩu (đồng bộ, NÉM lỗi để service báo người dùng nếu SMTP lỗi).
+     * Gửi mã OTP đặt lại mật khẩu (đồng bộ, NÉM lỗi để service báo người dùng
+     * nếu SMTP lỗi).
      *
      * @param toEmail email người nhận
-     * @param code    mã OTP 6 số
-     * @param ttlMin  số phút hiệu lực (đưa vào nội dung mail)
+     * @param code mã OTP 6 số
+     * @param ttlMin số phút hiệu lực (đưa vào nội dung mail)
      */
     public void sendOtpEmail(String toEmail, String code, int ttlMin) throws Exception {
         MimeMessage message = mailSender.createMimeMessage();
@@ -86,7 +91,7 @@ public class MailService {
                     <div style="color:#6b5200;font-size:13px;margin-top:4px;">Yêu cầu đặt lại mật khẩu</div>
                   </div>
                   <div style="padding:28px 24px;">
-                    <p style="font-size:15px;color:#111;margin:0 0 14px;">Bạn (hoặc ai đó) vừa yêu cầu đặt lại mật khẩu tài khoản DevCine.</p>
+                    <p style="font-size:15px;color:#111;margin:0 0 14px;">Bạn vừa yêu cầu đặt lại mật khẩu tài khoản DevCine.</p>
                     <p style="font-size:14px;color:#555;margin:0 0 18px;">Nhập mã xác minh dưới đây để tiếp tục:</p>
                     <div style="text-align:center;margin:8px 0 20px;">
                       <span style="display:inline-block;font-size:34px;font-weight:800;letter-spacing:10px;color:#111;background:#faf6e6;border:1px dashed #e0b400;border-radius:10px;padding:14px 22px;">%s</span>
@@ -186,34 +191,51 @@ public class MailService {
     }
 
     private String formatMoney(java.math.BigDecimal amount) {
-        if (amount == null) return "0đ";
+        if (amount == null) {
+            return "0đ";
+        }
         NumberFormat nf = NumberFormat.getInstance(new Locale("vi", "VN"));
         return nf.format(amount.longValue()) + "đ";
     }
 
     private String ticketTypeLabel(String type) {
-        if (type == null) return "Người lớn";
+        if (type == null) {
+            return "Người lớn";
+        }
         return switch (type.toUpperCase()) {
-            case "STUDENT" -> "Học sinh/Sinh viên";
-            case "CHILD" -> "Trẻ em";
-            case "SENIOR" -> "Người cao tuổi";
-            default -> "Người lớn";
+            case "STUDENT" ->
+                "Học sinh/Sinh viên";
+            case "CHILD" ->
+                "Trẻ em";
+            case "SENIOR" ->
+                "Người cao tuổi";
+            default ->
+                "Người lớn";
         };
     }
 
     private String paymentLabel(String method) {
-        if (method == null) return "—";
+        if (method == null) {
+            return "—";
+        }
         return switch (method.toUpperCase()) {
-            case "VNPAY" -> "VNPAY";
-            case "CASH" -> "Tiền mặt";
-            case "CARD" -> "Thẻ";
-            case "TRANSFER" -> "Chuyển khoản";
-            default -> method;
+            case "VNPAY" ->
+                "VNPAY";
+            case "CASH" ->
+                "Tiền mặt";
+            case "CARD" ->
+                "Thẻ";
+            case "TRANSFER" ->
+                "Chuyển khoản";
+            default ->
+                method;
         };
     }
 
     private String escape(String s) {
-        if (s == null) return "";
+        if (s == null) {
+            return "";
+        }
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }
