@@ -1,7 +1,16 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { bookingApi } from '@/api/customer/index'
+
+// preview: chế độ nhúng (vd. trang Thông tin cá nhân) — chỉ hiện 3 lượt gần nhất,
+// ẩn tab lọc và hiển thị CTA chuyển sang trang Lịch sử đặt vé đầy đủ.
+const props = defineProps({
+  preview: { type: Boolean, default: false }
+})
+
+const PREVIEW_LIMIT = 3
 
 const authStore = useAuthStore()
 const bookings = ref([])
@@ -17,6 +26,14 @@ const filteredBookings = computed(() => {
     return bookings.value.filter(b => new Date(b.showtime?.startTime) <= new Date())
   }
   return bookings.value
+})
+
+// Danh sách thực sự hiển thị: ở preview chỉ lấy 3 suất gần nhất theo thời gian chiếu.
+const displayBookings = computed(() => {
+  if (!props.preview) return filteredBookings.value
+  return [...bookings.value]
+    .sort((a, b) => new Date(b.showtime?.startTime || 0) - new Date(a.showtime?.startTime || 0))
+    .slice(0, PREVIEW_LIMIT)
 })
 
 const fetchHistory = async () => {
@@ -61,11 +78,17 @@ onMounted(fetchHistory)
   <section>
     <div class="flex flex-col md:flex-row justify-between items-baseline mb-8 gap-4">
       <h2 class="text-2xl font-bold tracking-tight font-headline">Lịch sử đặt vé</h2>
-      <div class="flex gap-4">
+      <!-- Tab lọc: chỉ ở trang đầy đủ -->
+      <div v-if="!preview" class="flex gap-4">
         <button @click="activeFilter = 'all'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'all' ? 'border-primary-container text-primary-container' : 'text-neutral-500 hover:text-on-surface border-transparent']">Tất cả</button>
         <button @click="activeFilter = 'upcoming'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'upcoming' ? 'border-primary-container text-primary-container' : 'text-neutral-500 hover:text-on-surface border-transparent']">Sắp diễn ra</button>
         <button @click="activeFilter = 'past'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'past' ? 'border-primary-container text-primary-container' : 'text-neutral-500 hover:text-on-surface border-transparent']">Đã xem</button>
       </div>
+      <!-- Preview: gợi ý xem tất cả -->
+      <router-link v-else to="/profile/history" class="text-xs font-bold uppercase tracking-widest pb-1 text-primary-container hover:brightness-110 transition-colors flex items-center gap-1">
+        Xem tất cả
+        <span class="material-symbols-outlined text-base">arrow_forward</span>
+      </router-link>
     </div>
 
     <!-- Loading -->
@@ -77,7 +100,7 @@ onMounted(fetchHistory)
     <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">{{ error }}</div>
 
     <!-- Empty -->
-    <div v-else-if="filteredBookings.length === 0" class="flex flex-col items-center justify-center py-24 text-center">
+    <div v-else-if="displayBookings.length === 0" class="flex flex-col items-center justify-center py-24 text-center">
       <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">confirmation_number</span>
       <p class="text-on-surface-variant font-semibold">Chưa có lịch sử đặt vé</p>
       <p class="text-sm text-outline-variant mt-1">Các vé bạn đã đặt sẽ xuất hiện ở đây</p>
@@ -85,7 +108,7 @@ onMounted(fetchHistory)
 
     <!-- List -->
     <div v-else class="grid grid-cols-1 gap-4">
-      <div v-for="b in filteredBookings" :key="b.bookingId"
+      <div v-for="b in displayBookings" :key="b.bookingId"
            class="group relative bg-surface-container-high hover:bg-surface-bright transition-all duration-300 p-1 flex flex-col md:flex-row gap-6 items-stretch">
         <div class="w-full md:w-24 h-36 md:h-auto overflow-hidden shrink-0">
           <img v-if="b.showtime?.moviePosterUrl"
@@ -128,6 +151,13 @@ onMounted(fetchHistory)
           </button>
         </div>
       </div>
+
+      <!-- Preview: gợi ý chuyển sang trang Lịch sử đặt vé đầy đủ -->
+      <router-link v-if="preview && bookings.length > PREVIEW_LIMIT" to="/profile/history"
+                   class="mt-2 flex items-center justify-center gap-2 py-4 bg-surface-container-high/60 hover:bg-surface-container-highest border border-white/5 rounded text-sm font-bold uppercase tracking-widest text-primary-container hover:brightness-110 transition-colors">
+        Xem tất cả lịch sử đặt vé
+        <span class="material-symbols-outlined text-lg">arrow_forward</span>
+      </router-link>
     </div>
 
     <!-- QR Ticket Modal -->

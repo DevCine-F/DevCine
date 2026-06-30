@@ -310,8 +310,8 @@ const tierInfo = computed(() => {
       </div>
     </div>
 
-    <!-- Booking History -->
-    <BookingHistoryView />
+    <!-- Booking History (preview: 3 lượt gần nhất + CTA xem tất cả) -->
+    <BookingHistoryView preview />
   </div>
 </template>
 
