@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { bookingApi } from '@/api/customer/index'
@@ -11,6 +11,7 @@ const props = defineProps({
 })
 
 const PREVIEW_LIMIT = 3
+const PAGE_SIZE = 5
 
 const authStore = useAuthStore()
 const bookings = ref([])
@@ -28,13 +29,44 @@ const filteredBookings = computed(() => {
   return bookings.value
 })
 
-// Danh sách thực sự hiển thị: ở preview chỉ lấy 3 suất gần nhất theo thời gian chiếu.
+// Phân trang (chỉ áp dụng ở trang đầy đủ, áp cho cả 3 tab).
+const currentPage = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredBookings.value.length / PAGE_SIZE)))
+
+// Danh sách thực sự hiển thị:
+//  - preview: 3 suất gần nhất theo thời gian chiếu.
+//  - đầy đủ: lát cắt theo trang hiện tại của tab đang chọn.
 const displayBookings = computed(() => {
-  if (!props.preview) return filteredBookings.value
-  return [...bookings.value]
-    .sort((a, b) => new Date(b.showtime?.startTime || 0) - new Date(a.showtime?.startTime || 0))
-    .slice(0, PREVIEW_LIMIT)
+  if (props.preview) {
+    return [...bookings.value]
+      .sort((a, b) => new Date(b.showtime?.startTime || 0) - new Date(a.showtime?.startTime || 0))
+      .slice(0, PREVIEW_LIMIT)
+  }
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredBookings.value.slice(start, start + PAGE_SIZE)
 })
+
+// Dãy số trang hiển thị, rút gọn bằng "…" khi quá nhiều trang.
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const cur = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = [1]
+  if (cur > 3) pages.push('...')
+  for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i)
+  if (cur < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+})
+
+const goToPage = (p) => {
+  if (typeof p !== 'number' || p < 1 || p > totalPages.value) return
+  currentPage.value = p
+}
+
+// Đổi tab -> quay về trang 1; dữ liệu thay đổi làm giảm số trang -> kẹp lại.
+watch(activeFilter, () => { currentPage.value = 1 })
+watch(totalPages, (n) => { if (currentPage.value > n) currentPage.value = n })
 
 const fetchHistory = async () => {
   if (!authStore.isAuthenticated || !authStore.user?.id) return
@@ -158,6 +190,25 @@ onMounted(fetchHistory)
         Xem tất cả lịch sử đặt vé
         <span class="material-symbols-outlined text-lg">arrow_forward</span>
       </router-link>
+    </div>
+
+    <!-- Pagination (trang đầy đủ, áp cho cả 3 tab) -->
+    <div v-if="!preview && !isLoading && !error && totalPages > 1" class="mt-8 flex items-center justify-center gap-2">
+      <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
+              class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+        <span class="material-symbols-outlined text-lg">chevron_left</span>
+      </button>
+      <template v-for="(p, i) in pageNumbers" :key="i">
+        <span v-if="p === '...'" class="w-9 h-9 flex items-center justify-center text-on-surface-variant">…</span>
+        <button v-else @click="goToPage(p)"
+                :class="['w-9 h-9 flex items-center justify-center rounded text-sm font-bold transition-colors border', p === currentPage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white']">
+          {{ p }}
+        </button>
+      </template>
+      <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
+              class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+        <span class="material-symbols-outlined text-lg">chevron_right</span>
+      </button>
     </div>
 
     <!-- QR Ticket Modal -->
