@@ -58,14 +58,6 @@ public class MailService {
     }
 
     /**
-     * Gửi đồng bộ, NÉM lỗi ra ngoài — dùng cho endpoint test thủ công để thấy
-     * ngay kết quả/lỗi SMTP.
-     */
-    public void sendTicketEmailSync(TicketEmailData data) throws Exception {
-        doSend(data);
-    }
-
-    /**
      * Gửi mã OTP đặt lại mật khẩu (đồng bộ, NÉM lỗi để service báo người dùng
      * nếu SMTP lỗi).
      *
