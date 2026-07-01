@@ -1,0 +1,9 @@
+{
+  "comment": "Vercel configuration temporarily disabled while the project remains private. Rename this file to vercel.json when deployment is enabled again.",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
