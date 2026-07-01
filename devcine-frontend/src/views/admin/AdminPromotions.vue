@@ -424,7 +424,7 @@ const fetchMarketingData = async () => {
       customerEligibility: p.customerEligibility,
       usageLimit: p.usageLimit,
       usedCount: p.usedCount
-    }))
+    })).sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
   } catch (error) {
     showToast('Không thể tải danh sách voucher.', 'error')
   }
