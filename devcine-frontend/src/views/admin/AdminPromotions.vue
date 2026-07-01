@@ -424,7 +424,7 @@ const fetchMarketingData = async () => {
       customerEligibility: p.customerEligibility,
       usageLimit: p.usageLimit,
       usedCount: p.usedCount
-    }))
+    })).sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
   } catch (error) {
     showToast('Không thể tải danh sách voucher.', 'error')
   }
@@ -1161,7 +1161,7 @@ onUnmounted(() => {
     <!-- Toast -->
     <transition name="fade">
       <div v-if="toast.show" :class="[
-        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
+        'fixed top-20 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
         toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
       ]">
         <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>

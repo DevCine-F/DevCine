@@ -1,0 +1,38 @@
+# SonarCloud workflow temporarily disabled while the project remains private.
+# Restore this file to .github/workflows/sonarcloud.yml when SonarCloud checks are needed again.
+#
+# name: SonarCloud Analysis
+#
+# on:
+#   push:
+#     branches: [ "main" ]
+#   pull_request:
+#     types: [opened, synchronize, reopened]
+#
+# jobs:
+#   sonarcloud:
+#     name: SonarCloud Code Analysis
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#
+#       - name: Set up JDK 21 (For Backend Compilation)
+#         uses: actions/setup-java@v4
+#         with:
+#           java-version: 21
+#           distribution: 'temurin'
+#
+#       - name: Compile Backend Code
+#         working-directory: ./devcine-backend
+#         run: |
+#           chmod +x mvnw
+#           ./mvnw clean compile -DskipTests
+#
+#       - name: Run SonarCloud Scanner
+#         uses: SonarSource/sonarcloud-github-action@master
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
