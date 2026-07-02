@@ -84,7 +84,7 @@ router.beforeEach(async (to, from, next) => {
 
     const authStore = useAuthStore()
     try {
-      await authStore.fetchPermissions()
+      await authStore.fetchPermissions(authStore.isStaff)
     } catch (error) {
       return next({ name: 'admin-login' })
     }

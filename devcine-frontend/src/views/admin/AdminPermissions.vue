@@ -169,6 +169,14 @@ const clearCurrentModule = () => {
   })
 }
 
+const clearAllPermissions = () => {
+  if (isAdminRole.value) return
+  const perms = getRolePerms()
+  features.value.forEach(f => {
+    perms[f.id] = []
+  })
+}
+
 const saveChanges = async () => {
   if (activeRole.value === null) return
   if (isAdminRole.value) {
@@ -253,10 +261,16 @@ const saveChanges = async () => {
            <h2 class="text-xs font-bold text-on-surface uppercase tracking-widest">
              Chi tiết phân quyền: <span class="text-primary">{{ modules.find(m => m.id === activeModule)?.name }}</span>
            </h2>
-           <button @click="clearCurrentModule" :disabled="isAdminRole" class="text-[10px] text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-             <span class="material-symbols-outlined text-sm">clear_all</span>
-             Bỏ tất cả trong Tab này
-           </button>
+           <div class="flex flex-wrap justify-end gap-3">
+             <button @click="clearCurrentModule" :disabled="isAdminRole" class="text-[10px] text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+               <span class="material-symbols-outlined text-sm">clear_all</span>
+               Bỏ tất cả trong Tab này
+             </button>
+             <button @click="clearAllPermissions" :disabled="isAdminRole" class="text-[10px] text-red-300 hover:text-red-200 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+               <span class="material-symbols-outlined text-sm">block</span>
+               Bỏ toàn bộ quyền
+             </button>
+           </div>
         </div>
 
         <!-- Khối Features (Cards) -->
