@@ -58,6 +58,9 @@ const saveMessage = ref('')
 // permissions Matrix: roleId -> featureId -> array of actions
 const permissions = ref({})
 
+const activeRoleData = computed(() => roles.value.find(r => r.id === activeRole.value) || null)
+const isAdminRole = computed(() => (activeRoleData.value?.name || '').toUpperCase() === 'ADMIN')
+
 const fetchRoles = async () => {
   isLoading.value = true
   try {
@@ -95,20 +98,24 @@ const getRolePerms = () => {
 }
 
 const hasAction = (featureId, action) => {
+  if (isAdminRole.value) return true
   const perms = getRolePerms()
   return perms[featureId]?.includes(action) || false
 }
 
 const getSelectedCount = (feature) => {
+  if (isAdminRole.value) return feature.actions.length
   const perms = getRolePerms()
   return perms[feature.id]?.length || 0
 }
 
 const isFeatureAll = (feature) => {
+  if (isAdminRole.value) return true
   return getSelectedCount(feature) === feature.actions.length && feature.actions.length > 0
 }
 
 const isFeaturePartial = (feature) => {
+  if (isAdminRole.value) return false
   const count = getSelectedCount(feature)
   return count > 0 && count < feature.actions.length
 }
@@ -118,7 +125,7 @@ const selectedPermissionsSummary = computed(() => {
   const summary = []
   
   features.value.forEach(feature => {
-    const selectedActions = perms[feature.id]
+    const selectedActions = isAdminRole.value ? feature.actions : perms[feature.id]
     if (selectedActions && selectedActions.length > 0) {
       const actionNames = selectedActions.map(a => actionLabelsShort[a] || a)
       summary.push({
@@ -133,6 +140,7 @@ const selectedPermissionsSummary = computed(() => {
 
 // --- HÀNH ĐỘNG (ACTIONS) ---
 const toggleAction = (feature, action) => {
+  if (isAdminRole.value) return
   const perms = getRolePerms()
   if (!perms[feature.id]) perms[feature.id] = []
   
@@ -144,6 +152,7 @@ const toggleAction = (feature, action) => {
 }
 
 const toggleFeatureAll = (feature) => {
+  if (isAdminRole.value) return
   const perms = getRolePerms()
   if (isFeatureAll(feature)) {
     perms[feature.id] = []
@@ -153,6 +162,7 @@ const toggleFeatureAll = (feature) => {
 }
 
 const clearCurrentModule = () => {
+  if (isAdminRole.value) return
   const perms = getRolePerms()
   currentModuleFeatures.value.forEach(f => {
     perms[f.id] = []
@@ -161,6 +171,11 @@ const clearCurrentModule = () => {
 
 const saveChanges = async () => {
   if (activeRole.value === null) return
+  if (isAdminRole.value) {
+    saveMessage.value = 'ADMIN luon co toan quyen va khong can luu ma tran.'
+    setTimeout(() => { saveMessage.value = '' }, 3000)
+    return
+  }
   isSaving.value = true
   saveMessage.value = ''
   try {
@@ -238,7 +253,7 @@ const saveChanges = async () => {
            <h2 class="text-xs font-bold text-on-surface uppercase tracking-widest">
              Chi tiết phân quyền: <span class="text-primary">{{ modules.find(m => m.id === activeModule)?.name }}</span>
            </h2>
-           <button @click="clearCurrentModule" class="text-[10px] text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors">
+           <button @click="clearCurrentModule" :disabled="isAdminRole" class="text-[10px] text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
              <span class="material-symbols-outlined text-sm">clear_all</span>
              Bỏ tất cả trong Tab này
            </button>
@@ -253,7 +268,7 @@ const saveChanges = async () => {
            <!-- Parent Header -->
            <div class="flex justify-between items-center mb-6 pb-4 border-b border-outline-variant/10">
               <div class="flex items-center gap-4">
-                 <button @click="toggleFeatureAll(feature)" class="flex items-center justify-center transition-transform hover:scale-110"
+                 <button @click="toggleFeatureAll(feature)" :disabled="isAdminRole" class="flex items-center justify-center transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:hover:scale-100"
                          :class="isFeatureAll(feature) ? 'text-primary' : 'text-on-surface-variant'">
                     <span class="material-symbols-outlined text-3xl">
                       {{ isFeatureAll(feature) ? 'check_box' : (isFeaturePartial(feature) ? 'indeterminate_check_box' : 'check_box_outline_blank') }}
@@ -272,7 +287,8 @@ const saveChanges = async () => {
            <!-- Children Actions -->
            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-6 gap-x-4">
               <div v-for="action in feature.actions" :key="action" 
-                   class="flex items-center gap-3 cursor-pointer group" 
+                   class="flex items-center gap-3 group"
+                   :class="isAdminRole ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'"
                    @click="toggleAction(feature, action)">
                  
                  <span class="material-symbols-outlined text-[20px] transition-all group-hover:text-primary group-hover:scale-110"
@@ -317,9 +333,9 @@ const saveChanges = async () => {
       <!-- Action Button -->
       <div class="flex flex-col items-end gap-2 w-full md:w-auto shrink-0">
         <span v-if="saveMessage" class="text-[10px] font-bold uppercase tracking-widest text-primary">{{ saveMessage }}</span>
-        <button @click="saveChanges" :disabled="isSaving || activeRole === null" class="w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-60">
-           {{ isSaving ? 'Đang lưu...' : 'Lưu Thay Đổi' }}
-           <span class="material-symbols-outlined text-sm">{{ isSaving ? 'autorenew' : 'save' }}</span>
+        <button @click="saveChanges" :disabled="isSaving || activeRole === null || isAdminRole" class="w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed">
+           {{ isAdminRole ? 'ADMIN toàn quyền' : (isSaving ? 'Đang lưu...' : 'Lưu Thay Đổi') }}
+           <span class="material-symbols-outlined text-sm">{{ isAdminRole ? 'admin_panel_settings' : (isSaving ? 'autorenew' : 'save') }}</span>
         </button>
       </div>
     </div>
