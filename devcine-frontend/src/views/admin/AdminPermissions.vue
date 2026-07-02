@@ -1,10 +1,20 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { rolePermissionApi } from '@/api/admin/index'
 
 // --- DỮ LIỆU CẤU TRÚC ---
 // Vai trò được nạp động từ backend (id là số, kèm ma trận quyền hiện tại)
 const roles = ref([])
+const staffUsers = ref([])
+const configMode = ref('role')
+const activeUserId = ref(null)
+const userPermissionConfig = ref({
+  role: 'STAFF',
+  basePermissions: {},
+  allow: {},
+  deny: {},
+  effectivePermissions: {}
+})
 
 const modules = ref([
   { id: 'dashboard', name: 'Tổng quan' },
@@ -60,6 +70,12 @@ const permissions = ref({})
 
 const activeRoleData = computed(() => roles.value.find(r => r.id === activeRole.value) || null)
 const isAdminRole = computed(() => (activeRoleData.value?.name || '').toUpperCase() === 'ADMIN')
+const isUserMode = computed(() => configMode.value === 'user')
+const activeUserData = computed(() => staffUsers.value.find(u => u.id === activeUserId.value) || null)
+const activeScopeName = computed(() => {
+  if (isUserMode.value) return activeUserData.value?.fullName || 'Chưa chọn nhân viên'
+  return activeRoleData.value?.name || 'Chưa chọn vai trò'
+})
 
 const fetchRoles = async () => {
   isLoading.value = true
@@ -83,7 +99,51 @@ const fetchRoles = async () => {
   }
 }
 
-onMounted(fetchRoles)
+const fetchStaffUsers = async () => {
+  try {
+    const { data } = await rolePermissionApi.getStaffUsers()
+    const list = data.data ?? data
+    staffUsers.value = Array.isArray(list) ? list : []
+    if (staffUsers.value.length && activeUserId.value === null) {
+      activeUserId.value = staffUsers.value[0].id
+    }
+  } catch (err) {
+    console.error('Không tải được danh sách nhân viên', err)
+  }
+}
+
+const fetchUserPermissionConfig = async () => {
+  if (!activeUserId.value) return
+  isLoading.value = true
+  try {
+    const { data } = await rolePermissionApi.getUserOverrides(activeUserId.value)
+    const payload = data.data ?? data
+    userPermissionConfig.value = {
+      role: payload.role || 'STAFF',
+      basePermissions: payload.basePermissions || {},
+      allow: payload.allow || {},
+      deny: payload.deny || {},
+      effectivePermissions: payload.effectivePermissions || {}
+    }
+  } catch (err) {
+    console.error('Không tải được quyền riêng của nhân viên', err)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  await fetchRoles()
+  await fetchStaffUsers()
+})
+
+watch(activeUserId, () => {
+  if (isUserMode.value) fetchUserPermissionConfig()
+})
+
+watch(configMode, (mode) => {
+  if (mode === 'user') fetchUserPermissionConfig()
+})
 
 // --- LOGIC HELPER ---
 const currentModuleFeatures = computed(() => {
@@ -97,35 +157,78 @@ const getRolePerms = () => {
   return permissions.value[activeRole.value]
 }
 
+const matrixHas = (matrix, featureId, action) => matrix?.[featureId]?.includes(action) || false
+
+const addMatrixAction = (matrix, featureId, action) => {
+  if (!matrix[featureId]) matrix[featureId] = []
+  if (!matrix[featureId].includes(action)) matrix[featureId].push(action)
+}
+
+const removeMatrixAction = (matrix, featureId, action) => {
+  if (!matrix[featureId]) return
+  matrix[featureId] = matrix[featureId].filter(a => a !== action)
+}
+
+const rebuildUserEffectivePermissions = () => {
+  const base = userPermissionConfig.value.basePermissions || {}
+  const allow = userPermissionConfig.value.allow || {}
+  const deny = userPermissionConfig.value.deny || {}
+  const effective = {}
+
+  Object.keys(base).forEach(featureId => {
+    effective[featureId] = [...base[featureId]]
+  })
+  Object.keys(allow).forEach(featureId => {
+    allow[featureId].forEach(action => addMatrixAction(effective, featureId, action))
+  })
+  Object.keys(deny).forEach(featureId => {
+    deny[featureId].forEach(action => removeMatrixAction(effective, featureId, action))
+    if (effective[featureId]?.length === 0) delete effective[featureId]
+  })
+
+  userPermissionConfig.value.effectivePermissions = effective
+}
+
 const hasAction = (featureId, action) => {
+  if (isUserMode.value) {
+    return matrixHas(userPermissionConfig.value.effectivePermissions, featureId, action)
+  }
   if (isAdminRole.value) return true
   const perms = getRolePerms()
   return perms[featureId]?.includes(action) || false
 }
 
 const getSelectedCount = (feature) => {
-  if (isAdminRole.value) return feature.actions.length
-  const perms = getRolePerms()
-  return perms[feature.id]?.length || 0
+  return feature.actions.filter(action => hasAction(feature.id, action)).length
 }
 
 const isFeatureAll = (feature) => {
-  if (isAdminRole.value) return true
   return getSelectedCount(feature) === feature.actions.length && feature.actions.length > 0
 }
 
 const isFeaturePartial = (feature) => {
-  if (isAdminRole.value) return false
   const count = getSelectedCount(feature)
   return count > 0 && count < feature.actions.length
 }
 
+const getUserOverrideEffect = (featureId, action) => {
+  if (matrixHas(userPermissionConfig.value.deny, featureId, action)) return 'DENY'
+  if (matrixHas(userPermissionConfig.value.allow, featureId, action)) return 'ALLOW'
+  return 'INHERIT'
+}
+
+const effectLabel = (featureId, action) => {
+  const effect = getUserOverrideEffect(featureId, action)
+  if (effect === 'ALLOW') return 'Riêng'
+  if (effect === 'DENY') return 'Chặn'
+  return matrixHas(userPermissionConfig.value.basePermissions, featureId, action) ? 'Kế thừa' : 'Không cấp'
+}
+
 const selectedPermissionsSummary = computed(() => {
-  const perms = getRolePerms()
   const summary = []
   
   features.value.forEach(feature => {
-    const selectedActions = isAdminRole.value ? feature.actions : perms[feature.id]
+    const selectedActions = feature.actions.filter(action => hasAction(feature.id, action))
     if (selectedActions && selectedActions.length > 0) {
       const actionNames = selectedActions.map(a => actionLabelsShort[a] || a)
       summary.push({
@@ -140,7 +243,20 @@ const selectedPermissionsSummary = computed(() => {
 
 // --- HÀNH ĐỘNG (ACTIONS) ---
 const toggleAction = (feature, action) => {
-  if (isAdminRole.value) return
+  if (isAdminRole.value && !isUserMode.value) return
+  if (isUserMode.value) {
+    const allow = userPermissionConfig.value.allow
+    const deny = userPermissionConfig.value.deny
+    if (hasAction(feature.id, action)) {
+      removeMatrixAction(allow, feature.id, action)
+      addMatrixAction(deny, feature.id, action)
+    } else {
+      removeMatrixAction(deny, feature.id, action)
+      addMatrixAction(allow, feature.id, action)
+    }
+    rebuildUserEffectivePermissions()
+    return
+  }
   const perms = getRolePerms()
   if (!perms[feature.id]) perms[feature.id] = []
   
@@ -152,7 +268,24 @@ const toggleAction = (feature, action) => {
 }
 
 const toggleFeatureAll = (feature) => {
-  if (isAdminRole.value) return
+  if (isAdminRole.value && !isUserMode.value) return
+  if (isUserMode.value) {
+    const allow = userPermissionConfig.value.allow
+    const deny = userPermissionConfig.value.deny
+    if (isFeatureAll(feature)) {
+      feature.actions.forEach(action => {
+        removeMatrixAction(allow, feature.id, action)
+        addMatrixAction(deny, feature.id, action)
+      })
+    } else {
+      feature.actions.forEach(action => {
+        removeMatrixAction(deny, feature.id, action)
+        addMatrixAction(allow, feature.id, action)
+      })
+    }
+    rebuildUserEffectivePermissions()
+    return
+  }
   const perms = getRolePerms()
   if (isFeatureAll(feature)) {
     perms[feature.id] = []
@@ -162,7 +295,17 @@ const toggleFeatureAll = (feature) => {
 }
 
 const clearCurrentModule = () => {
-  if (isAdminRole.value) return
+  if (isAdminRole.value && !isUserMode.value) return
+  if (isUserMode.value) {
+    currentModuleFeatures.value.forEach(feature => {
+      feature.actions.forEach(action => {
+        removeMatrixAction(userPermissionConfig.value.allow, feature.id, action)
+        addMatrixAction(userPermissionConfig.value.deny, feature.id, action)
+      })
+    })
+    rebuildUserEffectivePermissions()
+    return
+  }
   const perms = getRolePerms()
   currentModuleFeatures.value.forEach(f => {
     perms[f.id] = []
@@ -170,14 +313,59 @@ const clearCurrentModule = () => {
 }
 
 const clearAllPermissions = () => {
-  if (isAdminRole.value) return
+  if (isAdminRole.value && !isUserMode.value) return
+  if (isUserMode.value) {
+    features.value.forEach(feature => {
+      feature.actions.forEach(action => {
+        removeMatrixAction(userPermissionConfig.value.allow, feature.id, action)
+        addMatrixAction(userPermissionConfig.value.deny, feature.id, action)
+      })
+    })
+    rebuildUserEffectivePermissions()
+    return
+  }
   const perms = getRolePerms()
   features.value.forEach(f => {
     perms[f.id] = []
   })
 }
 
+const resetUserOverrides = () => {
+  if (!isUserMode.value) return
+  userPermissionConfig.value.allow = {}
+  userPermissionConfig.value.deny = {}
+  rebuildUserEffectivePermissions()
+}
+
+const compactMatrix = (matrix) => {
+  const payload = {}
+  Object.keys(matrix || {}).forEach(k => {
+    if (Array.isArray(matrix[k]) && matrix[k].length > 0) payload[k] = matrix[k]
+  })
+  return payload
+}
+
 const saveChanges = async () => {
+  if (isUserMode.value) {
+    if (!activeUserId.value) return
+    isSaving.value = true
+    saveMessage.value = ''
+    try {
+      await rolePermissionApi.updateUserOverrides(activeUserId.value, {
+        allow: compactMatrix(userPermissionConfig.value.allow),
+        deny: compactMatrix(userPermissionConfig.value.deny)
+      })
+      await fetchUserPermissionConfig()
+      saveMessage.value = `Đã lưu quyền riêng cho ${activeUserData.value?.fullName || 'nhân viên'}`
+      setTimeout(() => { saveMessage.value = '' }, 3000)
+    } catch (err) {
+      saveMessage.value = err.response?.data?.message || 'Lưu quyền riêng thất bại.'
+    } finally {
+      isSaving.value = false
+    }
+    return
+  }
+
   if (activeRole.value === null) return
   if (isAdminRole.value) {
     saveMessage.value = 'ADMIN luon co toan quyen va khong can luu ma tran.'
@@ -189,10 +377,7 @@ const saveChanges = async () => {
   try {
     const matrix = permissions.value[activeRole.value] || {}
     // Chỉ gửi các feature có ít nhất 1 action để ma trận gọn gàng
-    const payload = {}
-    Object.keys(matrix).forEach(k => {
-      if (Array.isArray(matrix[k]) && matrix[k].length > 0) payload[k] = matrix[k]
-    })
+    const payload = compactMatrix(matrix)
     await rolePermissionApi.updatePermissions(activeRole.value, payload)
     const roleName = roles.value.find(r => r.id === activeRole.value)?.name
     saveMessage.value = `Đã lưu phân quyền cho vai trò ${roleName}`
@@ -218,7 +403,19 @@ const saveChanges = async () => {
       </header>
 
       <!-- CẤP 1: CHỌN VAI TRÒ (PILL BUTTONS) -->
-      <section class="mb-12">
+      <section class="mb-8">
+        <h2 class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] mb-4">1. Chọn phạm vi cấu hình</h2>
+        <div class="flex flex-wrap gap-4">
+          <button type="button" @click="configMode = 'role'" class="px-8 py-4 rounded-full font-bold text-sm uppercase tracking-widest transition-all duration-300 shadow-sm border border-outline-variant/10" :class="!isUserMode ? 'bg-primary text-on-primary shadow-[0_4px_20px_-5px_rgba(245,197,24,0.4)] scale-105 border-transparent' : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high hover:border-outline-variant/30'">
+            Theo vai trò
+          </button>
+          <button type="button" @click="configMode = 'user'" class="px-8 py-4 rounded-full font-bold text-sm uppercase tracking-widest transition-all duration-300 shadow-sm border border-outline-variant/10" :class="isUserMode ? 'bg-primary text-on-primary shadow-[0_4px_20px_-5px_rgba(245,197,24,0.4)] scale-105 border-transparent' : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high hover:border-outline-variant/30'">
+            Theo nhân viên
+          </button>
+        </div>
+      </section>
+
+      <section v-if="!isUserMode" class="mb-12">
         <h2 class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] mb-4">1. Chọn Vai trò</h2>
         <div class="flex flex-wrap gap-4">
           <button 
@@ -236,6 +433,23 @@ const saveChanges = async () => {
 
       <!-- CẤP 2: TABS PHÂN HỆ -->
       <section class="mb-8">
+         <div v-if="isUserMode" class="grid md:grid-cols-[minmax(260px,420px)_1fr] gap-5 items-stretch mb-8">
+          <select
+            v-model="activeUserId"
+            class="bg-surface-container-low border border-outline-variant/20 rounded-xl px-5 py-4 text-sm font-bold text-on-surface focus:outline-none focus:border-primary">
+            <option v-for="staff in staffUsers" :key="staff.id" :value="staff.id">
+              {{ staff.fullName }} - {{ staff.username }}
+            </option>
+          </select>
+          <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl px-5 py-4">
+            <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Quyền riêng từng người</p>
+            <p class="text-sm text-on-surface mt-1">
+              {{ activeUserData?.fullName || 'Chưa chọn nhân viên' }} kế thừa role {{ userPermissionConfig.role || 'STAFF' }}.
+              Tick để cấp/chặn riêng, hoặc đặt lại để dùng đúng quyền theo vai trò.
+            </p>
+          </div>
+         </div>
+
          <div class="flex border-b border-outline-variant/20 overflow-x-auto hide-scrollbar">
             <button 
               v-for="mod in modules" 
@@ -262,13 +476,17 @@ const saveChanges = async () => {
              Chi tiết phân quyền: <span class="text-primary">{{ modules.find(m => m.id === activeModule)?.name }}</span>
            </h2>
            <div class="flex flex-wrap justify-end gap-3">
-             <button @click="clearCurrentModule" :disabled="isAdminRole" class="text-[10px] text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+             <button @click="clearCurrentModule" :disabled="isAdminRole && !isUserMode" class="text-[10px] text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                <span class="material-symbols-outlined text-sm">clear_all</span>
                Bỏ tất cả trong Tab này
              </button>
-             <button @click="clearAllPermissions" :disabled="isAdminRole" class="text-[10px] text-red-300 hover:text-red-200 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+             <button @click="clearAllPermissions" :disabled="isAdminRole && !isUserMode" class="text-[10px] text-red-300 hover:text-red-200 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                <span class="material-symbols-outlined text-sm">block</span>
                Bỏ toàn bộ quyền
+             </button>
+             <button v-if="isUserMode" @click="resetUserOverrides" class="text-[10px] text-primary hover:text-yellow-200 bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors">
+               <span class="material-symbols-outlined text-sm">restart_alt</span>
+               Đặt lại theo vai trò
              </button>
            </div>
         </div>
@@ -282,7 +500,7 @@ const saveChanges = async () => {
            <!-- Parent Header -->
            <div class="flex justify-between items-center mb-6 pb-4 border-b border-outline-variant/10">
               <div class="flex items-center gap-4">
-                 <button @click="toggleFeatureAll(feature)" :disabled="isAdminRole" class="flex items-center justify-center transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:hover:scale-100"
+                 <button @click="toggleFeatureAll(feature)" :disabled="isAdminRole && !isUserMode" class="flex items-center justify-center transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:hover:scale-100"
                          :class="isFeatureAll(feature) ? 'text-primary' : 'text-on-surface-variant'">
                     <span class="material-symbols-outlined text-3xl">
                       {{ isFeatureAll(feature) ? 'check_box' : (isFeaturePartial(feature) ? 'indeterminate_check_box' : 'check_box_outline_blank') }}
@@ -302,7 +520,7 @@ const saveChanges = async () => {
            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-6 gap-x-4">
               <div v-for="action in feature.actions" :key="action" 
                    class="flex items-center gap-3 group"
-                   :class="isAdminRole ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'"
+                   :class="(isAdminRole && !isUserMode) ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'"
                    @click="toggleAction(feature, action)">
                  
                  <span class="material-symbols-outlined text-[20px] transition-all group-hover:text-primary group-hover:scale-110"
@@ -312,6 +530,10 @@ const saveChanges = async () => {
                  <span class="text-[10px] font-semibold uppercase tracking-wider transition-colors group-hover:text-on-surface"
                        :class="hasAction(feature.id, action) ? 'text-on-surface' : 'text-on-surface-variant'">
                    {{ actionLabels[action] || action }}
+                 </span>
+                 <span v-if="isUserMode" class="text-[9px] font-black uppercase tracking-widest"
+                       :class="getUserOverrideEffect(feature.id, action) === 'DENY' ? 'text-red-300' : (getUserOverrideEffect(feature.id, action) === 'ALLOW' ? 'text-primary' : 'text-on-surface-variant/50')">
+                   {{ effectLabel(feature.id, action) }}
                  </span>
               </div>
            </div>
@@ -329,7 +551,7 @@ const saveChanges = async () => {
             <span class="material-symbols-outlined text-4xl text-primary opacity-80">admin_panel_settings</span>
             <div>
                <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">Vai trò đang sửa</p>
-               <p class="text-sm font-extrabold uppercase tracking-widest text-primary">{{ roles.find(r => r.id === activeRole)?.name }}</p>
+               <p class="text-sm font-extrabold uppercase tracking-widest text-primary">{{ activeScopeName }}</p>
             </div>
          </div>
          
@@ -347,9 +569,9 @@ const saveChanges = async () => {
       <!-- Action Button -->
       <div class="flex flex-col items-end gap-2 w-full md:w-auto shrink-0">
         <span v-if="saveMessage" class="text-[10px] font-bold uppercase tracking-widest text-primary">{{ saveMessage }}</span>
-        <button @click="saveChanges" :disabled="isSaving || activeRole === null || isAdminRole" class="w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed">
-           {{ isAdminRole ? 'ADMIN toàn quyền' : (isSaving ? 'Đang lưu...' : 'Lưu Thay Đổi') }}
-           <span class="material-symbols-outlined text-sm">{{ isAdminRole ? 'admin_panel_settings' : (isSaving ? 'autorenew' : 'save') }}</span>
+        <button @click="saveChanges" :disabled="isSaving || (!isUserMode && (activeRole === null || isAdminRole)) || (isUserMode && !activeUserId)" class="w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed">
+           {{ (!isUserMode && isAdminRole) ? 'ADMIN toàn quyền' : (isSaving ? 'Đang lưu...' : 'Lưu Thay Đổi') }}
+           <span class="material-symbols-outlined text-sm">{{ (!isUserMode && isAdminRole) ? 'admin_panel_settings' : (isSaving ? 'autorenew' : 'save') }}</span>
         </button>
       </div>
     </div>
