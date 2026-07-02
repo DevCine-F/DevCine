@@ -48,6 +48,24 @@ public class StaffController {
         return o == null ? "" : o.toString().trim();
     }
 
+    private static String formatStaffCode(int number) {
+        return number <= 999 ? String.format("DC%03d", number) : "DC" + number;
+    }
+
+    private synchronized String generateStaffCode() {
+        int next = staffRepository.findAllStaffCodes().stream()
+                .filter(code -> code != null && code.matches("^DC\\d+$"))
+                .map(code -> Integer.parseInt(code.substring(2)))
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
+
+        String code = formatStaffCode(next);
+        while (staffRepository.existsByStaffCode(code)) {
+            code = formatStaffCode(++next);
+        }
+        return code;
+    }
+
     // Gói thông tin một nhân viên trả về FE (dùng HashMap vì có field cho phép null)
     private Map<String, Object> toStaffMap(Staff s) {
         User u = s.getUser();
@@ -131,7 +149,7 @@ public class StaffController {
 
             Staff staff = Staff.builder()
                     .user(u)
-                    .staffCode(str(body.get("staffCode")).isBlank() ? null : str(body.get("staffCode")))
+                    .staffCode(generateStaffCode())
                     .cinema(resolveCinema(body.get("cinemaId")))
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
@@ -170,8 +188,6 @@ public class StaffController {
                 u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
             userRepository.save(u);
 
-            if (body.containsKey("staffCode"))
-                staff.setStaffCode(str(body.get("staffCode")).isBlank() ? null : str(body.get("staffCode")));
             if (body.containsKey("cinemaId"))
                 staff.setCinema(resolveCinema(body.get("cinemaId")));
             staffRepository.save(staff);
