@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../stores/auth'
+import adminRoutes from '../routers/admin'
+import { canUseAdminPermission, resolveFirstAccessibleAdminPath } from '../utils/adminAccess'
 import AppToast from '../components/common/AppToast.vue'
 import ConfirmModal from '../components/common/ConfirmModal.vue'
 import logo from '../assets/images/Logo_DevCine_Ngang_XoaNen.png'
@@ -15,6 +17,11 @@ const isAccountOpen = ref(false)
 const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Quản trị viên')
 const accountRole = computed(() => (authStore.role === 'admin' ? 'Quản trị cấp cao' : 'Nhân viên'))
 
+const firstAccessiblePath = computed(() => resolveFirstAccessibleAdminPath(adminRoutes, authStore))
+
+const canShow = (feature, action = 'view') => canUseAdminPermission(authStore, { feature, action })
+const canShowAny = (features) => authStore.isAdmin || features.some((feature) => canShow(feature))
+
 const goProfile = () => { isAccountOpen.value = false; router.push('/admin/account') }
 const goHome = () => { isAccountOpen.value = false; router.push('/') }
 const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); router.push('/admin/login') }
@@ -26,141 +33,141 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
     <!-- Admin Sidebar -->
     <aside class="w-72 border-r border-outline-variant/20 flex flex-col fixed h-screen bg-surface z-50">
       <div class="p-8 flex justify-center border-b border-outline-variant/10 mb-2">
-        <RouterLink to="/admin/movies" class="flex flex-col items-center gap-3">
+        <RouterLink :to="firstAccessiblePath" class="flex flex-col items-center gap-3">
           <img :src="logo" alt="DEVCINE" class="w-36 h-auto object-contain brightness-110">
         </RouterLink>
       </div>
 
       <nav class="flex-grow px-4 pb-6 space-y-1.5 overflow-y-auto">
         <!-- ===== TỔNG QUAN & VẬN HÀNH ===== -->
-        <div class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
+        <div v-if="canShowAny(['dashboard_stats', 'pos_ticketing'])" class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
 
-        <router-link to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('dashboard_stats')" to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
           <span class="font-semibold text-sm">Tổng quan</span>
         </router-link>
 
-        <router-link to="/admin/ticketing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('pos_ticketing')" to="/admin/ticketing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">confirmation_number</span>
           <span class="font-semibold text-sm">Bán vé (POS)</span>
         </router-link>
 
-        <router-link to="/admin/check-in" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('pos_ticketing')" to="/admin/check-in" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">qr_code_scanner</span>
           <span class="font-semibold text-sm">Kiểm soát vé</span>
         </router-link>
 
-        <router-link to="/admin/bookings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('pos_ticketing')" to="/admin/bookings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">receipt_long</span>
           <span class="font-semibold text-sm">Hoá đơn</span>
         </router-link>
 
         <!-- ===== PHIM & NỘI DUNG ===== -->
-        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Phim & Nội dung</div>
+        <div v-if="canShowAny(['movies', 'schedules', 'banners'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Phim & Nội dung</div>
 
-        <router-link to="/admin/movies" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('movies')" to="/admin/movies" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">movie</span>
           <span class="font-semibold text-sm">Quản lý phim</span>
         </router-link>
 
-        <router-link to="/admin/categories" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('movies')" to="/admin/categories" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">category</span>
           <span class="font-semibold text-sm">Danh mục phim</span>
         </router-link>
 
-        <router-link to="/admin/master-scheduling" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('schedules')" to="/admin/master-scheduling" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_month</span>
           <span class="font-semibold text-sm">Lịch chiếu & Điều phối</span>
         </router-link>
 
-        <router-link to="/admin/banners" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('banners')" to="/admin/banners" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">view_carousel</span>
           <span class="font-semibold text-sm">Quản lý Banner</span>
         </router-link>
 
         <!-- ===== RẠP & HẠ TẦNG ===== -->
-        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Rạp & Hạ tầng</div>
+        <div v-if="canShowAny(['cinemas', 'pos_inventory'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Rạp & Hạ tầng</div>
 
-        <router-link to="/admin/cinemas" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('cinemas')" to="/admin/cinemas" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">theater_comedy</span>
           <span class="font-semibold text-sm">Cụm rạp</span>
         </router-link>
 
-        <router-link to="/admin/seat-map" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('cinemas')" to="/admin/seat-map" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">grid_view</span>
           <span class="font-semibold text-sm">Sơ đồ ghế</span>
         </router-link>
 
-        <router-link to="/admin/fnb" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('pos_inventory')" to="/admin/fnb" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">fastfood</span>
           <span class="font-semibold text-sm">Thực đơn F&B / Combo</span>
         </router-link>
 
-        <router-link to="/admin/inventory" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('pos_inventory')" to="/admin/inventory" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">inventory_2</span>
           <span class="font-semibold text-sm">Quản lý kho (F&B)</span>
         </router-link>
 
         <!-- ===== KINH DOANH & KHÁCH HÀNG ===== -->
-        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
+        <div v-if="canShowAny(['pricing', 'promotions', 'support'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
 
-        <router-link to="/admin/pricing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('pricing')" to="/admin/pricing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">payments</span>
           <span class="font-semibold text-sm">Quản lý giá</span>
         </router-link>
 
-        <router-link to="/admin/promotions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('promotions')" to="/admin/promotions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">loyalty</span>
           <span class="font-semibold text-sm">Khuyến mãi</span>
         </router-link>
 
-        <router-link to="/admin/customers" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('support')" to="/admin/customers" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">groups</span>
           <span class="font-semibold text-sm">Khách hàng</span>
         </router-link>
 
-        <router-link to="/admin/reviews" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('support')" to="/admin/reviews" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">reviews</span>
           <span class="font-semibold text-sm">Đánh giá phim</span>
         </router-link>
 
-        <router-link to="/admin/customer-support" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('support')" to="/admin/customer-support" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">support_agent</span>
           <span class="font-semibold text-sm">Chăm sóc khách hàng</span>
         </router-link>
 
-        <router-link to="/admin/faqs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('support')" to="/admin/faqs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">quiz</span>
           <span class="font-semibold text-sm">Câu hỏi (FAQ)</span>
         </router-link>
 
         <!-- ===== NHÂN SỰ ===== -->
-        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
+        <div v-if="canShow('staff_management')" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
 
-        <router-link to="/admin/staff" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('staff_management')" to="/admin/staff" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">group</span>
           <span class="font-semibold text-sm">Nhân viên</span>
         </router-link>
 
-        <router-link to="/admin/staff-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('staff_management')" to="/admin/staff-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">event_available</span>
           <span class="font-semibold text-sm">Phê duyệt ca trực</span>
         </router-link>
 
         <!-- ===== HỆ THỐNG ===== -->
-        <div class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Hệ thống</div>
+        <div v-if="authStore.isAdmin || canShow('settings')" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Hệ thống</div>
 
-        <router-link to="/admin/permissions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="authStore.isAdmin" to="/admin/permissions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">admin_panel_settings</span>
           <span class="font-semibold text-sm">Phân quyền</span>
         </router-link>
 
-        <router-link to="/admin/logs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="authStore.isAdmin" to="/admin/logs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">manage_search</span>
           <span class="font-semibold text-sm">Nhật ký</span>
         </router-link>
 
-        <router-link to="/admin/settings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('settings')" to="/admin/settings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">settings</span>
           <span class="font-semibold text-sm">Cài đặt</span>
         </router-link>

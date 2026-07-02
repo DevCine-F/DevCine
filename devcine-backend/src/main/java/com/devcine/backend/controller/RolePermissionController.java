@@ -7,6 +7,8 @@ import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -16,7 +18,7 @@ import java.util.stream.Collectors;
 
 /**
  * Quản lý cấu hình phân quyền chi tiết theo vai trò (ma trận feature -> action),
- * lưu xuống cột Role.permissionsMatrix dưới dạng JSON. Chỉ ADMIN được truy cập.
+ * lưu xuống cột Role.permissionsMatrix dưới dạng JSON. ADMIN quản lý role, STAFF chỉ đọc quyền của chính mình.
  */
 @RestController
 @RequestMapping("/api/admin/roles")
@@ -41,6 +43,23 @@ public class RolePermissionController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/me/permissions")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<?> getMyPermissions(Authentication authentication) {
+        String roleName = currentRole(authentication);
+        if (roleName == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Không xác định được vai trò"));
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("role", roleName);
+        response.put("admin", "ADMIN".equalsIgnoreCase(roleName));
+        response.put("permissions", roleRepository.findByName(roleName.toUpperCase())
+                .map(role -> parseMatrix(role.getPermissionsMatrix()))
+                .orElse(Map.of()));
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{id}/permissions")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updatePermissions(@PathVariable Integer id,
@@ -57,7 +76,18 @@ public class RolePermissionController {
         }
     }
 
-    private Object parseMatrix(String json) {
+    private String currentRole(Authentication auth) {
+        if (auth == null) return null;
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .filter(a -> a.startsWith("ROLE_"))
+                .map(a -> a.substring(5))
+                .findFirst()
+                .orElse(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseMatrix(String json) {
         if (json == null || json.isBlank()) return Map.of();
         try {
             return objectMapper.readValue(json, Map.class);

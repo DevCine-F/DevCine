@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import adminRoutes from './admin'
 import customerRoutes from './customer'
+import { useAuthStore } from '@/stores/auth'
+import { canUseAdminRoute, resolveFirstAccessibleAdminPath } from '@/utils/adminAccess'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -56,13 +58,14 @@ if (typeof window !== 'undefined') {
 router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('token');
   const userRole = localStorage.getItem('role'); // admin, customer
+  const isAdminRole = ['admin', 'staff'].includes(userRole);
 
   // Lần điều hướng ĐẦU TIÊN sau khi tải trang: nếu phiên đã cũ/hết hạn thì về landing theo vai trò.
   // Reload liên tục → mốc hoạt động còn mới → không vào nhánh này.
   if (!initialNavigationHandled) {
     initialNavigationHandled = true
     if (!shouldSkipStaleRedirect(to) && isStaleSession()) {
-      const landing = userRole === 'admin' ? '/admin/dashboard' : '/'
+      const landing = isAdminRole ? '/admin/dashboard' : '/'
       if (to.path !== landing) {
         touchActivity()
         return next(landing)
@@ -75,8 +78,24 @@ router.beforeEach(async (to, from, next) => {
     if (to.path === '/admin/login') {
       return next();
     }
-    if (!token || userRole !== 'admin') {
+    if (!token || !isAdminRole) {
       return next({ name: 'admin-login' });
+    }
+
+    const authStore = useAuthStore()
+    try {
+      await authStore.fetchPermissions()
+    } catch (error) {
+      return next({ name: 'admin-login' })
+    }
+
+    if (to.path === '/admin') {
+      return next(resolveFirstAccessibleAdminPath(adminRoutes, authStore))
+    }
+
+    if (!canUseAdminRoute(authStore, to)) {
+      const fallbackPath = resolveFirstAccessibleAdminPath(adminRoutes, authStore)
+      return next(fallbackPath === to.path ? '/admin/account' : fallbackPath)
     }
   }
 
