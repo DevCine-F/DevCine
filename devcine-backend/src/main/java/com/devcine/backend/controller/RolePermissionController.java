@@ -5,6 +5,7 @@ import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.service.PermissionService;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -44,11 +45,15 @@ public class RolePermissionController {
     }
 
     @GetMapping("/me/permissions")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<?> getMyPermissions(Authentication authentication) {
         String roleName = currentRole(authentication);
         if (roleName == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Không xác định được vai trò"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Chưa xác thực"));
+        }
+        if (!"ADMIN".equalsIgnoreCase(roleName) && !"STAFF".equalsIgnoreCase(roleName)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "Tài khoản không có quyền truy cập khu nội bộ"));
         }
 
         Map<String, Object> response = new HashMap<>();
