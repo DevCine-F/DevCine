@@ -13,30 +13,46 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TicketService {
 
-    private final TicketRepository ticketRepository;
+    private static final int CHECK_IN_EARLY_MINUTES = 30;
+    private static final int CHECK_IN_LATE_MINUTES = 10;
 
+    private final TicketRepository ticketRepository;
+    private final ShiftAccessService shiftAccessService;
+
+    @Transactional(readOnly = true)
     public List<Ticket> getTicketsByBooking(Integer bookingId) {
         return ticketRepository.findAllByBookingId(bookingId);
     }
 
     @Transactional
     public Ticket checkIn(String qrCode) {
-        Ticket ticket = ticketRepository.findByQrCode(qrCode)
-                .orElseThrow(() -> new RuntimeException("Vé không tồn tại trên hệ thống"));
+        var schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("CHECK_IN", "SHIFT_LEAD"), "kiem soat ve");
+        Ticket ticket = ticketRepository.findByQrCodeWithDetails(qrCode)
+                .orElseThrow(() -> new RuntimeException("Ve khong ton tai tren he thong"));
 
-        if (ticket.getIsCheckedIn()) {
-            throw new RuntimeException("Vé này đã được check-in trước đó vào lúc: " + ticket.getCheckInTime());
+        if (Boolean.TRUE.equals(ticket.getIsCheckedIn())) {
+            throw new RuntimeException("Ve nay da duoc check-in truoc do vao luc: " + ticket.getCheckInTime());
         }
 
-        // Validate showtime date (nếu suất chiếu không phải hôm nay, ném cảnh báo nhưng cho phép check-in nếu admin vẫn duyệt - ở đây ta chỉ validate cơ bản)
-        LocalDateTime showtimeStart = ticket.getBookingSeat().getBooking().getShowtime().getStartTime();
-        if (showtimeStart.toLocalDate().isBefore(LocalDateTime.now().toLocalDate())) {
-            throw new RuntimeException("Suất chiếu của vé này đã diễn ra trong quá khứ (" + showtimeStart + ")");
+        var showtime = ticket.getBookingSeat().getBooking().getShowtime();
+        LocalDateTime showtimeStart = showtime.getStartTime();
+        LocalDateTime showtimeEnd = showtime.getEndTime();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime checkInOpenAt = showtimeStart.minusMinutes(CHECK_IN_EARLY_MINUTES);
+        LocalDateTime checkInCloseAt = showtimeEnd.plusMinutes(CHECK_IN_LATE_MINUTES);
+        if (now.isBefore(checkInOpenAt)) {
+            throw new RuntimeException("Chua den gio check-in. Cong check-in mo luc: " + checkInOpenAt);
+        }
+        if (now.isAfter(checkInCloseAt)) {
+            throw new RuntimeException("Da qua thoi gian check-in. Cong check-in dong luc: " + checkInCloseAt);
         }
 
         ticket.setIsCheckedIn(true);
-        ticket.setCheckInTime(LocalDateTime.now());
-        
+        ticket.setCheckInTime(now);
+        if (schedule != null) {
+            ticket.setCheckedInBy(schedule.getStaff());
+        }
+
         return ticketRepository.save(ticket);
     }
 }

@@ -101,6 +101,27 @@ export const staffApi = {
   toggle: (id) => api.put(`/staff/${id}/toggle`),
 };
 
+export const staffShiftApi = {
+  list: (params) => api.get('/staff/shifts', { params }),
+  current: () => api.get('/staff/shifts/current'),
+  my: (params) => api.get('/staff/shifts/my', { params }),
+  create: (data) => api.post('/staff/shifts', data),
+  approve: (id) => api.put(`/staff/shifts/${id}/approve`),
+  reject: (id) => api.put(`/staff/shifts/${id}/reject`),
+};
+
+export const shiftHandoverApi = {
+  list: () => api.get('/staff/handovers'),
+  mine: () => api.get('/staff/handovers/my'),
+  summary: (staffScheduleId) => api.get('/staff/handovers/summary', { params: { staffScheduleId } }),
+  receivers: (staffScheduleId) => api.get('/staff/handovers/receivers', { params: { staffScheduleId } }),
+  currentSummary: () => api.get('/staff/shifts/current/handover-summary'),
+  submit: (data) => api.post('/staff/handovers', data),
+  receive: (id, data = {}) => api.put(`/staff/handovers/${id}/receive`, data),
+  confirm: (id, data = {}) => api.put(`/staff/handovers/${id}/confirm`, data),
+  reject: (id, data = {}) => api.put(`/staff/handovers/${id}/reject`, data),
+};
+
 // Danh sách cơ sở (cụm rạp) cho dropdown lọc/gán nhân viên — endpoint công khai GET
 export const cinemaListApi = {
   getAll: () => api.get('/v1/cinemas'),

@@ -1,13 +1,14 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import axios from 'axios'
+import api from '@/api/axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
 import { useToastStore } from '@/stores/toast'
+import { useShiftStore } from '@/stores/shift'
 import { friendlyError } from '@/utils/friendlyError'
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/inventory'
 const toast = useToastStore()
+const shiftStore = useShiftStore()
 
 const items = ref([])
 const transactions = ref([])
@@ -15,6 +16,8 @@ const isLoading = ref(false)
 
 const isImportModalOpen = ref(false)
 const isAuditModalOpen = ref(false)
+const canUseInventory = computed(() => shiftStore.canUse(['FNB']))
+const lockedMessage = computed(() => shiftStore.lockedMessage('quản lý kho F&B'))
 
 const importForm = ref({
   itemId: '',
@@ -28,37 +31,44 @@ const auditData = ref([]) // Temporary list for auditing
 const fetchData = async () => {
   isLoading.value = true
   try {
+    await shiftStore.fetchCurrent(true)
     const [itemsRes, transRes] = await Promise.all([
-      axios.get(`${API_BASE_URL}/items`),
-      axios.get(`${API_BASE_URL}/transactions`)
+      api.get('/inventory/items'),
+      api.get('/inventory/transactions')
     ])
     items.value = itemsRes.data
     transactions.value = transRes.data
   } catch (error) {
-    console.error('Error fetching inventory:', error)
+    toast.error(friendlyError(error, 'Không tải được dữ liệu kho.'))
   } finally {
     isLoading.value = false
   }
 }
 
 const handleImport = async () => {
+  if (!canUseInventory.value) {
+    toast.warning(lockedMessage.value)
+    return
+  }
   try {
-    const selectedItem = items.value.find(i => i.id === importForm.value.itemId)
-    await axios.post(`${API_BASE_URL}/transactions`, {
-      item: { id: importForm.value.itemId },
-      quantity: importForm.value.quantity,
-      type: 'IMPORT',
-      note: importForm.value.note,
-      performer: 'Nguyen Admin'
+    await api.post('/inventory/transactions', {
+      inventoryId: importForm.value.itemId,
+      quantityChange: Number(importForm.value.quantity || 0),
+      type: importForm.value.type || 'IMPORT'
     })
     await fetchData()
     isImportModalOpen.value = false
+    toast.success('Đã cập nhật tồn kho.')
   } catch (error) {
-    console.error('Error importing stock:', error)
+    toast.error(friendlyError(error, 'Không cập nhật được tồn kho.'))
   }
 }
 
 const startAudit = () => {
+  if (!canUseInventory.value) {
+    toast.warning(lockedMessage.value)
+    return
+  }
   auditData.value = items.value.map(item => ({
     ...item,
     actualQuantity: item.stockQuantity,
@@ -68,16 +78,18 @@ const startAudit = () => {
 }
 
 const saveAudit = async () => {
+  if (!canUseInventory.value) {
+    toast.warning(lockedMessage.value)
+    return
+  }
   // Logic to save adjustments
   for (const row of auditData.value) {
     const diff = row.actualQuantity - row.stockQuantity
     if (diff !== 0) {
-      await axios.post(`${API_BASE_URL}/transactions`, {
-        item: { id: row.id },
-        quantity: Math.abs(diff),
-        type: diff > 0 ? 'IMPORT' : 'EXPORT',
-        note: `Kiểm kê định kỳ - Điều chỉnh sai lệch: ${diff}`,
-        performer: 'Nguyen Admin'
+      await api.post('/inventory/transactions', {
+        inventoryId: row.id,
+        quantityChange: diff,
+        type: diff > 0 ? 'IMPORT' : 'EXPORT'
       })
     }
   }
@@ -87,11 +99,10 @@ const saveAudit = async () => {
 
 const seedInitialItems = async () => {
   try {
-    await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/system/seed-all`);
+    await api.post('/system/seed-all');
     toast.success('Dữ liệu mẫu kho bãi đã được khởi tạo!');
     await fetchData();
   } catch (error) {
-    console.error('Seeding error:', error);
     toast.error(friendlyError(error, 'Lỗi khi khởi tạo dữ liệu!'));
   }
 }
@@ -112,14 +123,19 @@ onMounted(fetchData)
       </div>
       <div class="flex gap-4">
         <AppButton variant="ghost" @click="seedInitialItems">Dữ liệu Mẫu</AppButton>
-        <AppButton variant="outline" @click="startAudit">
+        <AppButton variant="outline" :disabled="!canUseInventory" @click="startAudit">
           <span class="material-symbols-outlined mr-2">inventory</span> Kiểm kê định kỳ
         </AppButton>
-        <AppButton @click="isImportModalOpen = true">
+        <AppButton :disabled="!canUseInventory" @click="isImportModalOpen = true">
           <span class="material-symbols-outlined mr-2">add_shopping_cart</span> Nhập kho mới
         </AppButton>
       </div>
     </header>
+
+    <div v-if="!canUseInventory" class="rounded-lg border border-primary/20 bg-primary/10 p-4 text-sm font-semibold text-primary flex items-center gap-2">
+      <span class="material-symbols-outlined">lock_clock</span>
+      {{ lockedMessage }}
+    </div>
 
     <!-- Stock Overview Cards -->
     <div class="grid grid-cols-4 gap-6">

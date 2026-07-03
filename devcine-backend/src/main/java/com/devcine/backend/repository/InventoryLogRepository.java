@@ -10,6 +10,7 @@ import java.util.List;
 @Repository
 public interface InventoryLogRepository extends JpaRepository<InventoryLog, Integer> {
 
-    @Query("SELECT l FROM InventoryLog l JOIN FETCH l.cinemaInventory ci JOIN FETCH ci.fnbItem ORDER BY l.timestamp DESC")
+    @Query("SELECT l FROM InventoryLog l JOIN FETCH l.cinemaInventory ci JOIN FETCH ci.fnbItem " +
+           "LEFT JOIN FETCH l.changedByStaff s LEFT JOIN FETCH s.user ORDER BY l.timestamp DESC")
     List<InventoryLog> findAllWithDetails();
 }

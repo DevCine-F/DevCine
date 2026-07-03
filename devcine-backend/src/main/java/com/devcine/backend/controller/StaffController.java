@@ -1,5 +1,8 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.request.ShiftHandoverDecisionRequest;
+import com.devcine.backend.dto.request.ShiftHandoverRequest;
+import com.devcine.backend.dto.request.StaffShiftRequest;
 import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.Shift;
@@ -14,16 +17,21 @@ import com.devcine.backend.repository.ShiftRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.StaffScheduleRepository;
 import com.devcine.backend.repository.UserRepository;
+import com.devcine.backend.service.ShiftHandoverService;
+import com.devcine.backend.service.StaffScheduleService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +51,8 @@ public class StaffController {
     private final RoleRepository roleRepository;
     private final CinemaRepository cinemaRepository;
     private final PasswordEncoder passwordEncoder;
+    private final StaffScheduleService staffScheduleService;
+    private final ShiftHandoverService shiftHandoverService;
 
     private static String str(Object o) {
         return o == null ? "" : o.toString().trim();
@@ -66,6 +76,32 @@ public class StaffController {
         return code;
     }
 
+    private String resolveStaffCodeForCreate(Object value) {
+        String staffCode = str(value);
+        if (staffCode.isBlank()) {
+            return generateStaffCode();
+        }
+        staffCode = staffCode.toUpperCase();
+        if (staffRepository.existsByStaffCodeIgnoreCase(staffCode)) {
+            throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
+        }
+        return staffCode;
+    }
+
+    private void updateStaffCode(Staff staff, Object value) {
+        if (value == null) return;
+        String staffCode = str(value);
+        if (staffCode.isBlank()) {
+            throw new IllegalArgumentException("Mã nhân viên không được để trống.");
+        }
+        staffCode = staffCode.toUpperCase();
+        if (!staffCode.equalsIgnoreCase(str(staff.getStaffCode()))
+                && staffRepository.existsByStaffCodeIgnoreCaseAndUserIdNot(staffCode, staff.getUserId())) {
+            throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
+        }
+        staff.setStaffCode(staffCode);
+    }
+
     // Gói thông tin một nhân viên trả về FE (dùng HashMap vì có field cho phép null)
     private Map<String, Object> toStaffMap(Staff s) {
         User u = s.getUser();
@@ -79,7 +115,10 @@ public class StaffController {
         m.put("avatarUrl", u != null ? u.getAvatarUrl() : null);
         m.put("role", u != null && u.getRole() != null ? u.getRole().getName() : "STAFF");
         m.put("isActive", u != null && Boolean.TRUE.equals(u.getIsActive()));
-        m.put("joinDate", u != null && u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
+        LocalDateTime joinedAt = s.getCreatedAt() != null ? s.getCreatedAt() : (u != null ? u.getCreatedAt() : null);
+        m.put("joinDate", joinedAt != null ? joinedAt.toString() : null);
+        m.put("createdAt", joinedAt != null ? joinedAt.toString() : null);
+        m.put("updatedAt", s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null);
         m.put("cinemaId", s.getCinema() != null ? s.getCinema().getId() : null);
         m.put("cinemaName", s.getCinema() != null ? s.getCinema().getName() : null);
         return m;
@@ -167,7 +206,7 @@ public class StaffController {
 
             Staff staff = Staff.builder()
                     .user(u)
-                    .staffCode(generateStaffCode())
+                    .staffCode(resolveStaffCodeForCreate(body.get("staffCode")))
                     .cinema(resolveCinema(finalCinemaId))
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
@@ -205,6 +244,8 @@ public class StaffController {
             if (body.containsKey("isActive"))
                 u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
             userRepository.save(u);
+            updateStaffCode(staff, body.get("staffCode"));
+            staff.setUpdatedAt(LocalDateTime.now());
 
             if (body.containsKey("cinemaId")) {
                 Object finalCinemaId = body.get("cinemaId");
@@ -254,6 +295,8 @@ public class StaffController {
         User u = staff.getUser();
         u.setIsActive(!Boolean.TRUE.equals(u.getIsActive()));
         userRepository.save(u);
+        staff.setUpdatedAt(LocalDateTime.now());
+        staffRepository.save(staff);
         return ResponseEntity.ok(Map.of("success", true, "isActive", u.getIsActive()));
     }
 
@@ -263,81 +306,50 @@ public class StaffController {
     }
 
     @GetMapping("/shifts")
-    public ResponseEntity<?> getShifts(@RequestParam(required = false) String date) {
-        try {
-            LocalDate workDate = date != null ? LocalDate.parse(date) : LocalDate.now();
-            List<StaffSchedule> schedules = staffScheduleRepository.findByWorkDateWithDetails(workDate);
-            List<Map<String, Object>> result = schedules.stream().map(ss -> Map.<String, Object>of(
-                    "id", ss.getId(),
-                    "workDate", ss.getWorkDate().toString(),
-                    "status", ss.getStatus() != null ? ss.getStatus() : "PENDING",
-                    "staffId", ss.getStaff().getUserId(),
-                    "staffName", ss.getStaff().getUser() != null ? ss.getStaff().getUser().getFullName() : "Nhân viên",
-                    "shiftId", ss.getShift().getId(),
-                    "shiftStart", ss.getShift().getStartTime().toString(),
-                    "shiftEnd", ss.getShift().getEndTime().toString()
-            )).collect(Collectors.toList());
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+    @PreAuthorize("@perm.can('staff_management','view')")
+    public ResponseEntity<?> getShifts(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) Integer cinemaId,
+            @RequestParam(required = false) String status) {
+        LocalDate workDate = date != null && !date.isBlank() ? LocalDate.parse(date) : LocalDate.now();
+        return ResponseEntity.ok(staffScheduleService.getShifts(workDate, cinemaId, status));
+    }
+
+    @GetMapping("/shifts/current")
+    public ResponseEntity<?> getCurrentShift() {
+        return ResponseEntity.ok(staffScheduleService.getCurrentShift().orElse(null));
+    }
+
+    @GetMapping("/shifts/my")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<?> getMyShifts(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        LocalDate fromDate = from != null && !from.isBlank() ? LocalDate.parse(from) : null;
+        LocalDate toDate = to != null && !to.isBlank() ? LocalDate.parse(to) : null;
+        return ResponseEntity.ok(staffScheduleService.getMyShifts(fromDate, toDate));
     }
 
     @PostMapping("/shifts")
     @PreAuthorize("@perm.can('staff_management','add')")
-    public ResponseEntity<?> assignShift(@RequestBody Map<String, Object> body) {
-        try {
-            Integer staffId = Integer.parseInt(body.get("staffId").toString());
-            Integer shiftId = Integer.parseInt(body.get("shiftId").toString());
-            LocalDate workDate = LocalDate.parse((String) body.get("workDate"));
-
-            Staff staff = staffRepository.findById(staffId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên"));
-            Shift shift = shiftRepository.findById(shiftId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy ca làm việc"));
-
-            StaffSchedule schedule = StaffSchedule.builder()
-                    .staff(staff)
-                    .shift(shift)
-                    .workDate(workDate)
-                    .status("SCHEDULED")
-                    .build();
-            staffScheduleRepository.save(schedule);
-            return ResponseEntity.status(201).body(Map.of("success", true, "id", schedule.getId()));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
-        }
+    public ResponseEntity<?> assignShift(@Valid @RequestBody StaffShiftRequest request) {
+        return ResponseEntity.status(201).body(staffScheduleService.assignShift(request));
     }
 
     @PutMapping("/shifts/{id}/approve")
     @PreAuthorize("@perm.can('staff_management','edit')")
     public ResponseEntity<?> approveShift(@PathVariable Integer id) {
-        try {
-            StaffSchedule schedule = staffScheduleRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch làm việc"));
-            schedule.setStatus("APPROVED");
-            staffScheduleRepository.save(schedule);
-            return ResponseEntity.ok(Map.of("success", true));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
-        }
+        return ResponseEntity.ok(staffScheduleService.approveShift(id));
     }
 
     @PutMapping("/shifts/{id}/reject")
     @PreAuthorize("@perm.can('staff_management','edit')")
     public ResponseEntity<?> rejectShift(@PathVariable Integer id) {
-        try {
-            StaffSchedule schedule = staffScheduleRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch làm việc"));
-            schedule.setStatus("REJECTED");
-            staffScheduleRepository.save(schedule);
-            return ResponseEntity.ok(Map.of("success", true));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
-        }
+        return ResponseEntity.ok(staffScheduleService.rejectShift(id));
     }
 
     @GetMapping("/shifts/all")
+    @Transactional(readOnly = true)
     public ResponseEntity<?> getAllShiftTemplates() {
         List<Shift> shifts = shiftRepository.findAll();
         return ResponseEntity.ok(shifts);
@@ -345,6 +357,7 @@ public class StaffController {
 
     @PostMapping("/shifts/template")
     @PreAuthorize("@perm.can('staff_management','add')")
+    @Transactional
     public ResponseEntity<?> createShiftTemplate(@RequestBody Map<String, Object> body) {
         try {
             Shift shift = Shift.builder()
@@ -361,7 +374,8 @@ public class StaffController {
 
     // ===== Bàn giao ca (Shift Handover) =====
 
-    @GetMapping("/handovers")
+    @GetMapping("/handovers/legacy")
+    @Transactional(readOnly = true)
     public ResponseEntity<?> getHandovers() {
         List<Map<String, Object>> result = shiftHandoverRepository.findAllWithDetails().stream().map(h -> Map.<String, Object>of(
                 "id", h.getId(),
@@ -372,13 +386,14 @@ public class StaffController {
                 "declaredCash", h.getDeclaredCash() != null ? h.getDeclaredCash() : BigDecimal.ZERO,
                 "systemCash", h.getSystemCash() != null ? h.getSystemCash() : BigDecimal.ZERO,
                 "difference", h.getDifference() != null ? h.getDifference() : BigDecimal.ZERO,
-                "status", h.getStatus() != null ? h.getStatus() : "PENDING"
+                "status", h.getStatus() != null ? h.getStatus() : "SUBMITTED"
         )).collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }
 
-    @PostMapping("/handovers")
+    @PostMapping("/handovers/legacy")
     @PreAuthorize("@perm.can('staff_management','edit')")
+    @Transactional
     public ResponseEntity<?> createHandover(@RequestBody Map<String, Object> body) {
         try {
             Integer staffScheduleId = Integer.parseInt(body.get("staffScheduleId").toString());
@@ -393,7 +408,7 @@ public class StaffController {
                     .declaredCash(declared)
                     .systemCash(system)
                     .difference(declared.subtract(system))
-                    .status("PENDING")
+                    .status("SUBMITTED")
                     .build();
             shiftHandoverRepository.save(handover);
             return ResponseEntity.status(201).body(Map.of("success", true, "id", handover.getId(),
@@ -401,5 +416,76 @@ public class StaffController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/handovers")
+    @PreAuthorize("@perm.can('staff_management','view')")
+    public ResponseEntity<?> getShiftHandovers() {
+        return ResponseEntity.ok(shiftHandoverService.list());
+    }
+
+    @GetMapping("/handovers/my")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<?> getMyShiftHandovers() {
+        return ResponseEntity.ok(shiftHandoverService.myList());
+    }
+
+    @GetMapping("/shifts/current/handover-summary")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> getCurrentHandoverSummary() {
+        return ResponseEntity.ok(shiftHandoverService.currentSummary());
+    }
+
+    @GetMapping("/handovers/summary")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> getHandoverSummary(@RequestParam Integer staffScheduleId) {
+        return ResponseEntity.ok(shiftHandoverService.summary(staffScheduleId));
+    }
+
+    @GetMapping("/handovers/receivers")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> getHandoverReceivers(@RequestParam Integer staffScheduleId) {
+        return ResponseEntity.ok(shiftHandoverService.receiverCandidates(staffScheduleId));
+    }
+
+    @PostMapping("/handovers")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> submitShiftHandover(@Valid @RequestBody ShiftHandoverRequest request) {
+        return ResponseEntity.status(201).body(shiftHandoverService.submit(request));
+    }
+
+    @PutMapping("/handovers/{id}/receive")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> receiveShiftHandover(@PathVariable Integer id,
+                                                  @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
+        return ResponseEntity.ok(shiftHandoverService.receive(id, request));
+    }
+
+    @PutMapping("/handovers/{id}/confirm")
+    @PreAuthorize("@perm.can('staff_management','edit')")
+    public ResponseEntity<?> confirmShiftHandover(@PathVariable Integer id,
+                                                  @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
+        return ResponseEntity.ok(shiftHandoverService.confirm(id, request));
+    }
+
+    @PutMapping("/handovers/{id}/reject")
+    @PreAuthorize("@perm.can('staff_management','edit')")
+    public ResponseEntity<?> rejectShiftHandover(@PathVariable Integer id,
+                                                 @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
+        return ResponseEntity.ok(shiftHandoverService.reject(id, request));
+    }
+
+    @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})
+    public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
+        return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(error -> error.getDefaultMessage())
+                .orElse("Dữ liệu không hợp lệ");
+        return ResponseEntity.badRequest().body(Map.of("success", false, "message", message));
     }
 }

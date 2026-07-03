@@ -98,6 +98,17 @@ export default [
         component: () => import('../views/admin/StaffShiftManagement.vue')
       },
       {
+        path: 'my-shifts',
+        name: 'staff-my-shifts',
+        meta: { staffOnly: true },
+        component: () => import('../views/admin/MyShifts.vue')
+      },
+      {
+        path: 'shift-handover',
+        name: 'admin-shift-handover',
+        component: () => import('../views/admin/ShiftHandover.vue')
+      },
+      {
         path: 'account',
         name: 'admin-account',
         component: () => import('../views/admin/AdminProfile.vue')

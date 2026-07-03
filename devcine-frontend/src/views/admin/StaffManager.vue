@@ -54,7 +54,6 @@ const fetchStaff = async () => {
     const { data } = await staffApi.list()
     staff.value = Array.isArray(data) ? data : (data.data ?? [])
   } catch (e) {
-    console.error('Failed to load staff', e)
     loadError.value = true
     toast.error(friendlyError(e, 'Không tải được danh sách nhân viên.'))
   } finally {
@@ -67,7 +66,7 @@ const fetchCinemas = async () => {
     const { data } = await cinemaListApi.getAll()
     cinemas.value = (Array.isArray(data) ? data : (data.data ?? [])).map(c => ({ id: c.id, name: c.name }))
   } catch (e) {
-    console.error('Failed to load cinemas', e)
+    toast.error(friendlyError(e, 'Không tải được danh sách cơ sở.'))
   }
 }
 
@@ -125,6 +124,7 @@ const buildPayload = () => {
     fullName: form.value.fullName.trim(),
     email: form.value.email.trim(),
     phone: form.value.phone.trim() || null,
+    staffCode: form.value.staffCode.trim() || null,
     cinemaId: form.value.cinemaId || null,
   }
   if (editingId.value) {
@@ -158,7 +158,6 @@ const saveStaff = async () => {
     await fetchStaff()
     closeModal()
   } catch (e) {
-    console.error('Failed to save staff', e)
     toast.error(friendlyError(e, 'Lưu nhân viên thất bại.'))
   } finally {
     isSaving.value = false
@@ -181,7 +180,6 @@ const toggleActive = async (person) => {
     person.isActive = data.isActive
     toast.success(person.isActive ? 'Đã kích hoạt lại nhân viên.' : 'Đã tạm ngưng nhân viên.')
   } catch (e) {
-    console.error('Failed to toggle staff', e)
     toast.error(friendlyError(e, 'Không đổi được trạng thái nhân viên.'))
   }
 }
@@ -339,16 +337,17 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             <input v-model="form.fullName" type="text" placeholder="VD: Trần Quang Huy" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface" />
           </div>
 
-          <div class="space-y-1.5" :class="editingId ? '' : 'col-span-2'">
+          <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
               Tài khoản đăng nhập <span v-if="!editingId" class="text-red-500">*</span>
             </label>
             <input v-model="form.username" type="text" :disabled="!!editingId" placeholder="vd: nv_huy"
                    class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed" />
           </div>
-          <div v-if="editingId" class="space-y-1.5">
+          <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã nhân viên</label>
-            <input v-model="form.staffCode" type="text" readonly class="w-full bg-surface-container-high border-none text-sm rounded-lg py-2.5 px-4 text-on-surface/80 cursor-not-allowed" />
+            <input v-model.trim="form.staffCode" type="text" placeholder="VD: DC001"
+                   class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface uppercase" />
           </div>
 
           <div class="space-y-1.5">
@@ -376,15 +375,17 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
           <div v-if="editingId" class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Trạng thái</label>
             <button type="button" @click="form.isActive = !form.isActive"
-                    :class="form.isActive ? 'bg-green-500/15 text-green-500 border-green-500/30' : 'bg-red-500/15 text-red-500 border-red-500/30'"
-                    class="w-full py-2.5 rounded-lg border text-xs font-bold uppercase tracking-widest transition-all">
-              {{ form.isActive ? 'Đang làm việc' : 'Tạm ngưng' }}
+                    class="w-full h-[42px] px-4 rounded-lg bg-surface-container-high border border-outline-variant/10 text-left flex items-center justify-between transition-all hover:border-primary/30">
+              <span class="text-sm font-semibold text-on-surface">{{ form.isActive ? 'Đang làm việc' : 'Tạm ngưng' }}</span>
+              <span class="relative inline-flex h-5 w-9 rounded-full transition-colors" :class="form.isActive ? 'bg-green-500' : 'bg-outline-variant'">
+                <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform" :class="form.isActive ? 'translate-x-4' : 'translate-x-0.5'"></span>
+              </span>
             </button>
           </div>
         </div>
 
         <p v-if="!editingId" class="text-[11px] text-on-surface-variant/70">
-          Nhân viên sẽ đăng nhập trang quản trị bằng tài khoản &amp; mật khẩu trên, với vai trò <b>Nhân viên (STAFF)</b>. Mã nhân viên sẽ được hệ thống tự tạo sau khi lưu.
+          Nhân viên sẽ đăng nhập trang quản trị bằng tài khoản &amp; mật khẩu trên, với vai trò <b>Nhân viên (STAFF)</b>. Nếu bỏ trống mã nhân viên, hệ thống sẽ tự tạo.
         </p>
 
         <div class="flex justify-end gap-3 pt-2 border-t border-outline-variant/10">

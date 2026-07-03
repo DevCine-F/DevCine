@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "shift_handovers")
@@ -26,15 +27,55 @@ public class ShiftHandover {
     @JoinColumn(name = "approved_by_manager")
     private Staff approvedByManager;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "received_by_staff")
+    private Staff receivedByStaff;
+
     @Column(name = "declared_cash", precision = 15, scale = 2)
     private BigDecimal declaredCash;
 
     @Column(name = "system_cash", precision = 15, scale = 2)
     private BigDecimal systemCash;
 
+    @Column(name = "cash_sales", precision = 15, scale = 2)
+    private BigDecimal cashSales;
+
+    @Column(name = "card_sales", precision = 15, scale = 2)
+    private BigDecimal cardSales;
+
+    @Column(name = "transfer_sales", precision = 15, scale = 2)
+    private BigDecimal transferSales;
+
+    @Column(name = "ticket_revenue", precision = 15, scale = 2)
+    private BigDecimal ticketRevenue;
+
+    @Column(name = "concession_revenue", precision = 15, scale = 2)
+    private BigDecimal concessionRevenue;
+
+    @Column(name = "ticket_count")
+    private Long ticketCount;
+
+    @Column(name = "concession_order_count")
+    private Long concessionOrderCount;
+
     @Column(precision = 15, scale = 2)
     private BigDecimal difference;
 
     @Column(length = 20)
     private String status;
+
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+
+    @Column(name = "received_at")
+    private LocalDateTime receivedAt;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
+    @Column(name = "receiver_note", columnDefinition = "TEXT")
+    private String receiverNote;
+
+    @Column(columnDefinition = "TEXT")
+    private String note;
 }
