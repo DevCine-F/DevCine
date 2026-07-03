@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 @RestController
 @RequestMapping("/api/admin/bookings")
 @RequiredArgsConstructor
@@ -35,6 +37,7 @@ public class AdminBookingController {
     private static final LocalDateTime MIN_DATE = LocalDateTime.of(2000, 1, 1, 0, 0);
 
     @GetMapping
+    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     @Transactional(readOnly = true)
     public ResponseEntity<?> list(
             @RequestParam(required = false, defaultValue = "") String q,
@@ -89,6 +92,7 @@ public class AdminBookingController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     @Transactional(readOnly = true)
     public ResponseEntity<?> detail(@PathVariable Integer id) {
         Booking b = bookingRepository.findDetailById(id).orElse(null);

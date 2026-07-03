@@ -5,6 +5,8 @@ import { useAuthStore } from '../../stores/auth'
 import { authApi } from '../../api/customer/index'
 import { useToastStore } from '../../stores/toast'
 import { friendlyError } from '../../utils/friendlyError'
+import adminRoutes from '@/routers/admin'
+import { resolveFirstAccessibleAdminPath } from '@/utils/adminAccess'
 
 const router = useRouter()
 const route = useRoute()
@@ -62,8 +64,22 @@ const handleLogin = async () => {
     const { token, user } = res.data.data
     const role = user.role.toLowerCase()
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, role)
+    if (role === 'admin' || role === 'staff') {
+      try {
+        await authStore.fetchPermissions(true)
+      } catch {
+        authStore.logout()
+        toast.error('Đăng nhập thành công nhưng chưa tải được quyền nội bộ. Vui lòng khởi động lại backend và thử lại.')
+        return
+      }
+
+      toast.success('Đăng nhập thành công! Đang chuyển sang khu nội bộ.')
+      router.push(resolveFirstAccessibleAdminPath(adminRoutes, authStore))
+      return
+    }
+
     toast.success('Đăng nhập thành công! Chào mừng bạn đã trở lại.')
-    router.push(role === 'admin' || role === 'staff' ? '/admin/dashboard' : (route.query.redirect || '/'))
+    router.push(route.query.redirect || '/')
   } catch (err) {
     // Lưu ý bảo mật: báo lỗi chung, tránh username enumeration
     toast.error(friendlyError(err, 'Số điện thoại/email hoặc mật khẩu không chính xác.'))

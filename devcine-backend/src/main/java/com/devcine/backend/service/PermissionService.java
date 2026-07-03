@@ -1,7 +1,9 @@
 package com.devcine.backend.service;
 
 import com.devcine.backend.entity.Role;
+import com.devcine.backend.entity.UserPermissionOverride;
 import com.devcine.backend.repository.RoleRepository;
+import com.devcine.backend.repository.UserPermissionOverrideRepository;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -29,10 +31,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PermissionService {
 
     private final RoleRepository roleRepository;
+    private final UserPermissionOverrideRepository userPermissionOverrideRepository;
     private final ObjectMapper objectMapper;
 
     /** Cache: roleName(UPPER) -> (feature -> set actions). Xoá khi cập nhật quyền. */
     private final Map<String, Map<String, Set<String>>> cache = new ConcurrentHashMap<>();
+    private final Map<Integer, Map<String, Set<String>>> userCache = new ConcurrentHashMap<>();
 
     public boolean can(String feature, String action) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -42,8 +46,33 @@ public class PermissionService {
         if (roleName == null) return false;
         if ("ADMIN".equalsIgnoreCase(roleName)) return true; // ADMIN toàn quyền
 
-        Set<String> actions = loadMatrix(roleName).get(feature);
+        Integer userId = currentUserId(auth);
+        Set<String> actions = effectivePermissions(userId, roleName).get(feature);
         return actions != null && actions.contains(action);
+    }
+
+    public Map<String, Set<String>> effectivePermissions(Integer userId, String roleName) {
+        if (userId == null) return copyMatrix(loadMatrix(roleName));
+        return userCache.computeIfAbsent(userId, id -> {
+            Map<String, Set<String>> result = copyMatrix(loadMatrix(roleName));
+            for (UserPermissionOverride override : userPermissionOverrideRepository.findByUserId(id)) {
+                String feature = override.getFeature();
+                String action = override.getAction();
+                String effect = override.getEffect();
+                if (feature == null || action == null || effect == null) continue;
+
+                if ("DENY".equalsIgnoreCase(effect)) {
+                    Set<String> actions = result.get(feature);
+                    if (actions != null) {
+                        actions.remove(action);
+                        if (actions.isEmpty()) result.remove(feature);
+                    }
+                } else if ("ALLOW".equalsIgnoreCase(effect)) {
+                    result.computeIfAbsent(feature, key -> new HashSet<>()).add(action);
+                }
+            }
+            return result;
+        });
     }
 
     private String currentRole(Authentication auth) {
@@ -53,6 +82,10 @@ public class PermissionService {
                 .map(a -> a.substring(5))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private Integer currentUserId(Authentication auth) {
+        return auth.getPrincipal() instanceof Integer id ? id : null;
     }
 
     private Map<String, Set<String>> loadMatrix(String roleName) {
@@ -75,7 +108,18 @@ public class PermissionService {
     }
 
     /** Gọi sau khi cập nhật ma trận quyền để cache không bị cũ. */
+    private Map<String, Set<String>> copyMatrix(Map<String, Set<String>> source) {
+        Map<String, Set<String>> copy = new HashMap<>();
+        source.forEach((feature, actions) -> copy.put(feature, new HashSet<>(actions)));
+        return copy;
+    }
+
     public void invalidate() {
         cache.clear();
+        userCache.clear();
+    }
+
+    public void invalidateUser(Integer userId) {
+        if (userId != null) userCache.remove(userId);
     }
 }

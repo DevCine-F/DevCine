@@ -7,6 +7,8 @@ import { useToastStore } from '@/stores/toast'
 import StarryBackground from '@/components/common/StarryBackground.vue'
 import AppToast from '@/components/common/AppToast.vue'
 import { authApi } from '@/api/customer/index'
+import adminRoutes from '@/routers/admin'
+import { resolveFirstAccessibleAdminPath } from '@/utils/adminAccess'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -24,12 +26,17 @@ const isTokenValid = (token) => {
   }
 }
 
-// Đã đăng nhập (admin/staff) + phiên còn hợp lệ -> vào thẳng trang tổng quan
-onMounted(() => {
+// Đã đăng nhập (admin/staff) + phiên còn hợp lệ -> vào màn nội bộ đầu tiên được phép xem
+onMounted(async () => {
   if (authStore.isAuthenticated
       && (authStore.role === 'admin' || authStore.role === 'staff')
       && isTokenValid(authStore.token)) {
-    router.replace('/admin/dashboard')
+    try {
+      await authStore.fetchPermissions()
+      router.replace(resolveFirstAccessibleAdminPath(adminRoutes, authStore))
+    } catch {
+      authStore.logout()
+    }
     return
   }
   // Ghi nhớ: tự điền tên đăng nhập đã lưu lần trước
@@ -73,7 +80,16 @@ const loginAsAdmin = async (e) => {
     await new Promise(resolve => setTimeout(resolve, 800))
 
     authStore.login({ id: userData.id, username: userData.username, email: userData.email, fullName: userData.fullName }, token, role)
-    router.push('/admin/dashboard')
+    try {
+      await authStore.fetchPermissions(true)
+    } catch {
+      authStore.logout()
+      toast.error('Đăng nhập thành công nhưng chưa tải được quyền nội bộ. Vui lòng khởi động lại backend và thử lại.')
+      return
+    }
+
+    toast.success('Đăng nhập thành công! Chào mừng bạn đã trở lại.')
+    router.push(resolveFirstAccessibleAdminPath(adminRoutes, authStore))
   } catch (err) {
     toast.error(err.response?.data?.message || 'Số điện thoại/email hoặc mật khẩu không đúng.')
   } finally {

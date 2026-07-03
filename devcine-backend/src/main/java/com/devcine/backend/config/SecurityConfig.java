@@ -43,9 +43,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/formats/**").permitAll()
                 .requestMatchers("/api/seats/**").permitAll()
                 .requestMatchers("/api/fnbs/**").permitAll()
-                // TẠM THỜI: mở public toàn bộ POS bán vé (chưa set phân quyền) — cần siết lại trước khi production
-                .requestMatchers("/api/ticketing/**").permitAll()
-                .requestMatchers("/api/settings/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/settings/**").permitAll()
                 // Xem đánh giá phim công khai; gửi đánh giá vẫn yêu cầu đăng nhập
                 .requestMatchers(HttpMethod.GET, "/api/reviews/**").permitAll()
                 // Danh sách hệ thống rạp — công khai cho trang Cụm rạp

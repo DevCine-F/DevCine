@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/showtimes")
@@ -78,6 +79,7 @@ public class ShowtimeController {
     }
 
     @PostMapping
+    @PreAuthorize("@perm.can('schedules', 'add')")
     public ResponseEntity<?> createShowtime(@Valid @RequestBody ShowtimeRequest request) {
         try {
             ShowtimeDTO dto = showtimeService.createShowtime(request);
@@ -90,6 +92,7 @@ public class ShowtimeController {
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("@perm.can('schedules', 'edit')")
     public ResponseEntity<?> updateShowtime(@PathVariable Integer id, @RequestBody java.util.Map<String, Object> updates) {
         try {
             showtimeService.updateShowtime(id, updates);

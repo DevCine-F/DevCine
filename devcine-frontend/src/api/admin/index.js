@@ -39,7 +39,10 @@ export const auditLogApi = {
 
 export const rolePermissionApi = {
   getRoles: () => api.get('/admin/roles'),
+  getStaffUsers: () => api.get('/admin/roles/staff-users'),
+  getUserOverrides: (userId) => api.get(`/admin/roles/users/${userId}/permission-overrides`),
   updatePermissions: (roleId, matrix) => api.put(`/admin/roles/${roleId}/permissions`, matrix),
+  updateUserOverrides: (userId, data) => api.put(`/admin/roles/users/${userId}/permission-overrides`, data),
 };
 
 export const marketingApi = {

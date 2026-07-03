@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
@@ -19,6 +21,7 @@ public class DashboardController {
     private final DashboardService dashboardService;
 
     @GetMapping("/stats")
+    @PreAuthorize("@perm.can('dashboard_stats', 'view')")
     public ResponseEntity<DashboardStatsResponse> getDashboardStats(
             @RequestParam(defaultValue = "today") String range) {
         return ResponseEntity.ok(dashboardService.getDashboardStats(range));
