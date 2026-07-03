@@ -141,7 +141,7 @@ export default [
       {
         path: 'permissions',
         name: 'admin-permissions',
-        meta: { adminOnly: true },
+        meta: { permission: { feature: 'roles', action: 'manage' } },
         component: () => import('../views/admin/AdminPermissions.vue')
       },
       {
@@ -157,6 +157,10 @@ export default [
         component: () => import('../views/admin/AdminReviews.vue')
       }
     ]
+  },
+  {
+    path: '/admin/403',
+    name: 'admin-403',
+    component: () => import('../views/admin/Error403.vue')
   }
 ];
-

@@ -157,7 +157,7 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
         <!-- ===== HỆ THỐNG ===== -->
         <div v-if="authStore.isAdmin || canShow('settings')" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Hệ thống</div>
 
-        <router-link v-if="authStore.isAdmin" to="/admin/permissions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="authStore.isAdmin || canShow('roles', 'manage')" to="/admin/permissions" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">admin_panel_settings</span>
           <span class="font-semibold text-sm">Phân quyền</span>
         </router-link>

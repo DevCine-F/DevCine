@@ -94,8 +94,7 @@ router.beforeEach(async (to, from, next) => {
     }
 
     if (!canUseAdminRoute(authStore, to)) {
-      const fallbackPath = resolveFirstAccessibleAdminPath(adminRoutes, authStore)
-      return next(fallbackPath === to.path ? '/admin/account' : fallbackPath)
+      return next('/admin/403')
     }
   }
 

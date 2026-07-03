@@ -42,7 +42,7 @@ public class RolePermissionController {
     private final ObjectMapper objectMapper;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('roles', 'manage')")
     public ResponseEntity<?> getRoles() {
         List<Map<String, Object>> result = roleRepository.findAll().stream().map(r -> {
             Map<String, Object> m = new HashMap<>();
@@ -55,7 +55,7 @@ public class RolePermissionController {
     }
 
     @GetMapping("/staff-users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('roles', 'manage')")
     public ResponseEntity<?> getStaffUsers() {
         List<Map<String, Object>> result = userRepository.findAllByRoleName("STAFF").stream()
                 .sorted(Comparator.comparing(User::getFullName, String.CASE_INSENSITIVE_ORDER))
@@ -73,7 +73,7 @@ public class RolePermissionController {
     }
 
     @GetMapping("/users/{userId}/permission-overrides")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('roles', 'manage')")
     public ResponseEntity<?> getUserPermissionOverrides(@PathVariable Integer userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("KhÃ´ng tÃ¬m tháº¥y nhÃ¢n viÃªn"));
@@ -117,7 +117,7 @@ public class RolePermissionController {
     }
 
     @PutMapping("/{id}/permissions")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('roles', 'manage')")
     public ResponseEntity<?> updatePermissions(@PathVariable Integer id,
                                                @RequestBody Map<String, Object> matrix) {
         try {
@@ -133,7 +133,7 @@ public class RolePermissionController {
     }
 
     @PutMapping("/users/{userId}/permission-overrides")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('roles', 'manage')")
     @Transactional
     public ResponseEntity<?> updateUserPermissionOverrides(@PathVariable Integer userId,
                                                            @RequestBody Map<String, Object> body) {

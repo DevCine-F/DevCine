@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 @RestController
 @RequestMapping("/api/ticketing")
 @RequiredArgsConstructor
@@ -36,6 +38,7 @@ public class TicketingController {
 
     // Suất chiếu cho POS: từ đầu ngày hôm nay trở đi (chưa diễn ra hoặc đang trong ngày), sắp xếp tăng dần
     @GetMapping("/showtimes")
+    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getTodayShowtimes() {
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
         List<Showtime> showtimes = showtimeRepository.findAll().stream()
@@ -57,6 +60,7 @@ public class TicketingController {
 
     // Lấy danh sách F&B combo cho POS
     @GetMapping("/combos")
+    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getFnbCombos() {
         List<FnbItem> items = fnbItemRepository.findAll();
         return ResponseEntity.ok(items);
@@ -64,6 +68,7 @@ public class TicketingController {
 
     // Tra cứu khách hàng theo SỐ ĐIỆN THOẠI để tích điểm tại quầy
     @GetMapping("/member-card/{phone}")
+    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> lookupMemberCard(@PathVariable String phone) {
         try {
             String p = phone == null ? "" : phone.trim().replaceAll("\\s+", "").replaceFirst("^\\+84", "0");
@@ -86,6 +91,7 @@ public class TicketingController {
 
     // Thanh toán tại quầy (POS checkout)
     @PostMapping("/pay")
+    @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     @Transactional
     public ResponseEntity<?> posCheckout(@RequestBody Map<String, Object> body) {
         try {
@@ -145,6 +151,7 @@ public class TicketingController {
 
     // Bán nhanh bắp nước độc lập tại quầy (Concession Only) — không suất chiếu / không ghế
     @PostMapping("/concession")
+    @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     @Transactional
     public ResponseEntity<?> concessionCheckout(@RequestBody Map<String, Object> body) {
         try {
@@ -180,6 +187,7 @@ public class TicketingController {
     // Không gắn @Transactional ở controller: holdSeats đã @Transactional; tránh lỗi "403 che 500"
     // (commit rollback-only) làm mất message lỗi "ghế đã bị đặt".
     @PostMapping("/hold")
+    @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> createHold(@RequestBody Map<String, Object> body) {
         try {
             Integer showtimeId = Integer.parseInt(body.get("showtimeId").toString());
@@ -210,6 +218,7 @@ public class TicketingController {
 
     // Nhả ghế của đơn chờ (huỷ đơn / hết giờ) → ghế về AVAILABLE ngay theo thời gian thực
     @PostMapping("/hold/{bookingId}/release")
+    @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> releaseHold(@PathVariable Integer bookingId) {
         try {
             String status = posHoldService.releaseHold(bookingId);
