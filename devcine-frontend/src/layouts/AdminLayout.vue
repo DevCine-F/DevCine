@@ -151,7 +151,7 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
 
         <router-link v-if="canShow('staff_management')" to="/admin/staff-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">event_available</span>
-          <span class="font-semibold text-sm">Phê duyệt ca trực</span>
+          <span class="font-semibold text-sm">Phân ca làm việc</span>
         </router-link>
 
         <!-- ===== HỆ THỐNG ===== -->

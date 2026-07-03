@@ -101,6 +101,14 @@ export const staffApi = {
   toggle: (id) => api.put(`/staff/${id}/toggle`),
 };
 
+export const staffShiftApi = {
+  list: (params) => api.get('/staff/shifts', { params }),
+  current: () => api.get('/staff/shifts/current'),
+  create: (data) => api.post('/staff/shifts', data),
+  approve: (id) => api.put(`/staff/shifts/${id}/approve`),
+  reject: (id) => api.put(`/staff/shifts/${id}/reject`),
+};
+
 // Danh sách cơ sở (cụm rạp) cho dropdown lọc/gán nhân viên — endpoint công khai GET
 export const cinemaListApi = {
   getAll: () => api.get('/v1/cinemas'),

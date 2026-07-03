@@ -26,8 +26,21 @@ public class StaffSchedule {
     @JoinColumn(name = "shift_id", nullable = false)
     private Shift shift;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cinema_id")
+    private Cinema cinema;
+
     @Column(name = "work_date", nullable = false)
     private LocalDate workDate;
+
+    @Column(name = "work_position", length = 80)
+    private String workPosition;
+
+    @Column(length = 120)
+    private String location;
+
+    @Column(columnDefinition = "TEXT")
+    private String note;
 
     @Column(length = 20)
     private String status;
