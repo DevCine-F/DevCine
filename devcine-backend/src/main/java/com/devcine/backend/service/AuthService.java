@@ -24,6 +24,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuditLogService auditLogService;
+    private final StaffRepository staffRepository;
 
     @Transactional
     public Map<String, Object> register(String email, String password, String fullName, String phone) {
@@ -94,7 +95,14 @@ public class AuthService {
         }
 
         String role = user.getRole().getName();
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), role);
+        Integer cinemaId = null;
+        if ("STAFF".equalsIgnoreCase(role)) {
+            Staff staff = staffRepository.findById(user.getId()).orElse(null);
+            if (staff != null && staff.getCinema() != null) {
+                cinemaId = staff.getCinema().getId();
+            }
+        }
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), role, cinemaId);
 
         // Ghi nhật ký đăng nhập cho tài khoản quản trị / nhân viên
         if ("ADMIN".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role)) {

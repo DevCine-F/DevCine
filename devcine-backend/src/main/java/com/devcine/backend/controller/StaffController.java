@@ -95,9 +95,17 @@ public class StaffController {
             @RequestParam(required = false) Integer cinemaId,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status) {
+            
+        final Integer effectiveCinemaId;
+        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+            effectiveCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+        } else {
+            effectiveCinemaId = cinemaId;
+        }
+
         final String kw = q != null ? q.trim().toLowerCase() : "";
         List<Map<String, Object>> result = staffRepository.findAllWithDetails().stream()
-                .filter(s -> cinemaId == null || (s.getCinema() != null && cinemaId.equals(s.getCinema().getId())))
+                .filter(s -> effectiveCinemaId == null || (s.getCinema() != null && effectiveCinemaId.equals(s.getCinema().getId())))
                 .filter(s -> {
                     if (status == null || status.isBlank() || status.equalsIgnoreCase("ALL")) return true;
                     boolean active = s.getUser() != null && Boolean.TRUE.equals(s.getUser().getIsActive());
@@ -147,10 +155,20 @@ public class StaffController {
                     .build();
             userRepository.save(u);
 
+            Object finalCinemaId = body.get("cinemaId");
+            if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+                Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+                if (myCinemaId == null) throw new IllegalArgumentException("Bạn chưa được gán cơ sở, không thể tạo nhân viên.");
+                if (finalCinemaId != null && !str(finalCinemaId).isBlank() && !str(finalCinemaId).equals(myCinemaId.toString())) {
+                    throw new IllegalArgumentException("Bạn chỉ có thể tạo nhân viên cho cơ sở của mình.");
+                }
+                finalCinemaId = myCinemaId;
+            }
+
             Staff staff = Staff.builder()
                     .user(u)
                     .staffCode(generateStaffCode())
-                    .cinema(resolveCinema(body.get("cinemaId")))
+                    .cinema(resolveCinema(finalCinemaId))
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
 
@@ -188,8 +206,26 @@ public class StaffController {
                 u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
             userRepository.save(u);
 
-            if (body.containsKey("cinemaId"))
-                staff.setCinema(resolveCinema(body.get("cinemaId")));
+            if (body.containsKey("cinemaId")) {
+                Object finalCinemaId = body.get("cinemaId");
+                if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+                    Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+                    if (myCinemaId == null) throw new IllegalArgumentException("Bạn chưa được gán cơ sở.");
+                    if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
+                        throw new IllegalArgumentException("Bạn chỉ có thể sửa nhân viên của cơ sở mình.");
+                    }
+                    if (finalCinemaId != null && !str(finalCinemaId).isBlank() && !str(finalCinemaId).equals(myCinemaId.toString())) {
+                        throw new IllegalArgumentException("Bạn chỉ có thể gán nhân viên vào cơ sở của mình.");
+                    }
+                    finalCinemaId = myCinemaId;
+                }
+                staff.setCinema(resolveCinema(finalCinemaId));
+            } else if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+                Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+                if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
+                    throw new IllegalArgumentException("Bạn chỉ có thể sửa nhân viên của cơ sở mình.");
+                }
+            }
             staffRepository.save(staff);
 
             return ResponseEntity.ok(Map.of("success", true));
@@ -207,6 +243,14 @@ public class StaffController {
         Staff staff = staffRepository.findById(id).orElse(null);
         if (staff == null || staff.getUser() == null)
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không tìm thấy nhân viên."));
+
+        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+            Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+            if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Bạn chỉ có thể đổi trạng thái nhân viên của cơ sở mình."));
+            }
+        }
+
         User u = staff.getUser();
         u.setIsActive(!Boolean.TRUE.equals(u.getIsActive()));
         userRepository.save(u);

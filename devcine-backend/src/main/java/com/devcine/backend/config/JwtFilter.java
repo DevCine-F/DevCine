@@ -31,11 +31,15 @@ public class JwtFilter extends OncePerRequestFilter {
             try {
                 Integer userId = jwtUtil.extractUserId(token);
                 String role = jwtUtil.extractRole(token);
+                Integer cinemaId = jwtUtil.extractCinemaId(token);
                 var auth = new UsernamePasswordAuthenticationToken(
                         userId,
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
                 );
+                if (cinemaId != null) {
+                    auth.setDetails(java.util.Map.of("cinemaId", cinemaId));
+                }
                 SecurityContextHolder.getContext().setAuthentication(auth);
             } catch (Exception ignored) {
             }
