@@ -111,7 +111,10 @@ public class StaffController {
         m.put("avatarUrl", u != null ? u.getAvatarUrl() : null);
         m.put("role", u != null && u.getRole() != null ? u.getRole().getName() : "STAFF");
         m.put("isActive", u != null && Boolean.TRUE.equals(u.getIsActive()));
-        m.put("joinDate", u != null && u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
+        LocalDateTime joinedAt = s.getCreatedAt() != null ? s.getCreatedAt() : (u != null ? u.getCreatedAt() : null);
+        m.put("joinDate", joinedAt != null ? joinedAt.toString() : null);
+        m.put("createdAt", joinedAt != null ? joinedAt.toString() : null);
+        m.put("updatedAt", s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null);
         m.put("cinemaId", s.getCinema() != null ? s.getCinema().getId() : null);
         m.put("cinemaName", s.getCinema() != null ? s.getCinema().getName() : null);
         return m;
@@ -238,6 +241,7 @@ public class StaffController {
                 u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
             userRepository.save(u);
             updateStaffCode(staff, body.get("staffCode"));
+            staff.setUpdatedAt(LocalDateTime.now());
 
             if (body.containsKey("cinemaId")) {
                 Object finalCinemaId = body.get("cinemaId");
@@ -287,6 +291,8 @@ public class StaffController {
         User u = staff.getUser();
         u.setIsActive(!Boolean.TRUE.equals(u.getIsActive()));
         userRepository.save(u);
+        staff.setUpdatedAt(LocalDateTime.now());
+        staffRepository.save(staff);
         return ResponseEntity.ok(Map.of("success", true, "isActive", u.getIsActive()));
     }
 

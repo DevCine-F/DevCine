@@ -13,11 +13,11 @@ import java.util.Optional;
 public interface StaffRepository extends JpaRepository<Staff, Integer> {
 
     // JOIN FETCH user + role + cinema để tránh N+1 khi liệt kê nhân viên
-    @Query("SELECT DISTINCT s FROM Staff s " +
+    @Query("SELECT s FROM Staff s " +
            "JOIN FETCH s.user u " +
            "LEFT JOIN FETCH u.role " +
            "LEFT JOIN FETCH s.cinema " +
-           "ORDER BY u.fullName ASC")
+           "ORDER BY COALESCE(s.updatedAt, s.createdAt, u.createdAt) DESC, u.fullName ASC")
     List<Staff> findAllWithDetails();
 
     @Query("SELECT s FROM Staff s " +
