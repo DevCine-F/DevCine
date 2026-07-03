@@ -72,6 +72,32 @@ public class StaffController {
         return code;
     }
 
+    private String resolveStaffCodeForCreate(Object value) {
+        String staffCode = str(value);
+        if (staffCode.isBlank()) {
+            return generateStaffCode();
+        }
+        staffCode = staffCode.toUpperCase();
+        if (staffRepository.existsByStaffCodeIgnoreCase(staffCode)) {
+            throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
+        }
+        return staffCode;
+    }
+
+    private void updateStaffCode(Staff staff, Object value) {
+        if (value == null) return;
+        String staffCode = str(value);
+        if (staffCode.isBlank()) {
+            throw new IllegalArgumentException("Mã nhân viên không được để trống.");
+        }
+        staffCode = staffCode.toUpperCase();
+        if (!staffCode.equalsIgnoreCase(str(staff.getStaffCode()))
+                && staffRepository.existsByStaffCodeIgnoreCaseAndUserIdNot(staffCode, staff.getUserId())) {
+            throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
+        }
+        staff.setStaffCode(staffCode);
+    }
+
     // Gói thông tin một nhân viên trả về FE (dùng HashMap vì có field cho phép null)
     private Map<String, Object> toStaffMap(Staff s) {
         User u = s.getUser();
@@ -173,7 +199,7 @@ public class StaffController {
 
             Staff staff = Staff.builder()
                     .user(u)
-                    .staffCode(generateStaffCode())
+                    .staffCode(resolveStaffCodeForCreate(body.get("staffCode")))
                     .cinema(resolveCinema(finalCinemaId))
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
@@ -211,6 +237,7 @@ public class StaffController {
             if (body.containsKey("isActive"))
                 u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
             userRepository.save(u);
+            updateStaffCode(staff, body.get("staffCode"));
 
             if (body.containsKey("cinemaId")) {
                 Object finalCinemaId = body.get("cinemaId");

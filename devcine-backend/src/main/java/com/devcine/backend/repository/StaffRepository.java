@@ -31,4 +31,10 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     List<String> findAllStaffCodes();
 
     boolean existsByStaffCode(String staffCode);
+
+    boolean existsByStaffCodeIgnoreCase(String staffCode);
+
+    boolean existsByStaffCodeAndUserIdNot(String staffCode, Integer userId);
+
+    boolean existsByStaffCodeIgnoreCaseAndUserIdNot(String staffCode, Integer userId);
 }
