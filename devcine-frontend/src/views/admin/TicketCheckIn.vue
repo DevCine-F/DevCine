@@ -1,7 +1,9 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/api/axios'
+import { useShiftStore } from '@/stores/shift'
 
+const shiftStore = useShiftStore()
 const activeTab = ref('camera') // 'camera' or 'manual'
 const qrCodeInput = ref('')
 const isLoading = ref(false)
@@ -9,6 +11,9 @@ const checkInResult = ref(null) // { success: boolean, data: object, message: st
 const cameraError = ref('')
 const isScannerActive = ref(false)
 let html5QrCode = null
+const canCheckIn = computed(() => shiftStore.canUse(['CHECK_IN']))
+const isShiftLocked = computed(() => !canCheckIn.value)
+const lockedMessage = computed(() => shiftStore.lockedMessage('kiểm soát vé'))
 
 // Web Audio Beep generator (no external audio files needed)
 const playBeep = (type = 'success') => {
@@ -35,9 +40,7 @@ const playBeep = (type = 'success') => {
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3)
       oscillator.stop(audioCtx.currentTime + 0.3)
     }
-  } catch (e) {
-    console.error('Audio beep error:', e)
-  }
+  } catch (_) {}
 }
 
 // Load html5-qrcode script dynamically
@@ -57,6 +60,7 @@ const loadScannerScript = () => {
 }
 
 const startCamera = async () => {
+  if (isShiftLocked.value) return
   cameraError.value = ''
   try {
     await loadScannerScript()
@@ -88,8 +92,7 @@ const startCamera = async () => {
         // Verbose scanning log (silent)
       }
     )
-  } catch (err) {
-    console.error('Camera startup error:', err)
+  } catch (_) {
     cameraError.value = 'Không thể truy cập camera. Vui lòng cấp quyền hoặc nhập mã thủ công.'
     isScannerActive.value = false
   }
@@ -100,14 +103,17 @@ const stopCamera = async () => {
     try {
       await html5QrCode.stop()
       isScannerActive.value = false
-    } catch (err) {
-      console.error('Error stopping camera:', err)
-    }
+    } catch (_) {}
   }
 }
 
 const handleCheckIn = async (code) => {
   if (!code || !code.trim()) return
+  if (isShiftLocked.value) {
+    checkInResult.value = { success: false, message: lockedMessage.value, data: null }
+    playBeep('error')
+    return
+  }
   
   isLoading.value = true
   checkInResult.value = null
@@ -124,8 +130,7 @@ const handleCheckIn = async (code) => {
     }
     playBeep('success')
   } catch (error) {
-    console.error('Check-in error:', error)
-    const errorMsg = error.response?.data?.error || 'Đã xảy ra lỗi khi xác thực vé.'
+    const errorMsg = error.response?.data?.message || error.response?.data?.error || 'Đã xảy ra lỗi khi xác thực vé.'
     checkInResult.value = {
       success: false,
       message: errorMsg,
@@ -190,8 +195,9 @@ const triggerMockCheckIn = (status = 'success') => {
   }, 600)
 }
 
-onMounted(() => {
-  if (activeTab.value === 'camera') {
+onMounted(async () => {
+  await shiftStore.fetchCurrent(true)
+  if (activeTab.value === 'camera' && !isShiftLocked.value) {
     startCamera()
   }
 })
@@ -249,8 +255,14 @@ onUnmounted(() => {
     <!-- Main Working Card -->
     <div class="glass-card bg-surface rounded-3xl border border-outline-variant/10 shadow-2xl p-8 overflow-hidden min-h-[400px] flex flex-col justify-center">
       
+      <div v-if="isShiftLocked" class="text-center py-14 space-y-4">
+        <span class="material-symbols-outlined text-6xl text-on-surface-variant/40">lock_clock</span>
+        <h2 class="text-xl font-black text-on-surface">Chưa mở chức năng kiểm soát vé</h2>
+        <p class="text-sm text-on-surface-variant">{{ lockedMessage }}</p>
+      </div>
+
       <!-- LOADING STATE -->
-      <div v-if="isLoading" class="text-center py-12 space-y-4">
+      <div v-else-if="isLoading" class="text-center py-12 space-y-4">
         <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
         <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang xác thực thông tin vé...</p>
       </div>

@@ -14,29 +14,34 @@ import java.util.List;
 public class TicketService {
 
     private final TicketRepository ticketRepository;
+    private final ShiftAccessService shiftAccessService;
 
+    @Transactional(readOnly = true)
     public List<Ticket> getTicketsByBooking(Integer bookingId) {
         return ticketRepository.findAllByBookingId(bookingId);
     }
 
     @Transactional
     public Ticket checkIn(String qrCode) {
-        Ticket ticket = ticketRepository.findByQrCode(qrCode)
-                .orElseThrow(() -> new RuntimeException("Vé không tồn tại trên hệ thống"));
+        var schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("CHECK_IN", "SHIFT_LEAD"), "kiem soat ve");
+        Ticket ticket = ticketRepository.findByQrCodeWithDetails(qrCode)
+                .orElseThrow(() -> new RuntimeException("Ve khong ton tai tren he thong"));
 
         if (ticket.getIsCheckedIn()) {
-            throw new RuntimeException("Vé này đã được check-in trước đó vào lúc: " + ticket.getCheckInTime());
+            throw new RuntimeException("Ve nay da duoc check-in truoc do vao luc: " + ticket.getCheckInTime());
         }
 
-        // Validate showtime date (nếu suất chiếu không phải hôm nay, ném cảnh báo nhưng cho phép check-in nếu admin vẫn duyệt - ở đây ta chỉ validate cơ bản)
         LocalDateTime showtimeStart = ticket.getBookingSeat().getBooking().getShowtime().getStartTime();
         if (showtimeStart.toLocalDate().isBefore(LocalDateTime.now().toLocalDate())) {
-            throw new RuntimeException("Suất chiếu của vé này đã diễn ra trong quá khứ (" + showtimeStart + ")");
+            throw new RuntimeException("Suat chieu cua ve nay da dien ra trong qua khu (" + showtimeStart + ")");
         }
 
         ticket.setIsCheckedIn(true);
         ticket.setCheckInTime(LocalDateTime.now());
-        
+        if (schedule != null) {
+            ticket.setCheckedInBy(schedule.getStaff());
+        }
+
         return ticketRepository.save(ticket);
     }
 }

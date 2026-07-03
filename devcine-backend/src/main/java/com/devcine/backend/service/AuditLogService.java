@@ -24,6 +24,7 @@ public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
+    private final ShiftAccessService shiftAccessService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(Integer userId, String action, String targetTable, String ipAddress) {
@@ -37,6 +38,7 @@ public class AuditLogService {
             if (userId != null) {
                 User userRef = userRepository.getReferenceById(userId);
                 entry.setUser(userRef);
+                shiftAccessService.findCurrentScheduleForUser(userId).ifPresent(entry::setStaffSchedule);
             }
             auditLogRepository.save(entry);
         } catch (Exception e) {

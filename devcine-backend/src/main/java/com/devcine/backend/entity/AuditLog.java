@@ -22,6 +22,10 @@ public class AuditLog {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_schedule_id")
+    private StaffSchedule staffSchedule;
+
     @Column(nullable = false, length = 50)
     private String action;
 

@@ -31,6 +31,10 @@ public class ConcessionSale {
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_schedule_id")
+    private StaffSchedule staffSchedule;
+
     @Column(name = "total_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalPrice;
 

@@ -3,10 +3,12 @@ package com.devcine.backend.controller;
 import com.devcine.backend.entity.CinemaInventory;
 import com.devcine.backend.entity.FnbItem;
 import com.devcine.backend.entity.InventoryLog;
+import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.repository.CinemaInventoryRepository;
 import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.FnbItemRepository;
 import com.devcine.backend.repository.InventoryLogRepository;
+import com.devcine.backend.service.ShiftAccessService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,6 +30,7 @@ public class InventoryController {
     private final InventoryLogRepository inventoryLogRepository;
     private final CinemaRepository cinemaRepository;
     private final FnbItemRepository fnbItemRepository;
+    private final ShiftAccessService shiftAccessService;
 
     @GetMapping("/items")
     public ResponseEntity<?> getAllItems() {
@@ -65,6 +68,7 @@ public class InventoryController {
     @PreAuthorize("@perm.can('pos_inventory','edit')")
     public ResponseEntity<?> adjustInventory(@RequestBody Map<String, Object> body) {
         try {
+            StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quan ly kho F&B");
             Integer inventoryId = Integer.parseInt(body.get("inventoryId").toString());
             Integer quantityChange = Integer.parseInt(body.get("quantityChange").toString());
             String type = (String) body.getOrDefault("type", "IMPORT");
@@ -82,6 +86,7 @@ public class InventoryController {
 
             InventoryLog log = InventoryLog.builder()
                     .cinemaInventory(ci)
+                    .changedByStaff(schedule != null ? schedule.getStaff() : null)
                     .type(type)
                     .quantityChange(quantityChange)
                     .timestamp(LocalDateTime.now())
@@ -99,6 +104,7 @@ public class InventoryController {
     @PreAuthorize("@perm.can('pos_inventory','add')")
     public ResponseEntity<?> addInventoryItem(@RequestBody Map<String, Object> body) {
         try {
+            shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quan ly kho F&B");
             Integer cinemaId = Integer.parseInt(body.get("cinemaId").toString());
             Integer fnbItemId = Integer.parseInt(body.get("fnbItemId").toString());
             Integer initialStock = Integer.parseInt(body.getOrDefault("initialStock", 0).toString());

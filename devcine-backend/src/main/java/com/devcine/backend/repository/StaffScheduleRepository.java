@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface StaffScheduleRepository extends JpaRepository<StaffSchedule, Integer> {
@@ -61,4 +62,15 @@ public interface StaffScheduleRepository extends JpaRepository<StaffSchedule, In
     List<StaffSchedule> findCurrentApprovedSchedules(
             @Param("staffId") Integer staffId,
             @Param("now") LocalDateTime now);
+
+    @Query("""
+            SELECT ss FROM StaffSchedule ss
+            JOIN FETCH ss.staff s
+            JOIN FETCH s.user u
+            LEFT JOIN FETCH u.role
+            JOIN FETCH ss.shift sh
+            LEFT JOIN FETCH ss.cinema c
+            WHERE ss.id = :id
+            """)
+    Optional<StaffSchedule> findByIdWithDetails(@Param("id") Integer id);
 }

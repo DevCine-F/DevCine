@@ -482,3 +482,14 @@ V001__initial_schema.sql
 V002__add_lost_and_founds_table.sql
 V003__add_avatar_column_to_users.sql
 ```
+
+---
+
+## 12. Addendum 2026-07-03: Shift Operations
+
+Các cột nullable được thêm để gắn nghiệp vụ vận hành theo ca, tương thích `ddl-auto=update`:
+
+- `bookings.staff_schedule_id` FK -> `staff_schedules.id`: ca POS tạo/hoàn tất đơn.
+- `concession_sales.staff_schedule_id` FK -> `staff_schedules.id`: ca bán F&B độc lập.
+- `audit_logs.staff_schedule_id` FK -> `staff_schedules.id`: ca hiện tại khi STAFF thực hiện thao tác.
+- `shift_handovers.cash_sales`, `card_sales`, `transfer_sales`, `ticket_revenue`, `concession_revenue`, `ticket_count`, `concession_order_count`, `submitted_at`, `confirmed_at`, `note`: dữ liệu đối soát cuối ca.

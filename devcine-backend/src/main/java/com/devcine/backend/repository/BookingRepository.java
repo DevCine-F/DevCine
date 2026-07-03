@@ -23,6 +23,19 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate")
     long countTicketsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
+    @Query("SELECT COALESCE(SUM(b.finalPrice), 0) FROM Booking b " +
+           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId AND b.paymentMethod = :paymentMethod")
+    BigDecimal sumConfirmedRevenueByStaffScheduleAndPaymentMethod(@Param("staffScheduleId") Integer staffScheduleId,
+                                                                  @Param("paymentMethod") String paymentMethod);
+
+    @Query("SELECT COALESCE(SUM(bs.priceSnapshot), 0) FROM BookingSeat bs JOIN bs.booking b " +
+           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId")
+    BigDecimal sumTicketRevenueByStaffSchedule(@Param("staffScheduleId") Integer staffScheduleId);
+
+    @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
+           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId")
+    long countTicketsByStaffSchedule(@Param("staffScheduleId") Integer staffScheduleId);
+
     // Gộp doanh thu theo ngày trong 1 query (thay 7 query trong vòng lặp dashboard)
     @Query("SELECT CAST(b.createdAt AS date), COALESCE(SUM(b.finalPrice), 0) FROM Booking b " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +

@@ -42,6 +42,15 @@ public class BookingService {
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
+        return holdSeats(request, null);
+    }
+
+    @Transactional
+    public Booking holdSeatsForStaffSchedule(BookingRequestDTO request, StaffSchedule staffSchedule) {
+        return holdSeats(request, staffSchedule);
+    }
+
+    private Booking holdSeats(BookingRequestDTO request, StaffSchedule staffSchedule) {
         // Khóa ghi bi quan trên suất → tuần tự hóa mọi lệnh giữ ghế cùng suất, chống bán trùng (race)
         Showtime showtime = showtimeRepository.findByIdForUpdate(request.getShowtimeId())
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
@@ -120,6 +129,7 @@ public class BookingService {
         Booking booking = Booking.builder()
                 .customer(customer)
                 .showtime(showtime)
+                .staffSchedule(staffSchedule)
                 .bookingCode(UUID.randomUUID().toString().substring(0, 10).toUpperCase())
                 .status("HOLD") // Initial status
                 .createdAt(LocalDateTime.now())
@@ -336,7 +346,7 @@ public class BookingService {
                 && booking.getShowtime().getRoom().getCinema() != null) {
             Integer cinemaId = booking.getShowtime().getRoom().getCinema().getId();
             for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(bookingId)) {
-                inventoryService.deductForSale(cinemaId, bf.getFnbItem().getId(), bf.getQuantity());
+                inventoryService.deductForSale(cinemaId, bf.getFnbItem().getId(), bf.getQuantity(), booking.getStaffSchedule());
             }
         }
 

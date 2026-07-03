@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../stores/auth'
+import { useShiftStore } from '../stores/shift'
 import adminRoutes from '../routers/admin'
 import { canUseAdminPermission, resolveFirstAccessibleAdminPath } from '../utils/adminAccess'
 import AppToast from '../components/common/AppToast.vue'
@@ -12,11 +13,14 @@ import logo from '../assets/images/Logo_DevCine_Ngang_XoaNen.png'
 const { isLightMode, toggleTheme } = useTheme()
 const router = useRouter()
 const authStore = useAuthStore()
+const shiftStore = useShiftStore()
 
 const isAccountOpen = ref(false)
 const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Quản trị viên')
 const accountRole = computed(() => (authStore.role === 'admin' ? 'Quản trị cấp cao' : 'Nhân viên'))
 
+const shiftStatusText = computed(() => shiftStore.shiftLabel)
+const shiftStatusClass = computed(() => shiftStore.hasActiveShift ? 'border-green-500/25 bg-green-500/10 text-green-300' : 'border-outline-variant/20 bg-surface-container-high text-on-surface-variant')
 const firstAccessiblePath = computed(() => resolveFirstAccessibleAdminPath(adminRoutes, authStore))
 
 const canShow = (feature, action = 'view') => canUseAdminPermission(authStore, { feature, action })
@@ -25,6 +29,10 @@ const canShowAny = (features) => authStore.isAdmin || features.some((feature) =>
 const goProfile = () => { isAccountOpen.value = false; router.push('/admin/account') }
 const goHome = () => { isAccountOpen.value = false; router.push('/') }
 const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); router.push('/admin/login') }
+
+onMounted(() => {
+  shiftStore.fetchCurrent(true)
+})
 </script>
 
 <template>
@@ -154,6 +162,11 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
           <span class="font-semibold text-sm">Phân ca làm việc</span>
         </router-link>
 
+        <router-link to="/admin/shift-handover" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">point_of_sale</span>
+          <span class="font-semibold text-sm">Bàn giao ca</span>
+        </router-link>
+
         <!-- ===== HỆ THỐNG ===== -->
         <div v-if="authStore.isAdmin || canShow('settings')" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Hệ thống</div>
 
@@ -183,6 +196,14 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
         <div class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant italic">Quản lý DevCine V2.1</div>
         
         <div class="flex items-center gap-6">
+          <div class="hidden xl:flex items-center gap-2 rounded-lg border px-3 py-2 max-w-sm" :class="shiftStatusClass">
+            <span class="material-symbols-outlined text-base">schedule</span>
+            <div class="min-w-0">
+              <p class="text-[8px] font-black uppercase tracking-widest opacity-70">Ca hiện tại</p>
+              <p class="text-[10px] font-bold truncate">{{ shiftStatusText }}</p>
+            </div>
+          </div>
+
           <!-- Theme Toggle -->
           <button @click="toggleTheme" class="relative p-2 hover:bg-white/5 rounded-full transition-colors cursor-pointer flex items-center">
             <span class="material-symbols-outlined text-on-surface-variant group-hover:text-white transition-colors">

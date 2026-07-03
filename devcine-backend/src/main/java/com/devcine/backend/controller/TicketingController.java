@@ -5,6 +5,7 @@ import com.devcine.backend.repository.*;
 import com.devcine.backend.service.BookingService;
 import com.devcine.backend.service.ConcessionService;
 import com.devcine.backend.service.PosHoldService;
+import com.devcine.backend.service.ShiftAccessService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,11 +36,13 @@ public class TicketingController {
     private final PosHoldService posHoldService;
     private final BookingRepository bookingRepository;
     private final TicketRepository ticketRepository;
+    private final ShiftAccessService shiftAccessService;
 
     // Suất chiếu cho POS: từ đầu ngày hôm nay trở đi (chưa diễn ra hoặc đang trong ngày), sắp xếp tăng dần
     @GetMapping("/showtimes")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getTodayShowtimes() {
+        shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
         List<Showtime> showtimes = showtimeRepository.findAll().stream()
                 .filter(s -> s.getStartTime() != null && !s.getStartTime().isBefore(startOfToday))
@@ -62,6 +65,7 @@ public class TicketingController {
     @GetMapping("/combos")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getFnbCombos() {
+        shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quay F&B");
         List<FnbItem> items = fnbItemRepository.findAll();
         return ResponseEntity.ok(items);
     }
@@ -70,6 +74,7 @@ public class TicketingController {
     @GetMapping("/member-card/{phone}")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> lookupMemberCard(@PathVariable String phone) {
+        shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "FNB", "SHIFT_LEAD"), "nghiep vu tai quay");
         try {
             String p = phone == null ? "" : phone.trim().replaceAll("\\s+", "").replaceFirst("^\\+84", "0");
             if (p.isEmpty()) {
@@ -95,6 +100,7 @@ public class TicketingController {
     @Transactional
     public ResponseEntity<?> posCheckout(@RequestBody Map<String, Object> body) {
         try {
+            StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             // POS tạo booking CONFIRMED trực tiếp (không qua hold)
             Integer showtimeId = Integer.parseInt(body.get("showtimeId").toString());
             @SuppressWarnings("unchecked")
@@ -122,7 +128,7 @@ public class TicketingController {
                             .paymentMethod(paymentMethod)
                             .build();
 
-            Booking booking = bookingService.holdSeats(req);
+            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule);
             bookingService.completePayment(booking.getId(), paymentMethod);
 
             // Vé đã được sinh trong completePayment — lấy QR + nhãn ghế để in hoá đơn/soát vé tại cổng
@@ -155,6 +161,7 @@ public class TicketingController {
     @Transactional
     public ResponseEntity<?> concessionCheckout(@RequestBody Map<String, Object> body) {
         try {
+            StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quay F&B");
             String paymentMethod = (String) body.getOrDefault("paymentMethod", "CASH");
             Integer customerId = body.get("customerId") != null
                     ? Integer.parseInt(body.get("customerId").toString()) : null;
@@ -168,7 +175,7 @@ public class TicketingController {
                             .build())
                     .collect(Collectors.toList());
 
-            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod);
+            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, schedule);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -190,6 +197,7 @@ public class TicketingController {
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> createHold(@RequestBody Map<String, Object> body) {
         try {
+            StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             Integer showtimeId = Integer.parseInt(body.get("showtimeId").toString());
             @SuppressWarnings("unchecked")
             List<Integer> seatIds = (List<Integer>) body.get("seatIds");
@@ -204,7 +212,7 @@ public class TicketingController {
                             .paymentMethod("POS_HOLD")
                             .build();
 
-            Booking booking = bookingService.holdSeats(req);
+            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -221,6 +229,7 @@ public class TicketingController {
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> releaseHold(@PathVariable Integer bookingId) {
         try {
+            shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             String status = posHoldService.releaseHold(bookingId);
             return ResponseEntity.ok(Map.of("success", true, "status", status));
         } catch (Exception e) {

@@ -14,6 +14,18 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     
     Optional<Ticket> findByQrCode(String qrCode);
 
+    @Query("""
+            SELECT t FROM Ticket t
+            JOIN FETCH t.bookingSeat bs
+            JOIN FETCH bs.seat
+            JOIN FETCH bs.booking b
+            JOIN FETCH b.showtime st
+            JOIN FETCH st.movie
+            JOIN FETCH st.room
+            WHERE t.qrCode = :qrCode
+            """)
+    Optional<Ticket> findByQrCodeWithDetails(@Param("qrCode") String qrCode);
+
     Optional<Ticket> findByBookingSeatId(Integer bookingSeatId);
 
     @Query("SELECT t FROM Ticket t JOIN FETCH t.bookingSeat bs JOIN FETCH bs.booking b WHERE b.id = :bookingId")

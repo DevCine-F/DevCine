@@ -1,5 +1,7 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.request.ShiftHandoverDecisionRequest;
+import com.devcine.backend.dto.request.ShiftHandoverRequest;
 import com.devcine.backend.dto.request.StaffShiftRequest;
 import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Role;
@@ -15,6 +17,7 @@ import com.devcine.backend.repository.ShiftRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.StaffScheduleRepository;
 import com.devcine.backend.repository.UserRepository;
+import com.devcine.backend.service.ShiftHandoverService;
 import com.devcine.backend.service.StaffScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +52,7 @@ public class StaffController {
     private final CinemaRepository cinemaRepository;
     private final PasswordEncoder passwordEncoder;
     private final StaffScheduleService staffScheduleService;
+    private final ShiftHandoverService shiftHandoverService;
 
     private static String str(Object o) {
         return o == null ? "" : o.toString().trim();
@@ -360,7 +364,7 @@ public class StaffController {
 
     // ===== Bàn giao ca (Shift Handover) =====
 
-    @GetMapping("/handovers")
+    @GetMapping("/handovers/legacy")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getHandovers() {
         List<Map<String, Object>> result = shiftHandoverRepository.findAllWithDetails().stream().map(h -> Map.<String, Object>of(
@@ -377,7 +381,7 @@ public class StaffController {
         return ResponseEntity.ok(result);
     }
 
-    @PostMapping("/handovers")
+    @PostMapping("/handovers/legacy")
     @PreAuthorize("@perm.can('staff_management','edit')")
     @Transactional
     public ResponseEntity<?> createHandover(@RequestBody Map<String, Object> body) {
@@ -402,6 +406,38 @@ public class StaffController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/handovers")
+    @PreAuthorize("@perm.can('staff_management','view')")
+    public ResponseEntity<?> getShiftHandovers() {
+        return ResponseEntity.ok(shiftHandoverService.list());
+    }
+
+    @GetMapping("/shifts/current/handover-summary")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> getCurrentHandoverSummary() {
+        return ResponseEntity.ok(shiftHandoverService.currentSummary());
+    }
+
+    @PostMapping("/handovers")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> submitShiftHandover(@Valid @RequestBody ShiftHandoverRequest request) {
+        return ResponseEntity.status(201).body(shiftHandoverService.submit(request));
+    }
+
+    @PutMapping("/handovers/{id}/confirm")
+    @PreAuthorize("@perm.can('staff_management','edit')")
+    public ResponseEntity<?> confirmShiftHandover(@PathVariable Integer id,
+                                                  @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
+        return ResponseEntity.ok(shiftHandoverService.confirm(id, request));
+    }
+
+    @PutMapping("/handovers/{id}/reject")
+    @PreAuthorize("@perm.can('staff_management','edit')")
+    public ResponseEntity<?> rejectShiftHandover(@PathVariable Integer id,
+                                                 @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
+        return ResponseEntity.ok(shiftHandoverService.reject(id, request));
     }
 
     @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})
