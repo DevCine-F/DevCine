@@ -12,6 +12,7 @@ import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.StaffScheduleRepository;
 import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,29 @@ public class StaffScheduleService {
         Integer effectiveCinemaId = resolveReadableCinemaId(cinemaId);
         String normalizedStatus = normalizeStatus(status);
         return staffScheduleRepository.findByWorkDateWithDetails(workDate, effectiveCinemaId, normalizedStatus)
+                .stream()
+                .map(StaffShiftResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffShiftResponse> getMyShifts(LocalDate fromDate, LocalDate toDate) {
+        if (!SecurityUtils.hasRole("STAFF") || SecurityUtils.isAdmin()) {
+            throw new AccessDeniedException("Chỉ nhân viên mới có thể xem ca làm việc của mình.");
+        }
+        Integer currentUserId = SecurityUtils.getCurrentUserId();
+        if (currentUserId == null) {
+            throw new AccessDeniedException("Bạn cần đăng nhập để xem ca làm việc.");
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate effectiveFrom = fromDate != null ? fromDate : today.minusDays(7);
+        LocalDate effectiveTo = toDate != null ? toDate : today.plusDays(30);
+        if (effectiveTo.isBefore(effectiveFrom)) {
+            throw new IllegalArgumentException("Khoảng ngày xem ca không hợp lệ.");
+        }
+
+        return staffScheduleRepository.findMyShiftsWithDetails(currentUserId, effectiveFrom, effectiveTo)
                 .stream()
                 .map(StaffShiftResponse::fromEntity)
                 .toList();

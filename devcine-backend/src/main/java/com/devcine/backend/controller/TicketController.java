@@ -4,6 +4,7 @@ import com.devcine.backend.entity.Ticket;
 import com.devcine.backend.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +24,8 @@ public class TicketController {
         try {
             List<Ticket> tickets = ticketService.getTicketsByBooking(bookingId);
             return ResponseEntity.ok(tickets);
+        } catch (AccessDeniedException ex) {
+            throw ex;
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }
@@ -42,6 +45,8 @@ public class TicketController {
                 "startTime", ticket.getBookingSeat().getBooking().getShowtime().getStartTime().toString(),
                 "checkInTime", ticket.getCheckInTime().toString()
             ));
+        } catch (AccessDeniedException ex) {
+            throw ex;
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }

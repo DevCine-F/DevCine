@@ -14,13 +14,22 @@ public interface ShiftHandoverRepository extends JpaRepository<ShiftHandover, In
 
     @Query("SELECT h FROM ShiftHandover h JOIN FETCH h.staffSchedule ss JOIN FETCH ss.staff s JOIN FETCH s.user " +
            "JOIN FETCH ss.shift LEFT JOIN FETCH ss.cinema LEFT JOIN FETCH h.approvedByManager m LEFT JOIN FETCH m.user " +
+           "LEFT JOIN FETCH h.receivedByStaff r LEFT JOIN FETCH r.user " +
            "ORDER BY h.id DESC")
     List<ShiftHandover> findAllWithDetails();
 
     @Query("SELECT h FROM ShiftHandover h JOIN FETCH h.staffSchedule ss JOIN FETCH ss.staff s JOIN FETCH s.user " +
            "JOIN FETCH ss.shift LEFT JOIN FETCH ss.cinema LEFT JOIN FETCH h.approvedByManager m LEFT JOIN FETCH m.user " +
+           "LEFT JOIN FETCH h.receivedByStaff r LEFT JOIN FETCH r.user " +
            "WHERE h.id = :id")
     Optional<ShiftHandover> findByIdWithDetails(@Param("id") Integer id);
+
+    @Query("SELECT h FROM ShiftHandover h JOIN FETCH h.staffSchedule ss JOIN FETCH ss.staff s JOIN FETCH s.user " +
+           "JOIN FETCH ss.shift LEFT JOIN FETCH ss.cinema LEFT JOIN FETCH h.approvedByManager m LEFT JOIN FETCH m.user " +
+           "LEFT JOIN FETCH h.receivedByStaff r LEFT JOIN FETCH r.user " +
+           "WHERE s.userId = :staffId OR r.userId = :staffId " +
+           "ORDER BY h.id DESC")
+    List<ShiftHandover> findMineWithDetails(@Param("staffId") Integer staffId);
 
     Optional<ShiftHandover> findTopByStaffScheduleIdOrderByIdDesc(Integer staffScheduleId);
 

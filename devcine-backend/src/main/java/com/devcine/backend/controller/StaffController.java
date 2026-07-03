@@ -320,6 +320,16 @@ public class StaffController {
         return ResponseEntity.ok(staffScheduleService.getCurrentShift().orElse(null));
     }
 
+    @GetMapping("/shifts/my")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<?> getMyShifts(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        LocalDate fromDate = from != null && !from.isBlank() ? LocalDate.parse(from) : null;
+        LocalDate toDate = to != null && !to.isBlank() ? LocalDate.parse(to) : null;
+        return ResponseEntity.ok(staffScheduleService.getMyShifts(fromDate, toDate));
+    }
+
     @PostMapping("/shifts")
     @PreAuthorize("@perm.can('staff_management','add')")
     public ResponseEntity<?> assignShift(@Valid @RequestBody StaffShiftRequest request) {
@@ -376,7 +386,7 @@ public class StaffController {
                 "declaredCash", h.getDeclaredCash() != null ? h.getDeclaredCash() : BigDecimal.ZERO,
                 "systemCash", h.getSystemCash() != null ? h.getSystemCash() : BigDecimal.ZERO,
                 "difference", h.getDifference() != null ? h.getDifference() : BigDecimal.ZERO,
-                "status", h.getStatus() != null ? h.getStatus() : "PENDING"
+                "status", h.getStatus() != null ? h.getStatus() : "SUBMITTED"
         )).collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }
@@ -398,7 +408,7 @@ public class StaffController {
                     .declaredCash(declared)
                     .systemCash(system)
                     .difference(declared.subtract(system))
-                    .status("PENDING")
+                    .status("SUBMITTED")
                     .build();
             shiftHandoverRepository.save(handover);
             return ResponseEntity.status(201).body(Map.of("success", true, "id", handover.getId(),
@@ -414,16 +424,41 @@ public class StaffController {
         return ResponseEntity.ok(shiftHandoverService.list());
     }
 
+    @GetMapping("/handovers/my")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<?> getMyShiftHandovers() {
+        return ResponseEntity.ok(shiftHandoverService.myList());
+    }
+
     @GetMapping("/shifts/current/handover-summary")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> getCurrentHandoverSummary() {
         return ResponseEntity.ok(shiftHandoverService.currentSummary());
     }
 
+    @GetMapping("/handovers/summary")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> getHandoverSummary(@RequestParam Integer staffScheduleId) {
+        return ResponseEntity.ok(shiftHandoverService.summary(staffScheduleId));
+    }
+
+    @GetMapping("/handovers/receivers")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> getHandoverReceivers(@RequestParam Integer staffScheduleId) {
+        return ResponseEntity.ok(shiftHandoverService.receiverCandidates(staffScheduleId));
+    }
+
     @PostMapping("/handovers")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> submitShiftHandover(@Valid @RequestBody ShiftHandoverRequest request) {
         return ResponseEntity.status(201).body(shiftHandoverService.submit(request));
+    }
+
+    @PutMapping("/handovers/{id}/receive")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> receiveShiftHandover(@PathVariable Integer id,
+                                                  @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
+        return ResponseEntity.ok(shiftHandoverService.receive(id, request));
     }
 
     @PutMapping("/handovers/{id}/confirm")

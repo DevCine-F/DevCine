@@ -150,7 +150,12 @@ onMounted(() => {
         </router-link>
 
         <!-- ===== NHÂN SỰ ===== -->
-        <div v-if="canShow('staff_management')" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
+        <div v-if="canShow('staff_management') || authStore.isStaff" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
+
+        <router-link v-if="authStore.isStaff" to="/admin/my-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_clock</span>
+          <span class="font-semibold text-sm">Ca của tôi</span>
+        </router-link>
 
         <router-link v-if="canShow('staff_management')" to="/admin/staff" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">group</span>

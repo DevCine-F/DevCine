@@ -11,6 +11,9 @@ public class ShiftHandoverRequest {
 
     private Integer staffScheduleId;
 
+    @NotNull(message = "Vui long chon nhan vien nhan ban giao")
+    private Integer receiverStaffId;
+
     @NotNull(message = "Vui lòng nhập số tiền mặt thực tế")
     @DecimalMin(value = "0.0", message = "Số tiền mặt thực tế không được âm")
     private BigDecimal declaredCash;

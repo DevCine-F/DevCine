@@ -11,6 +11,7 @@ import com.devcine.backend.repository.InventoryLogRepository;
 import com.devcine.backend.service.ShiftAccessService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -94,6 +95,8 @@ public class InventoryController {
             inventoryLogRepository.save(log);
 
             return ResponseEntity.ok(Map.of("success", true, "newStock", newStock));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
@@ -122,6 +125,8 @@ public class InventoryController {
                     .build();
             cinemaInventoryRepository.save(ci);
             return ResponseEntity.status(201).body(Map.of("success", true, "id", ci.getId()));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }

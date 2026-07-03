@@ -27,6 +27,10 @@ public class ShiftHandover {
     @JoinColumn(name = "approved_by_manager")
     private Staff approvedByManager;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "received_by_staff")
+    private Staff receivedByStaff;
+
     @Column(name = "declared_cash", precision = 15, scale = 2)
     private BigDecimal declaredCash;
 
@@ -63,8 +67,14 @@ public class ShiftHandover {
     @Column(name = "submitted_at")
     private LocalDateTime submittedAt;
 
+    @Column(name = "received_at")
+    private LocalDateTime receivedAt;
+
     @Column(name = "confirmed_at")
     private LocalDateTime confirmedAt;
+
+    @Column(name = "receiver_note", columnDefinition = "TEXT")
+    private String receiverNote;
 
     @Column(columnDefinition = "TEXT")
     private String note;

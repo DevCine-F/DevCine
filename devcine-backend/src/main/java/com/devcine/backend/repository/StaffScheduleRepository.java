@@ -32,6 +32,23 @@ public interface StaffScheduleRepository extends JpaRepository<StaffSchedule, In
             @Param("status") String status);
 
     @Query("""
+            SELECT ss FROM StaffSchedule ss
+            JOIN FETCH ss.staff s
+            JOIN FETCH s.user u
+            LEFT JOIN FETCH u.role
+            JOIN FETCH ss.shift sh
+            LEFT JOIN FETCH ss.cinema c
+            WHERE s.userId = :staffId
+              AND ss.workDate >= :fromDate
+              AND ss.workDate <= :toDate
+            ORDER BY ss.workDate ASC, sh.startTime ASC, ss.id ASC
+            """)
+    List<StaffSchedule> findMyShiftsWithDetails(
+            @Param("staffId") Integer staffId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    @Query("""
             SELECT CASE WHEN COUNT(ss) > 0 THEN true ELSE false END FROM StaffSchedule ss
             JOIN ss.shift sh
             WHERE ss.staff.userId = :staffId

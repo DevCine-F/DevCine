@@ -22,14 +22,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class ShiftHandoverService {
 
-    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_SUBMITTED = "SUBMITTED";
+    private static final String STATUS_RECEIVED = "RECEIVED";
+    private static final String STATUS_PENDING_LEGACY = "PENDING";
     private static final String STATUS_CONFIRMED = "CONFIRMED";
     private static final String STATUS_REJECTED = "REJECTED";
+    private static final String SCHEDULE_APPROVED = "APPROVED";
+    private static final int HANDOVER_EARLY_MINUTES = 30;
 
     private final ShiftAccessService shiftAccessService;
     private final StaffScheduleRepository staffScheduleRepository;
@@ -59,15 +64,62 @@ public class ShiftHandoverService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ShiftHandoverResponse> myList() {
+        if (!SecurityUtils.hasRole("STAFF") || SecurityUtils.isAdmin()) {
+            throw new AccessDeniedException("Chi nhan vien moi co the xem bien ban ban giao cua minh.");
+        }
+        Integer currentUserId = SecurityUtils.getCurrentUserId();
+        if (currentUserId == null) {
+            throw new AccessDeniedException("Ban can dang nhap de xem bien ban ban giao.");
+        }
+        return shiftHandoverRepository.findMineWithDetails(currentUserId).stream()
+                .map(ShiftHandoverResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> receiverCandidates(Integer staffScheduleId) {
+        StaffSchedule schedule = loadSchedule(staffScheduleId);
+        verifyScheduleAccess(schedule);
+        Integer cinemaId = schedule.getCinema() != null ? schedule.getCinema().getId() : null;
+        if (cinemaId == null) {
+            throw new IllegalArgumentException("Ca lam viec chua co co so de chon nguoi nhan ban giao.");
+        }
+        Integer senderId = schedule.getStaff() != null ? schedule.getStaff().getUserId() : null;
+        return staffRepository.findByCinemaIdWithDetails(cinemaId).stream()
+                .filter(staff -> staff.getUser() != null && Boolean.TRUE.equals(staff.getUser().getIsActive()))
+                .filter(staff -> senderId == null || !senderId.equals(staff.getUserId()))
+                .map(staff -> {
+                    var user = staff.getUser();
+                    return Map.<String, Object>of(
+                            "userId", staff.getUserId(),
+                            "staffCode", staff.getStaffCode() != null ? staff.getStaffCode() : "",
+                            "fullName", user != null ? user.getFullName() : "Nhan vien",
+                            "cinemaId", cinemaId
+                    );
+                })
+                .toList();
+    }
+
     @Transactional
     public ShiftHandoverResponse submit(ShiftHandoverRequest request) {
         StaffSchedule schedule = request.getStaffScheduleId() != null
                 ? loadSchedule(request.getStaffScheduleId())
                 : shiftAccessService.requireCurrentStaffSchedule();
         verifyScheduleAccess(schedule);
-        if (shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_PENDING)) {
+        validateScheduleReadyForHandover(schedule);
+        if (shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_SUBMITTED)
+                || shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_RECEIVED)
+                || shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_PENDING_LEGACY)) {
             throw new IllegalArgumentException("Ca này đã có biên bản bàn giao đang chờ xác nhận.");
         }
+
+        if (shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_CONFIRMED)) {
+            throw new IllegalArgumentException("Ca nay da duoc xac nhan ban giao, khong the tao lai.");
+        }
+
+        Staff receiver = loadReceiver(request.getReceiverStaffId(), schedule);
 
         ShiftHandoverSummaryResponse summary = buildSummary(schedule);
         BigDecimal declaredCash = money(request.getDeclaredCash());
@@ -75,6 +127,7 @@ public class ShiftHandoverService {
 
         ShiftHandover handover = ShiftHandover.builder()
                 .staffSchedule(schedule)
+                .receivedByStaff(receiver)
                 .declaredCash(declaredCash)
                 .systemCash(systemCash)
                 .cashSales(money(summary.getCashSales()))
@@ -85,7 +138,7 @@ public class ShiftHandoverService {
                 .ticketCount(summary.getTicketCount())
                 .concessionOrderCount(summary.getConcessionOrderCount())
                 .difference(declaredCash.subtract(systemCash))
-                .status(STATUS_PENDING)
+                .status(STATUS_SUBMITTED)
                 .submittedAt(LocalDateTime.now())
                 .note(cleanNote(request.getNote()))
                 .build();
@@ -93,8 +146,20 @@ public class ShiftHandoverService {
     }
 
     @Transactional
+    public ShiftHandoverResponse receive(Integer id, ShiftHandoverDecisionRequest request) {
+        ShiftHandover handover = loadHandover(id);
+        ensureSubmitted(handover);
+        verifyReceiverAccess(handover);
+        handover.setStatus(STATUS_RECEIVED);
+        handover.setReceivedAt(LocalDateTime.now());
+        handover.setReceiverNote(cleanNote(request != null ? request.getNote() : null));
+        return ShiftHandoverResponse.fromEntity(shiftHandoverRepository.save(handover));
+    }
+
+    @Transactional
     public ShiftHandoverResponse confirm(Integer id, ShiftHandoverDecisionRequest request) {
         ShiftHandover handover = loadHandover(id);
+        ensureReceived(handover);
         handover.setStatus(STATUS_CONFIRMED);
         handover.setConfirmedAt(LocalDateTime.now());
         handover.setApprovedByManager(currentStaffOrNull());
@@ -105,6 +170,7 @@ public class ShiftHandoverService {
     @Transactional
     public ShiftHandoverResponse reject(Integer id, ShiftHandoverDecisionRequest request) {
         ShiftHandover handover = loadHandover(id);
+        ensureReviewable(handover);
         handover.setStatus(STATUS_REJECTED);
         handover.setConfirmedAt(LocalDateTime.now());
         handover.setApprovedByManager(currentStaffOrNull());
@@ -160,6 +226,27 @@ public class ShiftHandoverService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca làm việc."));
     }
 
+    private Staff loadReceiver(Integer receiverStaffId, StaffSchedule schedule) {
+        if (receiverStaffId == null) {
+            throw new IllegalArgumentException("Vui long chon nhan vien nhan ban giao.");
+        }
+        Staff receiver = staffRepository.findByIdWithDetails(receiverStaffId)
+                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay nhan vien nhan ban giao."));
+        if (receiver.getUser() == null || !Boolean.TRUE.equals(receiver.getUser().getIsActive())) {
+            throw new IllegalArgumentException("Nhan vien nhan ban giao khong hoat dong.");
+        }
+        Integer senderId = schedule.getStaff() != null ? schedule.getStaff().getUserId() : null;
+        if (senderId != null && senderId.equals(receiver.getUserId())) {
+            throw new IllegalArgumentException("Nguoi nhan ban giao phai khac nhan vien ket ca.");
+        }
+        Integer scheduleCinemaId = schedule.getCinema() != null ? schedule.getCinema().getId() : null;
+        Integer receiverCinemaId = receiver.getCinema() != null ? receiver.getCinema().getId() : null;
+        if (scheduleCinemaId == null || !scheduleCinemaId.equals(receiverCinemaId)) {
+            throw new IllegalArgumentException("Nguoi nhan ban giao phai thuoc cung co so.");
+        }
+        return receiver;
+    }
+
     private ShiftHandover loadHandover(Integer id) {
         return shiftHandoverRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biên bản bàn giao ca."));
@@ -174,6 +261,58 @@ public class ShiftHandoverService {
         if (scheduleStaffId == null || !scheduleStaffId.equals(currentUserId)) {
             throw new AccessDeniedException("Bạn chỉ được bàn giao ca của chính mình.");
         }
+    }
+
+    private void validateScheduleReadyForHandover(StaffSchedule schedule) {
+        if (!SCHEDULE_APPROVED.equalsIgnoreCase(schedule.getStatus())) {
+            throw new IllegalArgumentException("Chi ca da duyet moi duoc ban giao.");
+        }
+        var shift = schedule.getShift();
+        if (shift == null || shift.getEndTime() == null) {
+            throw new IllegalArgumentException("Ca lam viec chua co gio ket thuc hop le.");
+        }
+        LocalDateTime handoverOpenAt = shift.getEndTime().minusMinutes(HANDOVER_EARLY_MINUTES);
+        if (LocalDateTime.now().isBefore(handoverOpenAt)) {
+            throw new IllegalArgumentException("Chua den gio ban giao. Ban co the ban giao tu " + handoverOpenAt + ".");
+        }
+    }
+
+    private void ensureSubmitted(ShiftHandover handover) {
+        String status = normalizeStatus(handover.getStatus());
+        if (!STATUS_SUBMITTED.equals(status)) {
+            throw new IllegalArgumentException("Chi bien ban da gui moi duoc nhan ban giao.");
+        }
+    }
+
+    private void ensureReceived(ShiftHandover handover) {
+        if (!STATUS_RECEIVED.equals(normalizeStatus(handover.getStatus()))) {
+            throw new IllegalArgumentException("Chi bien ban da nhan moi duoc chot doi soat.");
+        }
+    }
+
+    private void ensureReviewable(ShiftHandover handover) {
+        String status = normalizeStatus(handover.getStatus());
+        if (STATUS_CONFIRMED.equals(status) || STATUS_REJECTED.equals(status)) {
+            throw new IllegalArgumentException("Bien ban ban giao nay da duoc xu ly.");
+        }
+    }
+
+    private void verifyReceiverAccess(ShiftHandover handover) {
+        if (SecurityUtils.isAdmin()) {
+            return;
+        }
+        Integer currentUserId = SecurityUtils.getCurrentUserId();
+        Integer receiverId = handover.getReceivedByStaff() != null ? handover.getReceivedByStaff().getUserId() : null;
+        if (currentUserId == null || receiverId == null || !currentUserId.equals(receiverId)) {
+            throw new AccessDeniedException("Ban khong phai nhan vien duoc chi dinh nhan ban giao.");
+        }
+    }
+
+    private String normalizeStatus(String status) {
+        if (STATUS_PENDING_LEGACY.equalsIgnoreCase(status)) {
+            return STATUS_SUBMITTED;
+        }
+        return status != null ? status.toUpperCase() : STATUS_SUBMITTED;
     }
 
     private Staff currentStaffOrNull() {

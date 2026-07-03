@@ -30,6 +30,14 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     @Query("SELECT s.staffCode FROM Staff s WHERE s.staffCode IS NOT NULL")
     List<String> findAllStaffCodes();
 
+    @Query("SELECT s FROM Staff s " +
+           "JOIN FETCH s.user u " +
+           "LEFT JOIN FETCH u.role " +
+           "LEFT JOIN FETCH s.cinema c " +
+           "WHERE c.id = :cinemaId " +
+           "ORDER BY u.fullName ASC")
+    List<Staff> findByCinemaIdWithDetails(@Param("cinemaId") Integer cinemaId);
+
     boolean existsByStaffCode(String staffCode);
 
     boolean existsByStaffCodeIgnoreCase(String staffCode);

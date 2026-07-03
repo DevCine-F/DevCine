@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
@@ -150,6 +151,8 @@ public class TicketingController {
                     "message", "Thanh toán thành công",
                     "tickets", tickets
             ));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
@@ -183,6 +186,8 @@ public class TicketingController {
                     "saleCode", sale.getSaleCode(),
                     "message", "Thanh toán thành công"
             ));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
@@ -219,6 +224,8 @@ public class TicketingController {
                     "bookingId", booking.getId(),
                     "bookingCode", booking.getBookingCode()
             ));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
@@ -232,6 +239,8 @@ public class TicketingController {
             shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             String status = posHoldService.releaseHold(bookingId);
             return ResponseEntity.ok(Map.of("success", true, "status", status));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }

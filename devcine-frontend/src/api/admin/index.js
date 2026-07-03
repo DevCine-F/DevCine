@@ -104,6 +104,7 @@ export const staffApi = {
 export const staffShiftApi = {
   list: (params) => api.get('/staff/shifts', { params }),
   current: () => api.get('/staff/shifts/current'),
+  my: (params) => api.get('/staff/shifts/my', { params }),
   create: (data) => api.post('/staff/shifts', data),
   approve: (id) => api.put(`/staff/shifts/${id}/approve`),
   reject: (id) => api.put(`/staff/shifts/${id}/reject`),
@@ -111,8 +112,12 @@ export const staffShiftApi = {
 
 export const shiftHandoverApi = {
   list: () => api.get('/staff/handovers'),
+  mine: () => api.get('/staff/handovers/my'),
+  summary: (staffScheduleId) => api.get('/staff/handovers/summary', { params: { staffScheduleId } }),
+  receivers: (staffScheduleId) => api.get('/staff/handovers/receivers', { params: { staffScheduleId } }),
   currentSummary: () => api.get('/staff/shifts/current/handover-summary'),
   submit: (data) => api.post('/staff/handovers', data),
+  receive: (id, data = {}) => api.put(`/staff/handovers/${id}/receive`, data),
   confirm: (id, data = {}) => api.put(`/staff/handovers/${id}/confirm`, data),
   reject: (id, data = {}) => api.put(`/staff/handovers/${id}/reject`, data),
 };
