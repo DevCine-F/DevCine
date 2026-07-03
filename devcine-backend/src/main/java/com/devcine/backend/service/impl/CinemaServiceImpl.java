@@ -84,7 +84,18 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public List<CinemaResponse> getAllCinemas() {
-        return cinemaRepository.findAllWithManager().stream()
+        List<Cinema> cinemas = cinemaRepository.findAllWithManager();
+        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+            Integer cinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+            if (cinemaId != null) {
+                cinemas = cinemas.stream()
+                        .filter(c -> c.getId().equals(cinemaId))
+                        .collect(Collectors.toList());
+            } else {
+                cinemas = java.util.List.of();
+            }
+        }
+        return cinemas.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -92,6 +103,12 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public CinemaResponse getCinemaById(Integer id) {
+        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+            Integer staffCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+            if (staffCinemaId == null || !staffCinemaId.equals(id)) {
+                throw new RuntimeException("Bạn không có quyền truy cập cơ sở này");
+            }
+        }
         Cinema cinema = cinemaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
         return toResponse(cinema);

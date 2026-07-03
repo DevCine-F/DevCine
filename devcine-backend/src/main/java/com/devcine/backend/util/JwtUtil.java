@@ -24,12 +24,15 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(Integer userId, String username, String role) {
-        return Jwts.builder()
+    public String generateToken(Integer userId, String username, String role, Integer cinemaId) {
+        var builder = Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
-                .claim("role", role)
-                .issuedAt(new Date())
+                .claim("role", role);
+        if (cinemaId != null) {
+            builder.claim("cinemaId", cinemaId);
+        }
+        return builder.issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(getSigningKey())
                 .compact();
@@ -49,6 +52,10 @@ public class JwtUtil {
 
     public String extractRole(String token) {
         return extractAllClaims(token).get("role", String.class);
+    }
+
+    public Integer extractCinemaId(String token) {
+        return extractAllClaims(token).get("cinemaId", Integer.class);
     }
 
     public boolean isTokenValid(String token) {
