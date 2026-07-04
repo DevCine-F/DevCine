@@ -48,11 +48,15 @@ public class AdminBookingController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size) {
 
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        Integer staffUserId = isAdmin ? null : (Integer) auth.getPrincipal();
+
         LocalDateTime fromDt = parseStart(from, MIN_DATE);
         LocalDateTime toDt = parseEnd(to, LocalDateTime.now().plusYears(10));
 
         Page<Booking> result = bookingRepository.searchForAdmin(
-                q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(),
+                q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), staffUserId,
                 fromDt, toDt, PageRequest.of(page, size));
 
         List<Integer> ids = result.getContent().stream().map(Booking::getId).collect(Collectors.toList());

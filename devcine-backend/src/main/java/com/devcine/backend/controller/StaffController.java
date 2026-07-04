@@ -10,6 +10,7 @@ import com.devcine.backend.entity.ShiftHandover;
 import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.entity.User;
+import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.ShiftHandoverRepository;
@@ -50,6 +51,7 @@ public class StaffController {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final CinemaRepository cinemaRepository;
+    private final BookingRepository bookingRepository;
     private final PasswordEncoder passwordEncoder;
     private final StaffScheduleService staffScheduleService;
     private final ShiftHandoverService shiftHandoverService;
@@ -160,6 +162,63 @@ public class StaffController {
                 })
                 .map(this::toStaffMap)
                 .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/cinema-roster/{cinemaId}")
+    @PreAuthorize("@perm.can('staff_management','view')")
+    public ResponseEntity<?> getCinemaRoster(@PathVariable Integer cinemaId) {
+        List<Staff> staffList = staffRepository.findAllWithDetails().stream()
+                .filter(s -> s.getCinema() != null && s.getCinema().getId().equals(cinemaId))
+                .collect(Collectors.toList());
+
+        LocalDate today = LocalDate.now();
+        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByWorkDateWithDetails(today, cinemaId, "APPROVED");
+
+        List<Map<String, Object>> result = staffList.stream().map(staff -> {
+            StaffSchedule schedule = todaySchedules.stream()
+                    .filter(ss -> ss.getStaff().getUserId().equals(staff.getUserId()))
+                    .findFirst()
+                    .orElse(null);
+
+            User u = staff.getUser();
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", staff.getUserId());
+            m.put("name", u != null ? u.getFullName() : "Nhân viên");
+
+            String workPosition = schedule != null && schedule.getWorkPosition() != null ? schedule.getWorkPosition() : "Unassigned";
+            String uiRole = "Box Office"; // default fallback for UI
+            String wpLower = workPosition.toLowerCase();
+            if (wpLower.contains("f&b") || wpLower.contains("bắp") || wpLower.contains("nước")) {
+                uiRole = "F&B";
+            } else if (wpLower.contains("usher") || wpLower.contains("soát") || wpLower.contains("kiểm")) {
+                uiRole = "Usher";
+            } else if (workPosition.equals("Unassigned")) {
+                uiRole = "Unassigned";
+            }
+
+            m.put("role", uiRole);
+            
+            // Format shift name based on start/end time
+            String shiftName = "-";
+            if (schedule != null && schedule.getShift() != null) {
+                shiftName = schedule.getShift().getStartTime().toLocalTime().toString() + " - " + schedule.getShift().getEndTime().toLocalTime().toString();
+            }
+            m.put("shift", shiftName);
+            
+            // Determine status based on current time
+            String status = "Off Duty";
+            if (schedule != null && schedule.getShift() != null) {
+                java.time.LocalTime now = java.time.LocalTime.now();
+                if (!now.isBefore(schedule.getShift().getStartTime().toLocalTime()) && !now.isAfter(schedule.getShift().getEndTime().toLocalTime())) {
+                    status = "On Duty";
+                }
+            }
+            m.put("status", status);
+            m.put("sales", schedule != null ? bookingRepository.countTicketsByStaffSchedule(schedule.getId()) : 0);
+            return m;
+        }).collect(Collectors.toList());
+
         return ResponseEntity.ok(result);
     }
 
