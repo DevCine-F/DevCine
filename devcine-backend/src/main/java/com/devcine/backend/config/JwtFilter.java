@@ -1,5 +1,7 @@
 package com.devcine.backend.config;
 
+import com.devcine.backend.entity.User;
+import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,6 +23,7 @@ import java.util.List;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -30,17 +33,22 @@ public class JwtFilter extends OncePerRequestFilter {
         if (token != null && jwtUtil.isTokenValid(token)) {
             try {
                 Integer userId = jwtUtil.extractUserId(token);
-                String role = jwtUtil.extractRole(token);
-                Integer cinemaId = jwtUtil.extractCinemaId(token);
-                var auth = new UsernamePasswordAuthenticationToken(
-                        userId,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
-                );
-                if (cinemaId != null) {
-                    auth.setDetails(java.util.Map.of("cinemaId", cinemaId));
+                
+                // Kiểm tra trạng thái hoạt động của User dưới DB
+                User user = userRepository.findById(userId).orElse(null);
+                if (user != null && user.getIsActive()) {
+                    String role = jwtUtil.extractRole(token);
+                    Integer cinemaId = jwtUtil.extractCinemaId(token);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            userId,
+                            null,
+                            List.of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
+                    );
+                    if (cinemaId != null) {
+                        auth.setDetails(java.util.Map.of("cinemaId", cinemaId));
+                    }
+                    SecurityContextHolder.getContext().setAuthentication(auth);
                 }
-                SecurityContextHolder.getContext().setAuthentication(auth);
             } catch (Exception ignored) {
             }
         }

@@ -85,22 +85,27 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     @Query(value = "SELECT b FROM Booking b " +
            "JOIN FETCH b.showtime s JOIN FETCH s.movie m JOIN FETCH s.room r " +
            "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user u " +
+           "LEFT JOIN b.staffSchedule ss LEFT JOIN ss.staff st " +
            "WHERE b.createdAt BETWEEN :from AND :to " +
            "AND (:status = '' OR b.status = :status) " +
            "AND (:method = '' OR b.paymentMethod = :method) " +
+           "AND (:staffUserId IS NULL OR st.userId = :staffUserId) " +
            "AND (:q = '' OR LOWER(b.bookingCode) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.fullName) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')) " +
            "ORDER BY b.createdAt DESC",
            countQuery = "SELECT COUNT(b) FROM Booking b LEFT JOIN b.customer c LEFT JOIN c.user u " +
+           "LEFT JOIN b.staffSchedule ss LEFT JOIN ss.staff st " +
            "WHERE b.createdAt BETWEEN :from AND :to " +
            "AND (:status = '' OR b.status = :status) " +
            "AND (:method = '' OR b.paymentMethod = :method) " +
+           "AND (:staffUserId IS NULL OR st.userId = :staffUserId) " +
            "AND (:q = '' OR LOWER(b.bookingCode) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.fullName) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%'))")
     Page<Booking> searchForAdmin(@Param("q") String q, @Param("status") String status,
                                  @Param("method") String method,
+                                 @Param("staffUserId") Integer staffUserId,
                                  @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
                                  Pageable pageable);
 

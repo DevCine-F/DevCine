@@ -83,6 +83,13 @@ export function useCinemas() {
               });
           } catch(e) { console.error(e); }
 
+          // Fetch active staff roster for this cinema
+          let staff = [];
+          try {
+              const staffRes = await axios.get(`/staff/cinema-roster/${c.id}`);
+              staff = staffRes.data;
+          } catch(e) { console.error("Error fetching staff roster:", e); }
+
           return {
             ...c,
             cleaningTime: 15,
@@ -94,7 +101,7 @@ export function useCinemas() {
             },
             halls: halls,
             shows: shows,
-            staff: [],
+            staff: staff,
             inventory: []
           };
         }));
