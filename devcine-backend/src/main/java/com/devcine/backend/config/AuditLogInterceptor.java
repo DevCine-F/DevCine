@@ -32,10 +32,11 @@ public class AuditLogInterceptor implements HandlerInterceptor {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return;
 
-        boolean isStaff = auth.getAuthorities().stream()
+        boolean isInternal = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_MANAGER")
                         || a.getAuthority().equals("ROLE_STAFF"));
-        if (!isStaff) return;
+        if (!isInternal) return;
 
         Integer userId = (auth.getPrincipal() instanceof Integer id) ? id : null;
 

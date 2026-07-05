@@ -85,7 +85,7 @@ public class CinemaServiceImpl implements CinemaService {
     @Transactional(readOnly = true)
     public List<CinemaResponse> getAllCinemas() {
         List<Cinema> cinemas = cinemaRepository.findAllWithManager();
-        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+        if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
             Integer cinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
             if (cinemaId != null) {
                 cinemas = cinemas.stream()
@@ -103,7 +103,7 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public CinemaResponse getCinemaById(Integer id) {
-        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+        if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
             Integer staffCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
             if (staffCinemaId == null || !staffCinemaId.equals(id)) {
                 throw new RuntimeException("Bạn không có quyền truy cập cơ sở này");

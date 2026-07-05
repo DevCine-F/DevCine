@@ -96,7 +96,8 @@ public class AuthService {
 
         String role = user.getRole().getName();
         Integer cinemaId = null;
-        if ("STAFF".equalsIgnoreCase(role)) {
+        // STAFF và MANAGER đều gắn với một cơ sở (bản ghi Staff) -> nạp cinemaId để scoping theo cơ sở
+        if ("STAFF".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role)) {
             Staff staff = staffRepository.findById(user.getId()).orElse(null);
             if (staff != null && staff.getCinema() != null) {
                 cinemaId = staff.getCinema().getId();
@@ -104,8 +105,8 @@ public class AuthService {
         }
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), role, cinemaId);
 
-        // Ghi nhật ký đăng nhập cho tài khoản quản trị / nhân viên
-        if ("ADMIN".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role)) {
+        // Ghi nhật ký đăng nhập cho tài khoản quản trị / quản lý / nhân viên
+        if ("ADMIN".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role)) {
             auditLogService.record(user.getId(), "LOGIN", "auth", ipAddress);
         }
 

@@ -64,7 +64,7 @@ const handleLogin = async () => {
     const { token, user } = res.data.data
     const role = user.role.toLowerCase()
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, role)
-    if (role === 'admin' || role === 'staff') {
+    if (role === 'admin' || role === 'manager' || role === 'staff') {
       try {
         await authStore.fetchPermissions(true)
       } catch {

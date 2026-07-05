@@ -54,6 +54,13 @@ public class SecurityUtils {
     }
 
     /**
+     * Trả về true nếu người dùng hiện tại là MANAGER (quản lý cơ sở)
+     */
+    public static boolean isManager() {
+        return hasRole("MANAGER");
+    }
+
+    /**
      * Lấy ID của người dùng hiện tại
      */
     public static Integer getCurrentUserId() {

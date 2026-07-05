@@ -148,7 +148,7 @@ public class StaffScheduleService {
         StaffSchedule schedule = staffScheduleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lịch làm việc"));
         Integer staffCinemaId = SecurityUtils.getCurrentUserCinemaId();
-        if (SecurityUtils.hasRole("STAFF") && staffCinemaId != null) {
+        if (!SecurityUtils.isAdmin() && staffCinemaId != null) {
             Integer scheduleCinemaId = schedule.getCinema() != null ? schedule.getCinema().getId() : null;
             if (!staffCinemaId.equals(scheduleCinemaId)) {
                 throw new IllegalArgumentException("Bạn chỉ có thể xử lý ca của cơ sở mình");
@@ -158,7 +158,8 @@ public class StaffScheduleService {
     }
 
     private Integer resolveReadableCinemaId(Integer requestedCinemaId) {
-        if (SecurityUtils.hasRole("STAFF")) {
+        // Non-admin (STAFF + MANAGER) bị ép về cơ sở của mình; ADMIN xem theo bộ lọc yêu cầu
+        if (!SecurityUtils.isAdmin()) {
             Integer staffCinemaId = SecurityUtils.getCurrentUserCinemaId();
             if (staffCinemaId == null) {
                 throw new IllegalArgumentException("Bạn chưa được gán cơ sở");

@@ -335,34 +335,55 @@ onUnmounted(() => {
       </div>
 
       <!-- CAMERA SCANNER VIEW -->
-      <div v-else-if="activeTab === 'camera'" class="space-y-6 flex flex-col items-center">
-        <div class="relative w-full max-w-lg aspect-square bg-black/40 rounded-3xl overflow-hidden border-2 border-outline-variant/20 flex flex-col items-center justify-center">
-          
+      <div v-else-if="activeTab === 'camera'" class="flex flex-col items-center gap-6">
+        <div class="scanner-frame relative w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden bg-black">
+
           <div id="qr-reader" class="w-full h-full"></div>
-          
-          <!-- Scanner overlay borders -->
-          <div v-if="isScannerActive" class="absolute inset-0 pointer-events-none border-[30px] border-black/40 flex items-center justify-center">
-            <div class="w-64 h-64 border-2 border-dashed border-primary relative flex items-center justify-center">
-              <!-- Laser line animation -->
-              <div class="absolute w-full h-[2px] bg-primary top-0 left-0 animate-scanner-laser shadow-[0_0_8px_var(--md-sys-color-primary)]"></div>
+
+          <!-- Custom scanner overlay -->
+          <div v-if="isScannerActive" class="absolute inset-0 pointer-events-none">
+            <div class="scan-window">
+              <span class="corner corner-tl"></span>
+              <span class="corner corner-tr"></span>
+              <span class="corner corner-bl"></span>
+              <span class="corner corner-br"></span>
+              <div class="laser"></div>
             </div>
           </div>
 
-          <!-- Camera error / off message -->
-          <div v-if="cameraError" class="absolute inset-0 flex flex-col items-center justify-center p-8 bg-black/80 text-center space-y-4">
-            <span class="material-symbols-outlined text-4xl text-yellow-400">no_photography</span>
-            <p class="text-sm text-on-surface font-bold leading-relaxed">{{ cameraError }}</p>
+          <!-- Camera error message -->
+          <div v-if="cameraError" class="absolute inset-0 flex flex-col items-center justify-center p-8 bg-black/85 backdrop-blur-sm text-center space-y-4">
+            <div class="w-16 h-16 rounded-2xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center">
+              <span class="material-symbols-outlined text-3xl text-yellow-400">no_photography</span>
+            </div>
+            <p class="text-sm text-on-surface font-bold leading-relaxed max-w-xs">{{ cameraError }}</p>
+            <button @click="startCamera" class="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs shadow-lg hover:scale-[1.03] transition-all cursor-pointer">
+              Thử lại
+            </button>
           </div>
-          
-          <div v-else-if="!isScannerActive" class="absolute inset-0 flex flex-col items-center justify-center space-y-4">
-            <span class="material-symbols-outlined text-5xl text-primary/40">videocam_off</span>
-            <button @click="startCamera" class="bg-primary/20 text-primary border border-primary/30 font-bold px-6 py-2 rounded-xl text-xs hover:bg-primary/30 transition-all cursor-pointer">
+
+          <!-- Camera off / idle -->
+          <div v-else-if="!isScannerActive" class="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-black/60">
+            <div class="w-20 h-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <span class="material-symbols-outlined text-4xl text-primary/70">photo_camera</span>
+            </div>
+            <button @click="startCamera" class="bg-primary text-on-primary font-bold px-7 py-2.5 rounded-xl text-sm shadow-lg shadow-primary/20 hover:scale-[1.03] transition-all cursor-pointer flex items-center gap-2">
+              <span class="material-symbols-outlined text-lg">play_arrow</span>
               Bật Camera
             </button>
           </div>
         </div>
-        
-        <p class="text-xs text-on-surface-variant font-bold text-center uppercase tracking-wider">Hướng camera của bạn vào mã QR để tự động quét</p>
+
+        <!-- Status hint pill -->
+        <div class="flex items-center gap-2.5 bg-surface-container-high border border-outline-variant/15 rounded-full pl-3 pr-4 py-2">
+          <span
+            :class="isScannerActive ? 'bg-green-400 animate-live-dot' : 'bg-on-surface-variant/50'"
+            class="w-2 h-2 rounded-full shrink-0"
+          ></span>
+          <span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+            {{ isScannerActive ? 'Đang quét — hướng camera vào mã QR' : 'Camera đang tắt' }}
+          </span>
+        </div>
       </div>
 
       <!-- MANUAL CODE ENTRY VIEW -->
@@ -400,20 +421,77 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-@keyframes scanner-laser {
-  0% {
-    top: 0%;
-  }
-  50% {
-    top: 100%;
-  }
-  100% {
-    top: 0%;
-  }
+/* ===== Strip html5-qrcode default chrome, keep only the video ===== */
+:deep(#qr-reader) {
+  border: 0 !important;
+  background: transparent !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+:deep(#qr-reader video) {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+}
+:deep(#qr-reader__dashboard) { display: none !important; }
+:deep(#qr-reader__scan_region img) { display: none !important; }
+:deep(#qr-shaded-region) { display: none !important; }
+
+/* ===== Scanner frame + custom overlay ===== */
+.scanner-frame {
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 20px 45px -15px rgba(0, 0, 0, 0.6),
+    0 0 40px -8px color-mix(in srgb, var(--md-sys-color-primary) 30%, transparent);
 }
 
-.animate-scanner-laser {
-  animation: scanner-laser 2.5s infinite linear;
+.scan-window {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64%;
+  aspect-ratio: 1;
+  border-radius: 1.25rem;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--md-sys-color-primary);
+}
+.corner-tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+.corner-tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: 14px; }
+.corner-bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-bottom-left-radius: 14px; }
+.corner-br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-bottom-right-radius: 14px; }
+
+.laser {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--md-sys-color-primary), transparent);
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--md-sys-color-primary) 70%, transparent);
+  animation: scanner-laser 2.4s ease-in-out infinite;
+}
+
+@keyframes scanner-laser {
+  0%   { top: 6%; opacity: 0.4; }
+  50%  { top: 94%; opacity: 1; }
+  100% { top: 6%; opacity: 0.4; }
+}
+
+.animate-live-dot {
+  animation: liveDot 1.4s ease-in-out infinite;
+}
+@keyframes liveDot {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--md-sys-color-primary) 60%, transparent); opacity: 1; }
+  50%      { box-shadow: 0 0 0 5px transparent; opacity: 0.6; }
 }
 
 .animate-fade-in {

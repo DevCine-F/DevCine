@@ -105,13 +105,17 @@ public class DataSeeder {
             // Seed roles
             Role adminRole = roleRepository.findByName("ADMIN").orElseGet(()
                     -> roleRepository.save(Role.builder().name("ADMIN").build()));
+            Role managerRole = roleRepository.findByName("MANAGER").orElseGet(()
+                    -> roleRepository.save(Role.builder().name("MANAGER").build()));
             Role staffRole = roleRepository.findByName("STAFF").orElseGet(()
                     -> roleRepository.save(Role.builder().name("STAFF").build()));
             Role customerRole = roleRepository.findByName("CUSTOMER").orElseGet(()
                     -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
-            // Seed ma trận phân quyền mặc định (chỉ set khi chưa có cấu hình)
-            if (adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+            // Seed ma trận phân quyền mặc định.
+            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V2 (seed thường chỉ set khi blank).
+            boolean permissionMatrixV2 = systemSettingRepository.findById("PERMISSION_MATRIX_V2").isPresent();
+            if (!permissionMatrixV2 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
                         + "\"dashboard_stats\":[\"view\",\"export\"],"
                         + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
@@ -127,9 +131,10 @@ public class DataSeeder {
                         + "\"settings\":[\"view\",\"edit\"]}");
                 roleRepository.save(adminRole);
             }
-            if (staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+            // STAFF (trần quyền TĨNH): KHÔNG có báo cáo doanh thu (dashboard_stats) theo spec.
+            // Nghiệp vụ thực tế (bán vé/F&B/kiểm vé) được kích hoạt theo Position khi mở ca — ShiftAccessService.
+            if (!permissionMatrixV2 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
                 staffRole.setPermissionsMatrix("{"
-                        + "\"dashboard_stats\":[\"view\"],"
                         + "\"movies\":[\"view\"],"
                         + "\"schedules\":[\"view\"],"
                         + "\"pos_ticketing\":[\"view\",\"add\",\"edit\"],"
@@ -137,6 +142,28 @@ public class DataSeeder {
                         + "\"support\":[\"view\",\"edit\"]}");
                 roleRepository.save(staffRole);
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho STAFF.");
+            }
+            // MANAGER = "admin thu nhỏ theo 1 cơ sở": vận hành đầy đủ cụm rạp (lịch chiếu, giá vé/F&B,
+            // khuyến mãi, kho, nhân sự & ca, toàn bộ báo cáo). Phạm vi cơ sở do scoping cinemaId (SecurityUtils).
+            if (!permissionMatrixV2 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
+                managerRole.setPermissionsMatrix("{"
+                        + "\"dashboard_stats\":[\"view\",\"export\"],"
+                        + "\"movies\":[\"view\"],"
+                        + "\"schedules\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"banners\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"promotions\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pricing\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"cinemas\":[\"view\"],"
+                        + "\"staff_management\":[\"view\",\"add\",\"edit\",\"delete\",\"export\"],"
+                        + "\"pos_ticketing\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pos_inventory\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"support\":[\"view\",\"edit\",\"delete\"]}");
+                roleRepository.save(managerRole);
+                System.out.println("Đã cấu hình ma trận phân quyền mặc định cho MANAGER.");
+            }
+            if (!permissionMatrixV2) {
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("PERMISSION_MATRIX_V2").settingValue("true").build());
             }
 
             // Seed / đảm bảo tài khoản admin (admin / 123) — tạo mới nếu chưa có, reset mật khẩu nếu đã tồn tại
@@ -787,6 +814,28 @@ public class DataSeeder {
                     if (seededStaff > 0)
                         System.out.println("Đã seed " + seededStaff + " nhân viên demo trải 2 cơ sở (mật khẩu Staff@123).");
                 }
+            }
+
+            // Seed 1 tài khoản Quản lý (MANAGER) demo cho cơ sở 1 (idempotent theo username)
+            if (!userRepository.existsByUsername("ql_minh") && !userRepository.existsByEmail("quanly.minh@devcine.com")) {
+                Cinema managerCinema = cinemaRepository.findById(1).orElse(null);
+                User mgrUser = User.builder()
+                        .username("ql_minh")
+                        .email("quanly.minh@devcine.com")
+                        .fullName("Đỗ Hoàng Minh")
+                        .phone("0906123456")
+                        .passwordHash(passwordEncoder.encode("Manager@123"))
+                        .role(managerRole)
+                        .isActive(true)
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                userRepository.save(mgrUser);
+                staffRepository.save(Staff.builder()
+                        .user(mgrUser)
+                        .staffCode("QL001")
+                        .cinema(managerCinema)
+                        .build());
+                System.out.println("Đã seed tài khoản Quản lý demo (ql_minh / Manager@123) cho cơ sở 1.");
             }
         };
     }

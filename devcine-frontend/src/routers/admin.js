@@ -109,6 +109,11 @@ export default [
         component: () => import('../views/admin/ShiftHandover.vue')
       },
       {
+        path: 'approvals',
+        name: 'admin-approvals',
+        component: () => import('../views/admin/ApprovalQueue.vue')
+      },
+      {
         path: 'account',
         name: 'admin-account',
         component: () => import('../views/admin/AdminProfile.vue')

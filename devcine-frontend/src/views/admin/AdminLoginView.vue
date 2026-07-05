@@ -29,7 +29,7 @@ const isTokenValid = (token) => {
 // Đã đăng nhập (admin/staff) + phiên còn hợp lệ -> vào màn nội bộ đầu tiên được phép xem
 onMounted(async () => {
   if (authStore.isAuthenticated
-      && (authStore.role === 'admin' || authStore.role === 'staff')
+      && ['admin', 'manager', 'staff'].includes(authStore.role)
       && isTokenValid(authStore.token)) {
     try {
       await authStore.fetchPermissions()
@@ -67,7 +67,7 @@ const loginAsAdmin = async (e) => {
     const { token, user: userData } = res.data.data
     const role = userData.role.toLowerCase()
 
-    if (role !== 'admin' && role !== 'staff') {
+    if (!['admin', 'manager', 'staff'].includes(role)) {
       toast.error('Tài khoản không có quyền truy cập hệ thống quản trị.')
       return
     }

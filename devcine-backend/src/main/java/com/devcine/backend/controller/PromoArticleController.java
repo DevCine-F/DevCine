@@ -47,7 +47,7 @@ public class PromoArticleController {
 
     /** Admin: tất cả tin (kể cả đang ẩn). */
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
     public ResponseEntity<?> getAll() {
         return ResponseEntity.ok(repository.findAllByOrderByDisplayOrderAscIdDesc());
     }

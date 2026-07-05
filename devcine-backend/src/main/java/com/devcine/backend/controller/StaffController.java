@@ -138,7 +138,7 @@ public class StaffController {
             @RequestParam(required = false) String status) {
             
         final Integer effectiveCinemaId;
-        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+        if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
             effectiveCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
         } else {
             effectiveCinemaId = cinemaId;
@@ -238,8 +238,17 @@ public class StaffController {
             if (userRepository.existsByEmail(email))
                 throw new IllegalArgumentException("Email đã được sử dụng.");
 
-            Role role = roleRepository.findByName("STAFF")
-                    .orElseThrow(() -> new IllegalArgumentException("Hệ thống chưa cấu hình vai trò STAFF."));
+            String desiredRole = str(body.get("role")).toUpperCase();
+            if (desiredRole.isBlank()) desiredRole = "STAFF";
+            if (!desiredRole.equals("STAFF") && !desiredRole.equals("MANAGER")) {
+                throw new IllegalArgumentException("Vai trò không hợp lệ.");
+            }
+            if (desiredRole.equals("MANAGER") && !com.devcine.backend.util.SecurityUtils.isAdmin()) {
+                throw new IllegalArgumentException("Chỉ quản trị viên mới tạo được tài khoản quản lý.");
+            }
+            final String roleName = desiredRole;
+            Role role = roleRepository.findByName(roleName)
+                    .orElseThrow(() -> new IllegalArgumentException("Hệ thống chưa cấu hình vai trò " + roleName + "."));
 
             User u = User.builder()
                     .username(username)
@@ -254,7 +263,7 @@ public class StaffController {
             userRepository.save(u);
 
             Object finalCinemaId = body.get("cinemaId");
-            if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+            if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
                 Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
                 if (myCinemaId == null) throw new IllegalArgumentException("Bạn chưa được gán cơ sở, không thể tạo nhân viên.");
                 if (finalCinemaId != null && !str(finalCinemaId).isBlank() && !str(finalCinemaId).equals(myCinemaId.toString())) {
@@ -263,10 +272,14 @@ public class StaffController {
                 finalCinemaId = myCinemaId;
             }
 
+            Cinema staffCinema = resolveCinema(finalCinemaId);
+            if ("MANAGER".equals(roleName) && staffCinema == null) {
+                throw new IllegalArgumentException("Quản lý phải được gán một cơ sở.");
+            }
             Staff staff = Staff.builder()
                     .user(u)
                     .staffCode(resolveStaffCodeForCreate(body.get("staffCode")))
-                    .cinema(resolveCinema(finalCinemaId))
+                    .cinema(staffCinema)
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
 
@@ -302,13 +315,25 @@ public class StaffController {
             }
             if (body.containsKey("isActive"))
                 u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
+            // Chỉ ADMIN được đổi vai trò, và chỉ giữa STAFF <-> MANAGER
+            if (body.containsKey("role") && com.devcine.backend.util.SecurityUtils.isAdmin()) {
+                String newRole = str(body.get("role")).toUpperCase();
+                if (!newRole.isBlank()) {
+                    if (!newRole.equals("STAFF") && !newRole.equals("MANAGER")) {
+                        throw new IllegalArgumentException("Vai trò không hợp lệ.");
+                    }
+                    Role r = roleRepository.findByName(newRole)
+                            .orElseThrow(() -> new IllegalArgumentException("Hệ thống chưa cấu hình vai trò " + newRole + "."));
+                    u.setRole(r);
+                }
+            }
             userRepository.save(u);
             updateStaffCode(staff, body.get("staffCode"));
             staff.setUpdatedAt(LocalDateTime.now());
 
             if (body.containsKey("cinemaId")) {
                 Object finalCinemaId = body.get("cinemaId");
-                if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+                if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
                     Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
                     if (myCinemaId == null) throw new IllegalArgumentException("Bạn chưa được gán cơ sở.");
                     if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
@@ -320,11 +345,14 @@ public class StaffController {
                     finalCinemaId = myCinemaId;
                 }
                 staff.setCinema(resolveCinema(finalCinemaId));
-            } else if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+            } else if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
                 Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
                 if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
                     throw new IllegalArgumentException("Bạn chỉ có thể sửa nhân viên của cơ sở mình.");
                 }
+            }
+            if ("MANAGER".equalsIgnoreCase(u.getRole() != null ? u.getRole().getName() : "") && staff.getCinema() == null) {
+                throw new IllegalArgumentException("Quản lý phải được gán một cơ sở.");
             }
             staffRepository.save(staff);
 
@@ -344,7 +372,7 @@ public class StaffController {
         if (staff == null || staff.getUser() == null)
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không tìm thấy nhân viên."));
 
-        if (com.devcine.backend.util.SecurityUtils.hasRole("STAFF")) {
+        if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
             Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
             if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
                 return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Bạn chỉ có thể đổi trạng thái nhân viên của cơ sở mình."));

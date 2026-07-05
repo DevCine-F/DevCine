@@ -12,6 +12,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state) => !!state.token,
     isAdmin: (state) => state.role === 'admin',
+    isManager: (state) => state.role === 'manager',
     isStaff: (state) => state.role === 'staff',
     hasPermission: (state) => (feature, action = 'view') => {
       if (state.role === 'admin') return true
@@ -32,7 +33,7 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('permissions');
     },
     async fetchPermissions(force = false) {
-      if (!this.isAuthenticated || !['admin', 'staff'].includes(this.role)) {
+      if (!this.isAuthenticated || !['admin', 'manager', 'staff'].includes(this.role)) {
         this.permissions = {};
         this.permissionsLoaded = true;
         localStorage.removeItem('permissions');

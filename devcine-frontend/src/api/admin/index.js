@@ -127,6 +127,17 @@ export const cinemaListApi = {
   getAll: () => api.get('/v1/cinemas'),
 };
 
+// Luồng phê duyệt "sửa sai" của Trưởng ca (void hóa đơn F&B / đổi ghế sự cố)
+export const approvalApi = {
+  pending: () => api.get('/staff/approvals/pending'),
+  mine: () => api.get('/staff/approvals/mine'),
+  requestFnbVoid: (saleId, reason) => api.post('/staff/approvals/fnb-void', { saleId, reason }),
+  requestSeatMove: (bookingSeatId, toSeatId, reason) =>
+    api.post('/staff/approvals/seat-move', { bookingSeatId, toSeatId, reason }),
+  approve: (id) => api.put(`/staff/approvals/${id}/approve`),
+  reject: (id, note) => api.put(`/staff/approvals/${id}/reject`, { note }),
+};
+
 export const pricingApi = {
   getConfig: () => api.get('/pricing/config'),
   saveBaseMatrix: (rules) => api.put('/pricing/base-matrix', { rules }),

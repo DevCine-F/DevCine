@@ -20,7 +20,7 @@
 
 | Lớp | Công nghệ |
 |---|---|
-| **Backend** | Java 21 (LTS) · Spring Boot 4.0.6 · Spring Security · Spring Data JPA · Hibernate 7 · Lombok · Maven |
+| **Backend** | Java 25 (LTS) · Spring Boot 4.0.6 · Spring Security · Spring Data JPA · Hibernate 7 · Lombok · Maven |
 | **Frontend** | Vue.js 3.5 (`<script setup>` / Composition API) · Vite 8 · Pinia 3 · Vue Router 5 · TailwindCSS 4 · Axios |
 | **Database** | PostgreSQL 15+ (hosted trên Supabase, region AWS Singapore) |
 | **Auth** | JWT (JJWT 0.12.6, HMAC) + BCryptPasswordEncoder, stateless |

@@ -104,7 +104,8 @@ public class RolePermissionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Chưa xác thực"));
         }
-        if (!"ADMIN".equalsIgnoreCase(roleName) && !"STAFF".equalsIgnoreCase(roleName)) {
+        if (!"ADMIN".equalsIgnoreCase(roleName) && !"MANAGER".equalsIgnoreCase(roleName)
+                && !"STAFF".equalsIgnoreCase(roleName)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("message", "Tài khoản không có quyền truy cập khu nội bộ"));
         }

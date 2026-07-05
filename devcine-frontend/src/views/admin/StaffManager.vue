@@ -3,11 +3,13 @@ import { ref, computed, onMounted } from 'vue'
 import { staffApi, cinemaListApi } from '@/api/admin/index'
 import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
+import { useAuthStore } from '@/stores/auth'
 import { friendlyError } from '@/utils/friendlyError'
 import AppModal from '@/components/common/AppModal.vue'
 
 const toast = useToastStore()
 const confirm = useConfirmStore()
+const auth = useAuthStore()
 
 const staff = ref([])
 const cinemas = ref([])
@@ -25,13 +27,14 @@ const isSaving = ref(false)
 const editingId = ref(null)
 const blankForm = () => ({
   fullName: '', username: '', email: '', phone: '',
-  password: '', staffCode: '', cinemaId: '', isActive: true,
+  password: '', staffCode: '', cinemaId: '', isActive: true, role: 'STAFF',
 })
 const form = ref(blankForm())
 
 const roleLabel = (role) => {
   switch ((role || '').toUpperCase()) {
     case 'ADMIN': return 'Quản trị viên'
+    case 'MANAGER': return 'Quản lý cơ sở'
     case 'STAFF': return 'Nhân viên'
     default: return role || 'Nhân viên'
   }
@@ -113,6 +116,7 @@ const openEditModal = (person) => {
     staffCode: person.staffCode || '',
     cinemaId: person.cinemaId ?? '',
     isActive: !!person.isActive,
+    role: (person.role || 'STAFF').toUpperCase(),
   }
   isModalOpen.value = true
 }
@@ -127,6 +131,8 @@ const buildPayload = () => {
     staffCode: form.value.staffCode.trim() || null,
     cinemaId: form.value.cinemaId || null,
   }
+  // Chỉ ADMIN mới được gán vai trò (STAFF/MANAGER); manager tạo NV luôn là STAFF
+  if (auth.isAdmin) base.role = form.value.role
   if (editingId.value) {
     return { ...base, isActive: form.value.isActive }
   }
@@ -137,6 +143,7 @@ const validate = () => {
   if (!form.value.fullName.trim()) { toast.warning('Vui lòng nhập họ tên nhân viên.'); return false }
   if (!form.value.email.trim()) { toast.warning('Vui lòng nhập email.'); return false }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) { toast.warning('Email không hợp lệ.'); return false }
+  if (auth.isAdmin && form.value.role === 'MANAGER' && !form.value.cinemaId) { toast.warning('Quản lý cơ sở phải được gán một cơ sở.'); return false }
   if (!editingId.value) {
     if (!form.value.username.trim()) { toast.warning('Vui lòng nhập tài khoản đăng nhập.'); return false }
     if (!form.value.password || form.value.password.length < 6) { toast.warning('Mật khẩu cần tối thiểu 6 ký tự.'); return false }
@@ -364,11 +371,19 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             <input v-model="form.password" type="password" placeholder="Tối thiểu 6 ký tự" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface" />
           </div>
 
-          <div class="space-y-1.5" :class="editingId ? '' : 'col-span-2'">
+          <div class="space-y-1.5" :class="(editingId || auth.isAdmin) ? '' : 'col-span-2'">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Cơ sở làm việc</label>
             <select v-model="form.cinemaId" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
               <option value="">— Chưa gán cơ sở —</option>
               <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+          </div>
+
+          <div v-if="auth.isAdmin" class="space-y-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vai trò</label>
+            <select v-model="form.role" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+              <option value="STAFF">Nhân viên</option>
+              <option value="MANAGER">Quản lý cơ sở</option>
             </select>
           </div>
 

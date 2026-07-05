@@ -34,7 +34,7 @@ DevCine handles the day-to-day operations of a cinema chain — from movie sched
 
 | Layer    | Stack                                                                         |
 | -------- | ----------------------------------------------------------------------------- |
-| Backend  | Java 21 · Spring Boot 4.0.6 · Spring Security · Spring Data JPA · Hibernate 7 |
+| Backend  | Java 25 · Spring Boot 4.0.6 · Spring Security · Spring Data JPA · Hibernate 7 |
 | Frontend | Vue 3.5 · Vite 8 · Pinia 3 · Vue Router 5 · Tailwind CSS 4                    |
 | Database | PostgreSQL 15+ on Supabase                                                    |
 | Auth     | JWT with HMAC-SHA256                                                          |

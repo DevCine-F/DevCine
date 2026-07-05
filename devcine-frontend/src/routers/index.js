@@ -58,7 +58,7 @@ if (typeof window !== 'undefined') {
 router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('token');
   const userRole = localStorage.getItem('role'); // admin, customer
-  const isAdminRole = ['admin', 'staff'].includes(userRole);
+  const isAdminRole = ['admin', 'manager', 'staff'].includes(userRole);
 
   // Lần điều hướng ĐẦU TIÊN sau khi tải trang: nếu phiên đã cũ/hết hạn thì về landing theo vai trò.
   // Reload liên tục → mốc hoạt động còn mới → không vào nhánh này.
@@ -84,7 +84,7 @@ router.beforeEach(async (to, from, next) => {
 
     const authStore = useAuthStore()
     try {
-      await authStore.fetchPermissions(authStore.isStaff)
+      await authStore.fetchPermissions(!authStore.isAdmin)
     } catch (error) {
       return next({ name: 'admin-login' })
     }

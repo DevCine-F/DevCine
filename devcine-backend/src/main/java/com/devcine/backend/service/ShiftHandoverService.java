@@ -59,7 +59,17 @@ public class ShiftHandoverService {
 
     @Transactional(readOnly = true)
     public List<ShiftHandoverResponse> list() {
-        return shiftHandoverRepository.findAllWithDetails().stream()
+        var handovers = shiftHandoverRepository.findAllWithDetails().stream();
+        // ADMIN xem toàn hệ thống; MANAGER chỉ xem bàn giao của cơ sở mình
+        if (!SecurityUtils.isAdmin()) {
+            Integer myCinemaId = SecurityUtils.getCurrentUserCinemaId();
+            handovers = handovers.filter(h -> {
+                StaffSchedule sched = h.getStaffSchedule();
+                Integer cinemaId = sched != null && sched.getCinema() != null ? sched.getCinema().getId() : null;
+                return myCinemaId != null && myCinemaId.equals(cinemaId);
+            });
+        }
+        return handovers
                 .map(ShiftHandoverResponse::fromEntity)
                 .toList();
     }
@@ -253,9 +263,19 @@ public class ShiftHandoverService {
     }
 
     private void verifyScheduleAccess(StaffSchedule schedule) {
-        if (!SecurityUtils.hasRole("STAFF") || SecurityUtils.isAdmin()) {
+        if (SecurityUtils.isAdmin()) {
             return;
         }
+        // MANAGER: được xử lý bàn giao của mọi ca trong cơ sở mình
+        if (SecurityUtils.isManager()) {
+            Integer myCinemaId = SecurityUtils.getCurrentUserCinemaId();
+            Integer scheduleCinemaId = schedule.getCinema() != null ? schedule.getCinema().getId() : null;
+            if (myCinemaId == null || !myCinemaId.equals(scheduleCinemaId)) {
+                throw new AccessDeniedException("Bạn chỉ quản lý bàn giao ca của cơ sở mình.");
+            }
+            return;
+        }
+        // STAFF: chỉ được bàn giao ca của chính mình
         Integer currentUserId = SecurityUtils.getCurrentUserId();
         Integer scheduleStaffId = schedule.getStaff() != null ? schedule.getStaff().getUserId() : null;
         if (scheduleStaffId == null || !scheduleStaffId.equals(currentUserId)) {

@@ -17,7 +17,11 @@ const shiftStore = useShiftStore()
 
 const isAccountOpen = ref(false)
 const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Quản trị viên')
-const accountRole = computed(() => (authStore.role === 'admin' ? 'Quản trị cấp cao' : 'Nhân viên'))
+const accountRole = computed(() => {
+  if (authStore.role === 'admin') return 'Quản trị cấp cao'
+  if (authStore.role === 'manager') return 'Quản lý cơ sở'
+  return 'Nhân viên'
+})
 
 const shiftStatusText = computed(() => shiftStore.shiftLabel)
 const shiftStatusClass = computed(() => shiftStore.hasActiveShift ? 'border-green-500/25 bg-green-500/10 text-green-300' : 'border-outline-variant/20 bg-surface-container-high text-on-surface-variant')
@@ -170,6 +174,11 @@ onMounted(() => {
         <router-link to="/admin/shift-handover" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">point_of_sale</span>
           <span class="font-semibold text-sm">Bàn giao ca</span>
+        </router-link>
+
+        <router-link to="/admin/approvals" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+          <span class="material-symbols-outlined group-hover:text-primary transition-colors">approval</span>
+          <span class="font-semibold text-sm">Phê duyệt sửa sai</span>
         </router-link>
 
         <!-- ===== HỆ THỐNG ===== -->
