@@ -134,6 +134,7 @@ export const approvalApi = {
   requestFnbVoid: (saleId, reason) => api.post('/staff/approvals/fnb-void', { saleId, reason }),
   requestSeatMove: (bookingSeatId, toSeatId, reason) =>
     api.post('/staff/approvals/seat-move', { bookingSeatId, toSeatId, reason }),
+  seatMoveOptions: (showtimeId) => api.get('/staff/approvals/seat-move/options', { params: { showtimeId } }),
   approve: (id) => api.put(`/staff/approvals/${id}/approve`),
   reject: (id, note) => api.put(`/staff/approvals/${id}/reject`, { note }),
 };

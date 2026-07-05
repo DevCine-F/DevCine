@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { ticketingApi, settingsApi } from '@/api/admin/index'
+import { ticketingApi, settingsApi, approvalApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useShiftStore } from '@/stores/shift'
@@ -380,6 +380,35 @@ const saleMode = ref('TICKET')     // 'TICKET' | 'FNB'
 const fnbStep = ref(1)             // luồng F&B: 1 = chọn món, 2 = thanh toán, 3 = hoàn tất
 const concessionSale = ref(null)   // kết quả đơn F&B đã thanh toán
 
+// Yêu cầu Trưởng ca duyệt HỦY hóa đơn F&B bấm nhầm (nhân viên quầy KHÔNG tự hủy được)
+const showVoidForm = ref(false)
+const voidReason = ref('')
+const voidRequested = ref(false)
+const isRequestingVoid = ref(false)
+
+const resetVoidState = () => {
+  showVoidForm.value = false
+  voidReason.value = ''
+  voidRequested.value = false
+  isRequestingVoid.value = false
+}
+
+const handleRequestVoid = async () => {
+  const saleId = concessionSale.value?.saleId
+  if (!saleId) { showToast('Không xác định được hóa đơn.', 'error'); return }
+  isRequestingVoid.value = true
+  try {
+    await approvalApi.requestFnbVoid(saleId, voidReason.value?.trim() || null)
+    voidRequested.value = true
+    showVoidForm.value = false
+    showToast('Đã gửi yêu cầu hủy — chờ Trưởng ca duyệt.', 'success')
+  } catch (e) {
+    showToast(e?.response?.data?.message || 'Gửi yêu cầu hủy thất bại.', 'error')
+  } finally {
+    isRequestingVoid.value = false
+  }
+}
+
 const switchMode = (mode) => {
   if (saleMode.value === mode) return
   if (mode === 'TICKET' && !canUseTicketing.value) { showToast(shiftStore.lockedMessage('bán vé POS'), 'error'); return }
@@ -396,6 +425,7 @@ const switchMode = (mode) => {
   cardError.value = ''
   completedBooking.value = null
   concessionSale.value = null
+  resetVoidState()
   currentStep.value = 1
   fnbStep.value = 1
   showCashModal.value = false
@@ -538,6 +568,7 @@ const newConcessionSale = () => {
   cardError.value = ''
   concessionSale.value = null
   fnbStep.value = 1
+  resetVoidState()
 }
 
 const fetchData = async () => {
@@ -1667,6 +1698,27 @@ onUnmounted(() => {
               <AppButton variant="outline" size="lg" class="flex items-center gap-3" @click="newConcessionSale">
                 <span class="material-symbols-outlined">add_circle</span> Giao dịch mới
               </AppButton>
+            </div>
+
+            <!-- Bấm nhầm? Yêu cầu Trưởng ca duyệt HỦY hóa đơn (nhân viên quầy không tự hủy được) -->
+            <div class="w-full max-w-md">
+              <div v-if="voidRequested" class="flex items-center justify-center gap-2 text-amber-400 text-sm font-bold">
+                <span class="material-symbols-outlined text-base">hourglass_top</span>
+                Đã gửi yêu cầu hủy — chờ Trưởng ca duyệt
+              </div>
+              <template v-else>
+                <button v-if="!showVoidForm" class="text-xs text-on-surface-variant hover:text-red-400 underline transition-colors" @click="showVoidForm = true">
+                  Bấm nhầm? Yêu cầu hủy hóa đơn
+                </button>
+                <div v-else class="bg-surface-container-high p-4 rounded-2xl border border-red-500/20 space-y-3 text-left">
+                  <p class="text-xs font-black text-red-400 uppercase tracking-wider">Yêu cầu hủy hóa đơn {{ concessionSale?.saleCode }}</p>
+                  <textarea v-model="voidReason" rows="2" placeholder="Lý do (VD: bấm nhầm số lượng, khách chưa trả tiền...)" class="w-full bg-surface-container rounded-xl px-3 py-2 text-sm outline-none"></textarea>
+                  <div class="flex gap-2 justify-end">
+                    <AppButton variant="ghost" size="sm" @click="showVoidForm = false">Đóng</AppButton>
+                    <AppButton variant="primary" size="sm" :loading="isRequestingVoid" @click="handleRequestVoid">Gửi yêu cầu</AppButton>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </template>

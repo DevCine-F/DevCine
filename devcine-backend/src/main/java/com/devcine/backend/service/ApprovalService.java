@@ -162,6 +162,23 @@ public class ApprovalService {
         return approvalRepository.findByStatusOrderByCreatedAtDesc(STATUS_PENDING);
     }
 
+    /** Danh sách ghế ĐÃ BÁN (kèm bookingSeatId) của một suất chiếu — dùng để chọn ghế hỏng khi đổi ghế. */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> seatMoveOptions(Integer showtimeId) {
+        return bookingSeatRepository.findReservedSeatsByShowtime(showtimeId).stream()
+                .filter(bs -> "SOLD".equalsIgnoreCase(bs.getStatus()))
+                .map(bs -> {
+                    java.util.Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("bookingSeatId", bs.getId());
+                    m.put("seatId", bs.getSeat().getId());
+                    m.put("label", seatLabel(bs.getSeat()));
+                    m.put("seatType", bs.getSeat().getSeatType() != null ? bs.getSeat().getSeatType().getName() : null);
+                    m.put("bookingCode", bs.getBooking().getBookingCode());
+                    return m;
+                })
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public List<ApprovalRequest> listMine() {
         Integer userId = SecurityUtils.getCurrentUserId();

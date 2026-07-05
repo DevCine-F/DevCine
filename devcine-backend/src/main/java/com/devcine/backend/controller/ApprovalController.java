@@ -49,6 +49,11 @@ public class ApprovalController {
         return ResponseEntity.ok(approvalService.listMine().stream().map(ApprovalResponse::from).toList());
     }
 
+    @GetMapping("/seat-move/options")
+    public ResponseEntity<List<Map<String, Object>>> seatMoveOptions(@RequestParam Integer showtimeId) {
+        return ResponseEntity.ok(approvalService.seatMoveOptions(showtimeId));
+    }
+
     @PutMapping("/{id}/approve")
     public ResponseEntity<ApprovalResponse> approve(@PathVariable Integer id) {
         return ResponseEntity.ok(ApprovalResponse.from(approvalService.approve(id)));
