@@ -32,7 +32,12 @@ const canViewList = computed(() => auth.isAdmin || auth.hasPermission('staff_man
 const hasSummary = computed(() => !!summary.value)
 const selectedScheduleId = computed(() => route.query.scheduleId ? Number(route.query.scheduleId) : null)
 const currentUserId = computed(() => auth.user?.id || auth.user?.userId || null)
-const canSubmitHandover = computed(() => !receiverError.value && receivers.value.length > 0)
+// Biên bản đang hiệu lực (chưa bị từ chối) của đúng ca đang xem — dùng để ẩn form nộp lại và báo POS đã khóa.
+const activeHandoverForSummary = computed(() => {
+  if (!summary.value) return null
+  return handovers.value.find((h) => Number(h.staffScheduleId) === Number(summary.value.staffScheduleId) && h.status !== 'REJECTED') || null
+})
+const canSubmitHandover = computed(() => !receiverError.value && receivers.value.length > 0 && !activeHandoverForSummary.value)
 
 const money = (value) => new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + 'đ'
 const datetime = (value) => value ? new Date(value).toLocaleString('vi-VN') : '-'
@@ -220,7 +225,16 @@ onMounted(loadData)
           </div>
         </div>
 
-        <form class="rounded-lg border border-outline-variant/10 bg-surface p-6 space-y-4" @submit.prevent="handleSubmit">
+        <div v-if="activeHandoverForSummary" class="rounded-lg border border-green-500/20 bg-green-500/10 p-6 flex flex-col items-center justify-center text-center">
+          <span class="material-symbols-outlined text-4xl text-green-400">lock</span>
+          <p class="mt-3 text-base font-black text-on-surface">Đã gửi bàn giao ca</p>
+          <p class="mt-1 text-sm text-on-surface-variant">POS bán hàng đã khóa để chốt đối soát.</p>
+          <span class="mt-3 rounded-full px-3 py-1 text-[10px] font-black uppercase" :class="statusClass(activeHandoverForSummary.status)">
+            {{ statusLabel(activeHandoverForSummary.status) }}
+          </span>
+        </div>
+
+        <form v-else class="rounded-lg border border-outline-variant/10 bg-surface p-6 space-y-4" @submit.prevent="handleSubmit">
           <h2 class="text-lg font-black text-on-surface">Gửi bàn giao</h2>
           <label class="block">
             <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Người nhận ca sau</span>

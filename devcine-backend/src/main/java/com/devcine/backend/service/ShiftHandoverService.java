@@ -35,6 +35,7 @@ public class ShiftHandoverService {
     private static final String STATUS_REJECTED = "REJECTED";
     private static final String SCHEDULE_APPROVED = "APPROVED";
     private static final String SCHEDULE_IN_PROGRESS = "IN_PROGRESS";
+    private static final String SCHEDULE_COMPLETED = "COMPLETED";
     private static final int HANDOVER_EARLY_MINUTES = 30;
 
     private final ShiftAccessService shiftAccessService;
@@ -153,7 +154,14 @@ public class ShiftHandoverService {
                 .submittedAt(LocalDateTime.now())
                 .note(cleanNote(request.getNote()))
                 .build();
-        return ShiftHandoverResponse.fromEntity(shiftHandoverRepository.save(handover));
+        ShiftHandover saved = shiftHandoverRepository.save(handover);
+
+        // Khóa POS: kết thúc ca ngay khi gửi bàn giao (IN_PROGRESS/APPROVED → COMPLETED) để không
+        // phát sinh thêm doanh thu làm lệch số liệu đối soát. Quyền theo Position bị thu hồi tức thì.
+        schedule.setStatus(SCHEDULE_COMPLETED);
+        staffScheduleRepository.save(schedule);
+
+        return ShiftHandoverResponse.fromEntity(saved);
     }
 
     @Transactional
