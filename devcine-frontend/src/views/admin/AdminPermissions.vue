@@ -598,7 +598,7 @@ const saveChanges = async () => {
     <div class="absolute bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-md border-t border-outline-variant/10 p-6 px-10 flex flex-col md:flex-row justify-between items-center gap-6 z-40 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)]">
       
       <!-- Summary Stats -->
-      <div class="flex items-center gap-6 flex-1 overflow-hidden w-full">
+      <div class="flex items-center gap-6 flex-1 min-w-0 overflow-hidden w-full">
          <div class="flex items-center gap-4 text-on-surface border-r border-outline-variant/10 pr-6 shrink-0">
             <span class="material-symbols-outlined text-4xl text-primary opacity-80">admin_panel_settings</span>
             <div>
@@ -607,7 +607,7 @@ const saveChanges = async () => {
             </div>
          </div>
          
-         <div class="flex gap-3 overflow-x-auto hide-scrollbar shrink-0 w-full max-w-[50vw]">
+         <div class="flex gap-3 overflow-x-auto hide-scrollbar flex-1 min-w-0">
             <div v-if="selectedPermissionsSummary.length === 0" class="text-xs text-on-surface-variant italic py-2">
               Chưa có quyền nào được cấp.
             </div>
