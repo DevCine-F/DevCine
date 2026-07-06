@@ -70,7 +70,49 @@ const permissions = ref({})
 
 const activeRoleData = computed(() => roles.value.find(r => r.id === activeRole.value) || null)
 const isAdminRole = computed(() => (activeRoleData.value?.name || '').toUpperCase() === 'ADMIN')
+const isStaffRole = computed(() => (activeRoleData.value?.name || '').toUpperCase() === 'STAFF')
 const isUserMode = computed(() => configMode.value === 'user')
+
+// Bộ chọn nhanh (Templates) cho STAFF — mô phỏng các vị trí ca thực tế của rạp phim.
+// Chỉ chỉnh TRẦN quyền tĩnh (Role.permissionsMatrix); quyền theo ca (Position) vẫn do check-in quyết định.
+const staffTemplates = [
+  {
+    id: 'ticket',
+    name: 'NV Quầy vé',
+    icon: 'confirmation_number',
+    desc: 'Bán vé, in vé, tra thành viên. Xem phim & lịch chiếu.',
+    matrix: { movies: ['view'], schedules: ['view'], pos_ticketing: ['view', 'add', 'edit'], support: ['view'] }
+  },
+  {
+    id: 'fnb',
+    name: 'NV Bắp nước',
+    icon: 'lunch_dining',
+    desc: 'Bán F&B, kiểm kê kho quầy. Không truy cập đặt vé/sơ đồ ghế.',
+    matrix: { pos_inventory: ['view', 'edit'] }
+  },
+  {
+    id: 'gate',
+    name: 'NV Soát vé & Sảnh',
+    icon: 'qr_code_scanner',
+    desc: 'Xem phim & lịch chiếu. Quét vé do vị trí ca (CHECK_IN) cấp. Chặn sạch tiền & kho.',
+    matrix: { movies: ['view'], schedules: ['view'] }
+  },
+  {
+    id: 'leader',
+    name: 'Trưởng ca',
+    icon: 'shield_person',
+    desc: 'Toàn bộ trần quyền STAFF. Quyền phê duyệt sửa sai kích hoạt qua vị trí ca (SHIFT_LEAD).',
+    matrix: { movies: ['view'], schedules: ['view'], pos_ticketing: ['view', 'add', 'edit'], pos_inventory: ['view', 'edit'], support: ['view', 'edit'] }
+  }
+]
+
+const applyStaffTemplate = (tpl) => {
+  if (!isStaffRole.value || activeRole.value === null) return
+  const cloned = {}
+  Object.entries(tpl.matrix).forEach(([feature, actions]) => { cloned[feature] = [...actions] })
+  permissions.value[activeRole.value] = cloned
+  saveMessage.value = `Đã áp mẫu "${tpl.name}". Kiểm tra lại rồi bấm "Lưu Thay Đổi".`
+}
 const activeUserData = computed(() => staffUsers.value.find(u => u.id === activeUserId.value) || null)
 const activeScopeName = computed(() => {
   if (isUserMode.value) return activeUserData.value?.fullName || 'Chưa chọn nhân viên'
@@ -417,6 +459,26 @@ const saveChanges = async () => {
               ? 'bg-primary text-on-primary shadow-[0_4px_20px_-5px_rgba(245,197,24,0.4)] scale-105 border-transparent' 
               : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high hover:border-outline-variant/30'">
             {{ role.name }}
+          </button>
+        </div>
+      </section>
+
+      <!-- BỘ CHỌN NHANH (TEMPLATES) — chỉ cho STAFF -->
+      <section v-if="!isUserMode && isStaffRole" class="mb-10">
+        <h2 class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] mb-1">Bộ chọn nhanh theo vị trí ca</h2>
+        <p class="text-xs text-on-surface-variant mb-4">Áp sẵn ma trận quyền cho từng kiểu nhân viên. Vẫn cần bấm "Lưu Thay Đổi" để lưu.</p>
+        <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <button
+            v-for="tpl in staffTemplates"
+            :key="tpl.id"
+            type="button"
+            @click="applyStaffTemplate(tpl)"
+            class="text-left bg-surface-container-low border border-outline-variant/10 rounded-xl p-4 hover:border-primary/60 hover:bg-surface-container-high transition-all group">
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">{{ tpl.icon }}</span>
+              <span class="font-black text-sm text-on-surface uppercase tracking-wide">{{ tpl.name }}</span>
+            </div>
+            <p class="text-[11px] text-on-surface-variant leading-snug">{{ tpl.desc }}</p>
           </button>
         </div>
       </section>
