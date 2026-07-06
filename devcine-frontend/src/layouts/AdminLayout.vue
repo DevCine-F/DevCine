@@ -36,6 +36,9 @@ const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); ro
 
 onMounted(() => {
   shiftStore.fetchCurrent(true)
+  // Nạp lại quyền mỗi khi vào layout (F5) để phản ánh ngay thay đổi ma trận quyền do admin cập nhật;
+  // ADMIN toàn quyền nên fetchPermissions tự bỏ qua gọi API.
+  authStore.fetchPermissions(true).catch(() => {})
 })
 </script>
 
@@ -171,12 +174,12 @@ onMounted(() => {
           <span class="font-semibold text-sm">Phân ca làm việc</span>
         </router-link>
 
-        <router-link to="/admin/shift-handover" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="authStore.isStaff || canShow('staff_management')" to="/admin/shift-handover" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">point_of_sale</span>
           <span class="font-semibold text-sm">Bàn giao ca</span>
         </router-link>
 
-        <router-link to="/admin/approvals" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="authStore.isStaff || canShow('staff_management')" to="/admin/approvals" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">approval</span>
           <span class="font-semibold text-sm">Phê duyệt sửa sai</span>
         </router-link>
