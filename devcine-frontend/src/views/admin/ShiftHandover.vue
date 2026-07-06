@@ -187,8 +187,9 @@ onMounted(loadData)
       <div v-for="i in 4" :key="i" class="h-28 rounded-lg bg-surface-container-high animate-pulse"></div>
     </div>
 
-    <div v-else-if="errorMessage" class="rounded-lg border border-red-500/20 bg-red-500/10 p-5 text-sm font-semibold text-red-300">
-      {{ errorMessage }}
+    <div v-else-if="errorMessage" class="rounded-lg border border-red-500/20 bg-red-500/10 p-5 text-sm font-semibold text-red-300 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <span>{{ errorMessage }}</span>
+      <AppButton size="sm" variant="outline" @click="loadData">Thử lại</AppButton>
     </div>
 
     <section v-else-if="hasSummary" class="space-y-5">

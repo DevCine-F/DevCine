@@ -239,8 +239,9 @@ onMounted(fetchShifts)
       </div>
     </section>
 
-    <div v-if="errorMessage" class="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300 font-semibold">
-      {{ errorMessage }}
+    <div v-if="errorMessage" class="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300 font-semibold flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <span>{{ errorMessage }}</span>
+      <AppButton size="sm" variant="outline" @click="fetchShifts">Thử lại</AppButton>
     </div>
 
     <section class="rounded-xl border border-outline-variant/10 bg-surface-container-low overflow-hidden">

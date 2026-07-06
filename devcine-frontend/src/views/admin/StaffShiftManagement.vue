@@ -144,6 +144,16 @@ const handleAddShift = async () => {
 }
 
 const handleApprove = async (id) => {
+  const shift = shifts.value.find(s => s.id === id)
+  const ok = await confirm.show({
+    title: 'Duyệt ca làm việc',
+    message: shift
+      ? `Duyệt ca ${positionLabel(shift.workPosition)} của ${shift.staffName} ngày ${shift.workDate}?`
+      : 'Duyệt ca làm việc này?',
+    confirmText: 'Duyệt',
+    tone: 'primary'
+  })
+  if (!ok) return
   setUpdating(id, true)
   try {
     await staffShiftApi.approve(id)
@@ -230,7 +240,10 @@ onMounted(fetchData)
           <h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Lịch ca ngày {{ selectedDate }}</h2>
           <AppButton v-if="scheduledShifts.length" variant="secondary" size="sm" @click="handleApproveAll">Duyệt tất cả</AppButton>
         </div>
-        <div v-if="errorMessage" class="m-5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400 font-semibold">{{ errorMessage }}</div>
+        <div v-if="errorMessage" class="m-5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400 font-semibold flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <span>{{ errorMessage }}</span>
+          <AppButton size="sm" variant="outline" @click="fetchData">Thử lại</AppButton>
+        </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left min-w-[760px]">
             <thead class="bg-surface-container-high/40 text-[10px] uppercase tracking-widest text-on-surface-variant">
