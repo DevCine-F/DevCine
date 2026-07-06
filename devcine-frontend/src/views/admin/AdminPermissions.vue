@@ -82,8 +82,11 @@ const fetchRoles = async () => {
   try {
     const { data } = await rolePermissionApi.getRoles()
     const list = data.data ?? data
-    // Bỏ vai trò CUSTOMER khỏi màn phân quyền quản trị
-    roles.value = list.filter(r => (r.name || '').toUpperCase() !== 'CUSTOMER')
+    // Bỏ vai trò CUSTOMER + sắp xếp theo thứ tự cấp bậc: ADMIN → MANAGER → STAFF
+    const ROLE_ORDER = { ADMIN: 0, MANAGER: 1, STAFF: 2 }
+    roles.value = list
+      .filter(r => (r.name || '').toUpperCase() !== 'CUSTOMER')
+      .sort((a, b) => (ROLE_ORDER[(a.name || '').toUpperCase()] ?? 99) - (ROLE_ORDER[(b.name || '').toUpperCase()] ?? 99))
     const matrix = {}
     roles.value.forEach(r => {
       matrix[r.id] = r.permissions || {}
@@ -401,19 +404,6 @@ const saveChanges = async () => {
         <h1 class="text-3xl font-extrabold tracking-tight font-headline uppercase">Phân quyền Hệ thống</h1>
         <p class="text-on-surface-variant text-sm mt-1">Quản lý và thiết lập quyền truy cập cho từng nhóm vai trò hệ thống</p>
       </header>
-
-      <!-- CẤP 1: CHỌN VAI TRÒ (PILL BUTTONS) -->
-      <section class="mb-8">
-        <h2 class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] mb-4">1. Chọn phạm vi cấu hình</h2>
-        <div class="flex flex-wrap gap-4">
-          <button type="button" @click="configMode = 'role'" class="px-8 py-4 rounded-full font-bold text-sm uppercase tracking-widest transition-all duration-300 shadow-sm border border-outline-variant/10" :class="!isUserMode ? 'bg-primary text-on-primary shadow-[0_4px_20px_-5px_rgba(245,197,24,0.4)] scale-105 border-transparent' : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high hover:border-outline-variant/30'">
-            Theo vai trò
-          </button>
-          <button type="button" @click="configMode = 'user'" class="px-8 py-4 rounded-full font-bold text-sm uppercase tracking-widest transition-all duration-300 shadow-sm border border-outline-variant/10" :class="isUserMode ? 'bg-primary text-on-primary shadow-[0_4px_20px_-5px_rgba(245,197,24,0.4)] scale-105 border-transparent' : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high hover:border-outline-variant/30'">
-            Theo nhân viên
-          </button>
-        </div>
-      </section>
 
       <section v-if="!isUserMode" class="mb-12">
         <h2 class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] mb-4">1. Chọn Vai trò</h2>
