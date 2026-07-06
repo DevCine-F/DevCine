@@ -8,6 +8,8 @@ export const useAuthStore = defineStore('auth', {
     role: localStorage.getItem('role') || null,
     permissions: JSON.parse(localStorage.getItem('permissions')) || {},
     permissionsLoaded: false,
+    // Buộc đổi mật khẩu ở lần đăng nhập đầu (tài khoản dùng mật khẩu mặc định)
+    mustChangePassword: localStorage.getItem('mustChangePassword') === 'true',
   }),
   getters: {
     isAuthenticated: (state) => !!state.token,
@@ -27,10 +29,16 @@ export const useAuthStore = defineStore('auth', {
       this.role = role;
       this.permissions = {};
       this.permissionsLoaded = role === 'admin';
+      this.mustChangePassword = !!userData.mustChangePassword;
       localStorage.setItem('user', JSON.stringify(userData));
       localStorage.setItem('token', token);
       localStorage.setItem('role', role);
+      localStorage.setItem('mustChangePassword', String(this.mustChangePassword));
       localStorage.removeItem('permissions');
+    },
+    clearMustChangePassword() {
+      this.mustChangePassword = false;
+      localStorage.setItem('mustChangePassword', 'false');
     },
     async fetchPermissions(force = false) {
       if (!this.isAuthenticated || !['admin', 'manager', 'staff'].includes(this.role)) {
@@ -61,10 +69,12 @@ export const useAuthStore = defineStore('auth', {
       this.role = null;
       this.permissions = {};
       this.permissionsLoaded = false;
+      this.mustChangePassword = false;
       localStorage.removeItem('user');
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       localStorage.removeItem('permissions');
+      localStorage.removeItem('mustChangePassword');
     }
   }
 })

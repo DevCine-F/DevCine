@@ -55,9 +55,42 @@ public class StaffController {
     private final PasswordEncoder passwordEncoder;
     private final StaffScheduleService staffScheduleService;
     private final ShiftHandoverService shiftHandoverService;
+    private final com.devcine.backend.service.MailService mailService;
+
+    @org.springframework.beans.factory.annotation.Value("${staff.default-password:DevCine@2026}")
+    private String defaultStaffPassword;
+
+    private static final java.util.regex.Pattern USERNAME_RE = java.util.regex.Pattern.compile("^[a-zA-Z0-9._]{3,30}$");
+    private static final java.util.regex.Pattern STAFFCODE_RE = java.util.regex.Pattern.compile("^[A-Z0-9]{3,15}$");
+    private static final java.util.regex.Pattern EMAIL_RE = java.util.regex.Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    private static final java.util.regex.Pattern PHONE_RE = java.util.regex.Pattern.compile("^(0[35789])[0-9]{8}$");
+    private static final java.util.regex.Pattern NAME_RE = java.util.regex.Pattern.compile("^[\\p{L}\\p{M} ]+$");
 
     private static String str(Object o) {
         return o == null ? "" : o.toString().trim();
+    }
+
+    private void validateFullName(String v) {
+        String s = str(v);
+        if (s.isBlank()) throw new IllegalArgumentException("Vui lòng nhập họ và tên.");
+        if (s.length() < 2 || s.length() > 50) throw new IllegalArgumentException("Họ tên phải từ 2 đến 50 ký tự.");
+        if (!NAME_RE.matcher(s).matches()) throw new IllegalArgumentException("Họ tên chỉ gồm chữ cái và khoảng trắng.");
+    }
+
+    private void validateEmailFormat(String v) {
+        if (!EMAIL_RE.matcher(str(v)).matches()) throw new IllegalArgumentException("Email không đúng định dạng.");
+    }
+
+    private void validatePhoneFormat(Object v) {
+        String s = str(v);
+        if (s.isBlank()) return; // không bắt buộc
+        if (!PHONE_RE.matcher(s).matches())
+            throw new IllegalArgumentException("Số điện thoại không hợp lệ (10 số, bắt đầu 03/05/07/08/09).");
+    }
+
+    private void validateUsernameFormat(String v) {
+        if (!USERNAME_RE.matcher(str(v)).matches())
+            throw new IllegalArgumentException("Tài khoản 3-30 ký tự, chỉ gồm chữ/số/dấu chấm/gạch dưới, không dấu, không khoảng trắng.");
     }
 
     private static String formatStaffCode(int number) {
@@ -84,6 +117,9 @@ public class StaffController {
             return generateStaffCode();
         }
         staffCode = staffCode.toUpperCase();
+        if (!STAFFCODE_RE.matcher(staffCode).matches()) {
+            throw new IllegalArgumentException("Mã nhân viên 3-15 ký tự, chỉ gồm chữ IN HOA và chữ số (VD: DC001).");
+        }
         if (staffRepository.existsByStaffCodeIgnoreCase(staffCode)) {
             throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
         }
@@ -97,6 +133,9 @@ public class StaffController {
             throw new IllegalArgumentException("Mã nhân viên không được để trống.");
         }
         staffCode = staffCode.toUpperCase();
+        if (!STAFFCODE_RE.matcher(staffCode).matches()) {
+            throw new IllegalArgumentException("Mã nhân viên 3-15 ký tự, chỉ gồm chữ IN HOA và chữ số (VD: DC001).");
+        }
         if (!staffCode.equalsIgnoreCase(str(staff.getStaffCode()))
                 && staffRepository.existsByStaffCodeIgnoreCaseAndUserIdNot(staffCode, staff.getUserId())) {
             throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
@@ -247,9 +286,12 @@ public class StaffController {
             String username = str(body.get("username"));
             String email = str(body.get("email"));
             String fullName = str(body.get("fullName"));
-            String password = str(body.get("password"));
-            if (username.isBlank() || email.isBlank() || fullName.isBlank() || password.isBlank())
-                throw new IllegalArgumentException("Vui lòng nhập đầy đủ họ tên, tài khoản, email và mật khẩu.");
+
+            // Validate chi tiết (đồng bộ với realtime validate ở FE)
+            validateFullName(fullName);
+            validateUsernameFormat(username);
+            validateEmailFormat(email);
+            validatePhoneFormat(body.get("phone"));
             if (userRepository.existsByUsername(username))
                 throw new IllegalArgumentException("Tài khoản đăng nhập đã tồn tại.");
             if (userRepository.existsByEmail(email))
@@ -267,14 +309,25 @@ public class StaffController {
             Role role = roleRepository.findByName(roleName)
                     .orElseThrow(() -> new IllegalArgumentException("Hệ thống chưa cấu hình vai trò " + roleName + "."));
 
+            // Vị trí mặc định BẮT BUỘC khi là STAFF; MANAGER/ADMIN bỏ qua (null)
+            String defaultPosition = null;
+            if ("STAFF".equals(roleName)) {
+                defaultPosition = normalizePosition(body.get("defaultPosition"));
+                if (defaultPosition == null) {
+                    throw new IllegalArgumentException("Vui lòng chọn vị trí cho nhân viên.");
+                }
+            }
+
+            // Luôn dùng MẬT KHẨU MẶC ĐỊNH + buộc đổi ở lần đăng nhập đầu tiên
             User u = User.builder()
                     .username(username)
                     .email(email)
                     .fullName(fullName)
                     .phone(str(body.get("phone")).isBlank() ? null : str(body.get("phone")))
-                    .passwordHash(passwordEncoder.encode(password))
+                    .passwordHash(passwordEncoder.encode(defaultStaffPassword))
                     .role(role)
                     .isActive(true)
+                    .mustChangePassword(true)
                     .createdAt(LocalDateTime.now())
                     .build();
             userRepository.save(u);
@@ -290,18 +343,28 @@ public class StaffController {
             }
 
             Cinema staffCinema = resolveCinema(finalCinemaId);
-            if ("MANAGER".equals(roleName) && staffCinema == null) {
-                throw new IllegalArgumentException("Quản lý phải được gán một cơ sở.");
+            // Cơ sở làm việc BẮT BUỘC cho mọi tài khoản nội bộ
+            if (staffCinema == null) {
+                throw new IllegalArgumentException("Vui lòng chọn cơ sở làm việc.");
             }
             Staff staff = Staff.builder()
                     .user(u)
                     .staffCode(resolveStaffCodeForCreate(body.get("staffCode")))
                     .cinema(staffCinema)
-                    .defaultPosition(normalizePosition(body.get("defaultPosition")))
+                    .defaultPosition(defaultPosition)
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
 
-            return ResponseEntity.status(201).body(Map.of("success", true, "userId", u.getId()));
+            // Gửi email cấp tài khoản (best-effort) — KHÔNG chặn tạo nếu SMTP lỗi
+            boolean emailSent = mailService.sendStaffCredentials(email, fullName, username, defaultStaffPassword);
+
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("success", true);
+            resp.put("userId", u.getId());
+            resp.put("username", username);
+            resp.put("defaultPassword", defaultStaffPassword);
+            resp.put("emailSent", emailSent);
+            return ResponseEntity.status(201).body(resp);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         } catch (Exception e) {
@@ -319,13 +382,18 @@ public class StaffController {
             User u = staff.getUser();
             if (u == null) throw new IllegalArgumentException("Nhân viên không hợp lệ.");
 
-            if (body.containsKey("fullName") && !str(body.get("fullName")).isBlank())
+            if (body.containsKey("fullName") && !str(body.get("fullName")).isBlank()) {
+                validateFullName(str(body.get("fullName")));
                 u.setFullName(str(body.get("fullName")));
-            if (body.containsKey("phone"))
+            }
+            if (body.containsKey("phone")) {
+                validatePhoneFormat(body.get("phone"));
                 u.setPhone(str(body.get("phone")).isBlank() ? null : str(body.get("phone")));
+            }
             if (body.containsKey("email")) {
                 String email = str(body.get("email"));
                 if (!email.isBlank() && !email.equalsIgnoreCase(u.getEmail())) {
+                    validateEmailFormat(email);
                     if (userRepository.existsByEmail(email))
                         throw new IllegalArgumentException("Email đã được sử dụng.");
                     u.setEmail(email);

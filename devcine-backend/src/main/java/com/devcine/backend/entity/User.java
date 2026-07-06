@@ -44,6 +44,12 @@ public class User {
     @Builder.Default
     private Boolean isActive = true;
 
+    /** true = tài khoản dùng mật khẩu mặc định, buộc đổi mật khẩu ở lần đăng nhập đầu tiên. */
+    @Column(name = "must_change_password", nullable = false,
+            columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean mustChangePassword = false;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

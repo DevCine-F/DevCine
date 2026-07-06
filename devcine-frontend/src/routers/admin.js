@@ -5,6 +5,11 @@ export default [
     component: () => import('../views/admin/AdminLoginView.vue')
   },
   {
+    path: '/admin/first-login',
+    name: 'admin-first-login',
+    component: () => import('../views/admin/FirstLoginPassword.vue')
+  },
+  {
     path: '/admin',
     component: () => import('../layouts/AdminLayout.vue'),
     children: [

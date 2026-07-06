@@ -75,6 +75,56 @@ public class MailService {
         mailSender.send(message);
     }
 
+    /**
+     * Gửi email cấp tài khoản nhân viên (username + mật khẩu mặc định). Best-effort:
+     * KHÔNG ném lỗi — trả về true nếu gửi thành công, false nếu tắt mail/lỗi SMTP.
+     */
+    public boolean sendStaffCredentials(String toEmail, String fullName, String username, String password) {
+        if (!enabled) {
+            log.info("mail.enabled=false → bỏ qua gửi email cấp tài khoản cho {}", username);
+            return false;
+        }
+        if (toEmail == null || toEmail.isBlank()) {
+            log.warn("Bỏ qua gửi email cấp tài khoản {}: thiếu email", username);
+            return false;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(toEmail);
+            helper.setSubject("DevCine • Tài khoản nhân viên đã được khởi tạo");
+            helper.setText(buildStaffCredentialsHtml(fullName, username, password), true);
+            mailSender.send(message);
+            log.info("Đã gửi email cấp tài khoản tới {} (username {})", toEmail, username);
+            return true;
+        } catch (Exception e) {
+            log.error("Gửi email cấp tài khoản thất bại cho {}: {}", toEmail, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private String buildStaffCredentialsHtml(String fullName, String username, String password) {
+        return """
+                <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
+                  <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
+                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
+                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">Tài khoản nhân viên đã được khởi tạo</div>
+                  </div>
+                  <div style="padding:28px 24px;">
+                    <p style="font-size:15px;color:#111;margin:0 0 14px;">Xin chào <b>%s</b>,</p>
+                    <p style="font-size:14px;color:#555;margin:0 0 18px;">Tài khoản nội bộ DevCine của bạn đã được tạo. Thông tin đăng nhập:</p>
+                    <table style="width:100%%;border-collapse:collapse;background:#fafafa;border-radius:10px;">
+                      <tr><td style="padding:10px 14px;color:#888;font-size:13px;">Tên đăng nhập</td><td style="padding:10px 14px;text-align:right;font-weight:700;color:#111;">%s</td></tr>
+                      <tr><td style="padding:10px 14px;color:#888;font-size:13px;">Mật khẩu mặc định</td><td style="padding:10px 14px;text-align:right;font-weight:700;color:#8a6d00;font-size:15px;">%s</td></tr>
+                    </table>
+                    <p style="font-size:13px;color:#c0392b;margin:18px 0 0;font-weight:600;">Vui lòng đăng nhập và ĐỔI MẬT KHẨU ngay để kích hoạt tài khoản.</p>
+                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời. — DevCine Cinema</p>
+                  </div>
+                </div>
+                """.formatted(escape(fullName), escape(username), escape(password));
+    }
+
     private String buildOtpHtml(String code, int ttlMin) {
         return """
                 <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">

@@ -27,10 +27,69 @@ const isSaving = ref(false)
 const editingId = ref(null)
 const blankForm = () => ({
   fullName: '', username: '', email: '', phone: '',
-  password: '', staffCode: '', cinemaId: '', isActive: true, role: 'STAFF',
+  staffCode: '', cinemaId: '', isActive: true, role: 'STAFF',
   defaultPosition: '',
 })
 const form = ref(blankForm())
+
+// Đánh dấu ô đã tương tác (blur) + đã bấm lưu — để chỉ hiện lỗi khi cần
+const touched = ref({})
+const attempted = ref(false)
+const touch = (field) => { touched.value[field] = true }
+
+// ===== Validate realtime (mirror quy tắc backend) =====
+const RE_USERNAME = /^[a-zA-Z0-9._]{3,30}$/
+const RE_STAFFCODE = /^[A-Z0-9]{3,15}$/
+const RE_EMAIL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+const RE_PHONE = /^(0[35789])[0-9]{8}$/
+const RE_NAME = /^[\p{L}\p{M} ]+$/u
+
+const errFullName = computed(() => {
+  const s = form.value.fullName.trim()
+  if (!s) return 'Vui lòng nhập họ và tên.'
+  if (s.length < 2 || s.length > 50) return 'Họ tên phải từ 2 đến 50 ký tự.'
+  if (!RE_NAME.test(s)) return 'Họ tên chỉ gồm chữ cái và khoảng trắng.'
+  return ''
+})
+const errUsername = computed(() => {
+  if (editingId.value) return '' // username không sửa khi edit
+  const s = form.value.username.trim()
+  if (!s) return 'Vui lòng nhập tài khoản đăng nhập.'
+  if (!RE_USERNAME.test(s)) return '3–30 ký tự; chỉ chữ/số/dấu chấm/gạch dưới, không dấu, không khoảng trắng.'
+  return ''
+})
+const errStaffCode = computed(() => {
+  const s = form.value.staffCode.trim().toUpperCase()
+  if (!s) return '' // để trống -> hệ thống tự sinh
+  if (!RE_STAFFCODE.test(s)) return '3–15 ký tự, chỉ chữ IN HOA & số (VD: DC001).'
+  return ''
+})
+const errEmail = computed(() => {
+  const s = form.value.email.trim()
+  if (!s) return 'Vui lòng nhập email.'
+  if (!RE_EMAIL.test(s)) return 'Email không đúng định dạng, vui lòng kiểm tra lại.'
+  return ''
+})
+const errPhone = computed(() => {
+  const s = form.value.phone.trim()
+  if (!s) return '' // không bắt buộc
+  if (!RE_PHONE.test(s)) return 'Số điện thoại không hợp lệ (10 số, đầu 03/05/07/08/09).'
+  return ''
+})
+const errCinema = computed(() => form.value.cinemaId ? '' : 'Vui lòng chọn cơ sở làm việc.')
+const errPosition = computed(() => {
+  if (form.value.role !== 'STAFF') return ''
+  return form.value.defaultPosition ? '' : 'Vui lòng chọn vị trí cho nhân viên.'
+})
+
+const showErr = (field, err) => ((touched.value[field] || attempted.value) && err) ? err : ''
+const formValid = computed(() =>
+  !errFullName.value && !errUsername.value && !errStaffCode.value &&
+  !errEmail.value && !errPhone.value && !errCinema.value && !errPosition.value
+)
+
+// Kết quả tạo tài khoản (username + mật khẩu mặc định) để admin báo cho nhân viên
+const credsResult = ref(null)
 
 // Vị trí thường trực GỢI Ý (không phải quyền đăng nhập) — dùng mặc định khi xếp ca
 const workPositions = [
@@ -110,9 +169,12 @@ const countByCinema = computed(() => {
 })
 
 // ===== Mở modal =====
+const resetValidationState = () => { touched.value = {}; attempted.value = false }
+
 const openAddModal = () => {
   editingId.value = null
   form.value = blankForm()
+  resetValidationState()
   isModalOpen.value = true
 }
 
@@ -123,13 +185,13 @@ const openEditModal = (person) => {
     username: person.username || '',
     email: person.email || '',
     phone: person.phone || '',
-    password: '',
     staffCode: person.staffCode || '',
     cinemaId: person.cinemaId ?? '',
     isActive: !!person.isActive,
     role: (person.role || 'STAFF').toUpperCase(),
     defaultPosition: person.defaultPosition || '',
   }
+  resetValidationState()
   isModalOpen.value = true
 }
 
@@ -140,27 +202,23 @@ const buildPayload = () => {
     fullName: form.value.fullName.trim(),
     email: form.value.email.trim(),
     phone: form.value.phone.trim() || null,
-    staffCode: form.value.staffCode.trim() || null,
+    staffCode: form.value.staffCode.trim().toUpperCase() || null,
     cinemaId: form.value.cinemaId || null,
-    defaultPosition: form.value.defaultPosition || null,
+    // Vị trí chỉ áp cho STAFF; MANAGER/ADMIN gửi null
+    defaultPosition: form.value.role === 'STAFF' ? (form.value.defaultPosition || null) : null,
   }
   // Chỉ ADMIN mới được gán vai trò (STAFF/MANAGER); manager tạo NV luôn là STAFF
   if (auth.isAdmin) base.role = form.value.role
   if (editingId.value) {
     return { ...base, isActive: form.value.isActive }
   }
-  return { ...base, username: form.value.username.trim(), password: form.value.password }
+  // Tạo mới: KHÔNG gửi mật khẩu — backend dùng mật khẩu mặc định + buộc đổi lần đầu
+  return { ...base, username: form.value.username.trim() }
 }
 
 const validate = () => {
-  if (!form.value.fullName.trim()) { toast.warning('Vui lòng nhập họ tên nhân viên.'); return false }
-  if (!form.value.email.trim()) { toast.warning('Vui lòng nhập email.'); return false }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) { toast.warning('Email không hợp lệ.'); return false }
-  if (auth.isAdmin && form.value.role === 'MANAGER' && !form.value.cinemaId) { toast.warning('Quản lý cơ sở phải được gán một cơ sở.'); return false }
-  if (!editingId.value) {
-    if (!form.value.username.trim()) { toast.warning('Vui lòng nhập tài khoản đăng nhập.'); return false }
-    if (!form.value.password || form.value.password.length < 6) { toast.warning('Mật khẩu cần tối thiểu 6 ký tự.'); return false }
-  }
+  attempted.value = true
+  if (!formValid.value) { toast.warning('Vui lòng kiểm tra lại các trường còn thiếu hoặc chưa hợp lệ.'); return false }
   return true
 }
 
@@ -171,17 +229,29 @@ const saveStaff = async () => {
     if (editingId.value) {
       await staffApi.update(editingId.value, buildPayload())
       toast.success('Cập nhật nhân viên thành công.')
+      await fetchStaff()
+      closeModal()
     } else {
-      await staffApi.create(buildPayload())
+      const res = await staffApi.create(buildPayload())
+      const d = res?.data ?? {}
       toast.success('Thêm nhân viên thành công.')
+      await fetchStaff()
+      closeModal()
+      // Hiện thông tin đăng nhập cho admin (email best-effort đã gửi song song)
+      credsResult.value = { username: d.username, password: d.defaultPassword, emailSent: d.emailSent }
     }
-    await fetchStaff()
-    closeModal()
   } catch (e) {
     toast.error(friendlyError(e, 'Lưu nhân viên thất bại.'))
   } finally {
     isSaving.value = false
   }
+}
+
+const copyCreds = async () => {
+  if (!credsResult.value) return
+  const text = `Tài khoản: ${credsResult.value.username}\nMật khẩu mặc định: ${credsResult.value.password}`
+  try { await navigator.clipboard.writeText(text); toast.success('Đã sao chép thông tin đăng nhập.') }
+  catch { toast.warning('Không sao chép được, vui lòng ghi lại thủ công.') }
 }
 
 const toggleActive = async (person) => {
@@ -355,58 +425,72 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1.5 col-span-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Họ và tên <span class="text-red-500">*</span></label>
-            <input v-model="form.fullName" type="text" placeholder="VD: Trần Quang Huy" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface" />
+            <input v-model="form.fullName" @blur="touch('fullName')" type="text" placeholder="VD: Trần Quang Huy"
+                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+                   :class="showErr('fullName', errFullName) ? 'border-red-500' : 'border-transparent'" />
+            <p v-if="showErr('fullName', errFullName)" class="text-[11px] text-red-400 font-medium">{{ errFullName }}</p>
           </div>
 
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
               Tài khoản đăng nhập <span v-if="!editingId" class="text-red-500">*</span>
             </label>
-            <input v-model="form.username" type="text" :disabled="!!editingId" placeholder="vd: nv_huy"
-                   class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed" />
+            <input v-model="form.username" @blur="touch('username')" type="text" :disabled="!!editingId" placeholder="vd: nv_huy"
+                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed"
+                   :class="showErr('username', errUsername) ? 'border-red-500' : 'border-transparent'" />
+            <p v-if="showErr('username', errUsername)" class="text-[11px] text-red-400 font-medium">{{ errUsername }}</p>
           </div>
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã nhân viên</label>
-            <input v-model.trim="form.staffCode" type="text" placeholder="VD: DC001"
-                   class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface uppercase" />
+            <input v-model.trim="form.staffCode" @blur="touch('staffCode')" type="text" placeholder="VD: DC001"
+                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface uppercase"
+                   :class="showErr('staffCode', errStaffCode) ? 'border-red-500' : 'border-transparent'" />
+            <p v-if="showErr('staffCode', errStaffCode)" class="text-[11px] text-red-400 font-medium">{{ errStaffCode }}</p>
           </div>
 
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Email <span class="text-red-500">*</span></label>
-            <input v-model="form.email" type="email" placeholder="email@devcine.com" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface" />
+            <input v-model="form.email" @blur="touch('email')" type="email" placeholder="email@devcine.com"
+                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+                   :class="showErr('email', errEmail) ? 'border-red-500' : 'border-transparent'" />
+            <p v-if="showErr('email', errEmail)" class="text-[11px] text-red-400 font-medium">{{ errEmail }}</p>
           </div>
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số điện thoại</label>
-            <input v-model="form.phone" type="text" placeholder="09xxxxxxxx" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface" />
+            <input v-model="form.phone" @blur="touch('phone')" type="text" placeholder="09xxxxxxxx"
+                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+                   :class="showErr('phone', errPhone) ? 'border-red-500' : 'border-transparent'" />
+            <p v-if="showErr('phone', errPhone)" class="text-[11px] text-red-400 font-medium">{{ errPhone }}</p>
           </div>
 
-          <div v-if="!editingId" class="space-y-1.5 col-span-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mật khẩu <span class="text-red-500">*</span></label>
-            <input v-model="form.password" type="password" placeholder="Tối thiểu 6 ký tự" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface" />
-          </div>
-
-          <div class="space-y-1.5" :class="(editingId || auth.isAdmin) ? '' : 'col-span-2'">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Cơ sở làm việc</label>
-            <select v-model="form.cinemaId" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Cơ sở làm việc <span class="text-red-500">*</span></label>
+            <select v-model="form.cinemaId" @blur="touch('cinemaId')"
+                    class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+                    :class="showErr('cinemaId', errCinema) ? 'border-red-500' : 'border-transparent'">
               <option value="">— Chưa gán cơ sở —</option>
               <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
+            <p v-if="showErr('cinemaId', errCinema)" class="text-[11px] text-red-400 font-medium">{{ errCinema }}</p>
           </div>
 
           <div v-if="auth.isAdmin" class="space-y-1.5">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vai trò</label>
-            <select v-model="form.role" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vai trò <span class="text-red-500">*</span></label>
+            <select v-model="form.role" class="w-full bg-surface-container-high border border-transparent text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
               <option value="STAFF">Nhân viên</option>
               <option value="MANAGER">Quản lý cơ sở</option>
             </select>
           </div>
 
-          <div v-if="form.role !== 'MANAGER'" class="space-y-1.5">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vị trí mặc định</label>
-            <select v-model="form.defaultPosition" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+          <div v-if="form.role === 'STAFF'" class="space-y-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vị trí <span class="text-red-500">*</span></label>
+            <select v-model="form.defaultPosition" @blur="touch('defaultPosition')"
+                    class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+                    :class="showErr('defaultPosition', errPosition) ? 'border-red-500' : 'border-transparent'">
               <option v-for="p in workPositions" :key="p.value" :value="p.value">{{ p.label }}</option>
             </select>
-            <p class="text-[10px] text-on-surface-variant/70">Gợi ý khi xếp ca — không phải quyền đăng nhập.</p>
+            <p v-if="showErr('defaultPosition', errPosition)" class="text-[11px] text-red-400 font-medium">{{ errPosition }}</p>
+            <p v-else class="text-[10px] text-on-surface-variant/70">Gợi ý khi xếp ca — không phải quyền đăng nhập.</p>
           </div>
 
           <div v-if="editingId" class="space-y-1.5">
@@ -422,14 +506,35 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
         </div>
 
         <p v-if="!editingId" class="text-[11px] text-on-surface-variant/70">
-          Nhân viên sẽ đăng nhập trang quản trị bằng tài khoản &amp; mật khẩu trên, với vai trò <b>Nhân viên (STAFF)</b>. Nếu bỏ trống mã nhân viên, hệ thống sẽ tự tạo.
+          Hệ thống sẽ tạo tài khoản với <b>mật khẩu mặc định</b> và gửi email cho nhân viên; họ phải <b>đổi mật khẩu ở lần đăng nhập đầu</b> để kích hoạt. Bỏ trống mã nhân viên thì hệ thống tự tạo.
         </p>
 
         <div class="flex justify-end gap-3 pt-2 border-t border-outline-variant/10">
           <button @click="closeModal" class="px-5 py-2.5 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded hover:bg-white/10 transition-all">Huỷ</button>
-          <button @click="saveStaff" :disabled="isSaving" class="px-5 py-2.5 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all disabled:opacity-60">
+          <button @click="saveStaff" :disabled="isSaving || !formValid" class="px-5 py-2.5 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {{ isSaving ? 'Đang lưu...' : (editingId ? 'Lưu thay đổi' : 'Thêm nhân viên') }}
           </button>
+        </div>
+      </div>
+    </AppModal>
+
+    <!-- Kết quả tạo tài khoản: hiển thị thông tin đăng nhập cho admin -->
+    <AppModal :show="!!credsResult" title="Tài khoản đã được tạo" @close="credsResult = null">
+      <div v-if="credsResult" class="space-y-4">
+        <p class="text-sm text-on-surface-variant">
+          Nhân viên đăng nhập bằng thông tin dưới đây và sẽ được yêu cầu <b>đổi mật khẩu ở lần đầu</b>.
+        </p>
+        <div class="bg-surface-container-high rounded-xl p-4 space-y-2">
+          <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Tài khoản</span><span class="font-black text-on-surface">{{ credsResult.username }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Mật khẩu mặc định</span><span class="font-black text-primary font-mono">{{ credsResult.password }}</span></div>
+        </div>
+        <div class="flex items-center gap-2 text-xs" :class="credsResult.emailSent ? 'text-green-400' : 'text-amber-400'">
+          <span class="material-symbols-outlined text-base">{{ credsResult.emailSent ? 'mark_email_read' : 'unsubscribe' }}</span>
+          {{ credsResult.emailSent ? 'Đã gửi email thông tin đăng nhập cho nhân viên.' : 'Chưa gửi được email — vui lòng báo trực tiếp thông tin trên cho nhân viên.' }}
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button @click="copyCreds" class="px-4 py-2 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded hover:bg-white/10 transition-all">Sao chép</button>
+          <button @click="credsResult = null" class="px-5 py-2 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all">Đã hiểu</button>
         </div>
       </div>
     </AppModal>

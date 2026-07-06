@@ -82,6 +82,15 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'admin-login' });
     }
 
+    // Buộc đổi mật khẩu lần đầu: khóa mọi route khác, ép vào màn đổi mật khẩu
+    const mustChangePassword = localStorage.getItem('mustChangePassword') === 'true';
+    if (mustChangePassword && to.path !== '/admin/first-login') {
+      return next('/admin/first-login');
+    }
+    if (!mustChangePassword && to.path === '/admin/first-login') {
+      return next('/admin/dashboard');
+    }
+
     const authStore = useAuthStore()
     try {
       await authStore.fetchPermissions(!authStore.isAdmin)

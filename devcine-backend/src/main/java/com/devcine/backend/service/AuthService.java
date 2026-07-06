@@ -111,16 +111,14 @@ public class AuthService {
         }
 
         log.info("User logged in: {}", user.getUsername());
-        return Map.of(
-                "token", token,
-                "user", Map.of(
-                        "id", user.getId(),
-                        "username", user.getUsername(),
-                        "email", user.getEmail(),
-                        "fullName", user.getFullName(),
-                        "role", role
-                )
-        );
+        Map<String, Object> userMap = new HashMap<>();
+        userMap.put("id", user.getId());
+        userMap.put("username", user.getUsername());
+        userMap.put("email", user.getEmail());
+        userMap.put("fullName", user.getFullName());
+        userMap.put("role", role);
+        userMap.put("mustChangePassword", Boolean.TRUE.equals(user.getMustChangePassword()));
+        return Map.of("token", token, "user", userMap);
     }
 
     @Transactional(readOnly = true)
@@ -172,6 +170,8 @@ public class AuthService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        // Đổi mật khẩu thành công → giải phóng cờ buộc đổi lần đầu (kích hoạt tài khoản)
+        user.setMustChangePassword(false);
         userRepository.save(user);
         log.info("Password changed for user: {}", user.getUsername());
     }

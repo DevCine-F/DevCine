@@ -79,7 +79,15 @@ const loginAsAdmin = async (e) => {
     themeStore.triggerWarp()
     await new Promise(resolve => setTimeout(resolve, 800))
 
-    authStore.login({ id: userData.id, username: userData.username, email: userData.email, fullName: userData.fullName }, token, role)
+    authStore.login({ id: userData.id, username: userData.username, email: userData.email, fullName: userData.fullName, mustChangePassword: userData.mustChangePassword }, token, role)
+
+    // Tài khoản dùng mật khẩu mặc định → buộc đổi mật khẩu trước khi vào hệ thống
+    if (authStore.mustChangePassword) {
+      toast.info('Vui lòng đổi mật khẩu để kích hoạt tài khoản.')
+      router.push('/admin/first-login')
+      return
+    }
+
     try {
       await authStore.fetchPermissions(true)
     } catch {
