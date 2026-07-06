@@ -34,6 +34,7 @@ public class ShiftHandoverService {
     private static final String STATUS_CONFIRMED = "CONFIRMED";
     private static final String STATUS_REJECTED = "REJECTED";
     private static final String SCHEDULE_APPROVED = "APPROVED";
+    private static final String SCHEDULE_IN_PROGRESS = "IN_PROGRESS";
     private static final int HANDOVER_EARLY_MINUTES = 30;
 
     private final ShiftAccessService shiftAccessService;
@@ -284,8 +285,11 @@ public class ShiftHandoverService {
     }
 
     private void validateScheduleReadyForHandover(StaffSchedule schedule) {
-        if (!SCHEDULE_APPROVED.equalsIgnoreCase(schedule.getStatus())) {
-            throw new IllegalArgumentException("Chi ca da duyet moi duoc ban giao.");
+        String scheduleStatus = schedule.getStatus();
+        // Ca đã Check-in (IN_PROGRESS) hoặc đã duyệt (APPROVED, tương thích luồng cũ) mới được bàn giao.
+        if (!SCHEDULE_APPROVED.equalsIgnoreCase(scheduleStatus)
+                && !SCHEDULE_IN_PROGRESS.equalsIgnoreCase(scheduleStatus)) {
+            throw new IllegalArgumentException("Chi ca da duyet hoac dang lam viec moi duoc ban giao.");
         }
         var shift = schedule.getShift();
         if (shift == null || shift.getEndTime() == null) {

@@ -63,6 +63,10 @@ public interface StaffScheduleRepository extends JpaRepository<StaffSchedule, In
             @Param("startAt") LocalDateTime startAt,
             @Param("endAt") LocalDateTime endAt);
 
+    /**
+     * Ca ĐANG HOẠT ĐỘNG của một nhân viên = ca đã Check-in (status IN_PROGRESS).
+     * Đây là nguồn kích hoạt quyền theo Position: chưa Check-in ⇒ không có ca hoạt động ⇒ khóa mọi chức năng quầy.
+     */
     @Query("""
             SELECT ss FROM StaffSchedule ss
             JOIN FETCH ss.staff s
@@ -71,14 +75,10 @@ public interface StaffScheduleRepository extends JpaRepository<StaffSchedule, In
             JOIN FETCH ss.shift sh
             LEFT JOIN FETCH ss.cinema c
             WHERE s.userId = :staffId
-              AND ss.status = 'APPROVED'
-              AND sh.startTime <= :now
-              AND sh.endTime >= :now
+              AND ss.status = 'IN_PROGRESS'
             ORDER BY sh.startTime DESC
             """)
-    List<StaffSchedule> findCurrentApprovedSchedules(
-            @Param("staffId") Integer staffId,
-            @Param("now") LocalDateTime now);
+    List<StaffSchedule> findActiveSchedulesForUser(@Param("staffId") Integer staffId);
 
     @Query("""
             SELECT ss FROM StaffSchedule ss

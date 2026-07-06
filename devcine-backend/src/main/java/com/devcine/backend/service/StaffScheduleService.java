@@ -27,6 +27,8 @@ public class StaffScheduleService {
 
     private static final String STATUS_SCHEDULED = "SCHEDULED";
     private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_REJECTED = "REJECTED";
 
     private final StaffRepository staffRepository;
@@ -133,13 +135,58 @@ public class StaffScheduleService {
         return StaffShiftResponse.fromEntity(staffScheduleRepository.save(schedule));
     }
 
+    /**
+     * Vào ca (Check-in): nhân viên tự kích hoạt ca ĐÃ DUYỆT của mình để mở quyền theo Position.
+     * APPROVED → IN_PROGRESS. Chỉ nhân viên (STAFF) và chỉ ca của chính mình.
+     */
+    @Transactional
+    public StaffShiftResponse checkIn(Integer id) {
+        if (!SecurityUtils.hasRole("STAFF") || SecurityUtils.isAdmin()) {
+            throw new AccessDeniedException("Chỉ nhân viên mới có thể vào ca.");
+        }
+        StaffSchedule schedule = requireOwnSchedule(id);
+        if (!STATUS_APPROVED.equalsIgnoreCase(schedule.getStatus())) {
+            throw new IllegalArgumentException("Chỉ ca đã được duyệt mới có thể vào ca.");
+        }
+        Shift shift = schedule.getShift();
+        if (shift == null || shift.getEndTime() == null) {
+            throw new IllegalArgumentException("Ca làm việc chưa có giờ hợp lệ.");
+        }
+        if (LocalDateTime.now().isAfter(shift.getEndTime())) {
+            throw new IllegalArgumentException("Ca làm việc đã kết thúc, không thể vào ca.");
+        }
+        Integer currentUserId = SecurityUtils.getCurrentUserId();
+        if (!staffScheduleRepository.findActiveSchedulesForUser(currentUserId).isEmpty()) {
+            throw new IllegalArgumentException("Bạn đang trong một ca làm việc khác. Hãy kết ca trước khi vào ca mới.");
+        }
+        schedule.setStatus(STATUS_IN_PROGRESS);
+        return StaffShiftResponse.fromEntity(staffScheduleRepository.save(schedule));
+    }
+
+    /**
+     * Kết ca (Check-out): đóng ca đang chạy, thu hồi quyền theo Position.
+     * IN_PROGRESS → COMPLETED. Chỉ ca của chính nhân viên.
+     */
+    @Transactional
+    public StaffShiftResponse checkOut(Integer id) {
+        if (!SecurityUtils.hasRole("STAFF") || SecurityUtils.isAdmin()) {
+            throw new AccessDeniedException("Chỉ nhân viên mới có thể kết ca.");
+        }
+        StaffSchedule schedule = requireOwnSchedule(id);
+        if (!STATUS_IN_PROGRESS.equalsIgnoreCase(schedule.getStatus())) {
+            throw new IllegalArgumentException("Chỉ ca đang làm việc mới có thể kết ca.");
+        }
+        schedule.setStatus(STATUS_COMPLETED);
+        return StaffShiftResponse.fromEntity(staffScheduleRepository.save(schedule));
+    }
+
     @Transactional(readOnly = true)
     public Optional<StaffShiftResponse> getCurrentShift() {
         Integer currentUserId = SecurityUtils.getCurrentUserId();
         if (currentUserId == null) {
             return Optional.empty();
         }
-        return staffScheduleRepository.findCurrentApprovedSchedules(currentUserId, LocalDateTime.now()).stream()
+        return staffScheduleRepository.findActiveSchedulesForUser(currentUserId).stream()
                 .findFirst()
                 .map(StaffShiftResponse::fromEntity);
     }
@@ -153,6 +200,18 @@ public class StaffScheduleService {
             if (!staffCinemaId.equals(scheduleCinemaId)) {
                 throw new IllegalArgumentException("Bạn chỉ có thể xử lý ca của cơ sở mình");
             }
+        }
+        return schedule;
+    }
+
+    /** Nạp ca và bắt buộc ca thuộc về chính nhân viên đang đăng nhập (dùng cho Check-in/Check-out). */
+    private StaffSchedule requireOwnSchedule(Integer id) {
+        StaffSchedule schedule = staffScheduleRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lịch làm việc"));
+        Integer currentUserId = SecurityUtils.getCurrentUserId();
+        Integer scheduleStaffId = schedule.getStaff() != null ? schedule.getStaff().getUserId() : null;
+        if (currentUserId == null || !currentUserId.equals(scheduleStaffId)) {
+            throw new AccessDeniedException("Bạn chỉ có thể thao tác trên ca của chính mình.");
         }
         return schedule;
     }
@@ -186,7 +245,7 @@ public class StaffScheduleService {
             return null;
         }
         String value = status.trim().toUpperCase();
-        if (!List.of(STATUS_SCHEDULED, STATUS_APPROVED, STATUS_REJECTED).contains(value)) {
+        if (!List.of(STATUS_SCHEDULED, STATUS_APPROVED, STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_REJECTED).contains(value)) {
             throw new IllegalArgumentException("Trạng thái ca không hợp lệ");
         }
         return value;

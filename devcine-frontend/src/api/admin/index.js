@@ -108,6 +108,8 @@ export const staffShiftApi = {
   create: (data) => api.post('/staff/shifts', data),
   approve: (id) => api.put(`/staff/shifts/${id}/approve`),
   reject: (id) => api.put(`/staff/shifts/${id}/reject`),
+  checkIn: (id) => api.put(`/staff/shifts/${id}/check-in`),
+  checkOut: (id) => api.put(`/staff/shifts/${id}/check-out`),
 };
 
 export const shiftHandoverApi = {

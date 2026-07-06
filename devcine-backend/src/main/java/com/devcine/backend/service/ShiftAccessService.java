@@ -8,7 +8,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -32,7 +31,7 @@ public class ShiftAccessService {
         if (userId == null) {
             return Optional.empty();
         }
-        return staffScheduleRepository.findCurrentApprovedSchedules(userId, LocalDateTime.now()).stream().findFirst();
+        return staffScheduleRepository.findActiveSchedulesForUser(userId).stream().findFirst();
     }
 
     @Transactional(readOnly = true)

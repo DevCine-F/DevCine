@@ -524,6 +524,19 @@ public class StaffController {
         return ResponseEntity.ok(staffScheduleService.rejectShift(id));
     }
 
+    // Vào ca / Kết ca (nhân viên tự thao tác trên ca của chính mình để bật/tắt quyền theo Position)
+    @PutMapping("/shifts/{id}/check-in")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<?> checkInShift(@PathVariable Integer id) {
+        return ResponseEntity.ok(staffScheduleService.checkIn(id));
+    }
+
+    @PutMapping("/shifts/{id}/check-out")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<?> checkOutShift(@PathVariable Integer id) {
+        return ResponseEntity.ok(staffScheduleService.checkOut(id));
+    }
+
     @GetMapping("/shifts/all")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getAllShiftTemplates() {
