@@ -6,6 +6,10 @@ import com.devcine.backend.service.BookingService;
 import com.devcine.backend.service.ConcessionService;
 import com.devcine.backend.service.PosHoldService;
 import com.devcine.backend.service.ShiftAccessService;
+import com.devcine.backend.service.VoucherService;
+import com.devcine.backend.dto.request.SeatSelectionDTO;
+
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +42,7 @@ public class TicketingController {
     private final BookingRepository bookingRepository;
     private final TicketRepository ticketRepository;
     private final ShiftAccessService shiftAccessService;
+    private final VoucherService voucherService;
 
     // Suất chiếu cho POS: từ đầu ngày hôm nay trở đi (chưa diễn ra hoặc đang trong ngày), sắp xếp tăng dần
     @GetMapping("/showtimes")
@@ -110,6 +115,16 @@ public class TicketingController {
             Integer customerId = body.get("customerId") != null
                     ? Integer.parseInt(body.get("customerId").toString()) : null;
 
+            // Loại vé/đối tượng theo từng ghế (ưu tiên hơn seatIds; BookingService fallback ADULT nếu thiếu)
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> selRaw = (List<Map<String, Object>>) body.get("seatSelections");
+            List<SeatSelectionDTO> seatSelections = selRaw == null ? null : selRaw.stream()
+                    .map(m -> SeatSelectionDTO.builder()
+                            .seatId(Integer.parseInt(m.get("seatId").toString()))
+                            .ticketType(m.get("ticketType") != null ? m.get("ticketType").toString() : "ADULT")
+                            .build())
+                    .collect(Collectors.toList());
+
             // F&B / combo kèm theo (nếu có)
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> fnbsRaw = (List<Map<String, Object>>) body.get("fnbs");
@@ -120,17 +135,33 @@ public class TicketingController {
                             .build())
                     .collect(Collectors.toList());
 
+            // Voucher: nhận voucherId trực tiếp, hoặc voucherCode -> tự lưu/áp cho khách (cần customerId)
+            Integer voucherId = body.get("voucherId") != null
+                    ? Integer.parseInt(body.get("voucherId").toString()) : null;
+            String voucherCode = body.get("voucherCode") != null ? body.get("voucherCode").toString().trim() : null;
+            if (voucherId == null && voucherCode != null && !voucherCode.isBlank() && customerId != null) {
+                voucherId = voucherService.getOrClaimForCheckout(customerId, voucherCode).getId();
+            }
+
             com.devcine.backend.dto.request.BookingRequestDTO req =
                     com.devcine.backend.dto.request.BookingRequestDTO.builder()
                             .showtimeId(showtimeId)
                             .seatIds(seatIds)
+                            .seatSelections(seatSelections)
                             .fnbs(fnbs)
                             .customerId(customerId)
+                            .voucherId(voucherId)
                             .paymentMethod(paymentMethod)
                             .build();
 
             Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule);
             bookingService.completePayment(booking.getId(), paymentMethod);
+
+            // Số liệu tiền để POS hiển thị đúng giảm giá (voucher đánh dấu USED trong completePayment)
+            BigDecimal totalAmount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
+            BigDecimal finalAmount = booking.getFinalPrice() != null ? booking.getFinalPrice() : totalAmount;
+            BigDecimal discountAmount = totalAmount.subtract(finalAmount);
+            if (discountAmount.signum() < 0) discountAmount = BigDecimal.ZERO;
 
             // Vé đã được sinh trong completePayment — lấy QR + nhãn ghế để in hoá đơn/soát vé tại cổng
             List<Map<String, Object>> tickets = ticketRepository.findAllByBookingIdWithSeat(booking.getId())
@@ -149,7 +180,10 @@ public class TicketingController {
                     "bookingId", booking.getId(),
                     "bookingCode", booking.getBookingCode(),
                     "message", "Thanh toán thành công",
-                    "tickets", tickets
+                    "tickets", tickets,
+                    "totalAmount", totalAmount,
+                    "discountAmount", discountAmount,
+                    "finalAmount", finalAmount
             ));
         } catch (AccessDeniedException e) {
             throw e;

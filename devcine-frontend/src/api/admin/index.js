@@ -86,6 +86,9 @@ export const ticketingApi = {
   concession: (payload) => api.post('/ticketing/concession', payload),
   hold: (payload) => api.post('/ticketing/hold', payload),
   releaseHold: (bookingId) => api.post(`/ticketing/hold/${bookingId}/release`),
+  // Voucher tại quầy: danh sách voucher của khách + áp mã (tự claim nếu mã công khai hợp lệ)
+  customerVouchers: (customerId) => api.get(`/vouchers/customer/${customerId}/all`),
+  applyVoucher: (customerId, code) => api.post('/vouchers/apply', null, { params: { customerId, code } }),
 };
 
 export const reviewAdminApi = {

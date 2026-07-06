@@ -27,6 +27,17 @@ const paymentMethod = ref('CASH')
 const isPaying = ref(false)
 const completedBooking = ref(null)
 
+// Bảng giá theo đối tượng của suất đang chọn (tên loại ghế -> { mã đối tượng -> giá }) + nhãn đối tượng
+const priceTable = ref({})
+const audienceLabels = ref({})
+
+// Voucher tại quầy — chỉ dùng sau khi tra cứu thành viên (voucher gắn với khách hàng)
+const voucherCodeInput = ref('')
+const appliedVoucher = ref(null) // { id, code, discountType, discountValue }
+const ownedVouchers = ref([])
+const isApplyingVoucher = ref(false)
+const voucherError = ref('')
+
 // Thanh toán: tài khoản nhận tiền (QR) + modal tiền mặt / QR
 const bankInfo = ref({ code: '', name: '', accountNo: '', accountName: '' })
 const showCashModal = ref(false)
@@ -49,6 +60,21 @@ const showToast = (message, type = 'success') => {
 }
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
+
+const DEFAULT_AUDIENCE_LABELS = { ADULT: 'Người lớn', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }
+// Lưu bảng giá + nhãn đối tượng từ response ghế để đổi loại vé không cần gọi lại server
+const captureSeatMeta = (data) => {
+  if (data && data.priceTable) priceTable.value = data.priceTable
+  if (data && data.audienceLabels && Object.keys(data.audienceLabels).length) audienceLabels.value = data.audienceLabels
+  if (!Object.keys(audienceLabels.value).length) audienceLabels.value = DEFAULT_AUDIENCE_LABELS
+}
+// Giá 1 ghế theo loại vé đang chọn (fallback về giá ADULT sẵn có nếu thiếu bảng giá)
+const priceOf = (seat) => {
+  const t = seat.ticketType || 'ADULT'
+  const byType = priceTable.value[seat.seatType]
+  const p = byType ? byType[t] : null
+  return Number(p != null ? p : (seat.price || 0))
+}
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 
@@ -277,13 +303,14 @@ const restoreHeldOrder = async (o) => {
   try {
     const { data } = await ticketingApi.getSeats(o.showtime.id)
     seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
+    captureSeatMeta(data)
     // Quét lại tính khả dụng theo thời gian thực: ghế đã bị bán trong lúc chờ sẽ bị loại,
     // GIỮ LẠI phần bắp nước hợp lệ; chỉ phần vé trùng bị gỡ khỏi biên lai tạm tính.
     const byId = new Map(seatData.value.seats.map(s => [s.seatId, s]))
     const restored = []; const lost = []
     for (const s of (o.seats || [])) {
       const cur = byId.get(s.seatId)
-      if (cur && cur.status === 'AVAILABLE') restored.push(cur); else lost.push(s)
+      if (cur && cur.status === 'AVAILABLE') { cur.ticketType = s.ticketType || 'ADULT'; restored.push(cur) } else lost.push(s)
     }
     selectedSeats.value = restored
     if (lost.length) {
@@ -373,6 +400,7 @@ const softReset = () => {
   showCashModal.value = false
   showQrModal.value = false
   cashGiven.value = 0
+  clearVoucherState()
 }
 
 // ===== Hai luồng bán: TICKET (vé + F&B) và FNB (bán nhanh bắp nước độc lập) =====
@@ -426,6 +454,7 @@ const switchMode = (mode) => {
   completedBooking.value = null
   concessionSale.value = null
   resetVoidState()
+  clearVoucherState()
   currentStep.value = 1
   fnbStep.value = 1
   showCashModal.value = false
@@ -610,6 +639,7 @@ const selectShowtime = async (st) => {
   try {
     const { data } = await ticketingApi.getSeats(st.id)
     seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
+    captureSeatMeta(data)
     startSeatPolling()
   } catch (err) {
     showToast('Không tải được sơ đồ ghế.', 'error')
@@ -639,6 +669,7 @@ const toggleSeat = (seat) => {
       showToast(`Ghế ${seat.rowChar + seat.colNum} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
       return
     }
+    seat.ticketType = seat.ticketType || 'ADULT'
     selectedSeats.value.push(seat)
     seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
   }
@@ -683,9 +714,20 @@ const changeComboQty = (item, delta) => {
   }
 }
 
-const seatTotal = computed(() => selectedSeats.value.reduce((a, s) => a + Number(s.price || 0), 0))
+const seatTotal = computed(() => selectedSeats.value.reduce((a, s) => a + priceOf(s), 0))
 const comboTotal = computed(() => selectedCombos.value.reduce((a, c) => a + c.price * c.quantity, 0))
 const totalPrice = computed(() => seatTotal.value + comboTotal.value)
+
+// Giảm giá voucher (xem trước phía client; số chính thức do BE tính lại khi thanh toán)
+const discountAmount = computed(() => {
+  if (!appliedVoucher.value) return 0
+  const v = appliedVoucher.value
+  const base = totalPrice.value
+  if (String(v.discountType).toUpperCase() === 'PERCENTAGE') return Math.round(base * Number(v.discountValue || 0) / 100)
+  return Math.min(Number(v.discountValue || 0), base)
+})
+// Số tiền khách thực trả sau giảm giá — dùng cho tiền mặt/QR/tiền thối
+const payableTotal = computed(() => Math.max(0, totalPrice.value - discountAmount.value))
 
 const seatTypeBreakdown = computed(() => {
   const map = {}
@@ -693,7 +735,7 @@ const seatTypeBreakdown = computed(() => {
     const key = s.seatType
     if (!map[key]) map[key] = { type: key, count: 0, subtotal: 0 }
     map[key].count++
-    map[key].subtotal += Number(s.price || 0)
+    map[key].subtotal += priceOf(s)
   }
   return Object.values(map)
 })
@@ -712,17 +754,17 @@ const cashGivenDisplay = computed({
   },
 })
 
-const changeDue = computed(() => Math.max(0, Number(cashGiven.value || 0) - totalPrice.value))
-const canConfirmCash = computed(() => Number(cashGiven.value || 0) >= totalPrice.value && totalPrice.value > 0)
+const changeDue = computed(() => Math.max(0, Number(cashGiven.value || 0) - payableTotal.value))
+const canConfirmCash = computed(() => Number(cashGiven.value || 0) >= payableTotal.value && payableTotal.value > 0)
 // Thông điệp validate dưới ô nhập
 const cashError = computed(() => {
   const given = Number(cashGiven.value || 0)
   if (given === 0) return 'Vui lòng nhập số tiền khách đưa.'
-  if (given < totalPrice.value) return `Tiền khách đưa chưa đủ (còn thiếu ${fmt(totalPrice.value - given)}đ).`
+  if (given < payableTotal.value) return `Tiền khách đưa chưa đủ (còn thiếu ${fmt(payableTotal.value - given)}đ).`
   return ''
 })
 const cashSuggestions = computed(() => {
-  const t = totalPrice.value
+  const t = payableTotal.value
   if (t <= 0) return []
   const set = new Set([t])
   for (const note of [50000, 100000, 200000, 500000]) set.add(Math.ceil(t / note) * note)
@@ -754,7 +796,7 @@ const buildVietQrPayload = () => {
   const tlv = (id, val) => id + String(val.length).padStart(2, '0') + val
   const acquirer = tlv('00', b.code) + tlv('01', b.accountNo)
   const f38 = tlv('38', tlv('00', 'A000000727') + tlv('01', acquirer) + tlv('02', 'QRIBFTTA'))
-  const amount = Math.round(totalPrice.value || 0)
+  const amount = Math.round(payableTotal.value || 0)
   const f54 = amount > 0 ? tlv('54', String(amount)) : ''
   const f62 = transferContent.value ? tlv('62', tlv('08', transferContent.value)) : ''
   const partial = tlv('00', '01') + tlv('01', '11') + f38 + tlv('53', '704') + f54 + tlv('58', 'VN') + f62 + '6304'
@@ -799,6 +841,7 @@ const checkMemberCard = async () => {
   try {
     const { data } = await ticketingApi.memberCard(cardNumberInput.value.trim())
     member.value = data.data ?? data
+    loadOwnedVouchers() // bật danh sách voucher của khách sau khi tra cứu thành công
   } catch (err) {
     cardError.value = err.response?.data?.error || 'Không tìm thấy thẻ thành viên.'
     member.value = null
@@ -806,7 +849,45 @@ const checkMemberCard = async () => {
     isCheckingCard.value = false
   }
 }
-const clearMember = () => { member.value = null; cardNumberInput.value = ''; cardError.value = '' }
+const clearMember = () => { member.value = null; cardNumberInput.value = ''; cardError.value = ''; clearVoucherState() }
+
+// ===== Voucher / khuyến mãi tại quầy =====
+const clearVoucherState = () => {
+  appliedVoucher.value = null
+  voucherCodeInput.value = ''
+  ownedVouchers.value = []
+  voucherError.value = ''
+}
+const loadOwnedVouchers = async () => {
+  if (!member.value) { ownedVouchers.value = []; return }
+  try {
+    const { data } = await ticketingApi.customerVouchers(member.value.customerId)
+    const list = Array.isArray(data) ? data : (data?.data ?? [])
+    ownedVouchers.value = list.filter(v => v.status === 'ACTIVE')
+  } catch (_) {
+    ownedVouchers.value = []
+  }
+}
+const applyVoucher = async () => {
+  if (!member.value) { showToast('Vui lòng tra cứu thành viên trước khi áp voucher.', 'error'); return }
+  const code = (voucherCodeInput.value || '').trim()
+  if (!code) { voucherError.value = 'Vui lòng nhập hoặc chọn mã voucher.'; return }
+  isApplyingVoucher.value = true
+  voucherError.value = ''
+  try {
+    const { data } = await ticketingApi.applyVoucher(member.value.customerId, code)
+    appliedVoucher.value = { id: data.id, code: data.code, discountType: data.discountType, discountValue: Number(data.discountValue || 0) }
+    voucherCodeInput.value = data.code
+    showToast(`Đã áp mã ${data.code}.`, 'success')
+    loadOwnedVouchers()
+  } catch (e) {
+    appliedVoucher.value = null
+    voucherError.value = e.response?.data?.message || 'Mã không hợp lệ hoặc không áp dụng được.'
+  } finally {
+    isApplyingVoucher.value = false
+  }
+}
+const clearVoucher = () => { appliedVoucher.value = null; voucherCodeInput.value = ''; voucherError.value = '' }
 
 const processPayment = async (method) => {
   if (saleMode.value === 'FNB') return processConcessionPayment(method)
@@ -821,8 +902,10 @@ const processPayment = async (method) => {
     const payload = {
       showtimeId: selectedShowtime.value.id,
       seatIds: selectedSeats.value.map(s => s.seatId),
+      seatSelections: selectedSeats.value.map(s => ({ seatId: s.seatId, ticketType: s.ticketType || 'ADULT' })),
       fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity })),
       customerId: member.value ? member.value.customerId : null,
+      voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method
     }
     const { data } = await ticketingApi.pay(payload)
@@ -1118,7 +1201,7 @@ const buildQrPageHtml = () => {
     <div class="body">
       <div class="qr"><img src="${cleanQrUrl.value}" alt="VietQR" /></div>
       <p class="hint">Mở app ngân hàng → quét mã. Số tiền &amp; nội dung tự điền.</p>
-      <div class="amount"><span>Số tiền</span><b>${fmt(totalPrice.value)}đ</b></div>
+      <div class="amount"><span>Số tiền</span><b>${fmt(payableTotal.value)}đ</b></div>
     </div>
   </div>
 </body></html>`
@@ -1153,6 +1236,7 @@ const resetPOS = () => {
   showCashModal.value = false
   showQrModal.value = false
   cashGiven.value = 0
+  clearVoucherState()
   fetchData()
 }
 
@@ -1349,18 +1433,24 @@ onUnmounted(() => {
           </div>
 
           <div class="flex-grow overflow-y-auto custom-scrollbar space-y-4 pr-2">
-            <div v-for="b in seatTypeBreakdown" :key="b.type"
-                 class="p-6 bg-surface-container-high rounded-[28px] border border-outline-variant/10 flex items-center justify-between">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary border border-primary/20">
+            <div v-for="seat in selectedSeats" :key="seat.seatId"
+                 class="p-5 bg-surface-container-high rounded-[24px] border border-outline-variant/10 flex items-center justify-between gap-4">
+              <div class="flex items-center gap-4 min-w-0">
+                <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary border border-primary/20 shrink-0">
                   <span class="material-symbols-outlined">event_seat</span>
                 </div>
-                <div>
-                  <p class="text-sm font-black text-on-surface uppercase">Ghế {{ seatTypeLabel(b.type) }}</p>
-                  <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{{ b.count }} ghế</p>
+                <div class="min-w-0">
+                  <p class="text-sm font-black text-on-surface uppercase">Ghế {{ seat.rowChar + seat.colNum }}</p>
+                  <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{{ seatTypeLabel(seat.seatType) }}</p>
                 </div>
               </div>
-              <p class="text-lg font-black italic text-primary">{{ fmt(b.subtotal) }}đ</p>
+              <div class="flex items-center gap-3 shrink-0">
+                <select v-model="seat.ticketType"
+                        class="bg-surface-container border border-outline-variant/10 rounded-xl px-3 py-2 text-xs font-bold text-on-surface outline-none focus:border-primary/50">
+                  <option v-for="(label, code) in audienceLabels" :key="code" :value="code">{{ label }}</option>
+                </select>
+                <p class="text-base font-black italic text-primary w-24 text-right">{{ fmt(priceOf(seat)) }}đ</p>
+              </div>
             </div>
             <div class="px-2 pt-2 text-xs font-bold text-on-surface-variant">
               Ghế đã chọn: <span class="text-primary">{{ selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
@@ -1467,9 +1557,13 @@ onUnmounted(() => {
                 <span>F&B / Combo</span>
                 <span class="text-on-surface">{{ fmt(comboTotal) }}đ</span>
               </div>
+              <div v-if="discountAmount > 0" class="flex justify-between text-xs font-bold text-green-400 uppercase border-b border-outline-variant/10 pb-3">
+                <span>Giảm giá <span v-if="appliedVoucher" class="normal-case">({{ appliedVoucher.code }})</span></span>
+                <span>-{{ fmt(discountAmount) }}đ</span>
+              </div>
               <div class="pt-3 flex justify-between items-end">
                 <p class="text-[10px] font-black text-on-surface-variant uppercase">Tổng cộng</p>
-                <p class="text-4xl font-black italic text-primary tracking-tighter">{{ fmt(totalPrice) }}đ</p>
+                <p class="text-4xl font-black italic text-primary tracking-tighter">{{ fmt(payableTotal) }}đ</p>
               </div>
             </div>
 
@@ -1489,6 +1583,38 @@ onUnmounted(() => {
                   <p v-if="member.phone" class="text-xs text-on-surface-variant">SĐT: <span class="font-bold">{{ member.phone }}</span></p>
                   <p class="text-xs text-on-surface-variant">Điểm tích lũy: <span class="text-primary font-bold">{{ fmt(member.loyaltyPoints) }}</span></p>
                   <button @click="clearMember" class="text-[10px] text-on-surface-variant hover:text-red-400 font-bold uppercase">Bỏ thẻ</button>
+                </div>
+              </div>
+
+              <!-- Voucher / khuyến mãi: chỉ bật sau khi đã tra cứu thành viên -->
+              <div v-if="member" class="bg-surface-container-high border border-outline-variant/10 p-6 rounded-3xl space-y-3">
+                <p class="text-[10px] font-black text-primary uppercase tracking-widest">Voucher / Khuyến mãi</p>
+                <template v-if="!appliedVoucher">
+                  <select v-if="ownedVouchers.length" v-model="voucherCodeInput"
+                          class="w-full bg-surface-container border border-outline-variant/10 rounded-2xl py-3 px-4 text-on-surface text-sm font-bold outline-none focus:border-primary/50">
+                    <option value="">— Voucher của khách ({{ ownedVouchers.length }}) —</option>
+                    <option v-for="v in ownedVouchers" :key="v.id" :value="v.code">
+                      {{ v.code }} · giảm {{ v.discountType === 'PERCENTAGE' ? v.discountValue + '%' : fmt(v.discountValue) + 'đ' }}
+                    </option>
+                  </select>
+                  <div class="flex gap-2">
+                    <input v-model="voucherCodeInput" type="text" placeholder="Nhập mã voucher..."
+                           class="flex-1 bg-surface-container border border-outline-variant/10 rounded-2xl py-3 px-4 text-on-surface text-sm font-bold outline-none focus:border-primary/50 uppercase" />
+                    <AppButton variant="primary" :disabled="isApplyingVoucher || !voucherCodeInput" @click="applyVoucher">
+                      {{ isApplyingVoucher ? '...' : 'Áp dụng' }}
+                    </AppButton>
+                  </div>
+                  <p v-if="voucherError" class="text-xs text-red-400 font-bold">{{ voucherError }}</p>
+                </template>
+                <div v-else class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-black text-green-400 uppercase">{{ appliedVoucher.code }}</p>
+                    <p class="text-xs text-on-surface-variant">
+                      Giảm {{ appliedVoucher.discountType === 'PERCENTAGE' ? appliedVoucher.discountValue + '%' : fmt(appliedVoucher.discountValue) + 'đ' }}
+                      · -{{ fmt(discountAmount) }}đ
+                    </p>
+                  </div>
+                  <button @click="clearVoucher" class="text-[10px] text-on-surface-variant hover:text-red-400 font-bold uppercase">Bỏ mã</button>
                 </div>
               </div>
 
@@ -1763,9 +1889,13 @@ onUnmounted(() => {
           <p class="text-xs font-semibold">{{ saleMode === 'FNB' ? 'Chưa chọn món nào' : 'Chưa chọn suất chiếu' }}</p>
         </div>
 
+        <div v-if="discountAmount > 0" class="pt-4 mt-2 flex justify-between items-center text-xs font-bold text-green-400">
+          <span class="uppercase tracking-wider">Giảm giá {{ appliedVoucher ? '(' + appliedVoucher.code + ')' : '' }}</span>
+          <span>-{{ fmt(discountAmount) }}đ</span>
+        </div>
         <div class="pt-5 mt-3 border-t border-outline-variant/10 flex justify-between items-center">
           <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Tổng tiền</p>
-          <p class="text-3xl font-black italic tracking-tighter text-primary">{{ fmt(totalPrice) }}đ</p>
+          <p class="text-3xl font-black italic tracking-tighter text-primary">{{ fmt(payableTotal) }}đ</p>
         </div>
       </div>
     </main>
@@ -1781,7 +1911,7 @@ onUnmounted(() => {
           <div class="p-7 space-y-6">
             <div class="flex justify-between items-end">
               <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tổng phải trả</span>
-              <span class="text-3xl font-black italic text-primary tracking-tighter">{{ fmt(totalPrice) }}đ</span>
+              <span class="text-3xl font-black italic text-primary tracking-tighter">{{ fmt(payableTotal) }}đ</span>
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiền khách đưa</label>
