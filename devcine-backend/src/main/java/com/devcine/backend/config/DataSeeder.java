@@ -423,6 +423,23 @@ public class DataSeeder {
                 System.out.println("Đã áp dụng biểu giá Lotte (2 đối tượng NL/HSSV × ngày, 3D +20k/+30k, bỏ phụ thu ghế).");
             }
 
+            // Backfill điểm tích lũy trọn đời (lifetime_points) cho khách hiện có (CHẠY 1 LẦN).
+            // Cột mới mặc định null/0 → suy ra từ số dư hiện tại để hạng thành viên không bị tụt sau khi
+            // tách "điểm khả dụng" khỏi "điểm tích lũy trọn đời".
+            if (systemSettingRepository.findById("LOYALTY_LIFETIME_BACKFILLED").isEmpty()) {
+                for (Customer c : customerRepository.findAll()) {
+                    int balance = c.getLoyaltyPoints() != null ? c.getLoyaltyPoints() : 0;
+                    int lifetime = c.getLifetimePoints() != null ? c.getLifetimePoints() : 0;
+                    if (lifetime < balance) {
+                        c.setLifetimePoints(balance);
+                        customerRepository.save(c);
+                    }
+                }
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("LOYALTY_LIFETIME_BACKFILLED").settingValue("true").build());
+                System.out.println("Đã backfill điểm tích lũy trọn đời cho khách hiện có.");
+            }
+
             // Seed phim thật (thêm theo slug nếu chưa có — không trùng phim cũ)
             {
                 List<Movie> seedMovies = List.of(

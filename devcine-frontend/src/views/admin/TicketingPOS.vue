@@ -726,8 +726,16 @@ const discountAmount = computed(() => {
   if (String(v.discountType).toUpperCase() === 'PERCENTAGE') return Math.round(base * Number(v.discountValue || 0) / 100)
   return Math.min(Number(v.discountValue || 0), base)
 })
-// Số tiền khách thực trả sau giảm giá — dùng cho tiền mặt/QR/tiền thối
+// Số tiền khách thực trả sau giảm giá — dùng cho QR/tiền thối
 const payableTotal = computed(() => Math.max(0, totalPrice.value - discountAmount.value))
+
+// Cash Rounding: khách vãng lai (KHÔNG có thẻ thành viên) trả tiền mặt -> làm tròn gần nhất 1.000đ
+const CASH_ROUND_UNIT = 1000
+const roundCash = (v) => Math.round(Number(v || 0) / CASH_ROUND_UNIT) * CASH_ROUND_UNIT
+const cashRoundingApplies = computed(() => !member.value)
+const cashPayable = computed(() => cashRoundingApplies.value ? roundCash(payableTotal.value) : payableTotal.value)
+const cashRoundingDelta = computed(() => cashPayable.value - payableTotal.value)
+const cashRoundingLabel = computed(() => (cashRoundingDelta.value > 0 ? '+' : '−') + fmt(Math.abs(cashRoundingDelta.value)) + 'đ')
 
 const seatTypeBreakdown = computed(() => {
   const map = {}
@@ -754,17 +762,17 @@ const cashGivenDisplay = computed({
   },
 })
 
-const changeDue = computed(() => Math.max(0, Number(cashGiven.value || 0) - payableTotal.value))
-const canConfirmCash = computed(() => Number(cashGiven.value || 0) >= payableTotal.value && payableTotal.value > 0)
+const changeDue = computed(() => Math.max(0, Number(cashGiven.value || 0) - cashPayable.value))
+const canConfirmCash = computed(() => Number(cashGiven.value || 0) >= cashPayable.value && cashPayable.value > 0)
 // Thông điệp validate dưới ô nhập
 const cashError = computed(() => {
   const given = Number(cashGiven.value || 0)
   if (given === 0) return 'Vui lòng nhập số tiền khách đưa.'
-  if (given < payableTotal.value) return `Tiền khách đưa chưa đủ (còn thiếu ${fmt(payableTotal.value - given)}đ).`
+  if (given < cashPayable.value) return `Tiền khách đưa chưa đủ (còn thiếu ${fmt(cashPayable.value - given)}đ).`
   return ''
 })
 const cashSuggestions = computed(() => {
-  const t = payableTotal.value
+  const t = cashPayable.value
   if (t <= 0) return []
   const set = new Set([t])
   for (const note of [50000, 100000, 200000, 500000]) set.add(Math.ceil(t / note) * note)
@@ -995,9 +1003,12 @@ const buildInvoiceHtml = () => {
   const seatSection = seatRows ? `<tr class="grp"><td colspan="4">Vé xem phim</td></tr>${seatRows}` : ''
   const comboSection = comboRows ? `<tr class="grp"><td colspan="4">Bắp nước &amp; Combo</td></tr>${comboRows}` : ''
 
-  // Số tiền giảm khi áp mã/voucher (0 nếu không có). Đọc từ BE nếu có để tương thích về sau.
+  // Số tiền giảm khi áp mã/voucher (0 nếu không có) + làm tròn tiền mặt (âm nếu tròn xuống). Ưu tiên số BE trả.
   const discount = Number(completedBooking.value?.discountAmount || 0)
-  const grandTotal = Math.max(0, seatTotal.value + comboTotal.value - discount)
+  const rounding = Number(completedBooking.value?.roundingAmount || 0)
+  const grandTotal = completedBooking.value?.finalAmount != null
+    ? Number(completedBooking.value.finalAmount)
+    : Math.max(0, seatTotal.value + comboTotal.value - discount + rounding)
 
   return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
 <title>Hoá đơn ${bookingCode} — DevCine</title>
@@ -1140,6 +1151,7 @@ const buildInvoiceHtml = () => {
       <div class="s-row"><span>Tạm tính vé · ${seatCount} ghế</span><b>${fmt(seatTotal.value)}đ</b></div>
       ${comboTotal.value > 0 ? `<div class="s-row"><span>Bắp nước &amp; combo</span><b>${fmt(comboTotal.value)}đ</b></div>` : ''}
       <div class="s-row"><span>Số tiền được giảm</span><b class="${discount > 0 ? 'cut' : ''}">${discount > 0 ? '−' + fmt(discount) : '0'}đ</b></div>
+      ${rounding !== 0 ? `<div class="s-row"><span>Làm tròn tiền mặt</span><b>${rounding > 0 ? '+' : '−'}${fmt(Math.abs(rounding))}đ</b></div>` : ''}
       <div class="s-grand"><span>Tổng thanh toán</span><b class="serif">${fmt(grandTotal)}<span class="u">đ</span></b></div>
     </div>
 
@@ -1909,9 +1921,19 @@ onUnmounted(() => {
             <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Thanh toán tiền mặt</h3>
           </div>
           <div class="p-7 space-y-6">
+            <div v-if="cashRoundingDelta !== 0" class="space-y-1.5">
+              <div class="flex justify-between text-xs font-bold text-on-surface-variant">
+                <span class="uppercase tracking-widest">Tổng hóa đơn</span>
+                <span>{{ fmt(payableTotal) }}đ</span>
+              </div>
+              <div class="flex justify-between text-xs font-bold text-amber-300">
+                <span class="uppercase tracking-widest">Làm tròn tiền mặt</span>
+                <span>{{ cashRoundingLabel }}</span>
+              </div>
+            </div>
             <div class="flex justify-between items-end">
               <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tổng phải trả</span>
-              <span class="text-3xl font-black italic text-primary tracking-tighter">{{ fmt(payableTotal) }}đ</span>
+              <span class="text-3xl font-black italic text-primary tracking-tighter">{{ fmt(cashPayable) }}đ</span>
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiền khách đưa</label>

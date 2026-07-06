@@ -31,7 +31,13 @@ public class Customer {
     @Column(name = "membership_tier", length = 50)
     private String membershipTier;
 
+    /** Điểm khả dụng (ví tiêu được) — tăng khi mua, giảm khi đổi điểm/void. */
     @Column(name = "loyalty_points")
     @Builder.Default
     private Integer loyaltyPoints = 0;
+
+    /** Điểm tích lũy trọn đời — CHỈ dùng để xét hạng thành viên; KHÔNG giảm khi khách đổi điểm. */
+    @Column(name = "lifetime_points")
+    @Builder.Default
+    private Integer lifetimePoints = 0;
 }

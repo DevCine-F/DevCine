@@ -24,6 +24,7 @@ public class VoucherService {
     private final PromotionRepository promotionRepository;
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
+    private final LoyaltyService loyaltyService;
 
     /**
      * Khách dùng điểm tích luỹ để đổi lấy một voucher từ chương trình khuyến mãi.
@@ -54,8 +55,9 @@ public class VoucherService {
             throw new RuntimeException("Bạn không đủ điểm để đổi ưu đãi này.");
         }
 
-        customer.setLoyaltyPoints(currentPoints - promo.getPointsRequired());
-        customerRepository.save(customer);
+        // Trừ điểm qua LoyaltyService: chỉ trừ ví tiêu được (GIỮ NGUYÊN tích lũy trọn đời -> hạng
+        // không tụt) và ghi sổ điểm.
+        loyaltyService.redeem(customer, promo.getPointsRequired(), promo.getCode());
 
         Voucher voucher = Voucher.builder()
                 .promotion(promo)

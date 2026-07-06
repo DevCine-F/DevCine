@@ -13,6 +13,8 @@ const isLoading = ref(true)
 const isSaving = ref(false)
 const isEditing = ref(false)
 const editForm = ref({ fullName: '', email: '', phone: '', dob: '' })
+const pointHistory = ref([])
+const isLoadingHistory = ref(false)
 
 const fetchProfile = async () => {
   if (!authStore.isAuthenticated || !authStore.user?.id) return
@@ -28,6 +30,28 @@ const fetchProfile = async () => {
     isLoading.value = false
   }
 }
+
+const fetchPointHistory = async () => {
+  if (!authStore.user?.id) return
+  isLoadingHistory.value = true
+  try {
+    const { data } = await customerApi.pointHistory(authStore.user.id)
+    pointHistory.value = Array.isArray(data) ? data : (data?.data ?? [])
+  } catch (err) {
+    console.error('Failed to fetch point history', err)
+  } finally {
+    isLoadingHistory.value = false
+  }
+}
+
+const pointSourceLabel = (t) => {
+  const map = {
+    BOOKING: 'Mua vé', FNB: 'Mua bắp nước', PROMO_REDEEM: 'Đổi ưu đãi',
+    VOID_FNB: 'Hủy hóa đơn F&B', ADMIN: 'Điều chỉnh',
+  }
+  return map[t?.source] || map[t?.type] || t?.source || t?.type || '—'
+}
+const pointDateLabel = (v) => v ? new Date(v).toLocaleString('vi-VN') : '—'
 
 const handleSaveProfile = async () => {
   const email = editForm.value.email?.trim() || ''
@@ -50,6 +74,7 @@ const handleSaveProfile = async () => {
 
 onMounted(() => {
   fetchProfile()
+  fetchPointHistory()
 })
 
 const formattedMemberSince = computed(() => {
@@ -71,8 +96,9 @@ const formattedDob = computed(() => {
 
 const tierInfo = computed(() => {
   const tier = (customer.value?.membershipTier || 'BRONZE').toUpperCase()
-  const points = customer.value?.loyaltyPoints || 0
-  
+  // Hạng & tiến độ tính theo ĐIỂM TÍCH LŨY TRỌN ĐỜI (không tụt khi khách đổi điểm); fallback số dư nếu thiếu.
+  const points = customer.value?.lifetimePoints ?? customer.value?.loyaltyPoints ?? 0
+
   if (tier === 'PLATINUM' || points >= 10000) {
     return {
       name: 'Platinum',
@@ -269,7 +295,7 @@ const tierInfo = computed(() => {
               <p class="text-xs font-bold tracking-wide uppercase text-white truncate max-w-[180px]">{{ customer?.fullName }}</p>
             </div>
             <div class="text-right">
-              <p class="text-[8px] uppercase tracking-widest text-white/50 mb-0.5">Điểm tích lũy</p>
+              <p class="text-[8px] uppercase tracking-widest text-white/50 mb-0.5">Điểm khả dụng</p>
               <p class="text-sm font-mono font-bold text-white">{{ customer?.loyaltyPoints?.toLocaleString() || 0 }} pts</p>
             </div>
           </div>
@@ -279,8 +305,8 @@ const tierInfo = computed(() => {
         <div class="bg-surface-container-low border border-outline-variant/10 rounded-3xl p-6 flex flex-col justify-between flex-grow">
           <div class="space-y-4">
             <div class="flex justify-between items-center text-xs">
-              <span class="font-bold text-on-surface-variant uppercase tracking-wider">Tình trạng tích lũy</span>
-              <span class="font-mono font-bold text-white">{{ customer?.loyaltyPoints?.toLocaleString() || 0 }} điểm</span>
+              <span class="font-bold text-on-surface-variant uppercase tracking-wider">Tích lũy trọn đời</span>
+              <span class="font-mono font-bold text-white">{{ (customer?.lifetimePoints ?? customer?.loyaltyPoints ?? 0).toLocaleString() }} điểm</span>
             </div>
 
             <!-- Progress Bar -->
@@ -305,6 +331,37 @@ const tierInfo = computed(() => {
             <p v-else class="text-xs text-on-surface-variant leading-relaxed">
               Tuyệt vời! Bạn đang ở hạng thành viên cao nhất <span class="text-primary-container font-bold">Platinum</span> với những ưu đãi đặc quyền tối đa.
             </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lịch sử điểm thưởng -->
+    <div class="bg-surface-container-low border border-outline-variant/10 rounded-3xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-black uppercase tracking-wider text-on-surface flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary text-lg">history</span> Lịch sử điểm
+        </h3>
+        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Khả dụng: {{ (customer?.loyaltyPoints || 0).toLocaleString() }} điểm</span>
+      </div>
+
+      <div v-if="isLoadingHistory" class="space-y-2">
+        <div v-for="n in 3" :key="n" class="h-12 rounded-xl bg-surface-container-high animate-pulse"></div>
+      </div>
+      <div v-else-if="pointHistory.length === 0" class="py-8 text-center text-xs text-on-surface-variant font-semibold">
+        Chưa có biến động điểm nào. Điểm sẽ được cộng khi bạn mua vé hoặc bắp nước.
+      </div>
+      <div v-else class="divide-y divide-outline-variant/10">
+        <div v-for="tx in pointHistory" :key="tx.id" class="flex items-center justify-between py-3">
+          <div class="min-w-0">
+            <p class="text-sm font-bold text-on-surface">{{ pointSourceLabel(tx) }}</p>
+            <p class="text-[11px] text-on-surface-variant">{{ pointDateLabel(tx.createdAt) }}<span v-if="tx.refCode"> · {{ tx.refCode }}</span></p>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-sm font-black" :class="tx.points >= 0 ? 'text-green-400' : 'text-red-300'">
+              {{ tx.points >= 0 ? '+' : '' }}{{ tx.points?.toLocaleString() }} điểm
+            </p>
+            <p class="text-[10px] text-on-surface-variant">Số dư: {{ tx.balanceAfter?.toLocaleString() }}</p>
           </div>
         </div>
       </div>

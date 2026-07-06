@@ -29,7 +29,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ConcessionService {
 
-    private static final BigDecimal POINT_RATE = BigDecimal.valueOf(1000);
     private static final int MAX_QTY_PER_ITEM = 99;
 
     private final ConcessionSaleRepository saleRepository;
@@ -37,6 +36,7 @@ public class ConcessionService {
     private final FnbItemRepository fnbItemRepository;
     private final CustomerRepository customerRepository;
     private final InventoryService inventoryService;
+    private final LoyaltyService loyaltyService;
 
     @Transactional
     public ConcessionSale createSale(List<FnbSelectionDTO> items, Integer customerId, String paymentMethod) {
@@ -102,14 +102,8 @@ public class ConcessionService {
             }
         }
 
-        if (customer != null) {
-            int earned = total.divide(POINT_RATE, 0, RoundingMode.DOWN).intValue();
-            if (earned > 0) {
-                int current = customer.getLoyaltyPoints() != null ? customer.getLoyaltyPoints() : 0;
-                customer.setLoyaltyPoints(current + earned);
-                customerRepository.save(customer);
-            }
-        }
+        // Tích điểm F&B qua LoyaltyService (đồng nhất với vé: cập nhật hạng + ghi sổ điểm).
+        loyaltyService.award(customer, total, "FNB", sale.getSaleCode());
 
         return sale;
     }

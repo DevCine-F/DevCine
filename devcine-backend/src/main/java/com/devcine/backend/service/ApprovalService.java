@@ -42,8 +42,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ApprovalService {
 
-    private static final BigDecimal POINT_RATE = BigDecimal.valueOf(1000);
-
     public static final String TYPE_FNB_VOID = "FNB_VOID";
     public static final String TYPE_SEAT_MOVE = "SEAT_MOVE";
     public static final String STATUS_PENDING = "PENDING";
@@ -56,10 +54,10 @@ public class ApprovalService {
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final SeatRepository seatRepository;
-    private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final InventoryService inventoryService;
     private final ShiftAccessService shiftAccessService;
+    private final LoyaltyService loyaltyService;
     private final ObjectMapper objectMapper;
 
     // ----------------------------------------------------------------------------------
@@ -208,16 +206,8 @@ public class ApprovalService {
             }
         }
 
-        // Thu hồi điểm thưởng đã cộng cho thành viên (nếu có).
-        Customer customer = sale.getCustomer();
-        if (customer != null && sale.getTotalPrice() != null) {
-            int earned = sale.getTotalPrice().divide(POINT_RATE, 0, RoundingMode.DOWN).intValue();
-            if (earned > 0) {
-                int current = customer.getLoyaltyPoints() != null ? customer.getLoyaltyPoints() : 0;
-                customer.setLoyaltyPoints(Math.max(0, current - earned));
-                customerRepository.save(customer);
-            }
-        }
+        // Thu hồi điểm thưởng đã cộng cho thành viên (đảo cả ví lẫn tích lũy trọn đời, ghi sổ điểm).
+        loyaltyService.reclaim(sale.getCustomer(), sale.getTotalPrice(), "VOID_FNB", sale.getSaleCode());
 
         sale.setStatus("VOIDED");
         concessionSaleRepository.save(sale);

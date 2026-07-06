@@ -155,13 +155,24 @@ public class TicketingController {
                             .build();
 
             Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule);
-            bookingService.completePayment(booking.getId(), paymentMethod);
 
             // Số liệu tiền để POS hiển thị đúng giảm giá (voucher đánh dấu USED trong completePayment)
             BigDecimal totalAmount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
-            BigDecimal finalAmount = booking.getFinalPrice() != null ? booking.getFinalPrice() : totalAmount;
-            BigDecimal discountAmount = totalAmount.subtract(finalAmount);
+            BigDecimal preRoundFinal = booking.getFinalPrice() != null ? booking.getFinalPrice() : totalAmount;
+            BigDecimal discountAmount = totalAmount.subtract(preRoundFinal);
             if (discountAmount.signum() < 0) discountAmount = BigDecimal.ZERO;
+
+            // Cash Rounding: khách vãng lai (KHÔNG có thẻ thành viên) trả TIỀN MẶT -> làm tròn gần nhất
+            // 1.000đ và ghi đúng số đã thu vào finalPrice để đối soát bàn giao ca khớp tiền thật trong két.
+            BigDecimal roundingAmount = BigDecimal.ZERO;
+            if ("CASH".equalsIgnoreCase(paymentMethod) && customerId == null) {
+                BigDecimal rounded = roundToNearestThousand(preRoundFinal);
+                roundingAmount = rounded.subtract(preRoundFinal);
+                if (roundingAmount.signum() != 0) booking.setFinalPrice(rounded);
+            }
+            BigDecimal finalAmount = booking.getFinalPrice() != null ? booking.getFinalPrice() : preRoundFinal;
+
+            bookingService.completePayment(booking.getId(), paymentMethod);
 
             // Vé đã được sinh trong completePayment — lấy QR + nhãn ghế để in hoá đơn/soát vé tại cổng
             List<Map<String, Object>> tickets = ticketRepository.findAllByBookingIdWithSeat(booking.getId())
@@ -183,6 +194,7 @@ public class TicketingController {
                     "tickets", tickets,
                     "totalAmount", totalAmount,
                     "discountAmount", discountAmount,
+                    "roundingAmount", roundingAmount,
                     "finalAmount", finalAmount
             ));
         } catch (AccessDeniedException e) {
@@ -190,6 +202,13 @@ public class TicketingController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
+    }
+
+    /** Làm tròn số tiền về bội số 1.000đ gần nhất (Cash Rounding, HALF_UP). */
+    private static BigDecimal roundToNearestThousand(BigDecimal value) {
+        if (value == null) return BigDecimal.ZERO;
+        return value.divide(new BigDecimal("1000"), 0, java.math.RoundingMode.HALF_UP)
+                .multiply(new BigDecimal("1000"));
     }
 
     // Bán nhanh bắp nước độc lập tại quầy (Concession Only) — không suất chiếu / không ghế

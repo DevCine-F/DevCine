@@ -51,6 +51,7 @@ export const voucherApi = {
 export const customerApi = {
   getProfile: (customerId) => api.get(`/customers/${customerId}`),
   updateProfile: (customerId, data) => api.put(`/customers/${customerId}`, data),
+  pointHistory: (customerId) => api.get(`/customers/${customerId}/point-history`),
 };
 
 export const reviewApi = {

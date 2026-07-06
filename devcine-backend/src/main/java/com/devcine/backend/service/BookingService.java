@@ -39,6 +39,7 @@ public class BookingService {
     private final UserRepository userRepository;
     private final MailService mailService;
     private final SeatLockService seatLockService;
+    private final LoyaltyService loyaltyService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -262,42 +263,9 @@ public class BookingService {
             throw new RuntimeException("Trạng thái đơn không hợp lệ để thanh toán.");
         }
         
-        // Loyalty points and membership tiers update
-        if (booking.getCustomer() != null) {
-            Customer customer = booking.getCustomer();
-            
-            BigDecimal pointRate = BigDecimal.valueOf(1000); // Mặc định 1000 VNĐ = 1 điểm
-            try {
-                SystemSetting setting = systemSettingRepository.findById("LOYALTY_POINT_RATE").orElse(null);
-                if (setting != null && setting.getSettingValue() != null) {
-                    BigDecimal parsed = new BigDecimal(setting.getSettingValue());
-                    if (parsed.compareTo(BigDecimal.ZERO) > 0) {
-                        pointRate = parsed;
-                    }
-                }
-            } catch (Exception ex) {
-                // Bỏ qua, dùng mặc định
-            }
-
-            int earnedPoints = booking.getFinalPrice().divide(pointRate, 0, RoundingMode.DOWN).intValue();
-            if (earnedPoints > 0) {
-                customer.setLoyaltyPoints(customer.getLoyaltyPoints() + earnedPoints);
-                
-                // Update membership tier based on points
-                int points = customer.getLoyaltyPoints();
-                String newTier = "BRONZE";
-                if (points >= 10000) {
-                    newTier = "PLATINUM";
-                } else if (points >= 5000) {
-                    newTier = "GOLD";
-                } else if (points >= 2000) {
-                    newTier = "SILVER";
-                }
-                
-                customer.setMembershipTier(newTier);
-                customerRepository.save(customer);
-            }
-        }
+        // Tích điểm — dùng chung LoyaltyService cho CẢ vé online lẫn vé POS; tính trên số tiền
+        // thực trả (finalPrice, đã trừ voucher + làm tròn tiền mặt). Khách null (vãng lai) -> bỏ qua.
+        loyaltyService.award(booking.getCustomer(), booking.getFinalPrice(), "BOOKING", booking.getBookingCode());
         
         booking.setStatus("CONFIRMED");
         booking.setPaymentMethod(paymentMethod);
