@@ -5,10 +5,12 @@ import AppButton from '../../components/common/AppButton.vue'
 import { staffShiftApi } from '@/api/admin/index'
 import { useShiftStore } from '@/stores/shift'
 import { useToastStore } from '@/stores/toast'
+import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 
 const toast = useToastStore()
 const shiftStore = useShiftStore()
+const confirm = useConfirmStore()
 
 const today = new Date().toISOString().slice(0, 10)
 const fromDate = ref(today)
@@ -28,8 +30,12 @@ const positions = {
 const statusLabels = {
   SCHEDULED: 'Chờ duyệt',
   APPROVED: 'Đã duyệt',
+  IN_PROGRESS: 'Đang trong ca',
+  COMPLETED: 'Đã kết ca',
   REJECTED: 'Từ chối',
 }
+
+const actionLoadingId = ref(null)
 
 const actionByPosition = {
   POS_TICKETING: { label: 'Vào POS', path: '/admin/ticketing', icon: 'confirmation_number' },
@@ -53,20 +59,22 @@ const formatDate = (value) => {
 }
 const formatTime = (value) => value ? value.slice(0, 5) : '--:--'
 
+// Trạng thái vận hành theo status ca (mô hình Check-in):
+//  PENDING (chờ duyệt) · WAITING (đã duyệt, chờ vào ca) · ACTIVE (đã check-in) · ENDED · REJECTED
 const runtimeState = (shift) => {
-  if (shift.status === 'REJECTED') return 'REJECTED'
-  if (shift.status !== 'APPROVED') return 'PENDING'
-  const start = toDateTime(shift.startAt)
+  const s = shift.status
+  if (s === 'REJECTED') return 'REJECTED'
+  if (s === 'IN_PROGRESS') return 'ACTIVE'
+  if (s === 'COMPLETED') return 'ENDED'
+  if (s !== 'APPROVED') return 'PENDING'
   const end = toDateTime(shift.endAt)
-  const now = new Date()
-  if (start && end && now >= start && now <= end) return 'ACTIVE'
-  if (start && now < start) return 'UPCOMING'
-  return 'ENDED'
+  if (end && new Date() > end) return 'ENDED'
+  return 'WAITING'
 }
 
 const stateLabel = (shift) => ({
   ACTIVE: 'Đang trong ca',
-  UPCOMING: 'Sắp tới',
+  WAITING: 'Chờ vào ca',
   ENDED: 'Đã kết thúc',
   PENDING: 'Chờ duyệt',
   REJECTED: 'Từ chối',
@@ -74,7 +82,7 @@ const stateLabel = (shift) => ({
 
 const stateClass = (shift) => ({
   ACTIVE: 'bg-green-500/10 text-green-400 border-green-500/20',
-  UPCOMING: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+  WAITING: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
   ENDED: 'bg-surface-container-high text-on-surface-variant border-outline-variant/20',
   PENDING: 'bg-primary/10 text-primary border-primary/20',
   REJECTED: 'bg-red-500/10 text-red-300 border-red-500/20',
@@ -87,20 +95,62 @@ const sortedShifts = computed(() => [...shifts.value].sort((a, b) => {
 }))
 
 const currentShift = computed(() => sortedShifts.value.find((shift) => runtimeState(shift) === 'ACTIVE'))
-const upcomingShifts = computed(() => sortedShifts.value.filter((shift) => runtimeState(shift) === 'UPCOMING' || runtimeState(shift) === 'PENDING'))
-const endedShifts = computed(() => sortedShifts.value.filter((shift) => runtimeState(shift) === 'ENDED' || runtimeState(shift) === 'REJECTED'))
+const upcomingShifts = computed(() => sortedShifts.value.filter((shift) => ['WAITING', 'PENDING'].includes(runtimeState(shift))))
+const endedShifts = computed(() => sortedShifts.value.filter((shift) => ['ENDED', 'REJECTED'].includes(runtimeState(shift))))
 const approvedCount = computed(() => shifts.value.filter((shift) => shift.status === 'APPROVED').length)
 const pendingCount = computed(() => shifts.value.filter((shift) => shift.status === 'SCHEDULED').length)
 
 const primaryAction = (shift) => actionByPosition[shift.workPosition] || null
+const canCheckIn = (shift) => runtimeState(shift) === 'WAITING'
+const canCheckOut = (shift) => shift.status === 'IN_PROGRESS'
 const canHandover = (shift) => {
-  if (shift.status !== 'APPROVED' || !shift.endAt) return false
+  if (shift.status !== 'IN_PROGRESS' || !shift.endAt) return false
   return new Date() >= new Date(new Date(shift.endAt).getTime() - 30 * 60 * 1000)
 }
 const handoverRoute = (shift) => ({
   path: '/admin/shift-handover',
   query: { scheduleId: shift.id },
 })
+
+const handleCheckIn = async (shift) => {
+  const ok = await confirm.show({
+    title: 'Vào ca làm việc',
+    message: `Bắt đầu ca ${positionLabel(shift.workPosition)} (${formatTime(shift.startTime)} - ${formatTime(shift.endTime)})? Quyền thao tác quầy sẽ được kích hoạt cho ca này.`,
+    confirmText: 'Vào ca',
+    tone: 'primary',
+  })
+  if (!ok) return
+  actionLoadingId.value = shift.id
+  try {
+    await staffShiftApi.checkIn(shift.id)
+    toast.success('Đã vào ca — quyền thao tác đã được kích hoạt.')
+    await fetchShifts()
+  } catch (error) {
+    toast.error(friendlyError(error, 'Không vào ca được.'))
+  } finally {
+    actionLoadingId.value = null
+  }
+}
+
+const handleCheckOut = async (shift) => {
+  const ok = await confirm.show({
+    title: 'Kết ca làm việc',
+    message: `Kết thúc ca ${positionLabel(shift.workPosition)}? Sau khi kết ca, quyền thao tác quầy sẽ bị thu hồi.`,
+    confirmText: 'Kết ca',
+    tone: 'danger',
+  })
+  if (!ok) return
+  actionLoadingId.value = shift.id
+  try {
+    await staffShiftApi.checkOut(shift.id)
+    toast.success('Đã kết ca.')
+    await fetchShifts()
+  } catch (error) {
+    toast.error(friendlyError(error, 'Không kết ca được.'))
+  } finally {
+    actionLoadingId.value = null
+  }
+}
 
 const fetchShifts = async () => {
   isLoading.value = true
@@ -182,6 +232,10 @@ onMounted(fetchShifts)
             Bàn giao ca
           </AppButton>
         </RouterLink>
+        <AppButton variant="outline" :loading="actionLoadingId === currentShift.id" @click="handleCheckOut(currentShift)">
+          <span class="material-symbols-outlined mr-2">logout</span>
+          Kết ca
+        </AppButton>
       </div>
     </section>
 
@@ -233,10 +287,14 @@ onMounted(fetchShifts)
             <span class="rounded-full bg-surface-container-high px-3 py-2 text-[10px] font-black uppercase text-on-surface-variant">
               {{ statusLabel(shift.status) }}
             </span>
+            <AppButton v-if="canCheckIn(shift)" size="sm" :loading="actionLoadingId === shift.id" @click="handleCheckIn(shift)">
+              <span class="material-symbols-outlined mr-2">login</span>
+              Vào ca
+            </AppButton>
             <RouterLink v-if="runtimeState(shift) === 'ACTIVE' && primaryAction(shift)" :to="primaryAction(shift).path">
               <AppButton size="sm">
                 <span class="material-symbols-outlined mr-2">{{ primaryAction(shift).icon }}</span>
-                Vào ca
+                {{ primaryAction(shift).label }}
               </AppButton>
             </RouterLink>
             <RouterLink v-if="canHandover(shift)" :to="handoverRoute(shift)">
@@ -245,6 +303,10 @@ onMounted(fetchShifts)
                 Bàn giao
               </AppButton>
             </RouterLink>
+            <AppButton v-if="canCheckOut(shift)" size="sm" variant="outline" :loading="actionLoadingId === shift.id" @click="handleCheckOut(shift)">
+              <span class="material-symbols-outlined mr-2">logout</span>
+              Kết ca
+            </AppButton>
           </div>
         </article>
       </div>

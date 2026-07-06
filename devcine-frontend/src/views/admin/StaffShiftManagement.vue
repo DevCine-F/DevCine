@@ -34,7 +34,7 @@ const form = reactive({
   note: ''
 })
 
-const statuses = [{ value: 'ALL', label: 'Tất cả' }, { value: 'SCHEDULED', label: 'Chờ duyệt' }, { value: 'APPROVED', label: 'Đã duyệt' }, { value: 'REJECTED', label: 'Từ chối' }]
+const statuses = [{ value: 'ALL', label: 'Tất cả' }, { value: 'SCHEDULED', label: 'Chờ duyệt' }, { value: 'APPROVED', label: 'Đã duyệt' }, { value: 'IN_PROGRESS', label: 'Đang trong ca' }, { value: 'COMPLETED', label: 'Đã kết ca' }, { value: 'REJECTED', label: 'Từ chối' }]
 const workPositions = [{ value: 'POS_TICKETING', label: 'Bán vé POS' }, { value: 'CHECK_IN', label: 'Kiểm soát vé' }, { value: 'FNB', label: 'Quầy F&B' }, { value: 'PROJECTION', label: 'Phòng chiếu' }, { value: 'SHIFT_LEAD', label: 'Trưởng ca' }]
 
 const normalizeList = (payload) => Array.isArray(payload) ? payload : (payload?.data ?? [])
@@ -246,7 +246,7 @@ onMounted(fetchData)
                   <td class="px-5 py-4 text-xs font-bold text-on-surface-variant">{{ shift.cinemaName || 'Chưa gán' }}</td>
                   <td class="px-5 py-4"><p class="text-xs font-black">{{ positionLabel(shift.workPosition) }}</p><p class="text-[10px] text-on-surface-variant">{{ shift.location || 'Theo điều phối trưởng ca' }}</p></td>
                   <td class="px-5 py-4 text-xs font-black">{{ shift.startTime }} - {{ shift.endTime }}</td>
-                  <td class="px-5 py-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-black uppercase" :class="{ 'bg-primary/15 text-primary': shift.status === 'SCHEDULED', 'bg-green-500/10 text-green-500': shift.status === 'APPROVED', 'bg-red-500/10 text-red-500': shift.status === 'REJECTED' }">{{ statusLabel(shift.status) }}</span></td>
+                  <td class="px-5 py-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-black uppercase" :class="{ 'bg-primary/15 text-primary': shift.status === 'SCHEDULED', 'bg-green-500/10 text-green-500': shift.status === 'APPROVED', 'bg-emerald-500/15 text-emerald-400': shift.status === 'IN_PROGRESS', 'bg-surface-container-high text-on-surface-variant': shift.status === 'COMPLETED', 'bg-red-500/10 text-red-500': shift.status === 'REJECTED' }">{{ statusLabel(shift.status) }}</span></td>
                   <td class="px-5 py-4 text-right">
                     <div v-if="shift.status === 'SCHEDULED'" class="flex justify-end gap-2">
                       <button :disabled="updatingIds.has(shift.id)" @click="handleApprove(shift.id)" class="p-2 rounded-lg hover:bg-green-500/10 hover:text-green-500 disabled:opacity-50" title="Duyệt"><span class="material-symbols-outlined text-lg">check_circle</span></button>
