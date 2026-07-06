@@ -28,8 +28,19 @@ const editingId = ref(null)
 const blankForm = () => ({
   fullName: '', username: '', email: '', phone: '',
   password: '', staffCode: '', cinemaId: '', isActive: true, role: 'STAFF',
+  defaultPosition: '',
 })
 const form = ref(blankForm())
+
+// Vị trí thường trực GỢI Ý (không phải quyền đăng nhập) — dùng mặc định khi xếp ca
+const workPositions = [
+  { value: '', label: '— Chưa gán —' },
+  { value: 'POS_TICKETING', label: 'NV Quầy vé' },
+  { value: 'FNB', label: 'NV Bắp nước' },
+  { value: 'CHECK_IN', label: 'NV Soát vé & Sảnh' },
+  { value: 'SHIFT_LEAD', label: 'Trưởng ca' },
+]
+const positionLabel = (p) => workPositions.find(w => w.value === (p || ''))?.label || 'Chưa gán'
 
 const roleLabel = (role) => {
   switch ((role || '').toUpperCase()) {
@@ -117,6 +128,7 @@ const openEditModal = (person) => {
     cinemaId: person.cinemaId ?? '',
     isActive: !!person.isActive,
     role: (person.role || 'STAFF').toUpperCase(),
+    defaultPosition: person.defaultPosition || '',
   }
   isModalOpen.value = true
 }
@@ -130,6 +142,7 @@ const buildPayload = () => {
     phone: form.value.phone.trim() || null,
     staffCode: form.value.staffCode.trim() || null,
     cinemaId: form.value.cinemaId || null,
+    defaultPosition: form.value.defaultPosition || null,
   }
   // Chỉ ADMIN mới được gán vai trò (STAFF/MANAGER); manager tạo NV luôn là STAFF
   if (auth.isAdmin) base.role = form.value.role
@@ -285,6 +298,7 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             </td>
             <td class="px-8 py-4">
               <span class="text-xs font-semibold">{{ roleLabel(person.role) }}</span>
+              <p v-if="person.defaultPosition && (person.role || '').toUpperCase() === 'STAFF'" class="text-[10px] text-on-surface-variant mt-0.5">{{ positionLabel(person.defaultPosition) }}</p>
             </td>
             <td class="px-8 py-4">
               <span class="text-xs text-on-surface-variant">{{ formatDate(person.joinDate) }}</span>
@@ -385,6 +399,14 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
               <option value="STAFF">Nhân viên</option>
               <option value="MANAGER">Quản lý cơ sở</option>
             </select>
+          </div>
+
+          <div v-if="form.role !== 'MANAGER'" class="space-y-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vị trí mặc định</label>
+            <select v-model="form.defaultPosition" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+              <option v-for="p in workPositions" :key="p.value" :value="p.value">{{ p.label }}</option>
+            </select>
+            <p class="text-[10px] text-on-surface-variant/70">Gợi ý khi xếp ca — không phải quyền đăng nhập.</p>
           </div>
 
           <div v-if="editingId" class="space-y-1.5">

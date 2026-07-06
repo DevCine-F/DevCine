@@ -100,6 +100,8 @@ const openAddModal = () => {
 const handleStaffChange = () => {
   const staff = staffList.value.find(s => s.userId === Number(form.staffId))
   if (staff?.cinemaId) form.cinemaId = staff.cinemaId
+  // Tự điền vị trí theo vị trí mặc định của nhân viên (vẫn có thể đổi tay)
+  if (staff?.defaultPosition) form.workPosition = staff.defaultPosition
 }
 
 const handleCinemaChange = () => {

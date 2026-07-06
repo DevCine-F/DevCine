@@ -123,8 +123,25 @@ public class StaffController {
         m.put("updatedAt", s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null);
         m.put("cinemaId", s.getCinema() != null ? s.getCinema().getId() : null);
         m.put("cinemaName", s.getCinema() != null ? s.getCinema().getName() : null);
+        m.put("defaultPosition", s.getDefaultPosition());
         return m;
     }
+
+    /** Chuẩn hóa vị trí mặc định: chỉ nhận mã hợp lệ, rỗng -> null (Chưa gán). */
+    private String normalizePosition(Object value) {
+        String p = str(value).trim().toUpperCase();
+        if (p.isBlank()) return null;
+        if (!ALLOWED_POSITIONS.contains(p)) {
+            throw new IllegalArgumentException("Vị trí mặc định không hợp lệ.");
+        }
+        return p;
+    }
+
+    private static final java.util.Set<String> ALLOWED_POSITIONS = java.util.Set.of(
+            com.devcine.backend.enums.WorkPosition.POS_TICKETING,
+            com.devcine.backend.enums.WorkPosition.FNB,
+            com.devcine.backend.enums.WorkPosition.CHECK_IN,
+            com.devcine.backend.enums.WorkPosition.SHIFT_LEAD);
 
     /**
      * Danh sách nhân viên + bộ lọc theo cơ sở / trạng thái / từ khoá.
@@ -280,6 +297,7 @@ public class StaffController {
                     .user(u)
                     .staffCode(resolveStaffCodeForCreate(body.get("staffCode")))
                     .cinema(staffCinema)
+                    .defaultPosition(normalizePosition(body.get("defaultPosition")))
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
 
@@ -329,6 +347,9 @@ public class StaffController {
             }
             userRepository.save(u);
             updateStaffCode(staff, body.get("staffCode"));
+            if (body.containsKey("defaultPosition")) {
+                staff.setDefaultPosition(normalizePosition(body.get("defaultPosition")));
+            }
             staff.setUpdatedAt(LocalDateTime.now());
 
             if (body.containsKey("cinemaId")) {
