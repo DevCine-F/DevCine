@@ -121,8 +121,8 @@ const datetime = (v) => v ? new Date(v).toLocaleString('vi-VN') : '-'
 
 const currentList = computed(() => activeTab.value === 'pending' ? pending.value : mine.value)
 
-const loadData = async () => {
-  isLoading.value = true
+const loadData = async ({ silent = false } = {}) => {
+  if (!silent) isLoading.value = true
   loadError.value = ''
   try {
     if (activeTab.value === 'pending') {
@@ -155,8 +155,10 @@ const handleApprove = async (item) => {
   busyId.value = item.id
   try {
     await approvalApi.approve(item.id)
+    // Cập nhật tại chỗ: bản ghi biến mất khỏi hàng chờ ngay, rồi đồng bộ lại im lặng.
+    pending.value = pending.value.filter((x) => x.id !== item.id)
     toast.success('Đã duyệt yêu cầu.')
-    await loadData()
+    await loadData({ silent: true })
   } catch (err) {
     toast.error(friendlyError(err, 'Duyệt thất bại.'))
   } finally {
@@ -171,12 +173,15 @@ const openReject = (item) => {
 
 const handleReject = async () => {
   if (!rejectTarget.value) return
-  busyId.value = rejectTarget.value.id
+  const rejectedId = rejectTarget.value.id
+  busyId.value = rejectedId
   try {
-    await approvalApi.reject(rejectTarget.value.id, rejectNote.value?.trim() || null)
+    await approvalApi.reject(rejectedId, rejectNote.value?.trim() || null)
+    // Cập nhật tại chỗ: bản ghi biến mất khỏi hàng chờ ngay, rồi đồng bộ lại im lặng.
+    pending.value = pending.value.filter((x) => x.id !== rejectedId)
     toast.success('Đã từ chối yêu cầu.')
     rejectTarget.value = null
-    await loadData()
+    await loadData({ silent: true })
   } catch (err) {
     toast.error(friendlyError(err, 'Từ chối thất bại.'))
   } finally {
