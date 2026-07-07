@@ -27,24 +27,39 @@ const modules = ref([
 // 'view' luôn giữ vì nó gate menu/route ở frontend (dù GET công khai). Các write-action chỉ liệt kê
 // khi thực sự có endpoint kiểm tra — tránh checkbox "chết".
 const features = ref([
-  { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view'] },
+  { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view'],
+    labels: { view: 'Xem báo cáo doanh thu' } },
 
   // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng Trưởng ca duyệt)
-  { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add'] },
-  { id: 'pos_inventory', moduleId: 'pos', name: 'Kiểm kê & Kho F&B', actions: ['view', 'add', 'edit', 'delete'] },
+  { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add'],
+    labels: { view: 'Vào quầy & xem suất chiếu', add: 'Tạo đơn / bán vé & F&B' } },
+  { id: 'pos_inventory', moduleId: 'pos', name: 'Kiểm kê & Kho F&B', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem tồn kho', add: 'Nhập kho', edit: 'Kiểm kê / điều chỉnh', delete: 'Xoá phiếu kho' } },
 
-  { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'] },
-  { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu', actions: ['view', 'add', 'edit'] },
-  { id: 'banners', moduleId: 'content', name: 'Quản lý Banner quảng cáo', actions: ['view', 'add', 'edit', 'delete'] },
-  { id: 'promotions', moduleId: 'content', name: 'Chương trình khuyến mãi', actions: ['view', 'add', 'edit', 'delete'] },
-  { id: 'pricing', moduleId: 'content', name: 'Cấu hình giá vé', actions: ['view', 'edit'] },
+  { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem danh sách phim', add: 'Thêm phim', edit: 'Sửa thông tin phim', delete: 'Xoá / ẩn phim' } },
+  { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu', actions: ['view', 'add', 'edit'],
+    labels: { view: 'Xem lịch chiếu', add: 'Tạo suất chiếu', edit: 'Sửa suất chiếu' } },
+  { id: 'banners', moduleId: 'content', name: 'Quản lý Banner quảng cáo', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem banner', add: 'Thêm banner', edit: 'Sửa banner', delete: 'Xoá banner' } },
+  { id: 'promotions', moduleId: 'content', name: 'Chương trình khuyến mãi', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem khuyến mãi', add: 'Tạo khuyến mãi / voucher', edit: 'Sửa khuyến mãi', delete: 'Xoá khuyến mãi' } },
+  { id: 'pricing', moduleId: 'content', name: 'Cấu hình giá vé', actions: ['view', 'edit'],
+    labels: { view: 'Xem bảng giá', edit: 'Chỉnh cấu hình giá' } },
 
   // Cụm rạp: thao tác ghi là ADMIN-only (hasRole), không điều khiển qua ma trận → chỉ có 'view' (thấy menu)
-  { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view'] },
-  { id: 'staff_management', moduleId: 'system', name: 'Nhân sự & Ca trực', actions: ['view', 'add', 'edit'] },
-  { id: 'support', moduleId: 'system', name: 'Chăm sóc khách hàng', actions: ['view', 'edit', 'delete'] },
-  { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'] },
+  { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view'],
+    labels: { view: 'Xem cụm rạp & sơ đồ ghế' } },
+  { id: 'staff_management', moduleId: 'system', name: 'Nhân sự & Ca trực', actions: ['view', 'add', 'edit'],
+    labels: { view: 'Xem nhân sự & ca', add: 'Thêm nhân viên / xếp ca', edit: 'Duyệt ca, bàn giao, sửa NV' } },
+  { id: 'support', moduleId: 'system', name: 'Chăm sóc khách hàng', actions: ['view', 'edit', 'delete'],
+    labels: { view: 'Xem CSKH & đánh giá', edit: 'Xử lý ticket / phản hồi', delete: 'Xoá ticket / đánh giá' } },
+  { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'],
+    labels: { view: 'Xem cài đặt', edit: 'Đổi cài đặt hệ thống' } },
 ])
+
+// Nhãn action theo ngữ cảnh feature (mô tả đúng việc), fallback về nhãn chung nếu feature chưa khai báo
+const actionLabel = (feature, action) => feature?.labels?.[action] || actionLabels[action] || action
 
 const actionLabels = {
   view: 'Xem (View)',
@@ -600,7 +615,7 @@ const saveChanges = async () => {
                  </span>
                  <span class="text-[10px] font-semibold uppercase tracking-wider transition-colors group-hover:text-on-surface"
                        :class="hasAction(feature.id, action) ? 'text-on-surface' : 'text-on-surface-variant'">
-                   {{ actionLabels[action] || action }}
+                   {{ actionLabel(feature, action) }}
                  </span>
                  <span v-if="isUserMode" class="text-[9px] font-black uppercase tracking-widest"
                        :class="getUserOverrideEffect(feature.id, action) === 'DENY' ? 'text-red-300' : (getUserOverrideEffect(feature.id, action) === 'ALLOW' ? 'text-primary' : 'text-on-surface-variant/50')">
