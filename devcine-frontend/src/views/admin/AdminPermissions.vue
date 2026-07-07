@@ -23,21 +23,25 @@ const modules = ref([
   { id: 'system', name: 'Hệ thống' }
 ])
 
-// Các feature/action khớp với khoá enforce ở backend (@perm.can('<feature>','<action>'))
+// Action khớp CHÍNH XÁC với những gì backend enforce (@perm.can('<feature>','<action>')).
+// 'view' luôn giữ vì nó gate menu/route ở frontend (dù GET công khai). Các write-action chỉ liệt kê
+// khi thực sự có endpoint kiểm tra — tránh checkbox "chết".
 const features = ref([
-  { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view', 'export'] },
+  { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view'] },
 
-  { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add', 'edit', 'delete'] },
+  // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng Trưởng ca duyệt)
+  { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add'] },
   { id: 'pos_inventory', moduleId: 'pos', name: 'Kiểm kê & Kho F&B', actions: ['view', 'add', 'edit', 'delete'] },
 
   { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'] },
-  { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu', actions: ['view', 'add', 'edit', 'delete', 'export'] },
+  { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu', actions: ['view', 'add', 'edit'] },
   { id: 'banners', moduleId: 'content', name: 'Quản lý Banner quảng cáo', actions: ['view', 'add', 'edit', 'delete'] },
   { id: 'promotions', moduleId: 'content', name: 'Chương trình khuyến mãi', actions: ['view', 'add', 'edit', 'delete'] },
-  { id: 'pricing', moduleId: 'content', name: 'Cấu hình giá vé', actions: ['view', 'add', 'edit', 'delete'] },
+  { id: 'pricing', moduleId: 'content', name: 'Cấu hình giá vé', actions: ['view', 'edit'] },
 
-  { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view', 'add', 'edit', 'delete'] },
-  { id: 'staff_management', moduleId: 'system', name: 'Nhân sự & Ca trực', actions: ['view', 'add', 'edit', 'delete', 'export'] },
+  // Cụm rạp: thao tác ghi là ADMIN-only (hasRole), không điều khiển qua ma trận → chỉ có 'view' (thấy menu)
+  { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view'] },
+  { id: 'staff_management', moduleId: 'system', name: 'Nhân sự & Ca trực', actions: ['view', 'add', 'edit'] },
   { id: 'support', moduleId: 'system', name: 'Chăm sóc khách hàng', actions: ['view', 'edit', 'delete'] },
   { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'] },
 ])
@@ -81,7 +85,7 @@ const staffTemplates = [
     name: 'NV Quầy vé',
     icon: 'confirmation_number',
     desc: 'Bán vé, in vé, tra thành viên. Xem phim & lịch chiếu.',
-    matrix: { movies: ['view'], schedules: ['view'], pos_ticketing: ['view', 'add', 'edit'], support: ['view'] }
+    matrix: { movies: ['view'], schedules: ['view'], pos_ticketing: ['view', 'add'], support: ['view'] }
   },
   {
     id: 'fnb',
@@ -102,7 +106,7 @@ const staffTemplates = [
     name: 'Trưởng ca',
     icon: 'shield_person',
     desc: 'Toàn bộ trần quyền STAFF. Quyền phê duyệt sửa sai kích hoạt qua vị trí ca (SHIFT_LEAD).',
-    matrix: { movies: ['view'], schedules: ['view'], pos_ticketing: ['view', 'add', 'edit'], pos_inventory: ['view', 'edit'], support: ['view', 'edit'] }
+    matrix: { movies: ['view'], schedules: ['view'], pos_ticketing: ['view', 'add'], pos_inventory: ['view', 'edit'], support: ['view', 'edit'] }
   }
 ]
 
@@ -390,6 +394,21 @@ const compactMatrix = (matrix) => {
   return payload
 }
 
+// Chỉ giữ những feature/action còn được định nghĩa (khớp backend enforce) → khi lưu sẽ dọn luôn
+// các action "chết" cũ còn sót trong DB.
+const sanitizeRoleMatrix = (matrix) => {
+  const allowed = {}
+  features.value.forEach(f => { allowed[f.id] = new Set(f.actions) })
+  const payload = {}
+  Object.keys(matrix || {}).forEach(fid => {
+    const allow = allowed[fid]
+    if (!allow) return
+    const acts = (matrix[fid] || []).filter(a => allow.has(a))
+    if (acts.length) payload[fid] = acts
+  })
+  return payload
+}
+
 const saveChanges = async () => {
   if (isUserMode.value) {
     if (!activeUserId.value) return
@@ -421,8 +440,8 @@ const saveChanges = async () => {
   saveMessage.value = ''
   try {
     const matrix = permissions.value[activeRole.value] || {}
-    // Chỉ gửi các feature có ít nhất 1 action để ma trận gọn gàng
-    const payload = compactMatrix(matrix)
+    // Gửi ma trận đã làm sạch: chỉ feature/action hợp lệ (dọn luôn action chết cũ trong DB)
+    const payload = sanitizeRoleMatrix(matrix)
     await rolePermissionApi.updatePermissions(activeRole.value, payload)
     const roleName = roles.value.find(r => r.id === activeRole.value)?.name
     saveMessage.value = `Đã lưu phân quyền cho vai trò ${roleName}`
