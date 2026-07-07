@@ -206,6 +206,8 @@ const newVoucher = ref({
   applicableMovieId: '',
   customerEligibility: 'ALL',
   usageLimit: null,
+  maxTicketQuantity: null,
+  maxDiscountAmount: null,
   cinemaMode: 'all',
   selectedCinemas: []
 })
@@ -234,7 +236,7 @@ const isSavingVoucher = ref(false)
 
 const openVoucherDrawer = () => {
   editingVoucherId.value = null
-  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, cinemaMode: 'all', selectedCinemas: [] }
+  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, maxTicketQuantity: null, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
   isVoucherDrawerOpen.value = true
 }
 
@@ -253,6 +255,8 @@ const openEditVoucher = (promo) => {
     applicableMovieId: promo.applicableMovieId != null ? promo.applicableMovieId : '',
     customerEligibility: promo.customerEligibility || 'ALL',
     usageLimit: promo.usageLimit || null,
+    maxTicketQuantity: promo.maxTicketQuantity || null,
+    maxDiscountAmount: promo.maxDiscountAmount != null ? Number(promo.maxDiscountAmount) : null,
     cinemaMode: 'all', selectedCinemas: []
   }
   isVoucherDrawerOpen.value = true
@@ -293,7 +297,9 @@ const handleSaveVoucher = async () => {
       minOrderValue: Number(newVoucher.value.minOrderValue || 0),
       applicableMovieId: newVoucher.value.applicableMovieId || null,
       customerEligibility: newVoucher.value.customerEligibility || 'ALL',
-      usageLimit: Number(newVoucher.value.usageLimit || 0)
+      usageLimit: Number(newVoucher.value.usageLimit || 0),
+      maxTicketQuantity: Number(newVoucher.value.maxTicketQuantity || 0),
+      maxDiscountAmount: Number(newVoucher.value.maxDiscountAmount || 0)
     }
     if (editingVoucherId.value) {
       await marketingApi.updatePromotion(editingVoucherId.value, payload)
@@ -789,6 +795,16 @@ onUnmounted(() => {
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giới hạn lượt dùng</label>
                 <input v-model="newVoucher.usageLimit" type="number" min="0" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="0 = không giới hạn" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa được giảm / đơn</label>
+                <input v-model="newVoucher.maxTicketQuantity" type="number" min="0" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="0 = không giới hạn" />
+                <p class="text-[10px] text-on-surface-variant/70">Chỉ áp cho tối đa X vé đắt nhất; vé còn lại giá gốc.</p>
+              </div>
+              <div class="space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giảm tối đa (VNĐ)</label>
+                <input v-model="newVoucher.maxDiscountAmount" type="number" min="0" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="0 = không giới hạn" />
+                <p class="text-[10px] text-on-surface-variant/70">Trần số tiền giảm, hữu ích cho mã giảm %.</p>
               </div>
             </div>
             <div class="space-y-2">

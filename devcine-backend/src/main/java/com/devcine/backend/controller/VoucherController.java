@@ -112,11 +112,14 @@ public class VoucherController {
     public ResponseEntity<?> applyByCode(@RequestParam Integer customerId, @RequestParam String code) {
         try {
             Voucher voucher = voucherService.getOrClaimForCheckout(customerId, code);
+            Promotion p = voucher.getPromotion();
             return ResponseEntity.ok(Map.of(
                 "id", voucher.getId(),
-                "code", voucher.getPromotion().getCode() != null ? voucher.getPromotion().getCode() : "",
-                "discountType", voucher.getPromotion().getDiscountType() != null ? voucher.getPromotion().getDiscountType() : "",
-                "discountValue", voucher.getPromotion().getDiscountValue() != null ? voucher.getPromotion().getDiscountValue() : 0,
+                "code", p.getCode() != null ? p.getCode() : "",
+                "discountType", p.getDiscountType() != null ? p.getDiscountType() : "",
+                "discountValue", p.getDiscountValue() != null ? p.getDiscountValue() : 0,
+                "maxTicketQuantity", p.getMaxTicketQuantity() != null ? p.getMaxTicketQuantity() : 0,
+                "maxDiscountAmount", p.getMaxDiscountAmount() != null ? p.getMaxDiscountAmount() : 0,
                 "validUntil", voucher.getValidUntil() != null ? voucher.getValidUntil().toString() : ""
             ));
         } catch (RuntimeException ex) {

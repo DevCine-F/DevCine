@@ -78,4 +78,17 @@ public class Promotion {
     @Column(name = "used_count", columnDefinition = "integer not null default 0")
     @Builder.Default
     private Integer usedCount = 0;
+
+    /**
+     * Số vé tối đa trong 1 đơn được áp mã (0/null = không giới hạn).
+     * Khi > 0, chỉ những vé ĐẮT NHẤT (tối đa X vé) được tính giảm; vé còn lại giữ giá gốc.
+     */
+    @Column(name = "max_ticket_quantity")
+    @Builder.Default
+    private Integer maxTicketQuantity = 0;
+
+    /** Số tiền giảm tối đa cho 1 đơn (0/null = không giới hạn) — trần capping áp sau khi tính giảm. */
+    @Column(name = "max_discount_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal maxDiscountAmount = BigDecimal.ZERO;
 }

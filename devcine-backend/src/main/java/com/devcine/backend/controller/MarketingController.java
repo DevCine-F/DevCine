@@ -110,6 +110,8 @@ public class MarketingController {
                             ? Integer.parseInt(body.get("applicableMovieId").toString()) : null)
                     .customerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL")
                     .usageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0)
+                    .maxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0)
+                    .maxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO)
                     .build();
             promotionRepository.save(promo);
             return ResponseEntity.status(201).body(Map.of("success", true, "data", promo));
@@ -150,6 +152,8 @@ public class MarketingController {
                     ? Integer.parseInt(body.get("applicableMovieId").toString()) : null);
             if (body.containsKey("customerEligibility")) promo.setCustomerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL");
             if (body.containsKey("usageLimit")) promo.setUsageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0);
+            if (body.containsKey("maxTicketQuantity")) promo.setMaxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0);
+            if (body.containsKey("maxDiscountAmount")) promo.setMaxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO);
             promotionRepository.save(promo);
             return ResponseEntity.ok(Map.of("success", true, "data", promo));
         } catch (Exception e) {

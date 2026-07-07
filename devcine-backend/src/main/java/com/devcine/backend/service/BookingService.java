@@ -226,13 +226,33 @@ public class BookingService {
                 throw new RuntimeException("Mã đã hết lượt sử dụng.");
             }
 
+            // Phần tiền được tính giảm (base). Mặc định = cả đơn (ghế + bắp nước).
+            // Nếu mã giới hạn số vé → chỉ tính trên tối đa X vé ĐẮT NHẤT (không gồm bắp nước).
+            BigDecimal discountBase = totalPrice;
+            Integer maxTickets = promotion.getMaxTicketQuantity();
+            if (maxTickets != null && maxTickets > 0) {
+                discountBase = bookingSeats.stream()
+                        .map(BookingSeat::getPriceSnapshot)
+                        .sorted(java.util.Comparator.reverseOrder())
+                        .limit(maxTickets)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+            }
+
             BigDecimal discount = BigDecimal.ZERO;
             if ("PERCENTAGE".equalsIgnoreCase(promotion.getDiscountType())) {
-                discount = totalPrice.multiply(promotion.getDiscountValue()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+                discount = discountBase.multiply(promotion.getDiscountValue()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
             } else if ("FIXED_AMOUNT".equalsIgnoreCase(promotion.getDiscountType())) {
-                discount = promotion.getDiscountValue();
+                // Giảm tiền cố định không vượt quá phần tiền được tính giảm
+                discount = promotion.getDiscountValue().min(discountBase);
             }
-            
+
+            // Trần giảm tối đa (capping) — bảo vệ doanh thu với mã giảm %
+            BigDecimal maxDiscount = promotion.getMaxDiscountAmount();
+            if (maxDiscount != null && maxDiscount.compareTo(BigDecimal.ZERO) > 0
+                    && discount.compareTo(maxDiscount) > 0) {
+                discount = maxDiscount;
+            }
+
             finalPrice = totalPrice.subtract(discount);
             if (finalPrice.compareTo(BigDecimal.ZERO) < 0) {
                 finalPrice = BigDecimal.ZERO;

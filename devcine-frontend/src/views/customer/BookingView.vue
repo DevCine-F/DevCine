@@ -351,7 +351,9 @@ const selectVoucher = (v) => {
     id: v.id,
     code: v.promotion.code,
     discountType: v.promotion.discountType,
-    discountValue: v.promotion.discountValue
+    discountValue: v.promotion.discountValue,
+    maxTicketQuantity: v.promotion.maxTicketQuantity,
+    maxDiscountAmount: v.promotion.maxDiscountAmount
   }
   voucherSuccess.value = successText(v.promotion.discountType, v.promotion.discountValue)
   voucherError.value = ''
@@ -366,16 +368,35 @@ const removeVoucher = () => {
 }
 
 const calculateDiscount = () => {
-  if (!store.selectedVoucher) {
+  const v = store.selectedVoucher
+  if (!v) {
     discountAmount.value = 0
     return
   }
-  const total = store.selectedSeats.reduce((acc, s) => acc + s.price, 0) + store.selectedFnbs.reduce((acc, f) => acc + f.fnbItem.price * f.quantity, 0)
-  if (store.selectedVoucher.discountType === 'PERCENTAGE') {
-    discountAmount.value = total * store.selectedVoucher.discountValue / 100
-  } else {
-    discountAmount.value = store.selectedVoucher.discountValue
+  const seatTotal = store.selectedSeats.reduce((acc, s) => acc + s.price, 0)
+  const fnbTotal = store.selectedFnbs.reduce((acc, f) => acc + f.fnbItem.price * f.quantity, 0)
+  const total = seatTotal + fnbTotal
+
+  // Base được tính giảm: mặc định cả đơn; nếu mã giới hạn số vé → chỉ X vé đắt nhất
+  let base = total
+  const maxTickets = Number(v.maxTicketQuantity || 0)
+  if (maxTickets > 0) {
+    base = store.selectedSeats
+      .map(s => s.price)
+      .sort((a, b) => b - a)
+      .slice(0, maxTickets)
+      .reduce((acc, p) => acc + p, 0)
   }
+
+  let discount = v.discountType === 'PERCENTAGE'
+    ? base * v.discountValue / 100
+    : Math.min(v.discountValue, base)
+
+  // Trần giảm tối đa (capping)
+  const maxDiscount = Number(v.maxDiscountAmount || 0)
+  if (maxDiscount > 0 && discount > maxDiscount) discount = maxDiscount
+
+  discountAmount.value = Math.min(discount, total)
 }
 
 // Recalculate discount if seat or fnb selections change
