@@ -23,6 +23,9 @@ instance.interceptors.request.use(
 // Response interceptor: khi token hết hạn/không hợp lệ (401), tự đăng xuất để
 // trạng thái UI (navbar, menu...) phản ánh đúng là CHƯA đăng nhập, tránh tình
 // trạng "còn token cũ" hiển thị tên user trong khi server đã từ chối.
+// Xử lý TẬP TRUNG một lần cho cả loạt 401 đồng thời: 1 toast "hết phiên" + điều hướng về đăng nhập,
+// thay vì để từng view tự bung toast (gây nhiều toast giống hệt).
+let handling401 = false;
 instance.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -30,7 +33,25 @@ instance.interceptors.response.use(
       // import động để tránh phụ thuộc vòng khi module axios được nạp sớm
       const { useAuthStore } = await import('@/stores/auth');
       const auth = useAuthStore();
-      if (auth.isAuthenticated) auth.logout();
+      const wasAuthenticated = auth.isAuthenticated;
+      if (wasAuthenticated) auth.logout();
+
+      // Chỉ báo + điều hướng MỘT lần cho cả loạt 401; và chỉ khi trước đó đang đăng nhập
+      // (bỏ qua 401 do đăng nhập sai mật khẩu ở màn login).
+      if (wasAuthenticated && !handling401) {
+        handling401 = true;
+        try {
+          const { useToastStore } = await import('@/stores/toast');
+          useToastStore().error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
+        } catch (_) { /* ignore */ }
+        try {
+          const { default: router } = await import('@/routers');
+          const path = router.currentRoute.value.path;
+          const target = path.startsWith('/admin') ? '/admin/login' : '/login';
+          if (path !== target) router.replace(target);
+        } catch (_) { /* ignore */ }
+        setTimeout(() => { handling401 = false; }, 1500);
+      }
     }
     return Promise.reject(error);
   }

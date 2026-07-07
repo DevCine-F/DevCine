@@ -51,7 +51,9 @@ export function friendlyError(err, fallback = 'Đã có lỗi xảy ra, vui lòn
   if (looksSafeVietnamese(msg)) return msg
 
   // Không có message an toàn -> dựa vào mã trạng thái HTTP cho câu phù hợp
-  if (status === 401 || status === 403) return 'Vui lòng đăng nhập để tiếp tục.'
+  // Tách 401 (hết phiên) và 403 (thiếu quyền) — trước đây gộp chung gây hiểu nhầm "phải đăng nhập"
+  if (status === 401) return 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.'
+  if (status === 403) return 'Bạn không có quyền thực hiện thao tác này.'
   if (status >= 500) return 'Máy chủ đang gặp sự cố, vui lòng thử lại sau.'
   return fallback
 }

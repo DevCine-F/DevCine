@@ -10,6 +10,9 @@ export const useToastStore = defineStore('toast', {
   actions: {
     push(message, type = 'info', duration = 3500) {
       if (!message) return
+      // Chống trùng: một sự kiện lỗi (vd 401/403) làm nhiều request fail cùng lúc → tránh xếp
+      // chồng nhiều toast y hệt. Nếu đã có toast cùng nội dung + loại đang hiển thị thì bỏ qua.
+      if (this.toasts.some(t => t.message === message && t.type === type)) return
       const id = ++_id
       this.toasts.push({ id, type, message })
       if (duration > 0) {
