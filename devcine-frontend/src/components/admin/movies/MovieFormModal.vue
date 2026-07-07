@@ -20,7 +20,6 @@ const emit = defineEmits(["close", "save"]);
 
 const blankMovie = () => ({
   title: "",
-  titleVietnamese: "",
   duration: "",
   country: "Mỹ",
   productionYear: new Date().getFullYear().toString(),
@@ -211,10 +210,6 @@ const handleSave = () => {
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Tên phim</label>
               <input v-model="newMovie.title" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: Oppenheimer" />
-            </div>
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Tên Tiếng Việt</label>
-              <input v-model="newMovie.titleVietnamese" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: Kẻ Hủy Diệt" />
             </div>
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">

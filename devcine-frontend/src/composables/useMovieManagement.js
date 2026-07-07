@@ -134,10 +134,7 @@ export function useMovieManagement() {
   const filteredMovies = computed(() => {
     const q = searchQuery.value.toLowerCase().trim();
     const result = movies.value.filter((movie) => {
-      const matchesSearch =
-        !q ||
-        movie.title.toLowerCase().includes(q) ||
-        movie.titleVietnamese?.toLowerCase().includes(q);
+      const matchesSearch = !q || movie.title.toLowerCase().includes(q);
 
       const matchesCountry =
         filterCountry.value === "Tất cả quốc gia" || movie.country === filterCountry.value;

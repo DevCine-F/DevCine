@@ -285,7 +285,7 @@ const groupShowtimesByFormat = (showtimes) => {
         <div class="flex-1 mt-6">
           <div class="flex flex-wrap items-center gap-4 mb-4">
             <h1 class="text-4xl md:text-[40px] font-bold uppercase tracking-tight text-white leading-tight">
-              {{ movie.titleVietnamese || movie.title }}
+              {{ movie.title }}
             </h1>
             <span class="border border-white/50 text-white/90 px-2 py-0.5 rounded text-sm font-bold backdrop-blur-sm">{{ movie.format || '2D' }}</span>
           </div>

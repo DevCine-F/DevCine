@@ -24,7 +24,7 @@ const form = ref(blankForm())
 const fetchMovies = async () => {
   try {
     const { data } = await api.get('/movies')
-    movies.value = (Array.isArray(data) ? data : (data.data ?? [])).map(m => ({ id: m.id, title: m.titleVietnamese || m.title, status: m.status }))
+    movies.value = (Array.isArray(data) ? data : (data.data ?? [])).map(m => ({ id: m.id, title: m.title, status: m.status }))
   } catch (e) {
     console.error('Failed to load movies', e)
   }

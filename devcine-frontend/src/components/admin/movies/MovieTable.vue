@@ -163,12 +163,6 @@ const statusBadgeClass = (status) =>
                   {{ movie.title }}
                 </p>
                 <p
-                  v-if="movie.titleVietnamese && movie.titleVietnamese !== movie.title"
-                  class="text-[10px] text-on-surface-variant/70 truncate max-w-[260px]"
-                >
-                  {{ movie.titleVietnamese }}
-                </p>
-                <p
                   class="text-[10px] text-on-surface-variant mt-1 uppercase tracking-widest font-bold flex items-center gap-3"
                 >
                   <span class="flex items-center gap-1">

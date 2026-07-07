@@ -203,7 +203,7 @@ const getGenreNames = (movie) => {
                 <span class="text-primary-container font-label text-xs font-bold tracking-[0.2em] mb-4 uppercase block">Đang chiếu tại rạp</span>
                 <router-link :to="`/movie/${slide.movie.id}`" class="block">
                   <h1 class="font-headline text-5xl md:text-7xl font-extrabold text-white tracking-tighter mb-5 leading-none uppercase line-clamp-2 hover:text-primary-container transition-colors">
-                    {{ slide.movie.titleVietnamese || slide.movie.title }}
+                    {{ slide.movie.title }}
                   </h1>
                 </router-link>
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-on-surface-variant text-sm mb-4">
@@ -288,7 +288,7 @@ const getGenreNames = (movie) => {
                   <span class="text-[#f5c518] text-[11px] font-bold tracking-widest">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
                 </div>
                 <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 group-hover:text-primary-container transition-colors">
-                  {{ movie.titleVietnamese || movie.title }}
+                  {{ movie.title }}
                 </div>
                 <div class="flex justify-between items-center text-sm text-on-surface-variant/80 font-normal">
                   <span>{{ movie.versionType || movie.format || 'Phụ đề' }}</span>
@@ -346,7 +346,7 @@ const getGenreNames = (movie) => {
               <span class="text-[#f5c518] text-[11px] font-bold tracking-widest">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
             </div>
             <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 group-hover:text-primary-container transition-colors">
-              {{ movie.titleVietnamese || movie.title }}
+              {{ movie.title }}
             </div>
             <div class="flex justify-between items-center text-sm text-on-surface-variant/80 font-normal">
               <span>{{ movie.versionType || movie.format || 'Phụ đề' }}</span>

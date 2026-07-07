@@ -175,7 +175,7 @@ const formatMeta = (m) => {
               <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'FILL' 1">star</span>{{ m.rating }}
             </div>
           </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">{{ m.titleVietnamese || m.title }}</h3>
+          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">{{ m.title }}</h3>
           <p class="font-label text-[10px] text-on-surface-variant tracking-wider">{{ formatMeta(m) }}</p>
         </RouterLink>
       </div>
@@ -216,7 +216,7 @@ const formatMeta = (m) => {
             <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div v-if="m.ageRating" class="absolute top-2 left-2 bg-error-container text-on-error-container px-2 py-0.5 rounded font-label text-[10px] font-bold">{{ m.ageRating }}</div>
           </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">{{ m.titleVietnamese || m.title }}</h3>
+          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">{{ m.title }}</h3>
           <p class="font-label text-[10px] text-on-surface-variant tracking-wider">{{ formatMeta(m) }}</p>
         </RouterLink>
       </div>

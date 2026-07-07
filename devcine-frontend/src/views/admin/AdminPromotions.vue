@@ -795,7 +795,7 @@ onUnmounted(() => {
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Áp dụng theo phim</label>
               <select v-model="newVoucher.applicableMovieId" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none">
                 <option value="">Tất cả phim</option>
-                <option v-for="m in moviesList" :key="m.id" :value="m.id">{{ m.title || m.titleVietnamese }}</option>
+                <option v-for="m in moviesList" :key="m.id" :value="m.id">{{ m.title }}</option>
               </select>
             </div>
             <div class="space-y-2">
