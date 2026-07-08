@@ -229,12 +229,12 @@ public class BookingService {
             // Phần tiền được tính giảm (base). Mặc định = cả đơn (ghế + bắp nước).
             // Nếu mã giới hạn số vé → chỉ tính trên tối đa X vé ĐẮT NHẤT (không gồm bắp nước).
             BigDecimal discountBase = totalPrice;
-            Integer maxTickets = promotion.getMaxTicketQuantity();
-            if (maxTickets != null && maxTickets > 0) {
+            Integer voucherMaxTickets = promotion.getMaxTicketQuantity();
+            if (voucherMaxTickets != null && voucherMaxTickets > 0) {
                 discountBase = bookingSeats.stream()
                         .map(BookingSeat::getPriceSnapshot)
                         .sorted(java.util.Comparator.reverseOrder())
-                        .limit(maxTickets)
+                        .limit(voucherMaxTickets)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
             }
 
