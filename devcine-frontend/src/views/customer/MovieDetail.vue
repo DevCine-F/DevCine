@@ -3,7 +3,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { useAuthStore } from '@/stores/auth'
 import { reviewApi } from '@/api/customer/index'
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, nextTick } from 'vue'
 import api from '@/api/axios'
 import TrailerModal from '@/components/common/TrailerModal.vue'
 import { useToastStore } from '@/stores/toast'
@@ -33,8 +33,47 @@ const myComment = ref('')
 const submittingReview = ref(false)
 const reviewFilter = ref(0) // 0 = tất cả; 1..5 = lọc theo số sao
 const showLoginModal = ref(false)
+const ratingError = ref(false)
+const commentError = ref(false)
+
+// Chọn sao / gõ nội dung → xóa trạng thái lỗi tương ứng
+const selectRating = (value) => {
+  myRating.value = value
+  ratingError.value = false
+}
+const onCommentInput = () => {
+  if (myComment.value.trim()) commentError.value = false
+}
+
+// Lưu tạm bản nháp đánh giá theo phim để không mất khi khách đi đăng nhập rồi quay lại
+const reviewDraftKey = () => `reviewDraft:${route.params.id}`
+
+const saveReviewDraft = () => {
+  try {
+    sessionStorage.setItem(reviewDraftKey(), JSON.stringify({
+      rating: myRating.value,
+      comment: myComment.value
+    }))
+  } catch (e) { /* sessionStorage không khả dụng → bỏ qua */ }
+}
+
+const restoreReviewDraft = () => {
+  try {
+    const raw = sessionStorage.getItem(reviewDraftKey())
+    if (!raw) return
+    const draft = JSON.parse(raw)
+    if (draft.rating) myRating.value = draft.rating
+    if (draft.comment) myComment.value = draft.comment
+    sessionStorage.removeItem(reviewDraftKey())
+    // Cuộn về đúng khu vực đánh giá khách đang thao tác trước khi đăng nhập
+    nextTick(() => {
+      document.getElementById('review-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  } catch (e) { /* dữ liệu hỏng → bỏ qua */ }
+}
 
 const goToLogin = () => {
+  saveReviewDraft()
   showLoginModal.value = false
   router.push({ name: 'login', query: { redirect: route.fullPath } })
 }
@@ -74,10 +113,11 @@ const submitReview = async () => {
     showLoginModal.value = true
     return
   }
-  if (myRating.value < 1) {
-    toast.warning('Vui lòng chọn số sao đánh giá.')
-    return
-  }
+  // Lỗi nhập liệu → chỉ hiển thị inline (viền đỏ + dòng lỗi), không dùng toast
+  ratingError.value = myRating.value < 1
+  commentError.value = !myComment.value.trim()
+  if (ratingError.value || commentError.value) return
+
   submittingReview.value = true
   try {
     await reviewApi.submit({
@@ -86,11 +126,12 @@ const submitReview = async () => {
       rating: myRating.value,
       comment: myComment.value
     })
-    toast.success('Cảm ơn bạn đã đánh giá!')
+    toast.success('Gửi đánh giá thành công! Cảm ơn nhận xét của bạn.')
+    myRating.value = 0
     myComment.value = ''
     await fetchReviews(route.params.id)
   } catch (err) {
-    toast.error(friendlyError(err, 'Gửi đánh giá thất bại.'))
+    toast.error(friendlyError(err, 'Không thể gửi đánh giá, vui lòng thử lại sau!'))
   } finally {
     submittingReview.value = false
   }
@@ -140,6 +181,9 @@ onMounted(async () => {
      activeDateStr.value = uniqueDates.value[0]
   }
   loading.value = false
+
+  // Khôi phục bản nháp đánh giá sau khi khách đăng nhập quay lại
+  restoreReviewDraft()
 })
 
 const onCityChange = async () => {
@@ -412,7 +456,7 @@ const groupShowtimesByFormat = (showtimes) => {
     </section>
 
     <!-- ĐÁNH GIÁ & BÌNH LUẬN -->
-    <section class="bg-[#111111] border-t border-white/5">
+    <section id="review-section" class="bg-[#111111] border-t border-white/5">
       <div class="max-w-[1200px] mx-auto px-6 py-14">
         <div class="flex items-center justify-between mb-8">
           <h2 class="text-2xl font-bold text-white uppercase tracking-tight">Đánh giá phim</h2>
@@ -456,18 +500,24 @@ const groupShowtimesByFormat = (showtimes) => {
         <!-- Form gửi đánh giá -->
         <div class="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 mb-10">
           <p class="text-sm font-bold text-white mb-3 uppercase tracking-wider">Chia sẻ cảm nhận của bạn</p>
-          <div class="flex items-center gap-2 mb-4">
+          <div class="flex items-center gap-2 mb-1 w-fit rounded-lg transition-all"
+               :class="ratingError ? 'ring-1 ring-red-500 px-2 py-1 -mx-2' : ''">
             <span v-for="i in 5" :key="i"
-                  @click="myRating = i"
+                  @click="selectRating(i)"
                   @mouseenter="hoverRating = i"
                   @mouseleave="hoverRating = 0"
                   class="material-symbols-outlined text-3xl cursor-pointer transition-transform hover:scale-110"
-                  :class="i <= (hoverRating || myRating) ? 'text-[#f5c518]' : 'text-white/20'"
+                  :class="i <= (hoverRating || myRating) ? 'text-[#f5c518]' : (ratingError ? 'text-red-500/60' : 'text-white/20')"
                   style="font-variation-settings: 'FILL' 1;">star</span>
-            <span class="text-xs text-gray-400 ml-2">{{ myRating > 0 ? myRating + '/5 sao' : 'Chọn số sao' }}</span>
+            <span class="text-xs ml-2" :class="ratingError ? 'text-red-400' : 'text-gray-400'">{{ myRating > 0 ? myRating + '/5 sao' : 'Chọn số sao' }}</span>
           </div>
-          <textarea v-model="myComment" rows="3" placeholder="Viết nhận xét của bạn về bộ phim..."
-                    class="w-full bg-[#262626] border border-white/10 rounded-lg p-4 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#f5c518]/50 transition-colors"></textarea>
+          <p v-if="ratingError" class="text-xs text-red-400 mb-3">Vui lòng chọn số sao đánh giá.</p>
+          <div :class="ratingError ? '' : 'mt-4'">
+            <textarea v-model="myComment" @input="onCommentInput" rows="3" placeholder="Viết nhận xét của bạn về bộ phim..."
+                      class="w-full bg-[#262626] border rounded-lg p-4 text-sm text-white placeholder:text-gray-600 focus:outline-none transition-colors"
+                      :class="commentError ? 'border-red-500 focus:border-red-500' : 'border-white/10 focus:border-[#f5c518]/50'"></textarea>
+            <p v-if="commentError" class="text-xs text-red-400 mt-1">Vui lòng nhập nội dung đánh giá.</p>
+          </div>
 
           <div class="flex justify-end mt-4">
             <button @click="submitReview" :disabled="submittingReview"
