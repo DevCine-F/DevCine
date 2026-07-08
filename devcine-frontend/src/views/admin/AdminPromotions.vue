@@ -212,6 +212,36 @@ const newVoucher = ref({
   selectedCinemas: []
 })
 
+// Combobox "Áp dụng theo phim": tìm kiếm + chọn (thay <select> native lệch màu nền)
+const movieDropdownOpen = ref(false)
+const movieSearch = ref('')
+const cinemaSearch = ref('')
+const filteredMoviesList = computed(() => {
+  const q = movieSearch.value.trim().toLowerCase()
+  if (!q) return moviesList.value
+  return moviesList.value.filter(m => (m.title || '').toLowerCase().includes(q))
+})
+const filteredCinemasList = computed(() => {
+  const q = cinemaSearch.value.trim().toLowerCase()
+  if (!q) return cinemasList.value
+  return cinemasList.value.filter(c => (c.name || '').toLowerCase().includes(q))
+})
+const selectedMovieTitle = computed(() => {
+  if (!newVoucher.value.applicableMovieId) return 'Tất cả phim'
+  const m = moviesList.value.find(x => x.id === newVoucher.value.applicableMovieId)
+  return m ? m.title : 'Tất cả phim'
+})
+const selectMovieForVoucher = (id) => {
+  newVoucher.value.applicableMovieId = id
+  movieDropdownOpen.value = false
+  movieSearch.value = ''
+}
+// Hôm nay (YYYY-MM-DD, theo giờ local) — chặn chọn ngày hết hạn trong quá khứ
+const todayStr = computed(() => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
+
 const newCombo = ref({
   name: '',
   price: null,
@@ -237,6 +267,7 @@ const isSavingVoucher = ref(false)
 const openVoucherDrawer = () => {
   editingVoucherId.value = null
   newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, maxTicketQuantity: null, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
+  movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
   isVoucherDrawerOpen.value = true
 }
 
@@ -259,6 +290,7 @@ const openEditVoucher = (promo) => {
     maxDiscountAmount: promo.maxDiscountAmount != null ? Number(promo.maxDiscountAmount) : null,
     cinemaMode: 'all', selectedCinemas: []
   }
+  movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
   isVoucherDrawerOpen.value = true
 }
 
@@ -282,6 +314,23 @@ const handleSaveVoucher = async () => {
   if (!newVoucher.value.code?.trim() || newVoucher.value.value == null) {
     showToast('Vui lòng nhập mã code và giá trị giảm.', 'error')
     return
+  }
+  // Giá trị giảm % phải trong khoảng 0–100
+  if (newVoucher.value.type === 'PERCENTAGE') {
+    const v = Number(newVoucher.value.value)
+    if (Number.isNaN(v) || v < 0 || v > 100) {
+      showToast('Giá trị giảm (%) phải trong khoảng 0–100.', 'error')
+      return
+    }
+  }
+  // Ngày hết hạn không được ở quá khứ
+  if (newVoucher.value.expiry) {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const exp = new Date(`${newVoucher.value.expiry}T23:59:59`)
+    if (exp < today) {
+      showToast('Ngày hết hạn không được ở quá khứ.', 'error')
+      return
+    }
   }
   isSavingVoucher.value = true
   try {
@@ -727,14 +776,14 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Voucher Drawer Form -->
-    <div v-if="isVoucherDrawerOpen" class="fixed inset-0 z-[1000] flex justify-end">
+    <!-- Voucher Modal Form -->
+    <div v-if="isVoucherDrawerOpen" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
       <!-- Backdrop -->
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="isVoucherDrawerOpen = false"></div>
-      
-      <!-- Drawer Panel -->
-      <div class="relative w-full max-w-md bg-surface-container-low h-full shadow-2xl flex flex-col border-l border-outline-variant/20 animate-in slide-in-from-right duration-300">
-        <!-- Drawer Header -->
+
+      <!-- Modal Panel -->
+      <div class="relative w-full max-w-lg max-h-[90vh] bg-surface-container-low rounded-2xl overflow-hidden shadow-2xl flex flex-col border border-outline-variant/20 animate-in fade-in zoom-in-95 duration-200">
+        <!-- Modal Header -->
         <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
           <div>
             <h3 class="font-headline font-black uppercase italic text-primary text-xl">{{ editingVoucherId ? 'Cập nhật Voucher' : 'Tạo Voucher' }}</h3>
@@ -745,8 +794,8 @@ onUnmounted(() => {
           </button>
         </div>
         
-        <!-- Drawer Body -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
+        <!-- Modal Body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom" @click="movieDropdownOpen = false">
           <div class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã Code (Tự tạo)</label>
             <input v-model="newVoucher.code" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none font-mono uppercase tracking-widest" placeholder="VD: SUMMER2026" />
@@ -772,14 +821,14 @@ onUnmounted(() => {
               />
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá trị giảm</label>
-              <input v-model="newVoucher.value" type="number" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá trị giảm {{ newVoucher.type === 'PERCENTAGE' ? '(%)' : '(VNĐ)' }}</label>
+              <input v-model="newVoucher.value" type="number" min="0" :max="newVoucher.type === 'PERCENTAGE' ? 100 : null" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
             </div>
           </div>
-          
+
           <div class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày hết hạn</label>
-            <input v-model="newVoucher.expiry" type="date" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
+            <input v-model="newVoucher.expiry" type="date" :min="todayStr" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
           </div>
 
           <!-- Điều kiện áp dụng nâng cao -->
@@ -807,12 +856,29 @@ onUnmounted(() => {
                 <p class="text-[10px] text-on-surface-variant/70">Trần số tiền giảm, hữu ích cho mã giảm %.</p>
               </div>
             </div>
-            <div class="space-y-2">
+            <div class="space-y-2 relative" @click.stop>
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Áp dụng theo phim</label>
-              <select v-model="newVoucher.applicableMovieId" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none">
-                <option value="">Tất cả phim</option>
-                <option v-for="m in moviesList" :key="m.id" :value="m.id">{{ m.title }}</option>
-              </select>
+              <button type="button" @click="movieDropdownOpen = !movieDropdownOpen"
+                class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold focus:border-primary outline-none flex items-center justify-between text-left"
+                :class="movieDropdownOpen ? 'border-primary' : ''">
+                <span :class="newVoucher.applicableMovieId ? 'text-on-surface' : 'text-on-surface-variant/70'">{{ selectedMovieTitle }}</span>
+                <span class="material-symbols-outlined text-lg text-on-surface-variant transition-transform" :class="{ 'rotate-180': movieDropdownOpen }">expand_more</span>
+              </button>
+              <div v-if="movieDropdownOpen" class="absolute z-20 left-0 right-0 top-full mt-2 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl overflow-hidden">
+                <div class="p-2 border-b border-outline-variant/10">
+                  <input v-model="movieSearch" type="text" placeholder="Tìm tên phim..." autofocus
+                    class="w-full bg-surface-container-lowest border border-outline-variant/20 px-3 py-2 rounded-lg text-sm text-on-surface focus:border-primary outline-none" />
+                </div>
+                <div class="max-h-56 overflow-y-auto py-1 scrollbar-custom">
+                  <button type="button" @click="selectMovieForVoucher('')"
+                    class="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+                    :class="!newVoucher.applicableMovieId ? 'text-primary font-bold' : 'text-on-surface-variant'">Tất cả phim</button>
+                  <button v-for="m in filteredMoviesList" :key="m.id" type="button" @click="selectMovieForVoucher(m.id)"
+                    class="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors truncate block"
+                    :class="newVoucher.applicableMovieId === m.id ? 'text-primary font-bold' : 'text-on-surface-variant'">{{ m.title }}</button>
+                  <div v-if="filteredMoviesList.length === 0" class="px-4 py-3 text-sm text-on-surface-variant/60 italic text-center">Không tìm thấy phim</div>
+                </div>
+              </div>
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đối tượng áp dụng</label>
@@ -832,9 +898,15 @@ onUnmounted(() => {
                 </button>
               </div>
               
-              <div v-if="newVoucher.allowPointExchange" class="p-4 pt-2 border-t border-outline-variant/5 animate-in fade-in slide-in-from-top-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 block">Số điểm cần đổi</label>
-                <input v-model="newVoucher.pointsRequired" type="number" class="w-full bg-surface-container-lowest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: 50" />
+              <div v-if="newVoucher.allowPointExchange" class="p-4 pt-2 border-t border-outline-variant/5 animate-in fade-in slide-in-from-top-2 space-y-3">
+                <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <span class="material-symbols-outlined text-amber-400 text-base shrink-0">warning</span>
+                  <p class="text-[10px] text-amber-300/90 font-bold leading-relaxed">Khi BẬT: khách chỉ nhận mã bằng cách <b>đổi điểm</b> và mã <b>KHÔNG</b> nhập trực tiếp ở trang đặt vé được. Muốn khách nhập mã để dùng ngay thì <b>TẮT</b> mục này.</p>
+                </div>
+                <div>
+                  <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 block">Số điểm cần đổi</label>
+                  <input v-model="newVoucher.pointsRequired" type="number" min="1" class="w-full bg-surface-container-lowest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: 50" />
+                </div>
               </div>
             </div>
           </div>
@@ -852,11 +924,19 @@ onUnmounted(() => {
               </label>
             </div>
             
-            <div v-if="newVoucher.cinemaMode === 'specific'" class="flex flex-col gap-2 mt-2 p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10">
-              <label v-for="cinema in cinemasList" :key="cinema.id" class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white/5 rounded transition-colors">
-                <input type="checkbox" :value="cinema.id" v-model="newVoucher.selectedCinemas" class="accent-primary">
-                <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{{ cinema.name }}</span>
-              </label>
+            <div v-if="newVoucher.cinemaMode === 'specific'" class="mt-2 p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10 space-y-2">
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">search</span>
+                <input v-model="cinemaSearch" type="text" placeholder="Tìm theo tên rạp..."
+                  class="w-full bg-surface-container-lowest border border-outline-variant/20 pl-10 pr-3 py-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none" />
+              </div>
+              <div class="flex flex-col gap-1 max-h-52 overflow-y-auto scrollbar-custom">
+                <label v-for="cinema in filteredCinemasList" :key="cinema.id" class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white/5 rounded transition-colors">
+                  <input type="checkbox" :value="cinema.id" v-model="newVoucher.selectedCinemas" class="accent-primary">
+                  <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{{ cinema.name }}</span>
+                </label>
+                <div v-if="filteredCinemasList.length === 0" class="px-2 py-3 text-xs text-on-surface-variant/60 italic text-center">Không tìm thấy rạp</div>
+              </div>
             </div>
           </div>
         </div>

@@ -324,7 +324,7 @@ const applyVoucherCode = async () => {
   if (!voucherCode.value.trim()) return
 
   if (!authStore.isAuthenticated || !authStore.user?.id) {
-    voucherError.value = 'Vui lòng đăng nhập để sử dụng mã giảm giá!'
+    toast.warning('Vui lòng đăng nhập để sử dụng mã giảm giá!')
     return
   }
 
@@ -337,10 +337,11 @@ const applyVoucherCode = async () => {
     voucherCode.value = ''
     calculateDiscount()
     await refreshVouchers()
+    toast.success('Áp dụng mã giảm giá thành công!')
   } catch (err) {
-    voucherError.value = err.response?.data?.message || err.response?.data?.error || 'Mã giảm giá không hợp lệ!'
     store.selectedVoucher = null
     discountAmount.value = 0
+    toast.error(friendlyError(err, 'Mã giảm giá không hợp lệ!'))
   } finally {
     isApplyingVoucher.value = false
   }
