@@ -55,6 +55,20 @@ const showPassword = ref(false)
 const isLoading = ref(false)
 const rememberMe = ref(false)
 
+// Dev Mode: đăng nhập nhanh theo 3 vai trò (chỉ dùng khi phát triển)
+const showQuickMenu = ref(false)
+const quickAccounts = [
+  { label: 'Quản trị', role: 'ADMIN', user: 'admin', pass: '123' },
+  { label: 'Quản lý', role: 'MANAGER', user: 'manager', pass: '123' },
+  { label: 'Nhân viên', role: 'STAFF', user: 'staff', pass: '123' },
+]
+const quickLogin = (acc) => {
+  username.value = acc.user
+  password.value = acc.pass
+  showQuickMenu.value = false
+  loginAsAdmin()
+}
+
 const loginAsAdmin = async (e) => {
   if (e && e.preventDefault) e.preventDefault()
 
@@ -165,8 +179,18 @@ const loginAsAdmin = async (e) => {
     </div>
 
     <!-- Quick Access (Dev Only) -->
-    <div class="absolute bottom-4 right-4 z-50">
-      <button type="button" @click="loginAsAdmin" class="text-white/30 hover:text-[#f5c518] transition-colors p-2" title="Dev Mode: Truy cập nhanh">
+    <div class="absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+      <!-- Menu chọn vai trò đăng nhập nhanh -->
+      <div v-if="showQuickMenu" class="w-44 bg-neutral-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black">
+        <p class="px-3 pt-2.5 pb-1 text-[10px] uppercase tracking-widest text-white/40 font-bold">Đăng nhập nhanh</p>
+        <button v-for="acc in quickAccounts" :key="acc.role" type="button" @click="quickLogin(acc)"
+                class="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-white/5 transition-colors text-left">
+          <span class="text-xs font-bold text-white">{{ acc.label }}</span>
+          <span class="text-[10px] text-white/40 font-mono">{{ acc.user }}</span>
+        </button>
+      </div>
+      <button type="button" @click="showQuickMenu = !showQuickMenu"
+              class="text-white/30 hover:text-[#f5c518] transition-colors p-2" title="Dev Mode: Truy cập nhanh">
         <span class="material-symbols-outlined text-sm">vpn_key</span>
       </button>
     </div>
