@@ -42,7 +42,8 @@ export function friendlyError(err, fallback = 'Đã có lỗi xảy ra, vui lòn
   const status = err?.response?.status
   let msg = ''
   if (typeof err === 'string') msg = err
-  else msg = err?.response?.data?.message || err?.response?.data?.error || ''
+  else msg = err?.response?.data?.message || err?.response?.data?.error
+    || (typeof err?.response?.data === 'string' ? err.response.data : '') || ''
 
   for (const [pattern, friendly] of MAP) {
     if (pattern.test(msg)) return friendly

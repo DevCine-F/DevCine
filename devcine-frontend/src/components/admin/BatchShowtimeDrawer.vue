@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, nextTick } from 'vue';
 import api from '@/api/axios';
 import CustomSelect from './CustomSelect.vue';
 import { useToastStore } from '@/stores/toast';
@@ -28,9 +28,17 @@ const form = reactive({
 const movies = ref([]);
 const formats = ref([]);
 const newTime = ref('');
-const errorMsg = ref('');
 const preview = ref(null);   // { toCreate, createdCount, skipped: [] }
 const isBusy = ref(false);
+
+// Lỗi theo TỪNG trường (thay banner lỗi tổng ở đầu drawer) — hiện inline + tự cuộn tới lỗi đầu tiên
+const fieldErrors = reactive({ movieId: '', formatId: '', roomIds: '', dateRange: '', startTimes: '' });
+const movieField = ref(null);
+const formatField = ref(null);
+const roomsField = ref(null);
+const dateField = ref(null);
+const timesField = ref(null);
+const clearErrors = () => Object.keys(fieldErrors).forEach(k => { fieldErrors[k] = ''; });
 
 const weekDays = [
   { value: 1, label: 'T2' }, { value: 2, label: 'T3' }, { value: 3, label: 'T4' },
@@ -70,7 +78,7 @@ watch(() => form.movieId, () => { form.formatId = ''; });
 watch(() => props.isOpen, (open) => {
   if (open) {
     fetchOptions();
-    errorMsg.value = '';
+    clearErrors();
     preview.value = null;
     const today = new Date().toISOString().slice(0, 10);
     form.movieId = ''; form.formatId = ''; form.cleaningTime = 15;
@@ -82,6 +90,13 @@ watch(() => props.isOpen, (open) => {
 // Đổi bất kỳ tham số nào → preview cũ không còn đúng
 watch(() => [form.movieId, form.formatId, form.cleaningTime, form.dateFrom, form.dateTo,
   form.daysOfWeek.length, form.roomIds.length, form.startTimes.length], () => { preview.value = null; });
+
+// Lỗi tự xóa khi người dùng bắt đầu sửa đúng trường đó (đỡ cảm giác lỗi dai)
+watch(() => form.movieId, () => { fieldErrors.movieId = ''; });
+watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
+watch(() => form.roomIds.length, () => { fieldErrors.roomIds = ''; });
+watch(() => [form.dateFrom, form.dateTo], () => { fieldErrors.dateRange = ''; });
+watch(() => form.startTimes.length, () => { fieldErrors.startTimes = ''; });
 
 const toggleRoom = (roomId) => {
   const i = form.roomIds.indexOf(roomId);
@@ -112,14 +127,31 @@ const addTime = () => {
 };
 const removeTime = (t) => { form.startTimes = form.startTimes.filter(x => x !== t); };
 
+// Trả về key của trường lỗi ĐẦU TIÊN (theo thứ tự hiển thị) hoặc null nếu hợp lệ.
 const validate = () => {
-  if (!form.movieId) return 'Vui lòng chọn phim.';
-  if (!form.formatId) return 'Vui lòng chọn định dạng.';
-  if (!form.roomIds.length) return 'Vui lòng chọn ít nhất một phòng chiếu.';
-  if (!form.dateFrom || !form.dateTo) return 'Vui lòng chọn khoảng ngày.';
-  if (form.dateFrom > form.dateTo) return 'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.';
-  if (!form.startTimes.length) return 'Vui lòng thêm ít nhất một khung giờ.';
-  return '';
+  clearErrors();
+  if (!form.movieId) fieldErrors.movieId = 'Vui lòng chọn phim.';
+  if (!form.formatId) fieldErrors.formatId = 'Vui lòng chọn định dạng.';
+  if (!form.roomIds.length) fieldErrors.roomIds = 'Vui lòng chọn ít nhất một phòng chiếu.';
+  if (!form.dateFrom || !form.dateTo) fieldErrors.dateRange = 'Vui lòng chọn khoảng ngày.';
+  else if (form.dateFrom > form.dateTo) fieldErrors.dateRange = 'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.';
+  if (!form.startTimes.length) fieldErrors.startTimes = 'Vui lòng thêm ít nhất một khung giờ.';
+
+  const order = [
+    ['movieId', movieField], ['formatId', formatField], ['roomIds', roomsField],
+    ['dateRange', dateField], ['startTimes', timesField]
+  ];
+  const first = order.find(([k]) => fieldErrors[k]);
+  return first ? first[1] : null;
+};
+
+// Cuộn trường lỗi vào giữa màn hình + focus phần tử nhập đầu tiên bên trong.
+const focusFirstError = async (fieldRef) => {
+  await nextTick();
+  const el = fieldRef?.value;
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.querySelector('input, button, select, [tabindex]')?.focus?.();
 };
 
 const buildPayload = (dryRun) => ({
@@ -135,22 +167,22 @@ const buildPayload = (dryRun) => ({
 });
 
 const runPreview = async () => {
-  errorMsg.value = validate();
-  if (errorMsg.value) return;
+  const badField = validate();
+  if (badField) { focusFirstError(badField); return; }
   isBusy.value = true;
   try {
     const { data } = await api.post('/showtimes/batch', buildPayload(true));
     preview.value = data;
   } catch (e) {
-    errorMsg.value = friendlyError(e, 'Không thể xem trước lịch chiếu.');
+    toast.error(friendlyError(e, 'Không thể xem trước lịch chiếu.'));
   } finally {
     isBusy.value = false;
   }
 };
 
 const handleCreate = async () => {
-  errorMsg.value = validate();
-  if (errorMsg.value) return;
+  const badField = validate();
+  if (badField) { focusFirstError(badField); return; }
   isBusy.value = true;
   try {
     const { data } = await api.post('/showtimes/batch', buildPayload(false));
@@ -159,7 +191,7 @@ const handleCreate = async () => {
     emit('saved');
     emit('close');
   } catch (e) {
-    errorMsg.value = friendlyError(e, 'Không thể tạo lịch chiếu.');
+    toast.error(friendlyError(e, 'Không thể tạo lịch chiếu.'));
   } finally {
     isBusy.value = false;
   }
@@ -186,30 +218,29 @@ const handleCreate = async () => {
 
       <!-- Body -->
       <div class="flex-1 overflow-y-auto p-8 space-y-6">
-        <div v-if="errorMsg" class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-          <p class="text-red-400 text-sm font-medium flex items-center gap-2">
-            <span class="material-symbols-outlined text-base">error</span>{{ errorMsg }}
-          </p>
-        </div>
-
         <!-- Phim + định dạng -->
         <div class="grid grid-cols-2 gap-4">
-          <div>
+          <div ref="movieField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>
-            <CustomSelect v-model="form.movieId" :options="movieOptions" placeholder="-- Chọn phim --" />
+            <CustomSelect v-model="form.movieId" :options="movieOptions" placeholder="-- Chọn phim --"
+              :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
+            <p v-if="fieldErrors.movieId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.movieId }}</p>
           </div>
-          <div>
+          <div ref="formatField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Định dạng</label>
-            <CustomSelect v-model="form.formatId" :options="formatOptions" placeholder="-- Chọn định dạng --" />
+            <CustomSelect v-model="form.formatId" :options="formatOptions" placeholder="-- Chọn định dạng --"
+              :class="fieldErrors.formatId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
+            <p v-if="fieldErrors.formatId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.formatId }}</p>
           </div>
         </div>
 
         <!-- Cơ sở → phòng -->
-        <div>
+        <div ref="roomsField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
             Cơ sở & phòng chiếu <span class="text-primary">({{ totalRoomsSelected }} phòng)</span>
           </label>
-          <div class="space-y-3 max-h-64 overflow-y-auto pr-1">
+          <div class="space-y-3 max-h-64 overflow-y-auto pr-1"
+            :class="fieldErrors.roomIds ? 'ring-1 ring-red-500/60 rounded-xl p-1' : ''">
             <div v-for="c in cinemas" :key="c.id" class="bg-black/20 border border-white/10 rounded-xl p-3">
               <label class="flex items-center gap-2 cursor-pointer mb-2">
                 <input type="checkbox" :checked="cinemaAllSelected(c)" @change="toggleCinema(c)"
@@ -229,18 +260,26 @@ const handleCreate = async () => {
               <p v-else class="pl-6 text-[11px] text-white/30 italic">Chưa có phòng</p>
             </div>
           </div>
+          <p v-if="fieldErrors.roomIds" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.roomIds }}</p>
         </div>
 
         <!-- Khoảng ngày -->
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Từ ngày</label>
-            <input type="date" v-model="form.dateFrom" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
+        <div ref="dateField">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Từ ngày</label>
+              <input type="date" v-model="form.dateFrom"
+                :class="fieldErrors.dateRange ? 'border-red-500/60' : 'border-white/10'"
+                class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Đến ngày</label>
+              <input type="date" v-model="form.dateTo"
+                :class="fieldErrors.dateRange ? 'border-red-500/60' : 'border-white/10'"
+                class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Đến ngày</label>
-            <input type="date" v-model="form.dateTo" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-          </div>
+          <p v-if="fieldErrors.dateRange" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateRange }}</p>
         </div>
 
         <!-- Thứ trong tuần -->
@@ -260,13 +299,15 @@ const handleCreate = async () => {
         </div>
 
         <!-- Khung giờ -->
-        <div>
+        <div ref="timesField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Khung giờ chiếu</label>
           <div class="flex gap-2">
             <input type="time" v-model="newTime" @keyup.enter="addTime"
-              class="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
+              :class="fieldErrors.startTimes ? 'border-red-500/60' : 'border-white/10'"
+              class="flex-1 bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
             <button type="button" @click="addTime" class="px-5 rounded-xl bg-primary/20 border border-primary/40 text-primary font-bold text-xs uppercase tracking-widest hover:bg-primary/30 transition-all">Thêm</button>
           </div>
+          <p v-if="fieldErrors.startTimes" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.startTimes }}</p>
           <div v-if="form.startTimes.length" class="flex flex-wrap gap-2 mt-3">
             <span v-for="t in form.startTimes" :key="t"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-bold">

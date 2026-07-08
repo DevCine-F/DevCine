@@ -1,7 +1,11 @@
 <script setup>
-import { ref, reactive, onMounted, watch, computed } from 'vue';
+import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue';
 import api from '@/api/axios';
 import CustomSelect from './CustomSelect.vue';
+import { useToastStore } from '@/stores/toast';
+import { friendlyError } from '@/utils/friendlyError';
+
+const toast = useToastStore();
 
 const props = defineProps({
   isOpen: Boolean,
@@ -23,7 +27,14 @@ const form = reactive({
 const movies = ref([]);
 const rooms = ref([]);
 const formats = ref([]);
-const errorMsg = ref('');
+
+// Lỗi theo TỪNG trường (thay banner lỗi tổng ở đầu drawer) — inline + tự cuộn tới lỗi đầu tiên
+const fieldErrors = reactive({ movieId: '', roomId: '', formatId: '', time: '' });
+const movieField = ref(null);
+const roomField = ref(null);
+const formatField = ref(null);
+const timeField = ref(null);
+const clearErrors = () => Object.keys(fieldErrors).forEach(k => { fieldErrors[k] = ''; });
 
 // Computed properties for CustomSelect options format
 const movieOptions = computed(() => {
@@ -92,13 +103,19 @@ const fetchRooms = async (cinemaId) => {
 watch(() => form.movieId, () => {
   // Reset format selection when movie changes
   form.formatId = '';
+  fieldErrors.movieId = '';
 });
+
+// Lỗi tự xóa khi người dùng bắt đầu sửa đúng trường đó
+watch(() => form.roomId, () => { fieldErrors.roomId = ''; });
+watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
+watch(() => [form.startHour, form.startMinute], () => { fieldErrors.time = ''; });
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     fetchOptions();
     fetchRooms(props.cinemaId);
-    errorMsg.value = '';
+    clearErrors();
     // Reset form
     form.movieId = '';
     form.roomId = '';
@@ -108,12 +125,35 @@ watch(() => props.isOpen, (newVal) => {
   }
 });
 
+// Trả về ref của trường lỗi ĐẦU TIÊN (theo thứ tự hiển thị) hoặc null nếu hợp lệ.
+const validate = () => {
+  clearErrors();
+  if (!form.movieId) fieldErrors.movieId = 'Vui lòng chọn phim.';
+  if (!form.roomId) fieldErrors.roomId = 'Vui lòng chọn phòng chiếu.';
+  if (!form.formatId) fieldErrors.formatId = 'Vui lòng chọn định dạng.';
+  if (!form.startHour || !form.startMinute) fieldErrors.time = 'Vui lòng chọn giờ bắt đầu.';
+
+  const order = [
+    ['movieId', movieField], ['roomId', roomField],
+    ['formatId', formatField], ['time', timeField]
+  ];
+  const first = order.find(([k]) => fieldErrors[k]);
+  return first ? first[1] : null;
+};
+
+// Cuộn trường lỗi vào giữa màn hình + focus phần tử nhập đầu tiên bên trong.
+const focusFirstError = async (fieldRef) => {
+  await nextTick();
+  const el = fieldRef?.value;
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.querySelector('input, button, select, [tabindex]')?.focus?.();
+};
+
 const handleSave = async () => {
-  if (!form.movieId || !form.roomId || !form.formatId || !form.startHour || !form.startMinute) {
-    errorMsg.value = "Vui lòng nhập đầy đủ thông tin.";
-    return;
-  }
-  
+  const badField = validate();
+  if (badField) { focusFirstError(badField); return; }
+
   try {
     // Combine selectedDate (e.g. "12/06") and time (e.g. "14" + "30")
     // Assuming current year for mock API
@@ -128,15 +168,12 @@ const handleSave = async () => {
       startTime: formattedStartTime,
       cleaningTime: parseInt(form.cleaningTime)
     });
-    
+
+    toast.success('Đã thêm suất chiếu.');
     emit('saved');
     emit('close');
   } catch (error) {
-    if (error.response && error.response.data) {
-      errorMsg.value = error.response.data;
-    } else {
-      errorMsg.value = "Có lỗi xảy ra khi lưu suất chiếu.";
-    }
+    toast.error(friendlyError(error, 'Có lỗi xảy ra khi lưu suất chiếu.'));
   }
 };
 </script>
@@ -162,61 +199,63 @@ const handleSave = async () => {
 
       <!-- Body -->
       <div class="flex-1 overflow-y-auto p-8 space-y-6">
-        
-        <div v-if="errorMsg" class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-          <p class="text-red-400 text-sm font-medium flex items-center gap-2">
-            <span class="material-symbols-outlined text-base">error</span>
-            {{ errorMsg }}
-          </p>
-        </div>
 
-        <div>
+        <div ref="movieField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>
-          <CustomSelect 
-            v-model="form.movieId" 
-            :options="movieOptions" 
-            placeholder="-- Chọn Phim --" 
+          <CustomSelect
+            v-model="form.movieId"
+            :options="movieOptions"
+            placeholder="-- Chọn Phim --"
+            :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
           />
+          <p v-if="fieldErrors.movieId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.movieId }}</p>
         </div>
 
-        <div>
+        <div ref="roomField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phòng chiếu</label>
-          <CustomSelect 
-            v-model="form.roomId" 
-            :options="roomOptions" 
-            placeholder="-- Chọn Phòng chiếu --" 
+          <CustomSelect
+            v-model="form.roomId"
+            :options="roomOptions"
+            placeholder="-- Chọn Phòng chiếu --"
+            :class="fieldErrors.roomId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
           />
+          <p v-if="fieldErrors.roomId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.roomId }}</p>
         </div>
 
-        <div>
+        <div ref="formatField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Định dạng</label>
-          <CustomSelect 
-            v-model="form.formatId" 
-            :options="formatOptions" 
-            placeholder="-- Chọn Định dạng --" 
+          <CustomSelect
+            v-model="form.formatId"
+            :options="formatOptions"
+            placeholder="-- Chọn Định dạng --"
+            :class="fieldErrors.formatId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
           />
+          <p v-if="fieldErrors.formatId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.formatId }}</p>
         </div>
 
-        <div>
+        <div ref="timeField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
             Thời gian bắt đầu <span class="text-primary font-medium lowercase tracking-normal">(Suất chiếu cho ngày {{ selectedDate }}/{{ new Date().getFullYear() }})</span>
           </label>
           <div class="flex gap-4">
             <div class="flex-1">
-              <CustomSelect 
-                v-model="form.startHour" 
-                :options="hourOptions" 
-                placeholder="Giờ" 
+              <CustomSelect
+                v-model="form.startHour"
+                :options="hourOptions"
+                placeholder="Giờ"
+                :class="fieldErrors.time ? 'rounded-xl ring-1 ring-red-500/60' : ''"
               />
             </div>
             <div class="flex-1">
-              <CustomSelect 
-                v-model="form.startMinute" 
-                :options="minuteOptions" 
-                placeholder="Phút" 
+              <CustomSelect
+                v-model="form.startMinute"
+                :options="minuteOptions"
+                placeholder="Phút"
+                :class="fieldErrors.time ? 'rounded-xl ring-1 ring-red-500/60' : ''"
               />
             </div>
           </div>
+          <p v-if="fieldErrors.time" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.time }}</p>
         </div>
 
         <div>
