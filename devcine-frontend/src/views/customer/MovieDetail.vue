@@ -36,6 +36,39 @@ const showLoginModal = ref(false)
 const ratingError = ref(false)
 const commentError = ref(false)
 
+// Trạng thái quyền đánh giá (form động): null = chưa xác định, còn lại theo eligibility từ BE
+const eligibilityLoaded = ref(false)
+const canReview = ref(false)
+const hasReviewed = ref(false)
+
+// Đã đăng nhập hay chưa (dùng cho form 3 trạng thái)
+const isLoggedIn = computed(() => authStore.isAuthenticated && !!authStore.user?.id)
+
+const fetchEligibility = async (movieId) => {
+  if (!isLoggedIn.value) { eligibilityLoaded.value = true; return }
+  try {
+    const { data } = await reviewApi.eligibility(movieId, authStore.user.id)
+    const e = data.data ?? data
+    canReview.value = !!e.canReview
+    hasReviewed.value = !!e.hasReviewed
+    // Đã đánh giá trước đó → đổ lại nội dung cũ để khách sửa
+    if (e.hasReviewed) {
+      myRating.value = e.myRating || 0
+      myComment.value = e.myComment || ''
+    }
+  } catch (e) {
+    console.error('Không kiểm tra được quyền đánh giá', e)
+    canReview.value = false
+  } finally {
+    eligibilityLoaded.value = true
+  }
+}
+
+// Đưa khách tới khu vực chọn suất chiếu để mua vé
+const goToShowtimes = () => {
+  document.getElementById('showtimes-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 // Chọn sao / gõ nội dung → xóa trạng thái lỗi tương ứng
 const selectRating = (value) => {
   myRating.value = value
@@ -80,7 +113,7 @@ const goToLogin = () => {
 
 const dismissLoginModal = () => {
   showLoginModal.value = false
-  toast.warning('Bạn cần đăng nhập nên hiện chưa thể gửi đánh giá.')
+  toast.warning('Vui lòng đăng nhập để chia sẻ cảm nhận của bạn về bộ phim.')
 }
 
 // Phân phối sao 5→1 kèm % để vẽ thanh
@@ -127,8 +160,7 @@ const submitReview = async () => {
       comment: myComment.value
     })
     toast.success('Gửi đánh giá thành công! Cảm ơn nhận xét của bạn.')
-    myRating.value = 0
-    myComment.value = ''
+    hasReviewed.value = true // giữ nội dung để khách có thể sửa lại
     await fetchReviews(route.params.id)
   } catch (err) {
     toast.error(friendlyError(err, 'Không thể gửi đánh giá, vui lòng thử lại sau!'))
@@ -182,8 +214,11 @@ onMounted(async () => {
   }
   loading.value = false
 
-  // Khôi phục bản nháp đánh giá sau khi khách đăng nhập quay lại
-  restoreReviewDraft()
+  // Kiểm tra quyền đánh giá để render form động (đủ điều kiện / chưa mua vé)
+  await fetchEligibility(movieId)
+
+  // Khôi phục bản nháp đánh giá sau khi khách đăng nhập quay lại (chỉ khi đủ quyền)
+  if (canReview.value) restoreReviewDraft()
 })
 
 const onCityChange = async () => {
@@ -382,7 +417,7 @@ const groupShowtimesByFormat = (showtimes) => {
     </section>
 
     <!-- Date & Showtimes Section -->
-    <section class="bg-[#111111] min-h-[500px] text-gray-200 font-sans border-t border-white/5">
+    <section id="showtimes-section" class="bg-[#111111] min-h-[500px] text-gray-200 font-sans border-t border-white/5">
       <div class="max-w-[1200px] mx-auto px-6 py-10">
         
         <!-- Top Control Bar: Dates & Filters -->
@@ -497,9 +532,40 @@ const groupShowtimesByFormat = (showtimes) => {
           </p>
         </div>
 
-        <!-- Form gửi đánh giá -->
-        <div class="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 mb-10">
-          <p class="text-sm font-bold text-white mb-3 uppercase tracking-wider">Chia sẻ cảm nhận của bạn</p>
+        <!-- Trạng thái 1: Chưa đăng nhập → khung mời đăng nhập -->
+        <button v-if="!isLoggedIn"
+                @click="showLoginModal = true"
+                class="w-full text-left bg-[#1a1a1a] border border-dashed border-white/15 rounded-xl p-6 mb-10 hover:border-[#f5c518]/50 transition-colors group">
+          <p class="text-sm font-bold text-white mb-2 uppercase tracking-wider">Chia sẻ cảm nhận của bạn</p>
+          <p class="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
+            Vui lòng <span class="text-[#f5c518] font-semibold">đăng nhập</span> để chia sẻ cảm nhận của bạn về bộ phim.
+          </p>
+        </button>
+
+        <!-- Trạng thái 2: Đã đăng nhập nhưng chưa mua vé → banner + CTA mua vé -->
+        <div v-else-if="eligibilityLoaded && !canReview"
+             class="bg-[#f5c518]/10 border border-[#f5c518]/30 rounded-xl p-6 mb-10">
+          <div class="flex items-start gap-4">
+            <span class="material-symbols-outlined text-[#f5c518] text-2xl shrink-0">lock</span>
+            <div class="flex-1">
+              <p class="text-sm font-bold text-white mb-1">Chỉ dành cho khán giả đã xem phim</p>
+              <p class="text-sm text-gray-300">
+                Tính năng đánh giá chỉ dành cho khán giả đã mua vé xem phim này tại DevCine.
+              </p>
+              <button @click="goToShowtimes"
+                      class="mt-4 inline-flex items-center gap-2 bg-[#f5c518] text-black font-bold text-xs uppercase tracking-widest px-6 py-2.5 rounded-lg hover:brightness-110 transition-all">
+                <span class="material-symbols-outlined text-base">local_activity</span>
+                Mua vé ngay
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trạng thái 3: Đủ điều kiện → form đánh giá đầy đủ -->
+        <div v-else-if="canReview" class="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 mb-10">
+          <p class="text-sm font-bold text-white mb-3 uppercase tracking-wider">
+            {{ hasReviewed ? 'Cập nhật đánh giá của bạn' : 'Chia sẻ cảm nhận của bạn' }}
+          </p>
           <div class="flex items-center gap-2 mb-1 w-fit rounded-lg transition-all"
                :class="ratingError ? 'ring-1 ring-red-500 px-2 py-1 -mx-2' : ''">
             <span v-for="i in 5" :key="i"
@@ -522,10 +588,11 @@ const groupShowtimesByFormat = (showtimes) => {
           <div class="flex justify-end mt-4">
             <button @click="submitReview" :disabled="submittingReview"
                     class="bg-[#f5c518] text-black font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-lg hover:brightness-110 transition-all disabled:opacity-60">
-              {{ submittingReview ? 'Đang gửi...' : 'Gửi đánh giá' }}
+              {{ submittingReview ? 'Đang gửi...' : (hasReviewed ? 'Cập nhật đánh giá' : 'Gửi đánh giá') }}
             </button>
           </div>
         </div>
+        <!-- /Form đánh giá động -->
 
         <!-- Danh sách đánh giá -->
         <div v-if="filteredReviews.length > 0" class="space-y-5">

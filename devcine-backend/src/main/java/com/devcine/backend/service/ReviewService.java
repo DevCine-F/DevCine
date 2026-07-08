@@ -64,6 +64,24 @@ public class ReviewService {
     }
 
     /**
+     * Kiểm tra quyền đánh giá của 1 khách với 1 phim (để FE render form động, tránh cho gõ xong mới báo lỗi).
+     * canReview = đã có đơn CONFIRMED cho phim này. Kèm review cũ (nếu có) để FE cho sửa.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getReviewEligibility(Integer movieId, Integer customerId) {
+        boolean hasPurchased = bookingRepository.hasConfirmedBookingForMovie(customerId, movieId);
+        Review existing = reviewRepository.findByMovieIdAndCustomerId(movieId, customerId).orElse(null);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("hasPurchased", hasPurchased);
+        result.put("canReview", hasPurchased);
+        result.put("hasReviewed", existing != null);
+        result.put("myRating", existing != null ? existing.getRating() : 0);
+        result.put("myComment", existing != null && existing.getComment() != null ? existing.getComment() : "");
+        return result;
+    }
+
+    /**
      * Mỗi khách chỉ có 1 đánh giá cho 1 phim (đã có thì cập nhật).
      * Điều kiện: khách phải đã mua vé (đơn CONFIRMED) cho phim này.
      */

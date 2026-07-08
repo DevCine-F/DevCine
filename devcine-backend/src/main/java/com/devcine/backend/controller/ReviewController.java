@@ -22,6 +22,12 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.getMovieReviews(movieId));
     }
 
+    /** Quyền đánh giá của khách với phim này — FE dùng để render form động (đủ điều kiện / chưa mua vé). */
+    @GetMapping("/movie/{movieId}/eligibility")
+    public ResponseEntity<?> getEligibility(@PathVariable Integer movieId, @RequestParam Integer customerId) {
+        return ResponseEntity.ok(reviewService.getReviewEligibility(movieId, customerId));
+    }
+
     @PostMapping
     public ResponseEntity<?> createReview(@RequestBody Map<String, Object> body) {
         try {

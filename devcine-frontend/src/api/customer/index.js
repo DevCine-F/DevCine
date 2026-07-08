@@ -56,6 +56,7 @@ export const customerApi = {
 
 export const reviewApi = {
   getForMovie: (movieId) => api.get(`/reviews/movie/${movieId}`),
+  eligibility: (movieId, customerId) => api.get(`/reviews/movie/${movieId}/eligibility`, { params: { customerId } }),
   submit: (data) => api.post('/reviews', data),
 };
 
