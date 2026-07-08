@@ -30,7 +30,9 @@ import ShowtimeDetailsDrawer from "@/components/organisms/admin/ShowtimeDetailsD
 const {
   cinemas,
   selectedCinema,
+  isLoadingDetail,
   fetchCinemas,
+  loadCinemaDetail,
   showCreateModal,
   newCinema,
   handleCreateCinema,
@@ -113,7 +115,7 @@ const filteredCinemas = computed(() => cinemas.value.filter(c => {
 }));
 
 const openCinemaDetail = (cinema) => {
-  selectedCinema.value = cinema;
+  loadCinemaDetail(cinema);
 };
 
 const closeDetail = () => {
@@ -260,6 +262,9 @@ const showCleaningSettingsModal = ref(false);
               <span class="px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-black rounded uppercase tracking-widest">{{ selectedCinema.type }}</span>
               <span class="flex items-center gap-1 text-green-500 text-[10px] font-black uppercase tracking-widest">
                 <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Hoạt động
+              </span>
+              <span v-if="isLoadingDetail" class="flex items-center gap-1.5 text-on-surface-variant text-[10px] font-black uppercase tracking-widest">
+                <span class="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span> Đang tải chi tiết
               </span>
             </div>
             <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase text-on-surface">
@@ -410,14 +415,14 @@ const showCleaningSettingsModal = ref(false);
       :cinema-id="selectedCinema?.id"
       :selected-date="selectedDate"
       @close="showAddShowtimeDrawer = false"
-      @saved="fetchCinemas"
+      @saved="() => loadCinemaDetail(selectedCinema)"
     />
 
     <BatchShowtimeDrawer
       :is-open="showBatchShowtimeDrawer"
       :cinemas="cinemas"
       @close="showBatchShowtimeDrawer = false"
-      @saved="fetchCinemas"
+      @saved="() => loadCinemaDetail(selectedCinema)"
     />
   </div>
 </template>

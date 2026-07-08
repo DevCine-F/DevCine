@@ -27,6 +27,8 @@ const form = reactive({
 
 const movies = ref([]);
 const formats = ref([]);
+// Cây cơ sở→phòng cục bộ: tự nạp rooms cho các rạp chưa có halls (danh sách nạp lười).
+const localCinemas = ref([]);
 const newTime = ref('');
 const preview = ref(null);   // { toCreate, createdCount, skipped: [] }
 const isBusy = ref(false);
@@ -73,11 +75,29 @@ const fetchOptions = async () => {
   }
 };
 
+// Dựng cây cơ sở→phòng: dùng halls sẵn có, chỉ nạp rooms cho rạp còn thiếu (song song).
+const buildCinemaTree = async () => {
+  const base = props.cinemas || [];
+  localCinemas.value = await Promise.all(base.map(async (c) => {
+    if (c.halls?.length) {
+      return { id: c.id, name: c.name, city: c.city, halls: c.halls };
+    }
+    try {
+      const res = await api.get(`/rooms/cinema/${c.id}`);
+      return { id: c.id, name: c.name, city: c.city, halls: res.data.map(r => ({ id: r.id, name: r.name, type: r.type })) };
+    } catch (e) {
+      console.error('Error fetching rooms', e);
+      return { id: c.id, name: c.name, city: c.city, halls: [] };
+    }
+  }));
+};
+
 watch(() => form.movieId, () => { form.formatId = ''; });
 
 watch(() => props.isOpen, (open) => {
   if (open) {
     fetchOptions();
+    buildCinemaTree();
     clearErrors();
     preview.value = null;
     const today = new Date().toISOString().slice(0, 10);
@@ -241,7 +261,7 @@ const handleCreate = async () => {
           </label>
           <div class="space-y-3 max-h-64 overflow-y-auto pr-1"
             :class="fieldErrors.roomIds ? 'ring-1 ring-red-500/60 rounded-xl p-1' : ''">
-            <div v-for="c in cinemas" :key="c.id" class="bg-black/20 border border-white/10 rounded-xl p-3">
+            <div v-for="c in localCinemas" :key="c.id" class="bg-black/20 border border-white/10 rounded-xl p-3">
               <label class="flex items-center gap-2 cursor-pointer mb-2">
                 <input type="checkbox" :checked="cinemaAllSelected(c)" @change="toggleCinema(c)"
                   class="accent-primary w-4 h-4" />
