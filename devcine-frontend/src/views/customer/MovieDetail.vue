@@ -39,6 +39,11 @@ const goToLogin = () => {
   router.push({ name: 'login', query: { redirect: route.fullPath } })
 }
 
+const dismissLoginModal = () => {
+  showLoginModal.value = false
+  toast.warning('Bạn cần đăng nhập nên hiện chưa thể gửi đánh giá.')
+}
+
 // Phân phối sao 5→1 kèm % để vẽ thanh
 const ratingDistribution = computed(() => {
   const dist = reviewsData.value.distribution || {}
@@ -512,7 +517,7 @@ const groupShowtimesByFormat = (showtimes) => {
       <Transition name="login-modal">
         <div
           v-if="showLoginModal"
-          @click.self="showLoginModal = false"
+          @click.self="dismissLoginModal"
           class="fixed inset-0 z-[999] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
         >
           <div class="relative w-full max-w-[420px] bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl p-6 text-center">
@@ -525,7 +530,7 @@ const groupShowtimesByFormat = (showtimes) => {
             </p>
             <div class="mt-6 flex flex-col-reverse sm:flex-row gap-3">
               <button
-                @click="showLoginModal = false"
+                @click="dismissLoginModal"
                 class="flex-1 px-4 py-2.5 rounded-lg border border-white/15 text-gray-300 font-semibold hover:bg-white/5 transition-colors"
               >
                 Để sau
