@@ -52,6 +52,16 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
                         @Param("startTime") LocalDateTime startTime,
                         @Param("endTime") LocalDateTime endTime);
 
+    /**
+     * Nạp MỘT lần toàn bộ suất của các phòng có giao với cửa sổ [start, end) — phục vụ
+     * tạo lịch hàng loạt, kiểm tra trùng in-memory thay vì gọi hasConflict từng suất (chống N+1).
+     */
+    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r WHERE r.id IN :roomIds " +
+           "AND s.startTime < :end AND s.endTime > :start")
+    List<Showtime> findByRoomsAndWindow(@Param("roomIds") List<Integer> roomIds,
+                                        @Param("start") LocalDateTime start,
+                                        @Param("end") LocalDateTime end);
+
     // Phòng có suất chiếu nào không (guard khi sửa kích thước / xoá phòng)
     boolean existsByRoom_Id(Integer roomId);
 

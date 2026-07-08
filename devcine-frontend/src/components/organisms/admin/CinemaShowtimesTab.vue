@@ -43,12 +43,13 @@ defineProps({
 })
 
 defineEmits([
-  'update:selectedDate', 
-  'open-settings', 
-  'add-showtime', 
-  'publish', 
-  'dragstart', 
-  'drop', 
+  'update:selectedDate',
+  'open-settings',
+  'add-showtime',
+  'open-batch',
+  'publish',
+  'dragstart',
+  'drop',
   'open-showtime'
 ])
 </script>
@@ -85,9 +86,10 @@ defineEmits([
         <span class="material-symbols-outlined text-sm">settings</span> Cài đặt dọn dẹp
       </button>
       <button
+        @click="$emit('open-batch')"
         class="bg-surface-container-highest text-on-surface px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-white/10 transition-all flex items-center gap-2"
       >
-        <span class="material-symbols-outlined text-sm">bolt</span> [Nút chờ]
+        <span class="material-symbols-outlined text-sm">bolt</span> Tạo hàng loạt
       </button>
       <button
         @click="$emit('add-showtime')"

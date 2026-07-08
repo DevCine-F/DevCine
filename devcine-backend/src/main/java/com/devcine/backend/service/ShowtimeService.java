@@ -246,6 +246,116 @@ public class ShowtimeService {
                 .build();
     }
 
+    /**
+     * Tạo lịch chiếu HÀNG LOẠT cho một phim: sinh tích Descartes (phòng × ngày × khung giờ),
+     * bỏ qua suất trùng lịch (với DB lẫn giữa các suất trong lô) và suất đã qua giờ.
+     * Chống N+1: nạp một lần toàn bộ suất hiện có trong cửa sổ rồi kiểm tra trong bộ nhớ.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public com.devcine.backend.dto.response.BatchShowtimeResult createBatchShowtimes(
+            com.devcine.backend.dto.request.BatchShowtimeRequest req) {
+
+        Movie movie = movieRepository.findById(req.getMovieId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim với ID: " + req.getMovieId()));
+        MovieFormat format = movieFormatRepository.findById(req.getFormatId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng với ID: " + req.getFormatId()));
+
+        if (req.getDateFrom().isAfter(req.getDateTo())) {
+            throw new IllegalArgumentException("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
+        }
+
+        int cleaningTime = req.getCleaningTime() != null ? req.getCleaningTime() : 15;
+        int duration = movie.getDurationMins() != null ? movie.getDurationMins() : 120;
+        int blockMins = duration + cleaningTime;
+
+        // Nạp phòng theo id, giữ thứ tự để đặt tên trong báo cáo
+        Map<Integer, Room> roomMap = new LinkedHashMap<>();
+        roomRepository.findAllById(req.getRoomIds()).forEach(r -> roomMap.put(r.getId(), r));
+        List<Integer> missing = req.getRoomIds().stream().filter(id -> !roomMap.containsKey(id)).toList();
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException("Không tìm thấy phòng chiếu với ID: " + missing);
+        }
+
+        // Parse các mốc giờ "HH:mm"
+        List<java.time.LocalTime> times = new ArrayList<>();
+        for (String t : req.getStartTimes()) {
+            try {
+                times.add(java.time.LocalTime.parse(t.trim()));
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Khung giờ không hợp lệ: '" + t + "' (định dạng HH:mm).");
+            }
+        }
+
+        Set<Integer> daysFilter = (req.getDaysOfWeek() != null && !req.getDaysOfWeek().isEmpty())
+                ? new HashSet<>(req.getDaysOfWeek()) : null;
+
+        // Cửa sổ thời gian bao trùm cả lô để nạp suất hiện có 1 lần.
+        // Nới đuôi thêm 1 ngày để bắt cả suất hiện có rơi sang rạng sáng hôm sau (qua nửa đêm).
+        LocalDateTime windowStart = req.getDateFrom().atStartOfDay();
+        LocalDateTime windowEnd = req.getDateTo().plusDays(1).atTime(23, 59, 59);
+
+        // roomId -> danh sách khoảng [start, end) đã chiếm (DB + các suất đã nhận trong lô)
+        Map<Integer, List<LocalDateTime[]>> busyByRoom = new HashMap<>();
+        for (Showtime s : showtimeRepository.findByRoomsAndWindow(req.getRoomIds(), windowStart, windowEnd)) {
+            busyByRoom.computeIfAbsent(s.getRoom().getId(), k -> new ArrayList<>())
+                    .add(new LocalDateTime[]{ s.getStartTime(), s.getEndTime() });
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Showtime> toSave = new ArrayList<>();
+        List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> skipped = new ArrayList<>();
+
+        for (LocalDate date = req.getDateFrom(); !date.isAfter(req.getDateTo()); date = date.plusDays(1)) {
+            if (daysFilter != null && !daysFilter.contains(date.getDayOfWeek().getValue())) continue;
+
+            for (java.time.LocalTime time : times) {
+                LocalDateTime start = date.atTime(time);
+                LocalDateTime end = start.plusMinutes(blockMins);
+
+                for (Integer roomId : req.getRoomIds()) {
+                    Room room = roomMap.get(roomId);
+                    if (start.isBefore(now)) {
+                        skipped.add(skip(roomId, room.getName(), start, "Đã qua giờ chiếu"));
+                        continue;
+                    }
+                    List<LocalDateTime[]> busy = busyByRoom.computeIfAbsent(roomId, k -> new ArrayList<>());
+                    boolean overlap = busy.stream().anyMatch(iv -> start.isBefore(iv[1]) && end.isAfter(iv[0]));
+                    if (overlap) {
+                        skipped.add(skip(roomId, room.getName(), start, "Trùng lịch phòng (gồm giờ dọn dẹp)"));
+                        continue;
+                    }
+                    // Nhận suất: giữ chỗ để các suất sau trong lô không đè
+                    busy.add(new LocalDateTime[]{ start, end });
+                    toSave.add(Showtime.builder()
+                            .movie(movie).room(room).format(format)
+                            .startTime(start).endTime(end)
+                            .status("Sắp chiếu")
+                            .build());
+                }
+            }
+        }
+
+        int created = 0;
+        if (!req.isDryRun() && !toSave.isEmpty()) {
+            showtimeRepository.saveAll(toSave);
+            created = toSave.size();
+        }
+
+        return com.devcine.backend.dto.response.BatchShowtimeResult.builder()
+                .toCreate(toSave.size())
+                .createdCount(created)
+                .skipped(skipped)
+                .build();
+    }
+
+    private com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot skip(
+            Integer roomId, String roomName, LocalDateTime start, String reason) {
+        return com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot.builder()
+                .roomId(roomId).roomName(roomName)
+                .startTime(start.toString()).reason(reason)
+                .build();
+    }
+
     @org.springframework.transaction.annotation.Transactional
     public void updateShowtime(Integer id, java.util.Map<String, Object> updates) {
         Showtime showtime = showtimeRepository.findById(id)

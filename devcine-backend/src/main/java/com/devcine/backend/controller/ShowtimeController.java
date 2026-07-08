@@ -91,6 +91,17 @@ public class ShowtimeController {
         }
     }
 
+    @PostMapping("/batch")
+    @PreAuthorize("@perm.can('schedules', 'add')")
+    public ResponseEntity<?> createBatchShowtimes(
+            @Valid @RequestBody com.devcine.backend.dto.request.BatchShowtimeRequest request) {
+        try {
+            return ResponseEntity.ok(showtimeService.createBatchShowtimes(request));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PatchMapping("/{id}")
     @PreAuthorize("@perm.can('schedules', 'edit')")
     public ResponseEntity<?> updateShowtime(@PathVariable Integer id, @RequestBody java.util.Map<String, Object> updates) {

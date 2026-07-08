@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
+import BatchShowtimeDrawer from "@/components/admin/BatchShowtimeDrawer.vue";
 
 // Composables
 import { useCinemas } from "@/composables/useCinemas";
@@ -124,6 +125,7 @@ const closeDetail = () => {
 const showDrawer = ref(false);
 const selectedShowtime = ref(null);
 const showAddShowtimeDrawer = ref(false);
+const showBatchShowtimeDrawer = ref(false);
 const showSeatMapModal = ref(false);
 
 const openShowtimeDetails = (show) => {
@@ -304,6 +306,7 @@ const showCleaningSettingsModal = ref(false);
             @update:selectedDate="(d) => selectedDate = d"
             @open-settings="showCleaningSettingsModal = true"
             @add-showtime="handleAddShowtime"
+            @open-batch="showBatchShowtimeDrawer = true"
             @publish="handlePublish"
             @dragstart="onDragStart"
             @drop="onDrop"
@@ -402,12 +405,19 @@ const showCleaningSettingsModal = ref(false);
       @open-seat-map="showSeatMapModal = true"
     />
 
-    <ShowtimeDrawer 
-      :is-open="showAddShowtimeDrawer" 
+    <ShowtimeDrawer
+      :is-open="showAddShowtimeDrawer"
       :cinema-id="selectedCinema?.id"
       :selected-date="selectedDate"
-      @close="showAddShowtimeDrawer = false" 
-      @saved="fetchCinemas" 
+      @close="showAddShowtimeDrawer = false"
+      @saved="fetchCinemas"
+    />
+
+    <BatchShowtimeDrawer
+      :is-open="showBatchShowtimeDrawer"
+      :cinemas="cinemas"
+      @close="showBatchShowtimeDrawer = false"
+      @saved="fetchCinemas"
     />
   </div>
 </template>
