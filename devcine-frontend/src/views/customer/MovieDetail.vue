@@ -32,6 +32,12 @@ const hoverRating = ref(0)
 const myComment = ref('')
 const submittingReview = ref(false)
 const reviewFilter = ref(0) // 0 = tất cả; 1..5 = lọc theo số sao
+const showLoginModal = ref(false)
+
+const goToLogin = () => {
+  showLoginModal.value = false
+  router.push({ name: 'login', query: { redirect: route.fullPath } })
+}
 
 // Phân phối sao 5→1 kèm % để vẽ thanh
 const ratingDistribution = computed(() => {
@@ -60,7 +66,7 @@ const fetchReviews = async (movieId) => {
 
 const submitReview = async () => {
   if (!authStore.isAuthenticated || !authStore.user?.id) {
-    toast.warning('Vui lòng đăng nhập để gửi đánh giá.')
+    showLoginModal.value = true
     return
   }
   if (myRating.value < 1) {
@@ -500,10 +506,47 @@ const groupShowtimesByFormat = (showtimes) => {
 
     <!-- Modal Trailer -->
     <TrailerModal :show="showTrailer" :url="movie.trailerUrl" @close="showTrailer = false" />
+
+    <!-- Modal yêu cầu đăng nhập để đánh giá -->
+    <Teleport to="body">
+      <Transition name="login-modal">
+        <div
+          v-if="showLoginModal"
+          @click.self="showLoginModal = false"
+          class="fixed inset-0 z-[999] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div class="relative w-full max-w-[420px] bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl p-6 text-center">
+            <div class="mx-auto mb-4 w-14 h-14 flex items-center justify-center rounded-full bg-[#f5c518]/15 text-[#f5c518]">
+              <span class="material-symbols-outlined text-3xl">lock</span>
+            </div>
+            <h3 class="text-lg font-bold text-white">Cần đăng nhập</h3>
+            <p class="mt-2 text-sm text-gray-400">
+              Vui lòng đăng nhập để gửi đánh giá cho phim này.
+            </p>
+            <div class="mt-6 flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                @click="showLoginModal = false"
+                class="flex-1 px-4 py-2.5 rounded-lg border border-white/15 text-gray-300 font-semibold hover:bg-white/5 transition-colors"
+              >
+                Để sau
+              </button>
+              <button
+                @click="goToLogin"
+                class="flex-1 px-4 py-2.5 rounded-lg bg-[#f5c518] text-black font-semibold hover:bg-[#e0b200] transition-colors"
+              >
+                Đăng nhập
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </main>
 </template>
 
 <style scoped>
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.login-modal-enter-active, .login-modal-leave-active { transition: opacity 0.2s ease; }
+.login-modal-enter-from, .login-modal-leave-to { opacity: 0; }
 </style>
