@@ -158,7 +158,7 @@ const confirmRedeem = async () => {
     loyaltyPoints.value = data.remainingPoints ?? loyaltyPoints.value
     showToast('Đổi ưu đãi thành công! Voucher đã vào ví của bạn.', 'success')
     redeemTarget.value = null
-    await fetchVouchers()
+    await Promise.all([fetchVouchers(), fetchRedeemable()])
   } catch (err) {
     showToast(friendlyError(err, 'Đổi ưu đãi thất bại.'), 'error')
   } finally {
@@ -321,10 +321,10 @@ onUnmounted(() => {
             <div class="flex justify-end items-center mt-auto pt-4 border-t border-white/5">
               <button
                 @click="askRedeem(promo)"
-                :disabled="loyaltyPoints < promo.pointsRequired"
+                :disabled="promo.redeemed || loyaltyPoints < promo.pointsRequired"
                 class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {{ loyaltyPoints < promo.pointsRequired ? 'Chưa đủ điểm' : 'Đổi ngay' }}
+                {{ promo.redeemed ? 'Đã đổi' : loyaltyPoints < promo.pointsRequired ? 'Chưa đủ điểm' : 'Đổi ngay' }}
               </button>
             </div>
           </div>

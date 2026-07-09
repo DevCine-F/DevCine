@@ -62,6 +62,11 @@ public class VoucherService {
             throw new RuntimeException("Ưu đãi này không cho phép đổi bằng điểm.");
         }
 
+        // Mỗi mã chỉ được đổi 1 lần / khách — chặn TRƯỚC khi trừ điểm
+        if (voucherRepository.existsByCustomerAndPromotion(customerId, promo.getId())) {
+            throw new RuntimeException("Bạn đã đổi ưu đãi này rồi. Mỗi mã chỉ được đổi 1 lần.");
+        }
+
         LocalDateTime now = LocalDateTime.now();
         if (promo.getStartDate() != null && promo.getStartDate().isAfter(now)) {
             throw new RuntimeException("Ưu đãi chưa bắt đầu.");

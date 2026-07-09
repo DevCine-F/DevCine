@@ -66,6 +66,9 @@ public class MarketingController {
     @GetMapping("/promotions/redeemable")
     public ResponseEntity<?> getRedeemablePromotions() {
         LocalDateTime now = LocalDateTime.now();
+        // Khách đang đăng nhập (nếu có) -> đánh dấu mã đã đổi để FE vô hiệu nút "Đổi ngay"
+        // (mỗi mã chỉ đổi 1 lần/khách). Khách vãng lai: currentUserId null -> redeemed = false.
+        Integer currentUserId = com.devcine.backend.util.SecurityUtils.getCurrentUserId();
         List<Map<String, Object>> result = promotionRepository.findAll().stream()
                 .filter(p -> Boolean.TRUE.equals(p.getAllowPointRedemption())
                         && p.getPointsRequired() != null && p.getPointsRequired() > 0)
@@ -77,7 +80,9 @@ public class MarketingController {
                         "discountType", p.getDiscountType() != null ? p.getDiscountType() : "",
                         "discountValue", p.getDiscountValue() != null ? p.getDiscountValue() : 0,
                         "pointsRequired", p.getPointsRequired(),
-                        "endDate", p.getEndDate() != null ? p.getEndDate().toString() : ""
+                        "endDate", p.getEndDate() != null ? p.getEndDate().toString() : "",
+                        "redeemed", currentUserId != null
+                                && voucherRepository.existsByCustomerAndPromotion(currentUserId, p.getId())
                 ))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
