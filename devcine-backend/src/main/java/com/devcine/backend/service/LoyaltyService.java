@@ -56,6 +56,17 @@ public class LoyaltyService {
         return "BRONZE";
     }
 
+    /** Thứ hạng để so sánh cao/thấp: BRONZE=0 &lt; SILVER=1 &lt; GOLD=2 &lt; PLATINUM=3. */
+    public int tierRank(String tier) {
+        if (tier == null) return 0;
+        return switch (tier.toUpperCase()) {
+            case "PLATINUM" -> 3;
+            case "GOLD" -> 2;
+            case "SILVER" -> 1;
+            default -> 0; // BRONZE / không xác định
+        };
+    }
+
     /**
      * Cộng điểm khi có đơn thành công (vé/F&B). Cộng cả ví tiêu được lẫn tích lũy trọn đời,
      * cập nhật hạng theo tích lũy, và ghi sổ điểm. Idempotency do người gọi đảm bảo

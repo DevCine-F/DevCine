@@ -64,7 +64,10 @@ public class Promotion {
     @Column(name = "applicable_movie_id")
     private Integer applicableMovieId;
 
-    /** Đối tượng áp dụng: ALL (mọi khách) | NEW_CUSTOMER (khách chưa từng mua vé). */
+    /**
+     * Đối tượng áp dụng: ALL (mọi khách) | NEW_CUSTOMER (khách chưa từng mua vé)
+     * | TIER_SILVER | TIER_GOLD | TIER_PLATINUM (khách thân thiết: hạng thành viên tối thiểu).
+     */
     @Column(name = "customer_eligibility", length = 20, columnDefinition = "varchar(20) not null default 'ALL'")
     @Builder.Default
     private String customerEligibility = "ALL";

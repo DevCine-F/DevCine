@@ -216,9 +216,18 @@ public class BookingService {
                     && !promotion.getApplicableMovieId().equals(showtime.getMovie().getId())) {
                 throw new RuntimeException("Mã chỉ áp dụng cho phim khác, không dùng được cho suất này.");
             }
-            if ("NEW_CUSTOMER".equalsIgnoreCase(promotion.getCustomerEligibility())
+            String eligibility = promotion.getCustomerEligibility();
+            if ("NEW_CUSTOMER".equalsIgnoreCase(eligibility)
                     && bookingRepository.countConfirmedByCustomer(customer.getUserId()) > 0) {
                 throw new RuntimeException("Mã chỉ dành cho khách hàng mới (chưa từng mua vé).");
+            }
+            // Mã tri ân khách thân thiết: yêu cầu hạng thành viên (theo điểm tích lũy) tối thiểu.
+            if (eligibility != null && eligibility.startsWith("TIER_")) {
+                String requiredTier = eligibility.substring(5); // SILVER | GOLD | PLATINUM
+                int lifetime = customer.getLifetimePoints() != null ? customer.getLifetimePoints() : 0;
+                if (loyaltyService.tierRank(loyaltyService.tierFor(lifetime)) < loyaltyService.tierRank(requiredTier)) {
+                    throw new RuntimeException("Mã chỉ dành cho khách hàng hạng " + tierLabelVi(requiredTier) + " trở lên.");
+                }
             }
             if (promotion.getUsageLimit() != null && promotion.getUsageLimit() > 0
                     && promotion.getUsedCount() != null
@@ -351,6 +360,16 @@ public class BookingService {
 
         // Gửi vé điện tử (mã QR) qua email — bất đồng bộ, fail-safe (không rollback nếu mail lỗi)
         sendTicketEmail(booking, seats, tickets);
+    }
+
+    /** Nhãn tiếng Việt của hạng thành viên (dùng cho thông báo eligibility). */
+    private String tierLabelVi(String tier) {
+        return switch (tier == null ? "" : tier.toUpperCase()) {
+            case "SILVER" -> "Bạc";
+            case "GOLD" -> "Vàng";
+            case "PLATINUM" -> "Bạch Kim";
+            default -> tier;
+        };
     }
 
     /**
