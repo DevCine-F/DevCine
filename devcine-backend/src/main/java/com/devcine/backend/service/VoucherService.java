@@ -2,9 +2,11 @@ package com.devcine.backend.service;
 
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.Promotion;
+import com.devcine.backend.entity.User;
 import com.devcine.backend.entity.Voucher;
 import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.PromotionRepository;
+import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.repository.VoucherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +26,25 @@ public class VoucherService {
     private final PromotionRepository promotionRepository;
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
+    private final UserRepository userRepository;
     private final LoyaltyService loyaltyService;
+
+    /**
+     * Lấy hồ sơ khách theo id; nếu user tồn tại nhưng chưa có Customer (vd tài khoản admin/staff
+     * hoặc user seed) thì tự tạo hồ sơ BRONZE — giống {@code BookingService}.
+     */
+    private Customer resolveOrCreateCustomer(Integer customerId) {
+        return customerRepository.findById(customerId).orElseGet(() -> {
+            User u = userRepository.findById(customerId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+            // @MapsId: chỉ set association, KHÔNG set userId (tránh merge)
+            return customerRepository.save(Customer.builder()
+                    .user(u)
+                    .membershipTier("BRONZE")
+                    .loyaltyPoints(0)
+                    .build());
+        });
+    }
 
     /**
      * Khách dùng điểm tích luỹ để đổi lấy một voucher từ chương trình khuyến mãi.
@@ -80,8 +100,7 @@ public class VoucherService {
         if (code == null || code.isBlank()) {
             throw new RuntimeException("Vui lòng nhập mã ưu đãi.");
         }
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+        Customer customer = resolveOrCreateCustomer(customerId);
         Promotion promo = promotionRepository.findByCodeIgnoreCase(code.trim())
                 .orElseThrow(() -> new RuntimeException("Mã ưu đãi không tồn tại."));
 
