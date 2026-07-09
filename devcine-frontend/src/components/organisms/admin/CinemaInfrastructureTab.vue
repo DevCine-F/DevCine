@@ -3,6 +3,10 @@ defineProps({
   halls: {
     type: Array,
     required: true
+  },
+  canManage: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -17,6 +21,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
       Cấu hình Phòng chiếu
     </h3>
     <button
+      v-if="canManage"
       @click="$emit('add-room')"
       class="bg-primary/10 text-primary px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2"
     >
@@ -112,6 +117,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
           Xem Chi tiết & Sơ đồ ghế
         </button>
         <button
+          v-if="canManage"
           @click="$emit('edit-room', hall)"
           title="Sửa phòng"
           class="w-12 h-12 flex items-center justify-center rounded-xl bg-on-surface/5 hover:bg-on-surface/10 text-on-surface-variant transition-all border border-white/5"
@@ -119,6 +125,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
           <span class="material-symbols-outlined text-sm">edit</span>
         </button>
         <button
+          v-if="canManage"
           @click="$emit('delete-room', hall)"
           title="Xoá phòng"
           class="w-12 h-12 flex items-center justify-center rounded-xl bg-red-500/5 hover:bg-red-500/15 text-red-400 transition-all border border-red-500/10"

@@ -6,7 +6,9 @@ import { cinemaListApi, staffApi, staffShiftApi } from '@/api/admin/index'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const toast = useToastStore()
 const confirm = useConfirmStore()
 
@@ -223,7 +225,7 @@ onMounted(fetchData)
         <select v-model="selectedStatus" @change="fetchData" class="bg-surface-container-high rounded-xl px-4 py-3 text-sm font-bold outline-none text-on-surface">
           <option v-for="status in statuses" :key="status.value" :value="status.value">{{ status.label }}</option>
         </select>
-        <AppButton @click="openAddModal"><span class="material-symbols-outlined mr-2">add_task</span>Tạo ca</AppButton>
+        <AppButton v-if="can('staff_management', 'add')" @click="openAddModal"><span class="material-symbols-outlined mr-2">add_task</span>Tạo ca</AppButton>
       </div>
     </header>
 
@@ -238,7 +240,7 @@ onMounted(fetchData)
       <div class="xl:col-span-8 rounded-xl border border-outline-variant/10 bg-surface-container-low overflow-hidden">
         <div class="p-5 border-b border-outline-variant/10 flex items-center justify-between gap-3">
           <h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Lịch ca ngày {{ selectedDate }}</h2>
-          <AppButton v-if="scheduledShifts.length" variant="secondary" size="sm" @click="handleApproveAll">Duyệt tất cả</AppButton>
+          <AppButton v-if="scheduledShifts.length && can('staff_management', 'edit')" variant="secondary" size="sm" @click="handleApproveAll">Duyệt tất cả</AppButton>
         </div>
         <div v-if="errorMessage" class="m-5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400 font-semibold flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <span>{{ errorMessage }}</span>
@@ -262,8 +264,8 @@ onMounted(fetchData)
                   <td class="px-5 py-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-black uppercase" :class="{ 'bg-primary/15 text-primary': shift.status === 'SCHEDULED', 'bg-green-500/10 text-green-500': shift.status === 'APPROVED', 'bg-emerald-500/15 text-emerald-400': shift.status === 'IN_PROGRESS', 'bg-surface-container-high text-on-surface-variant': shift.status === 'COMPLETED', 'bg-red-500/10 text-red-500': shift.status === 'REJECTED' }">{{ statusLabel(shift.status) }}</span></td>
                   <td class="px-5 py-4 text-right">
                     <div v-if="shift.status === 'SCHEDULED'" class="flex justify-end gap-2">
-                      <button :disabled="updatingIds.has(shift.id)" @click="handleApprove(shift.id)" class="p-2 rounded-lg hover:bg-green-500/10 hover:text-green-500 disabled:opacity-50" title="Duyệt"><span class="material-symbols-outlined text-lg">check_circle</span></button>
-                      <button :disabled="updatingIds.has(shift.id)" @click="handleReject(shift)" class="p-2 rounded-lg hover:bg-red-500/10 hover:text-red-500 disabled:opacity-50" title="Từ chối"><span class="material-symbols-outlined text-lg">cancel</span></button>
+                      <button v-if="can('staff_management', 'edit')" :disabled="updatingIds.has(shift.id)" @click="handleApprove(shift.id)" class="p-2 rounded-lg hover:bg-green-500/10 hover:text-green-500 disabled:opacity-50" title="Duyệt"><span class="material-symbols-outlined text-lg">check_circle</span></button>
+                      <button v-if="can('staff_management', 'edit')" :disabled="updatingIds.has(shift.id)" @click="handleReject(shift)" class="p-2 rounded-lg hover:bg-red-500/10 hover:text-red-500 disabled:opacity-50" title="Từ chối"><span class="material-symbols-outlined text-lg">cancel</span></button>
                     </div>
                     <span v-else class="text-[10px] text-on-surface-variant font-bold uppercase">Đã xử lý</span>
                   </td>

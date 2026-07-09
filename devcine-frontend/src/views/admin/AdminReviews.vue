@@ -4,7 +4,9 @@ import { reviewAdminApi } from '@/api/admin/index'
 import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const toast = useToastStore()
 const confirm = useConfirmStore()
 
@@ -199,12 +201,13 @@ onMounted(fetchReviews)
               </td>
               <td class="px-6 py-4 text-right">
                 <div class="flex justify-end gap-2">
-                  <button @click="toggleHidden(rv)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" :title="rv.hidden ? 'Hiển thị lại' : 'Ẩn'">
+                  <button v-if="can('support', 'edit')" @click="toggleHidden(rv)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" :title="rv.hidden ? 'Hiển thị lại' : 'Ẩn'">
                     <span class="material-symbols-outlined text-sm">{{ rv.hidden ? 'visibility' : 'visibility_off' }}</span>
                   </button>
-                  <button @click="removeReview(rv)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-all text-on-surface-variant" title="Xoá">
+                  <button v-if="can('support', 'delete')" @click="removeReview(rv)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-all text-on-surface-variant" title="Xoá">
                     <span class="material-symbols-outlined text-sm">delete</span>
                   </button>
+                  <span v-if="!can('support','edit') && !can('support','delete')" class="text-on-surface-variant/40 text-xs">—</span>
                 </div>
               </td>
             </tr>

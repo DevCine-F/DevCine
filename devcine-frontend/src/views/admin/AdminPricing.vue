@@ -2,7 +2,9 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { pricingApi } from '@/api/admin'
 import { useConfirmStore } from '@/stores/confirm'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const confirm = useConfirmStore()
 
 const loading = ref(true)
@@ -229,7 +231,7 @@ const TABS = [
           </table>
         </div>
         <p class="text-xs text-on-surface-variant">* Giá ngày lễ nên đã gồm phụ thu lễ. Suất rơi vào ngày trong tab "Ngày lễ" sẽ dùng cột giá Lễ.</p>
-        <button @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+        <button v-if="can('pricing', 'edit')" @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
           {{ saving ? 'Đang lưu...' : 'Lưu giá nền' }}
         </button>
       </section>
@@ -245,7 +247,7 @@ const TABS = [
             <span class="text-on-surface-variant text-sm">đ</span>
           </div>
         </div>
-        <button @click="saveSeats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+        <button v-if="can('pricing', 'edit')" @click="saveSeats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
           {{ saving ? 'Đang lưu...' : 'Lưu phụ thu ghế' }}
         </button>
       </section>
@@ -278,7 +280,7 @@ const TABS = [
             </tbody>
           </table>
         </div>
-        <button @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+        <button v-if="can('pricing', 'edit')" @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
           {{ saving ? 'Đang lưu...' : 'Lưu định dạng' }}
         </button>
 
@@ -304,7 +306,7 @@ const TABS = [
               </tbody>
             </table>
           </div>
-          <button @click="saveSpecials" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+          <button v-if="can('pricing', 'edit')" @click="saveSpecials" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
             {{ saving ? 'Đang lưu...' : 'Lưu giá đặc biệt' }}
           </button>
         </div>
@@ -322,13 +324,13 @@ const TABS = [
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Tên</label>
             <input type="text" v-model="newHoliday.name" placeholder="Vd: Tết Dương lịch" class="w-full bg-surface-container-high border border-outline-variant/20 p-2 rounded text-on-surface outline-none" />
           </div>
-          <button @click="addHoliday" class="px-5 py-2 bg-primary text-on-primary rounded-lg font-bold">Thêm</button>
+          <button v-if="can('pricing', 'edit')" @click="addHoliday" class="px-5 py-2 bg-primary text-on-primary rounded-lg font-bold">Thêm</button>
         </div>
 
         <div v-if="!holidays.length" class="text-center text-on-surface-variant py-8">Chưa có ngày lễ nào.</div>
         <div v-for="h in holidays" :key="h.id" class="flex items-center justify-between bg-surface-container-low border border-outline-variant/10 rounded-xl px-4 py-3">
           <div><span class="font-bold text-on-surface">{{ h.holidayDate }}</span> — <span class="text-on-surface-variant">{{ h.name }}</span></div>
-          <button @click="removeHoliday(h)" class="p-2 text-on-surface-variant hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
+          <button v-if="can('pricing', 'edit')" @click="removeHoliday(h)" class="p-2 text-on-surface-variant hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
         </div>
       </section>
 

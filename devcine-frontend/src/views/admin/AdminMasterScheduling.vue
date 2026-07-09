@@ -2,6 +2,9 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useConfirmStore } from '@/stores/confirm';
+import { useAdminPerm } from '@/composables/useAdminPerm';
+
+const { can } = useAdminPerm();
 
 const confirm = useConfirmStore();
 
@@ -79,7 +82,7 @@ onMounted(fetchData);
         <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Master Scheduling</h1>
         <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Điều phối suất chiếu dựa trên hợp đồng nhà phát hành</p>
       </div>
-      <button @click="isModalOpen = true" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
+      <button v-if="can('schedules', 'add')" @click="isModalOpen = true" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
         <span class="material-symbols-outlined text-sm">assignment_add</span>
         Thiết lập phân bổ mới
       </button>
@@ -115,9 +118,10 @@ onMounted(fetchData);
                         <span :class="quota.status === 'active' ? 'text-green-500' : 'text-on-surface-variant'" class="text-[10px] font-black uppercase tracking-widest">{{ quota.status }}</span>
                     </td>
                     <td class="p-4 text-right">
-                        <button @click="deleteQuota(quota.id)" class="p-2 hover:text-red-500 transition-colors">
+                        <button v-if="can('schedules', 'edit')" @click="deleteQuota(quota.id)" class="p-2 hover:text-red-500 transition-colors">
                             <span class="material-symbols-outlined text-lg">delete_sweep</span>
                         </button>
+                        <span v-else class="text-on-surface-variant/40 text-xs">—</span>
                     </td>
                 </tr>
             </tbody>

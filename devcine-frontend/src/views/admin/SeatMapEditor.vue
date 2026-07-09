@@ -3,7 +3,9 @@ import { ref } from 'vue'
 import axios from 'axios'
 import SeatMapBuilder from '@/components/admin/SeatMapBuilder.vue'
 import { useToastStore } from '@/stores/toast'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { isAdmin } = useAdminPerm()
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api'
 const toast = useToastStore()
 
@@ -44,7 +46,7 @@ const saveLayout = async () => {
       </div>
       <div class="flex gap-4">
         <button class="px-8 py-3 bg-surface-container-high text-on-surface font-bold text-xs uppercase tracking-widest rounded-sm border border-outline-variant/10 hover:bg-white/5 transition-all">Nhập JSON</button>
-        <button @click="saveLayout" class="px-8 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all shadow-xl shadow-primary/20">Lưu Cấu Trúc</button>
+        <button v-if="isAdmin()" @click="saveLayout" class="px-8 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all shadow-xl shadow-primary/20">Lưu Cấu Trúc</button>
       </div>
     </header>
 

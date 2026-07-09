@@ -8,7 +8,9 @@ import MovieDetailModal from "@/components/admin/movies/MovieDetailModal.vue";
 import { useToastStore } from "@/stores/toast";
 import { useConfirmStore } from "@/stores/confirm";
 import { friendlyError } from "@/utils/friendlyError";
+import { useAdminPerm } from "@/composables/useAdminPerm";
 
+const { can } = useAdminPerm();
 const mm = useMovieManagement();
 const toast = useToastStore();
 const confirm = useConfirmStore();
@@ -157,6 +159,7 @@ onMounted(() => {
           />
         </div>
         <button
+          v-if="can('movies', 'add')"
           @click="handleAdd"
           class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
         >
@@ -181,6 +184,8 @@ onMounted(() => {
       :has-active-filters="mm.hasActiveFilters.value"
       :total-filtered="mm.totalFiltered.value"
       :selection-count="mm.selectionCount.value"
+      :can-edit="can('movies', 'edit')"
+      :can-delete="can('movies', 'delete')"
       @clear="mm.clearFilters"
       @clear-selection="mm.clearSelection"
       @bulk-status="handleBulkStatus"
@@ -218,6 +223,8 @@ onMounted(() => {
         :format-price="mm.formatPrice"
         :format-date="mm.formatDate"
         :release-info="mm.releaseInfo"
+        :can-edit="can('movies', 'edit')"
+        :can-delete="can('movies', 'delete')"
         @sort="mm.setSort"
         @toggle-all="mm.toggleSelectAllOnPage"
         @toggle-select="mm.toggleSelect"

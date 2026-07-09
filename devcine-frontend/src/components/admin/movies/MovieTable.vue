@@ -11,6 +11,8 @@ const props = defineProps({
   formatPrice: { type: Function, required: true },
   formatDate: { type: Function, required: true },
   releaseInfo: { type: Function, required: true },
+  canEdit: { type: Boolean, default: true },
+  canDelete: { type: Boolean, default: true },
 });
 
 const emit = defineEmits([
@@ -240,6 +242,7 @@ const statusBadgeClass = (status) =>
           <!-- Trạng thái (đổi nhanh) -->
           <td class="px-5 py-4 relative" @click.stop>
             <button
+              v-if="canEdit"
               @click="toggleStatusMenu(movie.id)"
               class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full border inline-flex items-center gap-1.5 hover:brightness-110 transition-all"
               :class="statusBadgeClass(movie.status)"
@@ -247,6 +250,13 @@ const statusBadgeClass = (status) =>
               {{ movie.statusText }}
               <span class="material-symbols-outlined text-[13px]">expand_more</span>
             </button>
+            <span
+              v-else
+              class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full border inline-flex items-center"
+              :class="statusBadgeClass(movie.status)"
+            >
+              {{ movie.statusText }}
+            </span>
             <div
               v-if="openStatusMenuId === movie.id"
               class="absolute z-20 mt-1 left-5 bg-surface-container-high border border-outline-variant/20 rounded-lg shadow-2xl overflow-hidden min-w-[130px]"
@@ -267,6 +277,7 @@ const statusBadgeClass = (status) =>
           <td class="px-5 py-4 text-right" @click.stop>
             <div class="flex justify-end gap-2">
               <button
+                v-if="canEdit"
                 @click="emit('edit', movie)"
                 title="Chỉnh sửa"
                 class="w-9 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 hover:border-primary/50 hover:text-primary transition-all"
@@ -274,12 +285,14 @@ const statusBadgeClass = (status) =>
                 <span class="material-symbols-outlined text-base">edit_note</span>
               </button>
               <button
+                v-if="canDelete"
                 @click="emit('delete', movie.id)"
                 title="Xóa"
                 class="w-9 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 hover:border-red-500/50 hover:text-red-500 transition-all"
               >
                 <span class="material-symbols-outlined text-base">delete_sweep</span>
               </button>
+              <span v-if="!canEdit && !canDelete" class="text-on-surface-variant/40 text-xs">—</span>
             </div>
           </td>
         </tr>

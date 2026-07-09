@@ -5,7 +5,9 @@ import api from '@/api/axios'
 import { marketingApi, customerApi, promoArticleApi } from '@/api/admin/index'
 import CustomSelect from '@/components/common/CustomSelect.vue'
 import { prepareImageForUpload } from '@/utils/imageUpload'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const filterStatus = ref('all')
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -534,15 +536,15 @@ onUnmounted(() => {
         <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Quản lý chiến dịch, mã giảm giá và combo ưu đãi</p>
       </div>
       <div class="flex gap-4">
-        <button v-if="activeTab === 'vouchers'" @click="openVoucherDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
+        <button v-if="activeTab === 'vouchers' && can('promotions', 'add')" @click="openVoucherDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
           <span class="material-symbols-outlined text-sm">add_card</span>
           Tạo Voucher
         </button>
-        <button v-if="activeTab === 'combos'" @click="openComboDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
+        <button v-if="activeTab === 'combos' && can('promotions', 'add')" @click="openComboDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
           <span class="material-symbols-outlined text-sm">lunch_dining</span>
           Tạo Combo
         </button>
-        <button v-if="activeTab === 'articles'" @click="openArticleDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
+        <button v-if="activeTab === 'articles' && can('promotions', 'add')" @click="openArticleDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
           <span class="material-symbols-outlined text-sm">post_add</span>
           Tạo Tin Khuyến Mãi
         </button>
@@ -641,14 +643,14 @@ onUnmounted(() => {
 
             <!-- ===== Hành động ===== -->
             <div class="bg-surface-container-low border-t border-white/5 px-2.5 py-2 flex justify-between items-center">
-              <button @click="openIssueModal(promo)" class="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest hover:bg-primary/10 px-2 py-1.5 rounded-md transition-colors">
+              <button v-if="can('promotions', 'add')" @click="openIssueModal(promo)" class="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest hover:bg-primary/10 px-2 py-1.5 rounded-md transition-colors">
                 <span class="material-symbols-outlined text-xs">card_giftcard</span> Phát cho khách
               </button>
               <div class="flex items-center gap-0.5">
-                <button @click="openEditVoucher(promo)" title="Chỉnh sửa" class="w-7 h-7 rounded-md hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
+                <button v-if="can('promotions', 'edit')" @click="openEditVoucher(promo)" title="Chỉnh sửa" class="w-7 h-7 rounded-md hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
                   <span class="material-symbols-outlined text-sm">edit</span>
                 </button>
-                <button @click="askDeleteVoucher(promo)" title="Xoá" class="w-7 h-7 rounded-md hover:bg-red-500/15 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
+                <button v-if="can('promotions', 'delete')" @click="askDeleteVoucher(promo)" title="Xoá" class="w-7 h-7 rounded-md hover:bg-red-500/15 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
                   <span class="material-symbols-outlined text-sm">delete</span>
                 </button>
               </div>
@@ -684,8 +686,8 @@ onUnmounted(() => {
              <div class="flex justify-between items-center pt-6 border-t border-outline-variant/5">
                 <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Áp dụng: Toàn hệ thống</span>
                 <div class="flex gap-2">
-                   <button class="p-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-lg">edit</span></button>
-                   <button class="p-2 hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
+                   <button v-if="can('promotions', 'edit')" class="p-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-lg">edit</span></button>
+                   <button v-if="can('promotions', 'delete')" class="p-2 hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
                 </div>
              </div>
           </div>
@@ -756,16 +758,19 @@ onUnmounted(() => {
                 </div>
               </td>
               <td class="p-4 text-center">
-                <button @click="handleToggleArticle(article)" :class="article.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'" class="material-symbols-outlined text-3xl transition-colors" :title="article.status === 'active' ? 'Đang hiển thị' : 'Đang ẩn'">
+                <button v-if="can('promotions', 'edit')" @click="handleToggleArticle(article)" :class="article.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'" class="material-symbols-outlined text-3xl transition-colors" :title="article.status === 'active' ? 'Đang hiển thị' : 'Đang ẩn'">
                   {{ article.status === 'active' ? 'toggle_on' : 'toggle_off' }}
                 </button>
+                <span v-else class="material-symbols-outlined text-3xl" :class="article.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'">
+                  {{ article.status === 'active' ? 'toggle_on' : 'toggle_off' }}
+                </span>
               </td>
               <td class="p-4 text-right">
                 <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click="openEditArticle(article)" title="Chỉnh sửa" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-primary flex items-center justify-center transition-colors">
+                  <button v-if="can('promotions', 'edit')" @click="openEditArticle(article)" title="Chỉnh sửa" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-primary flex items-center justify-center transition-colors">
                     <span class="material-symbols-outlined text-sm">edit</span>
                   </button>
-                  <button @click="articleDeleteTarget = article" title="Xoá" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-red-400 flex items-center justify-center transition-colors">
+                  <button v-if="can('promotions', 'delete')" @click="articleDeleteTarget = article" title="Xoá" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-red-400 flex items-center justify-center transition-colors">
                     <span class="material-symbols-outlined text-sm">delete</span>
                   </button>
                 </div>

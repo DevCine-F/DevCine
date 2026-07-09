@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import axios from "@/api/axios";
+import { useAdminPerm } from "@/composables/useAdminPerm";
 
+const { can } = useAdminPerm();
 const range = ref("today");
 const isLoading = ref(true);
 const loadError = ref(false);
@@ -125,6 +127,7 @@ onMounted(fetchStats);
           </button>
         </div>
         <button
+          v-if="can('dashboard_stats', 'export')"
           class="bg-surface-container-high px-4 py-2.5 rounded-lg border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-all text-on-surface-variant">
           Xuất báo cáo
         </button>

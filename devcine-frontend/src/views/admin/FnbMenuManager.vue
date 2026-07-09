@@ -3,7 +3,9 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
 import { fnbApi } from '@/api/admin/index'
 import { prepareImageForUpload } from '@/utils/imageUpload'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const items = ref([])
 const isLoading = ref(false)
 const error = ref('')
@@ -158,7 +160,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Thực đơn F&B / Combo</h1>
         <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Combo bắp nước & đồ ăn khách chọn khi đặt vé</p>
       </div>
-      <button @click="openCreate" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
+      <button v-if="can('pos_inventory', 'add')" @click="openCreate" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
         <span class="material-symbols-outlined text-sm">add</span> Thêm món / combo
       </button>
     </header>
@@ -199,13 +201,13 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
           </div>
           <p class="text-xs text-on-surface-variant line-clamp-2 flex-grow">{{ item.description || 'Chưa có mô tả' }}</p>
           <div class="flex justify-end items-center gap-2 pt-4 mt-3 border-t border-outline-variant/5">
-            <button @click="toggleActive(item)" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary px-2 py-1 transition-colors">
+            <button v-if="can('pos_inventory', 'edit')" @click="toggleActive(item)" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary px-2 py-1 transition-colors">
               {{ item.isActive !== false ? 'Ẩn' : 'Hiện' }}
             </button>
-            <button @click="openEdit(item)" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
+            <button v-if="can('pos_inventory', 'edit')" @click="openEdit(item)" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
               <span class="material-symbols-outlined text-sm">edit</span>
             </button>
-            <button @click="deleteTarget = item" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
+            <button v-if="can('pos_inventory', 'delete')" @click="deleteTarget = item" class="w-8 h-8 rounded-full hover:bg-white/10 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
               <span class="material-symbols-outlined text-sm">delete</span>
             </button>
           </div>

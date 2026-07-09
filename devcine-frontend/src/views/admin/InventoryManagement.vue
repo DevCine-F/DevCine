@@ -6,7 +6,9 @@ import AppModal from '../../components/common/AppModal.vue'
 import { useToastStore } from '@/stores/toast'
 import { useShiftStore } from '@/stores/shift'
 import { friendlyError } from '@/utils/friendlyError'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const toast = useToastStore()
 const shiftStore = useShiftStore()
 
@@ -122,11 +124,11 @@ onMounted(fetchData)
         </p>
       </div>
       <div class="flex gap-4">
-        <AppButton variant="ghost" @click="seedInitialItems">Dữ liệu Mẫu</AppButton>
-        <AppButton variant="outline" :disabled="!canUseInventory" @click="startAudit">
+        <AppButton v-if="can('pos_inventory', 'edit')" variant="ghost" @click="seedInitialItems">Dữ liệu Mẫu</AppButton>
+        <AppButton v-if="can('pos_inventory', 'edit')" variant="outline" :disabled="!canUseInventory" @click="startAudit">
           <span class="material-symbols-outlined mr-2">inventory</span> Kiểm kê định kỳ
         </AppButton>
-        <AppButton :disabled="!canUseInventory" @click="isImportModalOpen = true">
+        <AppButton v-if="can('pos_inventory', 'add')" :disabled="!canUseInventory" @click="isImportModalOpen = true">
           <span class="material-symbols-outlined mr-2">add_shopping_cart</span> Nhập kho mới
         </AppButton>
       </div>

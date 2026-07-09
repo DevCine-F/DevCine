@@ -10,6 +10,7 @@ import AppModal from '@/components/common/AppModal.vue'
 const toast = useToastStore()
 const confirm = useConfirmStore()
 const auth = useAuthStore()
+const can = (feature, action = 'view') => auth.hasPermission(feature, action)
 
 const staff = ref([])
 const cinemas = ref([])
@@ -287,7 +288,7 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
         <h1 class="text-3xl font-extrabold tracking-tight font-headline uppercase">Quản lý Nhân viên</h1>
         <p class="text-on-surface-variant text-sm mt-1">Quản lý đội ngũ vận hành trên toàn bộ cơ sở &amp; phân quyền hệ thống</p>
       </div>
-      <button @click="openAddModal" class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-sm hover:brightness-110 transition-all flex items-center gap-2">
+      <button v-if="can('staff_management', 'add')" @click="openAddModal" class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-sm hover:brightness-110 transition-all flex items-center gap-2">
         <span class="material-symbols-outlined text-sm">person_add</span>
         Thêm Nhân Viên
       </button>
@@ -380,12 +381,13 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             </td>
             <td class="px-8 py-4 text-right">
               <div class="flex justify-end gap-2">
-                <button @click="openEditModal(person)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" title="Sửa">
+                <button v-if="can('staff_management', 'edit')" @click="openEditModal(person)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" title="Sửa">
                   <span class="material-symbols-outlined text-sm">edit</span>
                 </button>
-                <button @click="toggleActive(person)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" :title="person.isActive ? 'Tạm ngưng' : 'Kích hoạt'">
+                <button v-if="can('staff_management', 'edit')" @click="toggleActive(person)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" :title="person.isActive ? 'Tạm ngưng' : 'Kích hoạt'">
                   <span class="material-symbols-outlined text-sm">{{ person.isActive ? 'toggle_on' : 'toggle_off' }}</span>
                 </button>
+                <span v-if="!can('staff_management','edit')" class="text-on-surface-variant/40 text-xs">—</span>
               </div>
             </td>
             </tr>
@@ -408,7 +410,7 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
                 {{ staff.length ? 'Không có nhân viên khớp bộ lọc.' : 'Chưa có nhân viên nào.' }}
               </p>
               <button v-if="staff.length" @click="resetFilters" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Bỏ lọc</button>
-              <button v-else @click="openAddModal" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Thêm nhân viên đầu tiên</button>
+              <button v-else-if="can('staff_management', 'add')" @click="openAddModal" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Thêm nhân viên đầu tiên</button>
             </td>
           </tr>
         </tbody>

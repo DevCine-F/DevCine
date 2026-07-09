@@ -6,7 +6,9 @@ import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 import { prepareImageForUpload } from '@/utils/imageUpload'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const toast = useToastStore()
 const confirm = useConfirmStore()
 
@@ -256,7 +258,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
         <h1 class="text-3xl font-extrabold tracking-tight font-headline uppercase">Quản lý Banner</h1>
         <p class="text-on-surface-variant text-sm mt-1">Tuỳ chỉnh banner trang chủ — kéo biểu tượng <span class="material-symbols-outlined text-sm align-middle">drag_indicator</span> trên mỗi thẻ để sắp xếp thứ tự</p>
       </div>
-      <button @click="openAddModal" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all flex items-center gap-2">
+      <button v-if="can('banners', 'add')" @click="openAddModal" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all flex items-center gap-2">
         <span class="material-symbols-outlined text-sm">add_photo_alternate</span>
         Thêm Banner Mới
       </button>
@@ -330,13 +332,13 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             </div>
 
             <div class="flex items-center gap-2">
-              <button @click="openEditModal(banner)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" title="Sửa">
+              <button v-if="can('banners', 'edit')" @click="openEditModal(banner)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" title="Sửa">
                 <span class="material-symbols-outlined text-sm">edit</span>
               </button>
-              <button @click="toggleActive(banner)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" :title="banner.isActive ? 'Tắt' : 'Bật'">
+              <button v-if="can('banners', 'edit')" @click="toggleActive(banner)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" :title="banner.isActive ? 'Tắt' : 'Bật'">
                 <span class="material-symbols-outlined text-sm">{{ banner.isActive ? 'visibility_off' : 'visibility' }}</span>
               </button>
-              <button @click="deleteBanner(banner.id)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center text-on-surface-variant transition-colors" title="Xoá">
+              <button v-if="can('banners', 'delete')" @click="deleteBanner(banner.id)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center text-on-surface-variant transition-colors" title="Xoá">
                 <span class="material-symbols-outlined text-sm">delete</span>
               </button>
             </div>

@@ -4,7 +4,9 @@ import api from '@/api/axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
 import { useConfirmStore } from '@/stores/confirm'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { isAdmin } = useAdminPerm()
 const confirm = useConfirmStore()
 
 const faqs = ref([])
@@ -159,6 +161,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         </p>
       </div>
       <button
+        v-if="isAdmin()"
         @click="openModal()"
         class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
       >
@@ -212,15 +215,21 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
               <span class="px-2.5 py-1 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-bold">{{ item.category }}</span>
             </td>
             <td class="px-6 py-4">
-              <button @click="toggleActive(item)"
+              <button v-if="isAdmin()" @click="toggleActive(item)"
                 :class="item.isActive ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-surface-container-high text-on-surface-variant border-outline-variant/20'"
                 class="px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-widest transition-all">
                 {{ item.isActive ? 'Hiển thị' : 'Đang ẩn' }}
               </button>
+              <span v-else
+                :class="item.isActive ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-surface-container-high text-on-surface-variant border-outline-variant/20'"
+                class="px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-widest inline-block">
+                {{ item.isActive ? 'Hiển thị' : 'Đang ẩn' }}
+              </span>
             </td>
             <td class="px-6 py-4 text-right">
               <div class="flex justify-end gap-2">
                 <button
+                  v-if="isAdmin()"
                   @click="toggleActive(item)"
                   :title="item.isActive ? 'Ẩn câu hỏi' : 'Hiển thị câu hỏi'"
                   class="p-2 transition-colors"
@@ -228,8 +237,9 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
                 >
                   <span class="material-symbols-outlined text-lg">{{ item.isActive ? 'visibility' : 'visibility_off' }}</span>
                 </button>
-                <button @click="openModal(item)" class="p-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-lg">edit</span></button>
-                <button @click="deleteItem(item)" class="p-2 hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
+                <button v-if="isAdmin()" @click="openModal(item)" class="p-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-lg">edit</span></button>
+                <button v-if="isAdmin()" @click="deleteItem(item)" class="p-2 hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
+                <span v-if="!isAdmin()" class="text-on-surface-variant/40 text-xs">—</span>
               </div>
             </td>
           </tr>

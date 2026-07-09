@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { supportTicketApi } from '@/api/admin/index'
+import { useAdminPerm } from '@/composables/useAdminPerm'
 
+const { can } = useAdminPerm()
 const tickets = ref([])
 const isLoading = ref(false)
 
@@ -133,8 +135,8 @@ onMounted(fetchTickets)
               <span class="text-[9px] font-bold text-outline-variant uppercase">{{ formatTime(ticket.createdAt) }}</span>
             </div>
             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button v-if="ticket.status === 'OPEN'" @click="updateStatus(ticket, 'IN_PROGRESS')" class="px-4 py-1.5 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-md hover:brightness-110 transition-all">Xử lý</button>
-              <button v-if="ticket.status !== 'CLOSED'" @click="updateStatus(ticket, 'CLOSED')" class="px-4 py-1.5 bg-surface-container-high text-on-surface text-[10px] font-black uppercase tracking-widest rounded-md hover:bg-white/5 transition-all">Đóng</button>
+              <button v-if="ticket.status === 'OPEN' && can('support', 'edit')" @click="updateStatus(ticket, 'IN_PROGRESS')" class="px-4 py-1.5 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-md hover:brightness-110 transition-all">Xử lý</button>
+              <button v-if="ticket.status !== 'CLOSED' && can('support', 'edit')" @click="updateStatus(ticket, 'CLOSED')" class="px-4 py-1.5 bg-surface-container-high text-on-surface text-[10px] font-black uppercase tracking-widest rounded-md hover:bg-white/5 transition-all">Đóng</button>
             </div>
           </div>
         </div>

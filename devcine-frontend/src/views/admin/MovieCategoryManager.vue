@@ -4,6 +4,9 @@ import api from '@/api/axios'
 import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
 import { useConfirmStore } from '@/stores/confirm'
+import { useAdminPerm } from '@/composables/useAdminPerm'
+
+const { can } = useAdminPerm()
 
 const confirm = useConfirmStore()
 
@@ -158,6 +161,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
       </div>
       <div class="flex gap-4">
         <button
+          v-if="can('movies', 'add')"
           @click="openModal()"
           class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
         >
@@ -218,7 +222,7 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
               <div class="flex flex-col items-center gap-3">
                 <span class="material-symbols-outlined text-4xl text-on-surface-variant/30">category</span>
                 <p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Chưa có {{ tabLabel }} nào</p>
-                <button @click="openModal()" class="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
+                <button v-if="can('movies', 'add')" @click="openModal()" class="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
                   Thêm mới ngay
                 </button>
               </div>
@@ -240,12 +244,13 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
             <td class="px-8 py-4 text-xs text-on-surface-variant max-w-md truncate">{{ item.description || 'Chưa có mô tả' }}</td>
             <td class="px-8 py-4 text-right">
               <div class="flex justify-end gap-2">
-                <button @click="openModal(item)" class="p-2 hover:text-primary transition-colors">
+                <button v-if="can('movies', 'edit')" @click="openModal(item)" class="p-2 hover:text-primary transition-colors">
                   <span class="material-symbols-outlined text-lg">edit</span>
                 </button>
-                <button @click="deleteItem(item)" class="p-2 hover:text-red-500 transition-colors">
+                <button v-if="can('movies', 'delete')" @click="deleteItem(item)" class="p-2 hover:text-red-500 transition-colors">
                   <span class="material-symbols-outlined text-lg">delete</span>
                 </button>
+                <span v-if="!can('movies','edit') && !can('movies','delete')" class="text-on-surface-variant/40 text-xs">—</span>
               </div>
             </td>
           </tr>

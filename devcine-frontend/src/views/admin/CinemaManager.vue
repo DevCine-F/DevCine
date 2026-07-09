@@ -8,7 +8,9 @@ import { useCinemas } from "@/composables/useCinemas";
 import { useShowtimes } from "@/composables/useShowtimes";
 import { useSeatLayout } from "@/composables/useSeatLayout";
 import { useToastStore } from "@/stores/toast";
+import { useAdminPerm } from "@/composables/useAdminPerm";
 
+const { can, isAdmin } = useAdminPerm();
 const toast = useToastStore();
 
 // Organisms
@@ -201,6 +203,7 @@ const showCleaningSettingsModal = ref(false);
           </p>
         </div>
         <button
+          v-if="isAdmin()"
           @click="showCreateModal = true"
           class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-4 rounded-sm hover:brightness-110 transition-all flex items-center gap-3 shadow-lg shadow-primary/20"
         >
@@ -290,6 +293,7 @@ const showCleaningSettingsModal = ref(false);
           <CinemaInfrastructureTab
             v-if="activeTab === 'infrastructure'"
             :halls="selectedCinema.halls"
+            :can-manage="isAdmin()"
             @open-hall="openHallDetail"
             @add-room="openAddRoom"
             @edit-room="openEditRoom"
@@ -308,6 +312,8 @@ const showCleaningSettingsModal = ref(false);
             :check-conflict="checkConflict"
             :check-format-mismatch="checkFormatMismatch"
             :get-end-time="getEndTime"
+            :can-schedule="can('schedules', 'add')"
+            :can-schedule-edit="can('schedules', 'edit')"
             @update:selectedDate="(d) => selectedDate = d"
             @open-settings="showCleaningSettingsModal = true"
             @add-showtime="handleAddShowtime"

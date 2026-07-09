@@ -8,6 +8,8 @@ const props = defineProps({
   hasActiveFilters: { type: Boolean, default: false },
   totalFiltered: { type: Number, default: 0 },
   selectionCount: { type: Number, default: 0 },
+  canEdit: { type: Boolean, default: true },
+  canDelete: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(["clear", "bulk-status", "bulk-delete", "clear-selection"]);
@@ -50,18 +52,22 @@ const selectBase =
         </div>
         <div class="flex items-center gap-2">
           <button
+            v-if="canEdit"
             @click="emit('bulk-status', 'active')"
             class="px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-all"
           >Đang chiếu</button>
           <button
+            v-if="canEdit"
             @click="emit('bulk-status', 'upcoming')"
             class="px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all"
           >Sắp chiếu</button>
           <button
+            v-if="canEdit"
             @click="emit('bulk-status', 'archived')"
             class="px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest bg-surface-container-highest text-on-surface-variant border border-outline-variant/20 hover:brightness-125 transition-all"
           >Lưu trữ</button>
           <button
+            v-if="canDelete"
             @click="emit('bulk-delete')"
             class="px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center gap-1.5"
           >

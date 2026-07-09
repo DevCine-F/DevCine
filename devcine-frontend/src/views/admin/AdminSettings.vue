@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { settingsApi } from '@/api/admin'
+import { useAdminPerm } from '@/composables/useAdminPerm'
+
+const { can } = useAdminPerm()
 
 // Danh sách ngân hàng hỗ trợ VietQR (mã = BIN napas247)
 const BANKS = [
@@ -160,7 +163,7 @@ onMounted(() => {
               <p class="text-sm font-bold text-on-surface">Chế độ bảo trì</p>
               <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Tạm dừng truy cập phía người dùng</p>
             </div>
-            <button @click="settings.maintenanceMode = !settings.maintenanceMode" :disabled="isLoading" :class="settings.maintenanceMode ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'" class="px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all">
+            <button @click="settings.maintenanceMode = !settings.maintenanceMode" :disabled="isLoading || !can('settings', 'edit')" :class="settings.maintenanceMode ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'" class="px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               {{ settings.maintenanceMode ? 'BẬT' : 'TẮT' }}
             </button>
           </div>
@@ -313,7 +316,13 @@ onMounted(() => {
         </div>
       </section>
 
-      <div class="flex justify-end gap-4">
+      <div v-if="!can('settings', 'edit')" class="flex justify-end">
+        <p class="text-xs text-on-surface-variant italic flex items-center gap-2">
+          <span class="material-symbols-outlined text-base">lock</span>
+          Chỉ xem — bạn không có quyền thay đổi cài đặt hệ thống.
+        </p>
+      </div>
+      <div v-else class="flex justify-end gap-4">
         <button @click="loadSettings" :disabled="isLoading" class="px-8 py-3 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-white/10 transition-all border border-outline-variant/20 disabled:opacity-50">Hủy bỏ</button>
         <button @click="saveSettings" :disabled="isLoading" class="px-8 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
           {{ isLoading ? 'Đang lưu...' : 'Lưu thay đổi' }}
