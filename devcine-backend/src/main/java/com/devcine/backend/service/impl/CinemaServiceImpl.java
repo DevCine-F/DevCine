@@ -85,15 +85,17 @@ public class CinemaServiceImpl implements CinemaService {
     @Transactional(readOnly = true)
     public List<CinemaResponse> getAllCinemas() {
         List<Cinema> cinemas = cinemaRepository.findAllWithManager();
-        if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
+        // Chỉ giới hạn theo cơ sở với STAFF/MANAGER (nhân viên gắn 1 cụm rạp).
+        // ADMIN và khách/khách vãng lai (trang lịch chiếu công khai) đều xem TẤT CẢ rạp.
+        boolean scopedToCinema = com.devcine.backend.util.SecurityUtils.isManager()
+                || com.devcine.backend.util.SecurityUtils.hasRole("STAFF");
+        if (scopedToCinema) {
             Integer cinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
-            if (cinemaId != null) {
-                cinemas = cinemas.stream()
+            cinemas = cinemaId == null
+                    ? java.util.List.of()
+                    : cinemas.stream()
                         .filter(c -> c.getId().equals(cinemaId))
                         .collect(Collectors.toList());
-            } else {
-                cinemas = java.util.List.of();
-            }
         }
         return cinemas.stream()
                 .map(this::toResponse)
