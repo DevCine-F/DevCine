@@ -347,7 +347,7 @@ const fetchVoucherEvals = async () => {
     if (sel && map[sel.id]) {
       if (!map[sel.id].applicable) {
         removeVoucher()
-        toast.warning(map[sel.id].reason || 'Đơn không đủ điều kiện để áp dụng mã này.')
+        voucherError.value = map[sel.id].reason || 'Đơn không đủ điều kiện để áp dụng mã này.'
       } else {
         discountAmount.value = Number(map[sel.id].discountAmount || 0)
         voucherSuccess.value = appliedSuccessText(discountAmount.value)
@@ -376,20 +376,21 @@ const applyVoucherCode = async () => {
     // Điều kiện theo giỏ (đơn tối thiểu / theo phim) chấm ở server — không đủ thì KHÔNG chọn, chỉ báo
     const ev = voucherEvals.value[data.id]
     if (ev && !ev.applicable) {
+      // Không đủ điều kiện theo giỏ → hiện dòng lỗi ngay dưới ô nhập mã (không dùng toast)
       store.selectedVoucher = null
       discountAmount.value = 0
       voucherSuccess.value = ''
-      toast.error(ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.')
+      voucherError.value = ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.'
     } else {
       store.selectedVoucher = data
       discountAmount.value = ev ? Number(ev.discountAmount || 0) : (calculateDiscount(), discountAmount.value)
       voucherSuccess.value = appliedSuccessText(discountAmount.value)
-      toast.success('Áp dụng mã giảm giá thành công!')
+      voucherError.value = ''
     }
   } catch (err) {
     store.selectedVoucher = null
     discountAmount.value = 0
-    toast.error(friendlyError(err, 'Mã giảm giá không hợp lệ!'))
+    voucherError.value = friendlyError(err, 'Mã giảm giá không hợp lệ!')
   } finally {
     isApplyingVoucher.value = false
   }
@@ -398,7 +399,8 @@ const applyVoucherCode = async () => {
 const selectVoucher = (v) => {
   const ev = voucherEvals.value[v.id]
   if (ev && !ev.applicable) {
-    toast.warning(ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.')
+    voucherSuccess.value = ''
+    voucherError.value = ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.'
     return
   }
   store.selectedVoucher = {
@@ -842,10 +844,16 @@ const proceedToPayment = async () => {
               {{ isApplyingVoucher ? 'Đang áp dụng...' : 'Áp dụng' }}
             </button>
           </div>
-          <p v-if="voucherError" class="text-xs text-error font-bold px-2">{{ voucherError }}</p>
-          <div v-if="voucherSuccess" class="flex items-center justify-between px-2">
-            <p class="text-xs text-green-400 font-bold">{{ voucherSuccess }}</p>
-            <button v-if="store.selectedVoucher" @click="removeVoucher" class="text-xs text-on-surface-variant hover:text-error font-bold flex items-center gap-1 transition-colors">
+          <!-- Thất bại: đỏ -->
+          <div v-if="voucherError" class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/30">
+            <span class="material-symbols-outlined text-red-400 text-base shrink-0">error</span>
+            <p class="text-xs text-red-400 font-bold">{{ voucherError }}</p>
+          </div>
+          <!-- Thành công: xanh -->
+          <div v-if="voucherSuccess" class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-green-500/10 border border-green-500/30">
+            <span class="material-symbols-outlined text-green-400 text-base shrink-0">check_circle</span>
+            <p class="text-xs text-green-400 font-bold flex-1">{{ voucherSuccess }}</p>
+            <button v-if="store.selectedVoucher" @click="removeVoucher" class="shrink-0 text-[11px] text-on-surface-variant hover:text-red-400 font-bold flex items-center gap-1 transition-colors">
               <span class="material-symbols-outlined text-sm">close</span> Bỏ chọn
             </button>
           </div>
