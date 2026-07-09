@@ -379,7 +379,8 @@ onUnmounted(() => {
             Bạn sẽ dùng <span class="text-amber-400 font-bold">{{ redeemTarget.pointsRequired.toLocaleString('vi-VN') }} điểm</span>
             để đổi lấy <span class="text-white font-bold">{{ formatDiscount(redeemTarget) }}</span>.
           </p>
-          <p class="text-xs text-neutral-500 mt-2">Điểm còn lại sau khi đổi: {{ (loyaltyPoints - redeemTarget.pointsRequired).toLocaleString('vi-VN') }}</p>
+          <p class="text-xs text-neutral-500 mt-2">Điểm hiện tại: {{ loyaltyPoints.toLocaleString('vi-VN') }}</p>
+          <p class="text-xs text-neutral-500 mt-1">Điểm còn lại sau khi đổi: {{ (loyaltyPoints - redeemTarget.pointsRequired).toLocaleString('vi-VN') }}</p>
         </div>
         <div class="flex gap-3 mt-6">
           <button @click="cancelRedeem" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>
