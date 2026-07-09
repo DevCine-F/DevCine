@@ -46,6 +46,8 @@ export const voucherApi = {
   lookup: (customerId, code) => api.get('/vouchers/lookup', { params: { customerId, code } }),
   claim: (customerId, code) => api.post('/vouchers/claim', null, { params: { customerId, code } }),
   applyCode: (customerId, code) => api.post('/vouchers/apply', null, { params: { customerId, code } }),
+  // Chấm điều kiện + số giảm thực của voucher theo giỏ hàng hiện tại (làm mờ mã không đủ điều kiện)
+  preview: (payload) => api.post('/vouchers/preview', payload),
 };
 
 export const customerApi = {

@@ -1,5 +1,6 @@
 package com.devcine.backend.service;
 
+import com.devcine.backend.dto.request.VoucherPreviewRequest;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.User;
@@ -14,7 +15,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Nghiệp vụ voucher phía khách hàng — hiện phục vụ tính năng "Đổi điểm tích luỹ lấy ưu đãi".
@@ -31,24 +40,112 @@ public class VoucherService {
     private final BookingRepository bookingRepository;
     private final LoyaltyService loyaltyService;
 
+    /** Kết quả chấm một voucher theo giỏ hàng. reason = null khi đủ điều kiện. discountAmount = số giảm THÔ. */
+    public record VoucherEval(boolean applicable, String reason, BigDecimal discountAmount) {}
+
     /**
-     * Chặn sớm theo đối tượng áp dụng (eligibility) ngay ở bước áp/lưu mã — đồng bộ với kiểm tra
-     * lúc đặt vé ở {@code BookingService}: NEW_CUSTOMER (chưa từng mua vé) & TIER_* (hạng tối thiểu).
+     * Lý do KHÔNG đủ điều kiện theo ĐỐI TƯỢNG áp dụng (null nếu đủ). Dùng chung cho apply/claim,
+     * preview và (gián tiếp) đặt vé: NEW_CUSTOMER (chưa từng mua vé) & TIER_* (hạng tối thiểu).
      */
-    private void assertEligibility(Integer customerId, Customer customer, Promotion promo) {
+    private String eligibilityReason(Integer customerId, Customer customer, Promotion promo) {
         String elig = promo.getCustomerEligibility();
-        if (elig == null || elig.equalsIgnoreCase("ALL")) return;
+        if (elig == null || elig.equalsIgnoreCase("ALL")) return null;
         if ("NEW_CUSTOMER".equalsIgnoreCase(elig)) {
             if (bookingRepository.countConfirmedByCustomer(customerId) > 0) {
-                throw new RuntimeException("Mã chỉ dành cho khách hàng mới (chưa từng mua vé).");
+                return "Mã chỉ dành cho khách hàng mới (chưa từng mua vé).";
             }
         } else if (elig.startsWith("TIER_")) {
             String requiredTier = elig.substring(5); // SILVER | GOLD | PLATINUM
-            int lifetime = customer.getLifetimePoints() != null ? customer.getLifetimePoints() : 0;
+            int lifetime = customer != null && customer.getLifetimePoints() != null ? customer.getLifetimePoints() : 0;
             if (loyaltyService.tierRank(loyaltyService.tierFor(lifetime)) < loyaltyService.tierRank(requiredTier)) {
-                throw new RuntimeException("Mã chỉ dành cho khách hàng hạng " + loyaltyService.tierLabelVi(requiredTier) + " trở lên.");
+                return "Mã chỉ dành cho khách hàng hạng " + loyaltyService.tierLabelVi(requiredTier) + " trở lên.";
             }
         }
+        return null;
+    }
+
+    /** Chặn sớm theo đối tượng áp dụng ngay ở bước áp/lưu mã (ném lỗi nếu không đủ). */
+    private void assertEligibility(Integer customerId, Customer customer, Promotion promo) {
+        String reason = eligibilityReason(customerId, customer, promo);
+        if (reason != null) throw new RuntimeException(reason);
+    }
+
+    /**
+     * Chấm một voucher theo ngữ cảnh giỏ hàng — NGUỒN SỰ THẬT DUY NHẤT dùng chung với
+     * {@code BookingService} để preview khớp với lúc đặt vé. Giữ đúng THỨ TỰ kiểm tra:
+     * đơn tối thiểu → theo phim → đối tượng → lượt dùng; rồi tính base & số giảm (có trần).
+     *
+     * @param orderTotal tổng tiền đơn (ghế + bắp nước)
+     * @param movieId    phim của suất đang đặt (null = bỏ qua kiểm theo phim)
+     * @param seatPrices giá từng ghế — để tính base khi mã giới hạn số vé
+     * @return số giảm THÔ (chưa kẹp về 0/tổng đơn); caller tự kẹp finalPrice.
+     */
+    public VoucherEval evaluate(Integer customerId, Customer customer, Promotion promo,
+                                BigDecimal orderTotal, Integer movieId, List<BigDecimal> seatPrices) {
+        if (promo.getMinOrderValue() != null && orderTotal.compareTo(promo.getMinOrderValue()) < 0) {
+            return new VoucherEval(false,
+                    "Đơn tối thiểu " + promo.getMinOrderValue().toBigInteger() + "đ để áp dụng mã này.", BigDecimal.ZERO);
+        }
+        if (promo.getApplicableMovieId() != null && movieId != null
+                && !promo.getApplicableMovieId().equals(movieId)) {
+            return new VoucherEval(false, "Mã chỉ áp dụng cho phim khác, không dùng được cho suất này.", BigDecimal.ZERO);
+        }
+        String eligReason = eligibilityReason(customerId, customer, promo);
+        if (eligReason != null) return new VoucherEval(false, eligReason, BigDecimal.ZERO);
+        if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
+                && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
+            return new VoucherEval(false, "Mã đã hết lượt sử dụng.", BigDecimal.ZERO);
+        }
+
+        // Base tính giảm: mặc định cả đơn; nếu giới hạn số vé → chỉ X vé ĐẮT NHẤT
+        BigDecimal base = orderTotal;
+        Integer maxTk = promo.getMaxTicketQuantity();
+        if (maxTk != null && maxTk > 0 && seatPrices != null && !seatPrices.isEmpty()) {
+            base = seatPrices.stream().filter(Objects::nonNull)
+                    .sorted(Comparator.reverseOrder()).limit(maxTk)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+        BigDecimal discount = BigDecimal.ZERO;
+        if ("PERCENTAGE".equalsIgnoreCase(promo.getDiscountType())) {
+            discount = base.multiply(promo.getDiscountValue()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        } else if ("FIXED_AMOUNT".equalsIgnoreCase(promo.getDiscountType())) {
+            discount = promo.getDiscountValue().min(base);
+        }
+        BigDecimal maxDisc = promo.getMaxDiscountAmount();
+        if (maxDisc != null && maxDisc.compareTo(BigDecimal.ZERO) > 0 && discount.compareTo(maxDisc) > 0) {
+            discount = maxDisc;
+        }
+        return new VoucherEval(true, null, discount);
+    }
+
+    /**
+     * Preview toàn bộ voucher đang hiệu lực của khách theo giỏ hàng hiện tại — phục vụ bước
+     * "Ưu đãi" khi đặt vé: FE làm mờ mã không đủ điều kiện và hiển thị số giảm THỰC.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> previewActiveVouchers(VoucherPreviewRequest req) {
+        Integer customerId = req.getCustomerId();
+        if (customerId == null) return List.of();
+        Customer customer = customerRepository.findById(customerId).orElse(null);
+
+        BigDecimal seatSum = req.getSeatPrices() == null ? BigDecimal.ZERO
+                : req.getSeatPrices().stream().filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal orderTotal = seatSum.add(req.getFnbTotal() != null ? req.getFnbTotal() : BigDecimal.ZERO);
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Voucher v : voucherRepository.findActiveVouchersByCustomerId(customerId, LocalDateTime.now())) {
+            Promotion p = v.getPromotion();
+            VoucherEval eval = evaluate(customerId, customer, p, orderTotal, req.getMovieId(), req.getSeatPrices());
+            BigDecimal shown = eval.discountAmount().min(orderTotal); // số giảm thực (không vượt tổng đơn)
+            Map<String, Object> m = new HashMap<>();
+            m.put("voucherId", v.getId());
+            m.put("code", p.getCode() != null ? p.getCode() : "");
+            m.put("applicable", eval.applicable());
+            m.put("reason", eval.reason() != null ? eval.reason() : "");
+            m.put("discountAmount", eval.applicable() ? shown : BigDecimal.ZERO);
+            out.add(m);
+        }
+        return out;
     }
 
     /**

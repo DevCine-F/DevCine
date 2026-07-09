@@ -210,6 +210,8 @@ const voucherCode = ref('')
 const voucherError = ref('')
 const voucherSuccess = ref('')
 const discountAmount = ref(0)
+// Kết quả preview từ server theo giỏ hiện tại: voucherId -> { applicable, reason, discountAmount }
+const voucherEvals = ref({})
 
 const finalPaymentPrice = computed(() => {
   const total = store.totalPrice
@@ -315,8 +317,44 @@ const refreshVouchers = async () => {
   }
 }
 
-const successText = (discountType, discountValue) =>
-  `Áp dụng thành công! Được giảm ${discountType === 'PERCENTAGE' ? Number(discountValue) + '%' : Number(discountValue).toLocaleString('vi-VN') + ' VNĐ'}`
+// Thông báo áp dụng thành công dùng SỐ GIẢM THỰC (từ server), không phải giá trị mã thô
+const appliedSuccessText = (amount) =>
+  `Áp dụng thành công! Được giảm ${Number(amount || 0).toLocaleString('vi-VN')} VNĐ`
+
+// Chấm điều kiện voucher theo giỏ hiện tại (server = nguồn sự thật). Làm mờ mã không đủ điều kiện,
+// đồng bộ số giảm thực, và tự bỏ chọn nếu voucher đang chọn trở nên không hợp lệ.
+const fetchVoucherEvals = async () => {
+  if (!authStore.user?.id || vouchers.value.length === 0) { voucherEvals.value = {}; return }
+  try {
+    const assign = store.audienceAssignment
+    const seatPrices = store.selectedSeats.map((seat, i) => {
+      const aud = assign[i] || 'ADULT'
+      const byAud = store.priceTable[seat.seatType]
+      return (byAud && byAud[aud] != null) ? Number(byAud[aud]) : (seat.price || 0)
+    })
+    const fnbTotal = store.selectedFnbs.reduce((acc, f) => acc + f.fnbItem.price * f.quantity, 0)
+    const { data } = await voucherApi.preview({
+      customerId: authStore.user.id,
+      movieId: store.selectedMovie?.id ?? null,
+      seatPrices,
+      fnbTotal
+    })
+    const map = {}
+    for (const e of data) map[e.voucherId] = e
+    voucherEvals.value = map
+
+    const sel = store.selectedVoucher
+    if (sel && map[sel.id]) {
+      if (!map[sel.id].applicable) {
+        removeVoucher()
+        toast.warning(map[sel.id].reason || 'Đơn không đủ điều kiện để áp dụng mã này.')
+      } else {
+        discountAmount.value = Number(map[sel.id].discountAmount || 0)
+        voucherSuccess.value = appliedSuccessText(discountAmount.value)
+      }
+    }
+  } catch (e) { /* preview lỗi → không chặn luồng, giữ nguyên hiển thị */ }
+}
 
 const applyVoucherCode = async () => {
   voucherError.value = ''
@@ -330,14 +368,24 @@ const applyVoucherCode = async () => {
 
   isApplyingVoucher.value = true
   try {
-    // /apply: dùng voucher đã lưu, hoặc tự lưu mã hợp lệ rồi áp dụng (chặn mã đổi-điểm / hết hạn / không tồn tại)
+    // /apply: dùng voucher đã lưu, hoặc tự lưu mã hợp lệ rồi áp dụng (chặn mã đổi-điểm / hết hạn / không tồn tại / sai đối tượng)
     const { data } = await voucherApi.applyCode(authStore.user.id, voucherCode.value.trim())
-    store.selectedVoucher = data
-    voucherSuccess.value = successText(data.discountType, data.discountValue)
     voucherCode.value = ''
-    calculateDiscount()
     await refreshVouchers()
-    toast.success('Áp dụng mã giảm giá thành công!')
+    await fetchVoucherEvals()
+    // Điều kiện theo giỏ (đơn tối thiểu / theo phim) chấm ở server — không đủ thì KHÔNG chọn, chỉ báo
+    const ev = voucherEvals.value[data.id]
+    if (ev && !ev.applicable) {
+      store.selectedVoucher = null
+      discountAmount.value = 0
+      voucherSuccess.value = ''
+      toast.error(ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.')
+    } else {
+      store.selectedVoucher = data
+      discountAmount.value = ev ? Number(ev.discountAmount || 0) : (calculateDiscount(), discountAmount.value)
+      voucherSuccess.value = appliedSuccessText(discountAmount.value)
+      toast.success('Áp dụng mã giảm giá thành công!')
+    }
   } catch (err) {
     store.selectedVoucher = null
     discountAmount.value = 0
@@ -348,6 +396,11 @@ const applyVoucherCode = async () => {
 }
 
 const selectVoucher = (v) => {
+  const ev = voucherEvals.value[v.id]
+  if (ev && !ev.applicable) {
+    toast.warning(ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.')
+    return
+  }
   store.selectedVoucher = {
     id: v.id,
     code: v.promotion.code,
@@ -356,9 +409,10 @@ const selectVoucher = (v) => {
     maxTicketQuantity: v.promotion.maxTicketQuantity,
     maxDiscountAmount: v.promotion.maxDiscountAmount
   }
-  voucherSuccess.value = successText(v.promotion.discountType, v.promotion.discountValue)
+  if (ev) discountAmount.value = Number(ev.discountAmount || 0)
+  else calculateDiscount()
+  voucherSuccess.value = appliedSuccessText(discountAmount.value)
   voucherError.value = ''
-  calculateDiscount()
 }
 
 const removeVoucher = () => {
@@ -403,7 +457,11 @@ const calculateDiscount = () => {
 // Recalculate discount if seat or fnb selections change
 watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
   calculateDiscount()
+  // Giỏ đổi → chấm lại điều kiện/số giảm ở server (chỉ khi đã tới bước Ưu đãi trở đi)
+  if (currentStep.value >= 3) fetchVoucherEvals()
 })
+// Vào bước "Ưu đãi" (3): chấm điều kiện toàn bộ voucher theo giỏ hiện tại để làm mờ mã không đủ
+watch(currentStep, (s) => { if (s === 3) fetchVoucherEvals() })
 
 const handleSeatClick = (seat) => {
   if (seat.status !== 'AVAILABLE') return
@@ -796,16 +854,23 @@ const proceedToPayment = async () => {
           <div v-if="vouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
             <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Voucher của bạn:</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div 
-                v-for="v in vouchers" 
+              <div
+                v-for="v in vouchers"
                 :key="v.id"
                 @click="selectVoucher(v)"
-                :class="store.selectedVoucher?.id === v.id ? 'border-primary bg-primary/5' : 'border-outline-variant/20 bg-surface-container-high/40'"
-                class="border p-4 rounded-xl flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors"
+                :class="[
+                  store.selectedVoucher?.id === v.id ? 'border-primary bg-primary/5' : 'border-outline-variant/20 bg-surface-container-high/40',
+                  voucherEvals[v.id] && !voucherEvals[v.id].applicable ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:border-primary/50'
+                ]"
+                class="border p-4 rounded-xl flex items-center justify-between transition-colors"
               >
                 <div>
                   <p class="font-mono font-bold text-sm text-primary uppercase">{{ v.promotion.code }}</p>
                   <p class="text-[10px] text-on-surface-variant mt-1">Giảm {{ v.promotion.discountType === 'PERCENTAGE' ? v.promotion.discountValue + '%' : v.promotion.discountValue.toLocaleString() + 'đ' }}</p>
+                  <p v-if="voucherEvals[v.id] && !voucherEvals[v.id].applicable" class="text-[10px] text-error font-bold mt-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[13px]">block</span>
+                    {{ voucherEvals[v.id].reason || 'Đơn không đủ điều kiện để áp dụng mã này' }}
+                  </p>
                 </div>
                 <span v-if="store.selectedVoucher?.id === v.id" class="material-symbols-outlined text-primary">check_circle</span>
               </div>

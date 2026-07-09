@@ -40,6 +40,7 @@ public class BookingService {
     private final MailService mailService;
     private final SeatLockService seatLockService;
     private final LoyaltyService loyaltyService;
+    private final VoucherService voucherService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -206,61 +207,17 @@ public class BookingService {
 
             Promotion promotion = voucher.getPromotion();
 
-            // Điều kiện áp dụng nâng cao (đơn tối thiểu / theo phim / đối tượng / lượt dùng)
-            if (promotion.getMinOrderValue() != null
-                    && totalPrice.compareTo(promotion.getMinOrderValue()) < 0) {
-                throw new RuntimeException("Đơn tối thiểu " + promotion.getMinOrderValue().toBigInteger()
-                        + "đ để áp dụng mã này.");
+            // Chấm điều kiện (đơn tối thiểu / theo phim / đối tượng / lượt dùng) + tính giảm qua
+            // NGUỒN SỰ THẬT DUY NHẤT — dùng chung với bước preview để hai bên không lệch nhau.
+            java.util.List<BigDecimal> seatPrices = bookingSeats.stream()
+                    .map(BookingSeat::getPriceSnapshot)
+                    .collect(java.util.stream.Collectors.toList());
+            VoucherService.VoucherEval eval = voucherService.evaluate(
+                    customer.getUserId(), customer, promotion, totalPrice, showtime.getMovie().getId(), seatPrices);
+            if (!eval.applicable()) {
+                throw new RuntimeException(eval.reason());
             }
-            if (promotion.getApplicableMovieId() != null
-                    && !promotion.getApplicableMovieId().equals(showtime.getMovie().getId())) {
-                throw new RuntimeException("Mã chỉ áp dụng cho phim khác, không dùng được cho suất này.");
-            }
-            String eligibility = promotion.getCustomerEligibility();
-            if ("NEW_CUSTOMER".equalsIgnoreCase(eligibility)
-                    && bookingRepository.countConfirmedByCustomer(customer.getUserId()) > 0) {
-                throw new RuntimeException("Mã chỉ dành cho khách hàng mới (chưa từng mua vé).");
-            }
-            // Mã tri ân khách thân thiết: yêu cầu hạng thành viên (theo điểm tích lũy) tối thiểu.
-            if (eligibility != null && eligibility.startsWith("TIER_")) {
-                String requiredTier = eligibility.substring(5); // SILVER | GOLD | PLATINUM
-                int lifetime = customer.getLifetimePoints() != null ? customer.getLifetimePoints() : 0;
-                if (loyaltyService.tierRank(loyaltyService.tierFor(lifetime)) < loyaltyService.tierRank(requiredTier)) {
-                    throw new RuntimeException("Mã chỉ dành cho khách hàng hạng " + loyaltyService.tierLabelVi(requiredTier) + " trở lên.");
-                }
-            }
-            if (promotion.getUsageLimit() != null && promotion.getUsageLimit() > 0
-                    && promotion.getUsedCount() != null
-                    && promotion.getUsedCount() >= promotion.getUsageLimit()) {
-                throw new RuntimeException("Mã đã hết lượt sử dụng.");
-            }
-
-            // Phần tiền được tính giảm (base). Mặc định = cả đơn (ghế + bắp nước).
-            // Nếu mã giới hạn số vé → chỉ tính trên tối đa X vé ĐẮT NHẤT (không gồm bắp nước).
-            BigDecimal discountBase = totalPrice;
-            Integer voucherMaxTickets = promotion.getMaxTicketQuantity();
-            if (voucherMaxTickets != null && voucherMaxTickets > 0) {
-                discountBase = bookingSeats.stream()
-                        .map(BookingSeat::getPriceSnapshot)
-                        .sorted(java.util.Comparator.reverseOrder())
-                        .limit(voucherMaxTickets)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-            }
-
-            BigDecimal discount = BigDecimal.ZERO;
-            if ("PERCENTAGE".equalsIgnoreCase(promotion.getDiscountType())) {
-                discount = discountBase.multiply(promotion.getDiscountValue()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-            } else if ("FIXED_AMOUNT".equalsIgnoreCase(promotion.getDiscountType())) {
-                // Giảm tiền cố định không vượt quá phần tiền được tính giảm
-                discount = promotion.getDiscountValue().min(discountBase);
-            }
-
-            // Trần giảm tối đa (capping) — bảo vệ doanh thu với mã giảm %
-            BigDecimal maxDiscount = promotion.getMaxDiscountAmount();
-            if (maxDiscount != null && maxDiscount.compareTo(BigDecimal.ZERO) > 0
-                    && discount.compareTo(maxDiscount) > 0) {
-                discount = maxDiscount;
-            }
+            BigDecimal discount = eval.discountAmount();
 
             finalPrice = totalPrice.subtract(discount);
             if (finalPrice.compareTo(BigDecimal.ZERO) < 0) {

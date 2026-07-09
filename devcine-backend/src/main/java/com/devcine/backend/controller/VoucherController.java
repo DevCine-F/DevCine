@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.request.VoucherPreviewRequest;
 import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.Voucher;
 import com.devcine.backend.repository.PromotionRepository;
@@ -28,6 +29,15 @@ public class VoucherController {
     public ResponseEntity<?> getActiveVouchers(@PathVariable Integer customerId) {
         List<Voucher> vouchers = voucherRepository.findActiveVouchersByCustomerId(customerId, java.time.LocalDateTime.now());
         return ResponseEntity.ok(vouchers);
+    }
+
+    /**
+     * Chấm điều kiện + tính số giảm THỰC của toàn bộ voucher đang hiệu lực theo giỏ hàng hiện tại.
+     * FE dùng để làm mờ mã không đủ điều kiện & hiển thị đúng số giảm ngay ở bước áp mã.
+     */
+    @PostMapping("/preview")
+    public ResponseEntity<?> previewVouchers(@RequestBody VoucherPreviewRequest req) {
+        return ResponseEntity.ok(voucherService.previewActiveVouchers(req));
     }
 
     /**
