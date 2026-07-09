@@ -284,11 +284,13 @@ onMounted(async () => {
             {{ formatEnd(promo.endDate) }}.
           </p>
 
-          <!-- Đã lưu: nút trạng thái (vô hiệu hoá) + link sang Ưu đãi của tôi -->
+          <!-- Đã sở hữu: nút trạng thái (vô hiệu hoá) + link sang Ưu đãi của tôi.
+               Mã đổi-điểm hiện "Đã đổi" (mỗi mã chỉ đổi 1 lần/khách), mã thường hiện "Đã lưu". -->
           <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between gap-3">
             <button type="button" disabled
                     class="self-start flex items-center gap-2 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-lg cursor-default">
-              <span class="material-symbols-outlined text-sm">check_circle</span> Đã lưu
+              <span class="material-symbols-outlined text-sm">{{ isPointPromo(promo) ? 'redeem' : 'check_circle' }}</span>
+              {{ isPointPromo(promo) ? 'Đã đổi' : 'Đã lưu' }}
             </button>
             <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-xs uppercase tracking-widest hover:opacity-80 shrink-0">Ưu đãi của tôi →</RouterLink>
           </div>
