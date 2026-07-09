@@ -67,6 +67,16 @@ public class LoyaltyService {
         };
     }
 
+    /** Nhãn tiếng Việt của hạng thành viên (dùng cho thông báo eligibility). */
+    public String tierLabelVi(String tier) {
+        return switch (tier == null ? "" : tier.toUpperCase()) {
+            case "SILVER" -> "Bạc";
+            case "GOLD" -> "Vàng";
+            case "PLATINUM" -> "Bạch Kim";
+            default -> tier;
+        };
+    }
+
     /**
      * Cộng điểm khi có đơn thành công (vé/F&B). Cộng cả ví tiêu được lẫn tích lũy trọn đời,
      * cập nhật hạng theo tích lũy, và ghi sổ điểm. Idempotency do người gọi đảm bảo

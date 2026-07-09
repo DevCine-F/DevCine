@@ -4,6 +4,7 @@ import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.entity.Voucher;
+import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.PromotionRepository;
 import com.devcine.backend.repository.UserRepository;
@@ -27,7 +28,28 @@ public class VoucherService {
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
+    private final BookingRepository bookingRepository;
     private final LoyaltyService loyaltyService;
+
+    /**
+     * Chặn sớm theo đối tượng áp dụng (eligibility) ngay ở bước áp/lưu mã — đồng bộ với kiểm tra
+     * lúc đặt vé ở {@code BookingService}: NEW_CUSTOMER (chưa từng mua vé) & TIER_* (hạng tối thiểu).
+     */
+    private void assertEligibility(Integer customerId, Customer customer, Promotion promo) {
+        String elig = promo.getCustomerEligibility();
+        if (elig == null || elig.equalsIgnoreCase("ALL")) return;
+        if ("NEW_CUSTOMER".equalsIgnoreCase(elig)) {
+            if (bookingRepository.countConfirmedByCustomer(customerId) > 0) {
+                throw new RuntimeException("Mã chỉ dành cho khách hàng mới (chưa từng mua vé).");
+            }
+        } else if (elig.startsWith("TIER_")) {
+            String requiredTier = elig.substring(5); // SILVER | GOLD | PLATINUM
+            int lifetime = customer.getLifetimePoints() != null ? customer.getLifetimePoints() : 0;
+            if (loyaltyService.tierRank(loyaltyService.tierFor(lifetime)) < loyaltyService.tierRank(requiredTier)) {
+                throw new RuntimeException("Mã chỉ dành cho khách hàng hạng " + loyaltyService.tierLabelVi(requiredTier) + " trở lên.");
+            }
+        }
+    }
 
     /**
      * Lấy hồ sơ khách theo id; nếu user tồn tại nhưng chưa có Customer (vd tài khoản admin/staff
@@ -121,6 +143,9 @@ public class VoucherService {
             throw new RuntimeException("Ưu đãi đã hết hạn.");
         }
 
+        // Chặn sớm theo đối tượng áp dụng (khách mới / hạng thành viên) trước khi lưu mã
+        assertEligibility(customerId, customer, promo);
+
         if (voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), now).isPresent()) {
             throw new RuntimeException("Bạn đã lưu mã này rồi.");
         }
@@ -149,6 +174,10 @@ public class VoucherService {
         }
         Promotion promo = promotionRepository.findByCodeIgnoreCase(code.trim())
                 .orElseThrow(() -> new RuntimeException("Mã ưu đãi không tồn tại."));
+
+        // Chặn sớm theo đối tượng áp dụng — chặn cả trường hợp khách đã lưu mã từ trước
+        Customer customer = resolveOrCreateCustomer(customerId);
+        assertEligibility(customerId, customer, promo);
 
         return voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), LocalDateTime.now())
                 .orElseGet(() -> claimByCode(customerId, promo.getCode()));

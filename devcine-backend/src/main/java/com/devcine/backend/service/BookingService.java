@@ -226,7 +226,7 @@ public class BookingService {
                 String requiredTier = eligibility.substring(5); // SILVER | GOLD | PLATINUM
                 int lifetime = customer.getLifetimePoints() != null ? customer.getLifetimePoints() : 0;
                 if (loyaltyService.tierRank(loyaltyService.tierFor(lifetime)) < loyaltyService.tierRank(requiredTier)) {
-                    throw new RuntimeException("Mã chỉ dành cho khách hàng hạng " + tierLabelVi(requiredTier) + " trở lên.");
+                    throw new RuntimeException("Mã chỉ dành cho khách hàng hạng " + loyaltyService.tierLabelVi(requiredTier) + " trở lên.");
                 }
             }
             if (promotion.getUsageLimit() != null && promotion.getUsageLimit() > 0
@@ -360,16 +360,6 @@ public class BookingService {
 
         // Gửi vé điện tử (mã QR) qua email — bất đồng bộ, fail-safe (không rollback nếu mail lỗi)
         sendTicketEmail(booking, seats, tickets);
-    }
-
-    /** Nhãn tiếng Việt của hạng thành viên (dùng cho thông báo eligibility). */
-    private String tierLabelVi(String tier) {
-        return switch (tier == null ? "" : tier.toUpperCase()) {
-            case "SILVER" -> "Bạc";
-            case "GOLD" -> "Vàng";
-            case "PLATINUM" -> "Bạch Kim";
-            default -> tier;
-        };
     }
 
     /**
