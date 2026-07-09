@@ -6,8 +6,10 @@ import { marketingApi, customerApi, promoArticleApi } from '@/api/admin/index'
 import CustomSelect from '@/components/common/CustomSelect.vue'
 import { prepareImageForUpload } from '@/utils/imageUpload'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import { useToastStore } from '@/stores/toast'
 
 const { can } = useAdminPerm()
+const toastStore = useToastStore()
 const filterStatus = ref('all')
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -307,14 +309,8 @@ const openComboDrawer = () => {
 }
 
 
-// Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
+// Toast dùng chung toàn web (AppToast trong AdminLayout) — nền đặc, đủ 4 trạng thái
+const showToast = (message, type = 'success') => toastStore.push(message, type)
 
 // ============================================================================
 //  VOUCHER FORM — 3 tầng kiểm tra: (1) Format tự động khi gõ, (2) Validate từng
@@ -675,7 +671,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (toastTimer) clearTimeout(toastTimer)
   if (customerSearchTimer) clearTimeout(customerSearchTimer)
 })
 </script>
@@ -1424,17 +1419,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="[
-        'fixed top-20 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
-      ]">
-        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
-        {{ toast.message }}
-      </div>
-    </transition>
   </div>
 </template>
 
