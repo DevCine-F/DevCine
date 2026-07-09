@@ -77,6 +77,7 @@ const goToLogin = () => {
 }
 
 const goNext = () => {
+  if (holdExpiredNow()) { handleHoldExpired(); return } // hết giờ giữ chỗ → không cho đi tiếp
   if (currentStep.value < steps.length && canProceed.value) {
     // Rời bước chọn ghế (1 → 2): yêu cầu đăng nhập, chưa đăng nhập thì dắt đi đăng nhập
     if (currentStep.value === 1 && !ensureAuthForBooking()) return
@@ -103,6 +104,7 @@ const goToStep = (id) => {
 let holdPromise = null
 const ensureHeld = async () => {
   if (held.value) return true
+  if (holdExpiredNow()) { handleHoldExpired(); return false } // hết giờ → không tạo đơn giữ ghế
   if (!holdPromise) {
     holding.value = true
     holdPromise = store.holdSeatsAndProceed(paymentMethod.value).then(ok => {
@@ -131,6 +133,8 @@ let expiredHandled = false
 
 const holdDeadline = computed(() => holdStartTs.value ? holdStartTs.value + holdMinutes.value * 60000 : 0)
 const isCountingDown = computed(() => holdStartTs.value > 0)
+// Đã quá hạn giữ chỗ — kiểm ĐỒNG BỘ để chặn đặt vé ngay cả khi watcher secondsLeft chưa kịp chạy (tránh race)
+const holdExpiredNow = () => holdStartTs.value > 0 && Date.now() >= holdDeadline.value
 const secondsLeft = computed(() => {
   if (!isCountingDown.value) return null
   return Math.max(0, Math.floor((holdDeadline.value - nowTs.value) / 1000))
@@ -158,6 +162,8 @@ const handleHoldExpired = async () => {
   held.value = false
   store.bookingId = null
   store.heldAt = null
+  // Nhả khóa real-time TỪNG ghế trên server trước khi xoá lựa chọn — nếu không server vẫn giữ ghế
+  store.selectedSeats.forEach(seat => seatRealtime.deselect(seat.seatId))
   store.selectedSeats = []         // bỏ ghế đã chọn để khách chọn lại từ đầu
   store.calculateTotal()
   await store.fetchSeats()         // làm mới sơ đồ ghế (ghế đã/sẽ được nhả)
@@ -538,6 +544,7 @@ const getBookingSeatClass = (seat) => {
 }
 
 const proceedToPayment = async () => {
+  if (holdExpiredNow()) { handleHoldExpired(); return } // hết giờ giữ chỗ → chặn thanh toán
   // Thường ghế đã được giữ sẵn ở nền khi mở bước 4 → ensureHeld trả về ngay; nếu chưa thì giữ ở đây
   const success = await ensureHeld()
   if (success) {
