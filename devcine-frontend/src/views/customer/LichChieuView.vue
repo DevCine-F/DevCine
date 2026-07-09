@@ -238,16 +238,31 @@ onMounted(loadShowtimes)
         <!-- Lưới rạp (đã lọc) -->
         <div v-if="filteredCinemas.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <button v-for="c in filteredCinemas" :key="c.id" @click="selectCinema(c.id)"
-            class="group text-left flex flex-col overflow-hidden rounded-2xl border border-outline-variant/15 bg-surface-container-low hover:border-[#f5c518]/50 hover:-translate-y-1 transition-all duration-200">
-            <div class="h-32 bg-surface-container-high overflow-hidden relative flex items-center justify-center">
-              <span class="material-symbols-outlined text-5xl text-[#f5c518]/25 group-hover:text-[#f5c518]/40 transition-colors">theaters</span>
-              <span class="absolute top-2 left-2 bg-black/60 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">{{ c.city }}</span>
+            class="group relative text-left flex flex-col p-6 pl-7 overflow-hidden rounded-2xl border border-outline-variant/15 bg-surface-container-low hover:border-[#f5c518]/50 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/30 transition-all duration-300">
+            <!-- Thanh nhấn dọc bên trái -->
+            <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#f5c518] to-[#e0a000] opacity-40 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <!-- Vầng sáng tô điểm ở góc khi hover -->
+            <div class="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-[#f5c518]/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+
+            <!-- Chip tỉnh/thành -->
+            <span class="relative self-start inline-flex items-center gap-1.5 bg-[#f5c518]/10 text-[#f5c518] text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider border border-[#f5c518]/20 mb-4">
+              <span class="material-symbols-outlined text-[13px]">location_city</span>{{ c.city }}
+            </span>
+
+            <!-- Tên rạp -->
+            <h3 class="relative font-headline text-lg font-bold text-on-surface mb-2.5 leading-snug group-hover:text-[#f5c518] transition-colors">{{ c.name }}</h3>
+
+            <!-- Địa chỉ -->
+            <div class="relative flex items-start gap-2 flex-1 mb-5">
+              <span class="material-symbols-outlined text-base text-on-surface-variant/50 mt-0.5 shrink-0">location_on</span>
+              <p class="text-xs text-on-surface-variant leading-relaxed line-clamp-2">{{ c.address }}</p>
             </div>
-            <div class="p-5 flex-1 flex flex-col">
-              <h3 class="font-headline text-base font-bold text-on-surface mb-1 group-hover:text-[#f5c518] transition-colors">{{ c.name }}</h3>
-              <p class="text-xs text-on-surface-variant leading-relaxed line-clamp-2 flex-1">{{ c.address }}</p>
-              <span class="mt-4 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#f5c518]">
-                Xem lịch chiếu <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+
+            <!-- CTA -->
+            <div class="relative flex items-center justify-between pt-4 border-t border-outline-variant/10">
+              <span class="text-[11px] font-bold uppercase tracking-widest text-[#f5c518]">Xem lịch chiếu</span>
+              <span class="w-8 h-8 flex items-center justify-center rounded-full bg-[#f5c518]/10 text-[#f5c518] group-hover:bg-[#f5c518] group-hover:text-black transition-all duration-300">
+                <span class="material-symbols-outlined text-lg group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
               </span>
             </div>
           </button>
