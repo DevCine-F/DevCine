@@ -556,6 +556,20 @@ const emailTarget = ref(null)        // promotion đang chờ xác nhận gửi 
 const isSendingCampaign = ref(false)
 const eligibilityLabel = (val) => eligibilityOptions.find(o => o.value === val)?.label || 'Mọi khách hàng'
 const movieTitleById = (id) => id ? (moviesList.value.find(m => m.id === id)?.title || 'Tất cả phim') : 'Tất cả phim'
+// Tình trạng sử dụng voucher: %, màu theo mức dùng, số còn lại — cho thanh đo ở view chi tiết
+const usageInfo = (promo) => {
+  const used = Number(promo?.usedCount || 0)
+  const limit = Number(promo?.usageLimit || 0)
+  const limited = limit > 0
+  const pct = limited ? Math.min(100, Math.round((used / limit) * 100)) : 0
+  return {
+    used, limit, limited, pct,
+    remaining: limited ? Math.max(0, limit - used) : 0,
+    exhausted: limited && used >= limit,
+    bar: !limited ? 'bg-primary' : pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-400' : 'bg-green-500',
+    text: !limited ? 'text-on-surface' : pct >= 90 ? 'text-red-400' : pct >= 70 ? 'text-amber-400' : 'text-green-400',
+  }
+}
 const askSendCampaign = (promo) => { emailTarget.value = promo }
 const confirmSendCampaign = async () => {
   if (!emailTarget.value) return
@@ -1365,78 +1379,118 @@ onUnmounted(() => {
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
-        <div class="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-custom">
+        <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
+          <!-- Mô tả -->
           <div v-if="detailTarget.description" class="space-y-1">
-            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả</p>
-            <p class="text-sm text-on-surface whitespace-pre-line">{{ detailTarget.description }}</p>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mức giảm</p>
-              <p class="text-sm font-black text-primary">{{ detailTarget.discountType === 'PERCENTAGE' ? Number(detailTarget.discountValue) + '%' : Number(detailTarget.discountValue).toLocaleString() + 'đ' }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Loại giảm</p>
-              <p class="text-sm font-bold text-on-surface">{{ detailTarget.discountType === 'PERCENTAGE' ? 'Phần trăm' : 'Tiền cố định' }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bắt đầu</p>
-              <p class="text-sm font-bold text-on-surface">{{ formatPromoDate(detailTarget.startDate) }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Hết hạn</p>
-              <p class="text-sm font-bold text-red-400">{{ formatPromoDate(detailTarget.endDate) }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đổi điểm</p>
-              <p v-if="detailTarget.allowPointRedemption" class="text-sm font-black text-amber-400">{{ Number(detailTarget.pointsRequired).toLocaleString() }} điểm</p>
-              <p v-else class="text-sm font-bold text-on-surface-variant/60">Tắt</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Cộng dồn</p>
-              <p class="text-sm font-bold text-on-surface">{{ detailTarget.isStackable ? 'Có' : 'Không' }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đơn tối thiểu</p>
-              <p class="text-sm font-bold text-on-surface">{{ Number(detailTarget.minOrderValue || 0) > 0 ? Number(detailTarget.minOrderValue).toLocaleString() + 'đ' : 'Không yêu cầu' }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa được giảm</p>
-              <p class="text-sm font-bold text-on-surface">{{ Number(detailTarget.maxTicketQuantity || 0) > 0 ? Number(detailTarget.maxTicketQuantity).toLocaleString() + ' vé' : 'Không giới hạn' }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giảm tối đa</p>
-              <p class="text-sm font-bold text-on-surface">{{ Number(detailTarget.maxDiscountAmount || 0) > 0 ? Number(detailTarget.maxDiscountAmount).toLocaleString() + 'đ' : 'Không giới hạn' }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đối tượng áp dụng</p>
-              <p class="text-sm font-bold text-on-surface">{{ eligibilityLabel(detailTarget.customerEligibility) }}</p>
-            </div>
-            <div class="space-y-1 col-span-2">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Áp dụng theo phim</p>
-              <p class="text-sm font-bold text-on-surface truncate" :title="movieTitleById(detailTarget.applicableMovieId)">{{ movieTitleById(detailTarget.applicableMovieId) }}</p>
-            </div>
+            <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Mô tả</p>
+            <p class="text-sm text-on-surface whitespace-pre-line leading-relaxed">{{ detailTarget.description }}</p>
           </div>
 
-          <!-- Số lượt đã sử dụng (kèm giới hạn nếu có) -->
-          <div class="pt-3 border-t border-outline-variant/10 space-y-1.5">
-            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số lượt đã sử dụng</p>
-            <div class="flex items-baseline gap-2">
-              <p class="text-sm font-black text-on-surface">
-                {{ Number(detailTarget.usedCount || 0).toLocaleString() }}<template v-if="Number(detailTarget.usageLimit || 0) > 0">/{{ Number(detailTarget.usageLimit).toLocaleString() }}</template>
-                <span class="text-on-surface-variant font-bold"> lượt</span>
-              </p>
-              <span v-if="Number(detailTarget.usageLimit || 0) > 0" class="text-[10px] font-bold text-on-surface-variant/70">
-                (còn {{ Math.max(0, Number(detailTarget.usageLimit) - Number(detailTarget.usedCount || 0)).toLocaleString() }} lượt)
-              </span>
-              <span v-else class="text-[10px] font-bold text-on-surface-variant/60">(không giới hạn)</span>
+          <!-- NHÓM 1 · Giá trị giảm -->
+          <section class="space-y-2.5">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-base">sell</span>
+              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Giá trị giảm</span>
             </div>
-            <!-- Thanh tiến độ khi có giới hạn lượt dùng -->
-            <div v-if="Number(detailTarget.usageLimit || 0) > 0" class="h-1.5 rounded-full bg-white/10 overflow-hidden">
-              <div class="h-full bg-primary rounded-full transition-all"
-                :style="{ width: Math.min(100, (Number(detailTarget.usedCount || 0) / Number(detailTarget.usageLimit)) * 100) + '%' }"></div>
+            <div class="rounded-xl bg-surface-container p-4">
+              <div class="flex items-end justify-between gap-3">
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 mb-1">Mức giảm</p>
+                  <p class="text-3xl font-black text-primary leading-none">{{ detailTarget.discountType === 'PERCENTAGE' ? Number(detailTarget.discountValue) + '%' : Number(detailTarget.discountValue).toLocaleString() + 'đ' }}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 mb-1">Loại giảm</p>
+                  <p class="text-sm font-bold text-on-surface">{{ detailTarget.discountType === 'PERCENTAGE' ? 'Phần trăm' : 'Tiền cố định' }}</p>
+                </div>
+              </div>
+              <div class="mt-3 pt-3 border-t border-outline-variant/10 flex justify-between items-center">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Giảm tối đa</span>
+                <span class="text-sm font-bold" :class="Number(detailTarget.maxDiscountAmount || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">{{ Number(detailTarget.maxDiscountAmount || 0) > 0 ? Number(detailTarget.maxDiscountAmount).toLocaleString() + 'đ' : 'Không giới hạn' }}</span>
+              </div>
             </div>
-          </div>
+          </section>
+
+          <!-- NHÓM 2 · Điều kiện áp dụng -->
+          <section class="space-y-2.5">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-base">rule</span>
+              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Điều kiện áp dụng</span>
+            </div>
+            <div class="rounded-xl bg-surface-container p-4 space-y-2.5">
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Đơn tối thiểu</span>
+                <span class="text-sm font-bold" :class="Number(detailTarget.minOrderValue || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">{{ Number(detailTarget.minOrderValue || 0) > 0 ? Number(detailTarget.minOrderValue).toLocaleString() + 'đ' : 'Không yêu cầu' }}</span>
+              </div>
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Số vé tối đa được giảm</span>
+                <span class="text-sm font-bold" :class="Number(detailTarget.maxTicketQuantity || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">{{ Number(detailTarget.maxTicketQuantity || 0) > 0 ? Number(detailTarget.maxTicketQuantity).toLocaleString() + ' vé' : 'Không giới hạn' }}</span>
+              </div>
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Đối tượng áp dụng</span>
+                <span class="text-sm font-bold text-on-surface text-right">{{ eligibilityLabel(detailTarget.customerEligibility) }}</span>
+              </div>
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 shrink-0">Áp dụng theo phim</span>
+                <span class="text-sm font-bold text-on-surface truncate text-right" :title="movieTitleById(detailTarget.applicableMovieId)">{{ movieTitleById(detailTarget.applicableMovieId) }}</span>
+              </div>
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Cộng dồn với mã khác</span>
+                <span class="text-sm font-bold text-on-surface">{{ detailTarget.isStackable ? 'Có' : 'Không' }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- NHÓM 3 · Thời gian & Đổi điểm -->
+          <section class="space-y-2.5">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-base">schedule</span>
+              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Thời gian & Đổi điểm</span>
+            </div>
+            <div class="rounded-xl bg-surface-container p-4 space-y-2.5">
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Bắt đầu</span>
+                <span class="text-sm font-bold text-on-surface">{{ formatPromoDate(detailTarget.startDate) }}</span>
+              </div>
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Hết hạn</span>
+                <span class="text-sm font-bold" :class="promoStatus(detailTarget) === 'active' ? 'text-on-surface' : 'text-red-400'">{{ formatPromoDate(detailTarget.endDate) }}</span>
+              </div>
+              <div class="flex justify-between items-center gap-3 pt-2.5 border-t border-outline-variant/10">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Đổi bằng điểm</span>
+                <span v-if="detailTarget.allowPointRedemption" class="text-sm font-black text-amber-400">{{ Number(detailTarget.pointsRequired).toLocaleString() }} điểm</span>
+                <span v-else class="text-sm font-bold text-on-surface-variant/50">Tắt</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- NHÓM 4 · Tình trạng sử dụng -->
+          <section class="space-y-2.5">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-base">insights</span>
+              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Tình trạng sử dụng</span>
+            </div>
+            <div class="rounded-xl bg-surface-container p-4">
+              <div class="flex items-baseline justify-between mb-2.5">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Số lượt đã dùng</span>
+                <span class="text-sm font-black" :class="usageInfo(detailTarget).text">
+                  {{ usageInfo(detailTarget).used.toLocaleString() }}<template v-if="usageInfo(detailTarget).limited">/{{ usageInfo(detailTarget).limit.toLocaleString() }}</template>
+                  <span class="text-on-surface-variant/60 font-bold text-xs"> lượt</span>
+                </span>
+              </div>
+              <template v-if="usageInfo(detailTarget).limited">
+                <div class="h-2 rounded-full bg-white/[0.08] ring-1 ring-white/5 overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-500" :class="usageInfo(detailTarget).bar" :style="{ width: usageInfo(detailTarget).pct + '%' }"></div>
+                </div>
+                <div class="flex justify-between items-center mt-1.5">
+                  <span class="text-[10px] font-bold" :class="usageInfo(detailTarget).exhausted ? 'text-red-400' : 'text-on-surface-variant/60'">
+                    {{ usageInfo(detailTarget).exhausted ? 'Đã dùng hết lượt' : 'Còn ' + usageInfo(detailTarget).remaining.toLocaleString() + ' lượt' }}
+                  </span>
+                  <span class="text-[10px] font-black" :class="usageInfo(detailTarget).text">{{ usageInfo(detailTarget).pct }}%</span>
+                </div>
+              </template>
+              <p v-else class="text-[11px] font-bold text-on-surface-variant/60">Không giới hạn lượt sử dụng</p>
+            </div>
+          </section>
         </div>
         <div class="p-6 border-t border-outline-variant/10 flex gap-3">
           <button @click="openIssueModal(detailTarget); closeDetail()" class="flex-1 px-4 py-3 rounded-xl bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-colors flex items-center justify-center gap-1">
