@@ -607,8 +607,9 @@ const confirmSendCampaign = async () => {
   isSendingCampaign.value = true
   try {
     const { data } = await marketingApi.sendCampaign(emailTarget.value.id)
-    showToast(data.message || `Đã gửi email tới ${data.sent ?? 0} khách hàng.`)
+    showToast(data.message || `Đã gửi email tới ${data.sent ?? 0} khách hàng.`, data.sent > 0 ? 'success' : 'info')
     emailTarget.value = null
+    await fetchMarketingData() // cập nhật lịch sử gửi trên card
   } catch (err) {
     showToast(err.response?.data?.message || 'Gửi email chiến dịch thất bại.', 'error')
   } finally {
@@ -695,7 +696,9 @@ const fetchMarketingData = async () => {
       applicableMovieId: p.applicableMovieId,
       customerEligibility: p.customerEligibility,
       usageLimit: p.usageLimit,
-      usedCount: p.usedCount
+      usedCount: p.usedCount,
+      campaignSentAt: p.campaignSentAt,
+      campaignSentCount: p.campaignSentCount
     })).sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
   } catch (error) {
     showToast('Không thể tải danh sách voucher.', 'error')
@@ -854,8 +857,11 @@ onUnmounted(() => {
               <span class="material-symbols-outlined text-xs">card_giftcard</span> Phát cho khách
             </button>
             <div class="flex items-center gap-1">
-              <button v-if="can('promotions', 'edit') && !promo.allowPointRedemption" @click="askSendCampaign(promo)" title="Gửi email chiến dịch" class="w-8 h-8 rounded-lg hover:bg-primary/15 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
-                <span class="material-symbols-outlined text-sm">mail</span>
+              <button v-if="can('promotions', 'edit') && !promo.allowPointRedemption" @click="askSendCampaign(promo)"
+                :title="Number(promo.campaignSentCount || 0) > 0 ? `Đã gửi ${promo.campaignSentCount} khách — gửi thêm cho khách mới` : 'Gửi email chiến dịch'"
+                class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                :class="Number(promo.campaignSentCount || 0) > 0 ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-primary/15 text-on-surface-variant hover:text-primary'">
+                <span class="material-symbols-outlined text-sm">{{ Number(promo.campaignSentCount || 0) > 0 ? 'mark_email_read' : 'mail' }}</span>
               </button>
               <button v-if="can('promotions', 'edit')" @click="openEditVoucher(promo)" title="Chỉnh sửa" class="w-8 h-8 rounded-lg hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
                 <span class="material-symbols-outlined text-sm">edit</span>
@@ -1539,6 +1545,13 @@ onUnmounted(() => {
                 </div>
               </template>
               <p v-else class="text-[11px] font-bold text-on-surface-variant/60">Không giới hạn lượt sử dụng</p>
+              <!-- Lịch sử gửi email chiến dịch (mã nhập trực tiếp) -->
+              <div v-if="!detailTarget.allowPointRedemption" class="mt-3 pt-3 border-t border-outline-variant/10 flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Email chiến dịch</span>
+                <span class="text-sm font-bold" :class="Number(detailTarget.campaignSentCount || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">
+                  {{ Number(detailTarget.campaignSentCount || 0) > 0 ? `Đã gửi ${Number(detailTarget.campaignSentCount).toLocaleString()} khách · ${formatPromoDate(detailTarget.campaignSentAt)}` : 'Chưa gửi' }}
+                </span>
+              </div>
             </div>
           </section>
         </div>
@@ -1572,11 +1585,19 @@ onUnmounted(() => {
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="emailTarget = null"></div>
       <div class="relative w-full max-w-sm bg-surface-container-low border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
         <span class="material-symbols-outlined text-4xl text-primary mb-3">mark_email_read</span>
-        <h3 class="text-lg font-bold font-headline text-white mb-2">Gửi email chiến dịch?</h3>
+        <h3 class="text-lg font-bold font-headline text-white mb-2">{{ Number(emailTarget.campaignSentCount || 0) > 0 ? 'Gửi lại chiến dịch?' : 'Gửi email chiến dịch?' }}</h3>
         <p class="text-sm text-on-surface-variant">
           Gửi email kèm mã <span class="font-mono font-bold text-primary">{{ emailTarget.code }}</span>
-          tới <span class="font-bold text-on-surface">toàn bộ khách thuộc "{{ eligibilityLabel(emailTarget.customerEligibility) }}"</span> có email.
+          tới <span class="font-bold text-on-surface">khách thuộc "{{ eligibilityLabel(emailTarget.customerEligibility) }}"</span> có email.
         </p>
+        <!-- Đã gửi trước đó → cảnh báo dedup -->
+        <div v-if="Number(emailTarget.campaignSentCount || 0) > 0" class="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-left flex items-start gap-2">
+          <span class="material-symbols-outlined text-amber-400 text-base shrink-0">history</span>
+          <p class="text-[11px] text-amber-300/90 font-bold leading-relaxed">
+            Đã gửi cho {{ Number(emailTarget.campaignSentCount).toLocaleString() }} khách ({{ formatPromoDate(emailTarget.campaignSentAt) }}).
+            Gửi lại <b>chỉ gửi cho khách CHƯA nhận</b> mã này — không gửi trùng.
+          </p>
+        </div>
         <p class="text-[11px] text-on-surface-variant/70 mt-2">Hành động này gửi email thật, không thể thu hồi.</p>
         <div class="flex gap-3 mt-6">
           <button @click="emailTarget = null" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>

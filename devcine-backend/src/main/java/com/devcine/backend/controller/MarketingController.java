@@ -224,8 +224,10 @@ public class MarketingController {
     public ResponseEntity<?> sendCampaign(@PathVariable Integer id) {
         try {
             int sent = voucherService.sendCampaignEmails(id);
-            return ResponseEntity.ok(Map.of("success", true, "sent", sent,
-                    "message", "Đã gửi email chiến dịch tới " + sent + " khách hàng."));
+            String message = sent > 0
+                    ? "Đã gửi email chiến dịch tới " + sent + " khách hàng."
+                    : "Tất cả khách thuộc đối tượng đã nhận email mã này rồi.";
+            return ResponseEntity.ok(Map.of("success", true, "sent", sent, "message", message));
         } catch (RuntimeException ex) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
         }

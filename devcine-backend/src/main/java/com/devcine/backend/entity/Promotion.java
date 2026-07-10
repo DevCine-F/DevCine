@@ -94,4 +94,13 @@ public class Promotion {
     @Column(name = "max_discount_amount", precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal maxDiscountAmount = BigDecimal.ZERO;
+
+    /** Thời điểm gửi email chiến dịch gần nhất (null = chưa gửi lần nào). */
+    @Column(name = "campaign_sent_at")
+    private LocalDateTime campaignSentAt;
+
+    /** Tổng số khách ĐÃ nhận email chiến dịch của mã này (dedup — không đếm trùng người). */
+    @Column(name = "campaign_sent_count", columnDefinition = "integer not null default 0")
+    @Builder.Default
+    private Integer campaignSentCount = 0;
 }

@@ -2,11 +2,13 @@ package com.devcine.backend.service;
 
 import com.devcine.backend.dto.request.VoucherPreviewRequest;
 import com.devcine.backend.entity.Customer;
+import com.devcine.backend.entity.PromoEmailLog;
 import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.entity.Voucher;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.CustomerRepository;
+import com.devcine.backend.repository.PromoEmailLogRepository;
 import com.devcine.backend.repository.PromotionRepository;
 import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.repository.VoucherRepository;
@@ -21,9 +23,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Nghiệp vụ voucher phía khách hàng — hiện phục vụ tính năng "Đổi điểm tích luỹ lấy ưu đãi".
@@ -40,6 +44,7 @@ public class VoucherService {
     private final BookingRepository bookingRepository;
     private final LoyaltyService loyaltyService;
     private final MailService mailService;
+    private final PromoEmailLogRepository promoEmailLogRepository;
 
     /**
      * Gửi email chiến dịch (chỉ thông báo mã) tới TOÀN BỘ khách thuộc đúng ĐỐI TƯỢNG áp dụng của
@@ -48,22 +53,34 @@ public class VoucherService {
      *
      * @return số khách đã gửi (dispatch async).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public int sendCampaignEmails(Integer promoId) {
         Promotion promo = promotionRepository.findById(promoId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ưu đãi."));
         if (Boolean.TRUE.equals(promo.getAllowPointRedemption())) {
             throw new RuntimeException("Mã đổi-điểm không gửi email chiến dịch được (khách không nhập mã trực tiếp).");
         }
-        int sent = 0;
+        // Dedup: khách ĐÃ nhận mã này rồi thì KHÔNG gửi lại (chống spam trùng người)
+        Set<Integer> alreadySent = new HashSet<>(promoEmailLogRepository.findCustomerIdsByPromotionId(promoId));
+        LocalDateTime now = LocalDateTime.now();
+        List<PromoEmailLog> newLogs = new ArrayList<>();
         for (Customer c : customerRepository.findAllWithUser()) {
             User u = c.getUser();
             if (u == null || u.getEmail() == null || u.getEmail().isBlank()) continue;
             if (eligibilityReason(c.getUserId(), c, promo) != null) continue; // không thuộc đối tượng
+            if (alreadySent.contains(c.getUserId())) continue;                // đã nhận rồi → bỏ qua
             mailService.sendPromotionEmail(u.getEmail(), u.getFullName(), promo);
-            sent++;
+            newLogs.add(PromoEmailLog.builder().promotionId(promoId).customerId(c.getUserId()).sentAt(now).build());
         }
-        log.info("Chiến dịch email ưu đãi #{} ({}): gửi tới {} khách.", promoId, promo.getCode(), sent);
+        int sent = newLogs.size();
+        if (sent > 0) {
+            promoEmailLogRepository.saveAll(newLogs);
+            promo.setCampaignSentCount((promo.getCampaignSentCount() != null ? promo.getCampaignSentCount() : 0) + sent);
+            promo.setCampaignSentAt(now);
+            promotionRepository.save(promo);
+        }
+        log.info("Chiến dịch email ưu đãi #{} ({}): gửi MỚI tới {} khách (đã có {} khách nhận trước đó).",
+                promoId, promo.getCode(), sent, alreadySent.size());
         return sent;
     }
 
