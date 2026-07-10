@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import axios from "@/api/axios";
 import { useToastStore } from "@/stores/toast";
 import { friendlyError } from "@/utils/friendlyError";
@@ -55,6 +55,7 @@ watch(
   () => props.open,
   (isOpen) => {
     if (!isOpen) return;
+    errors.value = {};
     if (props.isEditing && props.movieData) {
       const m = props.movieData;
       newMovie.value = { ...m, duration: m.durationMins ? m.durationMins.toString() : "" };
@@ -77,6 +78,13 @@ const optimizeCloudinaryUrl = (url) => {
 };
 
 // ===== Upload ảnh =====
+// Poster/Banner phim chỉ nhận ảnh tĩnh — CHẶN GIF (ảnh động làm nặng & xấu banner trang chủ).
+const MOVIE_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+// Guard riêng cho GIF: validateImageFile báo chung "…WEBP, GIF" nên chặn trước để thông điệp đúng.
+const validateMovieImage = (file) => {
+  if (file.type === "image/gif") throw new Error("Form phim không nhận ảnh GIF (ảnh động). Chỉ dùng JPG, PNG, WEBP.");
+  validateImageFile(file, { types: MOVIE_IMAGE_TYPES });
+};
 const posterInput = ref(null);
 const bannerInput = ref(null);
 const isUploadingPoster = ref(false);
@@ -100,7 +108,7 @@ const uploadImage = async (file) => {
 const onPosterChange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  try { validateImageFile(file); } catch (err) { toast.error(err.message); e.target.value = ""; return; }
+  try { validateMovieImage(file); } catch (err) { toast.error(err.message); e.target.value = ""; return; }
   const oldUrl = newMovie.value.posterUrl;
   newMovie.value.posterUrl = URL.createObjectURL(file);
   isUploadingPoster.value = true;
@@ -118,7 +126,7 @@ const onPosterChange = async (e) => {
 const onBannerChange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  try { validateImageFile(file); } catch (err) { toast.error(err.message); e.target.value = ""; return; }
+  try { validateMovieImage(file); } catch (err) { toast.error(err.message); e.target.value = ""; return; }
   const oldUrl = newMovie.value.bannerUrl;
   newMovie.value.bannerUrl = URL.createObjectURL(file);
   isUploadingBanner.value = true;
@@ -137,11 +145,13 @@ const onBannerChange = async (e) => {
 const toggleGenre = (genre) => {
   const index = selectedGenres.value.findIndex((g) => g.id === genre.id);
   index === -1 ? selectedGenres.value.push(genre) : selectedGenres.value.splice(index, 1);
+  clearErr("genres");
 };
 const resetGenres = () => (selectedGenres.value = []);
 const toggleFormat = (format) => {
   const index = selectedFormats.value.indexOf(format);
   index === -1 ? selectedFormats.value.push(format) : selectedFormats.value.splice(index, 1);
+  clearErr("formats");
 };
 
 const genreContainer = ref(null);
@@ -155,17 +165,141 @@ const handleWheel = (e) => {
   }
 };
 
+// ===== Format tự động khi gõ (đồng bộ phân hệ Voucher) =====
+const fmtThousand = (n) => (n === null || n === undefined || n === "" ? "" : Number(n).toLocaleString("vi-VN"));
+
+// Giá vé gốc: chỉ giữ số, cắt tối đa 6 chữ số (500.000đ), model lưu số nguyên thô.
+const onPriceInput = (e) => {
+  const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
+  newMovie.value.basePrice = digits ? Number(digits) : null;
+  e.target.value = digits ? Number(digits).toLocaleString("vi-VN") : "";
+  clearErr("basePrice");
+};
+// Thời lượng: số nguyên, tối đa 3 chữ số (≤ 400).
+const onDurationInput = (e) => {
+  const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
+  newMovie.value.duration = digits;
+  e.target.value = digits;
+  clearErr("duration");
+};
+// Năm sản xuất: đúng 4 chữ số.
+const onYearInput = (e) => {
+  const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+  newMovie.value.productionYear = digits;
+  e.target.value = digits;
+  clearErr("productionYear");
+};
+
+// ===== Validate theo thời gian thực (viền đỏ + khóa nút Xuất bản, không tự sửa dữ liệu) =====
+const todayStr = computed(() => new Date().toLocaleDateString("en-CA")); // yyyy-mm-dd theo giờ máy
+const YOUTUBE_RE = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.*$/;
+
+const durationError = computed(() => {
+  const d = newMovie.value.duration;
+  if (d === "" || d == null) return "";
+  const n = Number(d);
+  if (!Number.isInteger(n) || n < 30 || n > 400) return "Thời lượng phim phải là số nguyên từ 30 đến 400 phút.";
+  return "";
+});
+const yearError = computed(() => {
+  const y = newMovie.value.productionYear;
+  if (y === "" || y == null) return "";
+  const n = Number(y);
+  const maxYear = new Date().getFullYear() + 2;
+  if (!Number.isInteger(n) || String(y).length !== 4 || n < 1900 || n > maxYear)
+    return `Năm sản xuất phải gồm 4 chữ số, từ 1900 đến ${maxYear}.`;
+  return "";
+});
+const trailerError = computed(() => {
+  const t = (newMovie.value.trailerUrl || "").trim();
+  if (!t) return "";
+  if (!YOUTUBE_RE.test(t)) return "Đường dẫn Trailer không hợp lệ. Vui lòng nhập link từ Youtube.";
+  return "";
+});
+const priceError = computed(() => {
+  const p = newMovie.value.basePrice;
+  if (p === "" || p == null) return "";
+  const n = Number(p);
+  if (!Number.isInteger(n) || n < 20000 || n > 500000) return "Giá vé gốc phải từ 20.000đ đến 500.000đ.";
+  return "";
+});
+const dateError = computed(() => {
+  const { startDate, endDate } = newMovie.value;
+  // Ngày khởi chiếu ≥ hôm nay: chỉ áp dụng khi TẠO MỚI (sửa phim đang chiếu giữ nguyên ngày cũ).
+  if (!props.isEditing && startDate && startDate < todayStr.value) return "Ngày khởi chiếu phải từ hôm nay trở đi.";
+  if (startDate && endDate && endDate <= startDate) return "Ngày kết thúc phải sau ngày khởi chiếu ít nhất 1 ngày.";
+  return "";
+});
+
+// Gom tất cả điều kiện lỗi → khóa nút Xuất bản khi bất kỳ trường nào vi phạm.
+// Nguyên tắc: giá trị ĐÃ NHẬP mà SAI thì luôn chặn (tạo & sửa); còn "bắt buộc điền"
+// chỉ áp khi TẠO MỚI để không khóa nhầm phim cũ thiếu dữ liệu lúc chỉnh sửa.
+const isFormInvalid = computed(() => {
+  const m = newMovie.value;
+  const creating = !props.isEditing;
+
+  // Tên phim bắt buộc cả 2 chế độ; các lỗi "giá trị sai" luôn áp dụng.
+  if (!m.title || !m.title.trim() || m.title.trim().length > 150) return true;
+  if (durationError.value || yearError.value || trailerError.value || priceError.value) return true;
+  if (dateError.value) return true;
+  if ((m.description || "").length > 1000) return true;
+
+  // Bắt buộc điền — chỉ khi tạo mới.
+  if (creating) {
+    if (!m.duration) return true;
+    if (!m.productionYear) return true;
+    if (m.basePrice == null || m.basePrice === "") return true;
+    if (selectedGenres.value.length === 0) return true;
+    if (selectedFormats.value.length === 0) return true;
+    if (!m.startDate || !m.endDate) return true; // ngày bắt buộc khi tạo phim mới
+  }
+  return false;
+});
+
+// ===== Lỗi hiển thị khi bấm Lưu (bổ sung thông báo "bắt buộc" cho trường bỏ trống) =====
+const errors = ref({});
+const clearErr = (key) => {
+  if (errors.value[key]) {
+    const e = { ...errors.value };
+    delete e[key];
+    errors.value = e;
+  }
+};
+
 // ===== Lưu =====
 const handleSave = () => {
-  if (!newMovie.value.title) {
-    toast.warning("Vui lòng nhập tên phim!");
+  const m = newMovie.value;
+  const creating = !props.isEditing;
+  const e = {};
+
+  // Tên phim: bắt buộc cả 2 chế độ.
+  if (!m.title || !m.title.trim()) e.title = "Vui lòng nhập tên phim.";
+  else if (m.title.trim().length > 150) e.title = "Tên phim tối đa 150 ký tự.";
+
+  // Còn lại: giá trị đã nhập mà sai thì luôn báo; "bắt buộc điền" chỉ khi tạo mới.
+  if (m.duration) { if (durationError.value) e.duration = durationError.value; }
+  else if (creating) e.duration = "Vui lòng nhập thời lượng phim.";
+
+  if (m.productionYear) { if (yearError.value) e.productionYear = yearError.value; }
+  else if (creating) e.productionYear = "Vui lòng nhập năm sản xuất.";
+
+  if (trailerError.value) e.trailerUrl = trailerError.value;
+
+  if (m.basePrice != null && m.basePrice !== "") { if (priceError.value) e.basePrice = priceError.value; }
+  else if (creating) e.basePrice = "Vui lòng nhập giá vé gốc.";
+
+  if (creating && selectedGenres.value.length === 0) e.genres = "Vui lòng chọn ít nhất 1 thể loại phim.";
+  if (creating && selectedFormats.value.length === 0) e.formats = "Vui lòng chọn ít nhất 1 định dạng hỗ trợ.";
+
+  // Ngày: bắt buộc khi tạo mới; ràng buộc logic luôn kiểm tra.
+  if (creating && !m.startDate) e.dates = "Vui lòng chọn ngày khởi chiếu.";
+  else if (creating && !m.endDate) e.dates = "Vui lòng chọn ngày kết thúc (dự kiến).";
+  else if (dateError.value) e.dates = dateError.value;
+
+  errors.value = e;
+  if (Object.keys(e).length) {
+    toast.warning("Vui lòng kiểm tra lại các trường được tô đỏ.");
     return;
-  }
-  if (newMovie.value.startDate && newMovie.value.endDate) {
-    if (new Date(newMovie.value.endDate) < new Date(newMovie.value.startDate)) {
-      toast.warning("Ngày kết thúc không được phép nhỏ hơn ngày khởi chiếu!");
-      return;
-    }
   }
   const payload = {
     ...newMovie.value,
@@ -209,24 +343,27 @@ const handleSave = () => {
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Tên phim</label>
-              <input v-model="newMovie.title" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: Oppenheimer" />
+              <input v-model="newMovie.title" @input="clearErr('title')" type="text" maxlength="150" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" :class="errors.title ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: Oppenheimer" />
+              <p v-if="errors.title" class="text-[10px] text-red-400 font-bold">{{ errors.title }}</p>
             </div>
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Thời lượng (Phút)</label>
-                <input v-model="newMovie.duration" type="number" min="1" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" placeholder="120" />
+                <input :value="newMovie.duration" @input="onDurationInput" type="text" inputmode="numeric" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.duration || durationError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="120" />
+                <p v-if="errors.duration || durationError" class="text-[10px] text-red-400 font-bold">{{ errors.duration || durationError }}</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trailer URL (YouTube)</label>
-                <input v-model="newMovie.trailerUrl" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" placeholder="https://youtube.com/..." />
+                <input v-model="newMovie.trailerUrl" @input="clearErr('trailerUrl')" type="text" maxlength="255" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.trailerUrl || trailerError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="https://youtube.com/..." />
+                <p v-if="errors.trailerUrl || trailerError" class="text-[10px] text-red-400 font-bold">{{ errors.trailerUrl || trailerError }}</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Đạo diễn</label>
-                <input v-model="newMovie.director" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: Christopher Nolan" />
+                <input v-model="newMovie.director" type="text" maxlength="255" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: Christopher Nolan" />
               </div>
               <div class="space-y-2 col-span-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Diễn viên chính (cách nhau bằng dấu phẩy)</label>
-                <input v-model="newMovie.castMembers" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: Cillian Murphy, Emily Blunt" />
+                <input v-model="newMovie.castMembers" type="text" maxlength="255" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: Cillian Murphy, Emily Blunt" />
               </div>
             </div>
           </section>
@@ -245,7 +382,8 @@ const handleSave = () => {
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Năm sản xuất</label>
-                <input v-model="newMovie.productionYear" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" placeholder="2024" />
+                <input :value="newMovie.productionYear" @input="onYearInput" type="text" inputmode="numeric" maxlength="4" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.productionYear || yearError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="2024" />
+                <p v-if="errors.productionYear || yearError" class="text-[10px] text-red-400 font-bold">{{ errors.productionYear || yearError }}</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Nhà phát hành</label>
@@ -290,6 +428,7 @@ const handleSave = () => {
                   class="px-4 py-2 rounded-full border border-outline-variant/10 text-[9px] font-bold uppercase tracking-widest transition-all whitespace-nowrap min-w-[100px]"
                 >{{ genre.name }}</button>
               </div>
+              <p v-if="errors.genres" class="text-[10px] text-red-400 font-bold px-1">{{ errors.genres }}</p>
             </div>
 
             <div class="grid grid-cols-2 gap-6">
@@ -298,6 +437,7 @@ const handleSave = () => {
                 <div class="flex flex-wrap gap-2">
                   <button v-for="fmt in availableFormats" :key="fmt" type="button" @click="toggleFormat(fmt)" :class="selectedFormats.includes(fmt) ? 'bg-primary text-on-primary' : 'bg-surface-container-high/50 text-on-surface-variant'" class="px-4 py-2 rounded-full border border-outline-variant/10 text-[9px] font-bold uppercase tracking-widest transition-all min-w-[60px]">{{ fmt }}</button>
                 </div>
+                <p v-if="errors.formats" class="text-[10px] text-red-400 font-bold">{{ errors.formats }}</p>
               </div>
               <div class="space-y-4">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Định dạng chiếu chính (Chọn một)</label>
@@ -322,7 +462,8 @@ const handleSave = () => {
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Giá vé gốc (VNĐ)</label>
-                <input v-model="newMovie.basePrice" type="number" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" />
+                <input :value="fmtThousand(newMovie.basePrice)" @input="onPriceInput" type="text" inputmode="numeric" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.basePrice || priceError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: 85.000" />
+                <p v-if="errors.basePrice || priceError" class="text-[10px] text-red-400 font-bold">{{ errors.basePrice || priceError }}</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trạng thái</label>
@@ -336,13 +477,14 @@ const handleSave = () => {
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày khởi chiếu</label>
-                <input v-model="newMovie.startDate" type="date" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" />
+                <input v-model="newMovie.startDate" @input="clearErr('dates')" type="date" :min="isEditing ? undefined : todayStr" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20'" />
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày kết thúc (Dự kiến)</label>
-                <input v-model="newMovie.endDate" type="date" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" />
+                <input v-model="newMovie.endDate" @input="clearErr('dates')" type="date" :min="newMovie.startDate || (isEditing ? undefined : todayStr)" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20'" />
               </div>
             </div>
+            <p v-if="errors.dates || dateError" class="text-[10px] text-red-400 font-bold px-1 -mt-3">{{ errors.dates || dateError }}</p>
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1 italic">Ghi chú nội bộ cho Admin (Không hiển thị cho khách hàng)</label>
               <textarea v-model="newMovie.internalNotes" rows="2" class="w-full bg-surface-container-high border border-outline-variant/10 focus:border-primary/50 text-xs py-3 px-4 text-on-surface transition-all outline-none rounded-lg resize-none" placeholder="VD: Ưu tiên suất chiếu tối..."></textarea>
@@ -356,7 +498,7 @@ const handleSave = () => {
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Hình ảnh Banner (Ảnh bìa ngang)</label>
-              <input ref="bannerInput" type="file" @change="onBannerChange" accept="image/*" class="hidden" />
+              <input ref="bannerInput" type="file" @change="onBannerChange" accept=".jpg,.jpeg,.png,.webp" class="hidden" />
               <button @click="triggerBannerInput" type="button" :disabled="isUploadingBanner" class="w-full bg-surface-container-high border border-dashed border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all py-8 rounded-lg flex flex-col items-center justify-center gap-2 group relative overflow-hidden">
                 <img v-if="newMovie.bannerUrl" :src="optimizeCloudinaryUrl(newMovie.bannerUrl)" class="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-20 transition-opacity" />
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant group-hover:text-primary transition-colors relative z-10">add_photo_alternate</span>
@@ -376,7 +518,10 @@ const handleSave = () => {
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Tóm tắt nội dung</label>
-              <textarea v-model="newMovie.description" rows="5" class="w-full bg-surface-container-high border border-outline-variant/10 focus:border-primary/50 text-sm py-4 px-4 text-on-surface transition-all outline-none rounded-lg resize-none" placeholder="Viết mô tả ngắn về cốt truyện phim..."></textarea>
+              <textarea v-model="newMovie.description" rows="5" maxlength="1000" class="w-full bg-surface-container-high border border-outline-variant/10 focus:border-primary/50 text-sm py-4 px-4 text-on-surface transition-all outline-none rounded-lg resize-none" placeholder="Viết mô tả ngắn về cốt truyện phim..."></textarea>
+              <div class="flex justify-end">
+                <span class="text-[10px] text-on-surface-variant/60">{{ (newMovie.description || '').length }}/1000</span>
+              </div>
             </div>
           </section>
         </div>
@@ -387,7 +532,7 @@ const handleSave = () => {
         <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px] -z-10"></div>
         <div class="space-y-6">
           <p class="text-[10px] font-black uppercase tracking-widest text-center text-primary">Xem trước hiển thị (Click để tải Poster)</p>
-          <input ref="posterInput" type="file" @change="onPosterChange" accept="image/*" class="hidden" />
+          <input ref="posterInput" type="file" @change="onPosterChange" accept=".jpg,.jpeg,.png,.webp" class="hidden" />
           <div @click="triggerPosterInput" class="aspect-[2/3] max-w-[260px] mx-auto w-full rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl bg-surface-container-highest relative group cursor-pointer hover:border-primary/50 transition-colors">
             <img v-if="newMovie.posterUrl" :src="optimizeCloudinaryUrl(newMovie.posterUrl)" class="w-full h-full object-cover transition-transform group-hover:scale-105" @error="newMovie.posterUrl = ''" />
             <div v-else class="w-full h-full flex flex-col items-center justify-center p-6 text-center text-on-surface-variant/40">
@@ -407,7 +552,7 @@ const handleSave = () => {
 
         <div class="flex items-center gap-3 mt-8 pt-8 border-t border-outline-variant/10">
           <button @click="emit('close')" class="flex-grow py-4 bg-white/5 text-on-surface/40 font-black text-[9px] uppercase tracking-[0.2em] rounded-xl border border-white/5 hover:bg-white/10 hover:text-white transition-all">Hủy bỏ</button>
-          <button @click="handleSave" class="flex-[2] py-4 bg-gradient-to-br from-primary to-primary-container text-on-primary font-black text-[9px] uppercase tracking-[0.2em] rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 group">
+          <button @click="handleSave" :disabled="isFormInvalid" class="flex-[2] py-4 bg-gradient-to-br from-primary to-primary-container text-on-primary font-black text-[9px] uppercase tracking-[0.2em] rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 group disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:hover:scale-100">
             <span class="material-symbols-outlined text-sm group-hover:rotate-12 transition-transform">rocket_launch</span>
             {{ isEditing ? "Cập nhật" : "Xuất bản" }}
           </button>
