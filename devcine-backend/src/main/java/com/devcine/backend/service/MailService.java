@@ -148,9 +148,14 @@ public class MailService {
                       <div style="font-size:12px;color:#888;margin-bottom:6px;">Mã ưu đãi của bạn</div>
                       <span style="display:inline-block;font-size:26px;font-weight:800;letter-spacing:6px;color:#111;background:#faf6e6;border:1px dashed #e0b400;border-radius:10px;padding:12px 22px;">%s</span>
                     </div>
-                    <p style="font-size:13px;color:#555;margin:0 0 4px;">%s Nhập mã khi đặt vé để được áp dụng.</p>
+                    <p style="font-size:13px;color:#555;margin:0 0 10px;">%s</p>
+                    <div style="background:#faf6e6;border:1px solid #f0e4b8;border-radius:10px;padding:12px 14px;margin:0 0 12px;">
+                      <p style="font-size:12px;color:#8a6d00;font-weight:700;margin:0 0 8px;">Cách sử dụng mã</p>
+                      <p style="font-size:13px;color:#444;margin:0 0 6px;"><b>1.</b> Nhập mã ở bước "Ưu đãi" khi đặt vé để được áp dụng ngay.</p>
+                      <p style="font-size:13px;color:#444;margin:0;"><b>2.</b> Hoặc lưu mã vào ví <b>"Ưu đãi của tôi"</b> để dùng cho lần đặt vé sau.</p>
+                    </div>
                     <p style="font-size:13px;color:#888;margin:0;">Hạn sử dụng: <b>%s</b></p>
-                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời. — DevCine Cinema</p>
+                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời — DevCine Cinema</p>
                   </div>
                 </div>
                 """.formatted(escape(fullName), escape(name), discountText, escape(promo.getCode()), minOrder, expiry);
@@ -171,7 +176,7 @@ public class MailService {
                       <tr><td style="padding:10px 14px;color:#888;font-size:13px;">Mật khẩu mặc định</td><td style="padding:10px 14px;text-align:right;font-weight:700;color:#8a6d00;font-size:15px;">%s</td></tr>
                     </table>
                     <p style="font-size:13px;color:#c0392b;margin:18px 0 0;font-weight:600;">Vui lòng đăng nhập và ĐỔI MẬT KHẨU ngay để kích hoạt tài khoản.</p>
-                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời. — DevCine Cinema</p>
+                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời — DevCine Cinema</p>
                   </div>
                 </div>
                 """.formatted(escape(fullName), escape(username), escape(password));
@@ -191,7 +196,7 @@ public class MailService {
                       <span style="display:inline-block;font-size:34px;font-weight:800;letter-spacing:10px;color:#111;background:#faf6e6;border:1px dashed #e0b400;border-radius:10px;padding:14px 22px;">%s</span>
                     </div>
                     <p style="font-size:13px;color:#888;margin:0;">Mã có hiệu lực trong <b>%d phút</b>. Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
-                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời. — DevCine Cinema</p>
+                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời — DevCine Cinema</p>
                   </div>
                 </div>
                 """.formatted(escape(code), ttlMin);
@@ -268,7 +273,7 @@ public class MailService {
 
                     <p style="font-size:12px;color:#999;margin-top:24px;line-height:1.6;">
                       Vui lòng đến trước giờ chiếu 15–30 phút. Mỗi mã QR chỉ dùng để check-in một lần.<br/>
-                      Đây là email tự động, vui lòng không trả lời. — DevCine Cinema
+                      Đây là email tự động, vui lòng không trả lời — DevCine Cinema
                     </p>
                   </div>
                 </div>
