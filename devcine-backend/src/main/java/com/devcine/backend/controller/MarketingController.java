@@ -100,14 +100,24 @@ public class MarketingController {
             if (promotionRepository.existsByCodeIgnoreCase(code)) {
                 return ResponseEntity.status(409).body(Map.of("success", false, "message", "Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
             }
+            // Validate ngày: bắt đầu >= hôm nay; hết hạn > bắt đầu (mặc định bắt đầu = hôm nay nếu để trống)
+            java.time.LocalDateTime startDt = body.get("startDate") != null ? LocalDateTime.parse((String) body.get("startDate")) : null;
+            java.time.LocalDateTime endDt = body.get("endDate") != null ? LocalDateTime.parse((String) body.get("endDate")) : null;
+            java.time.LocalDate today = java.time.LocalDate.now();
+            if (startDt != null && startDt.toLocalDate().isBefore(today)) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày bắt đầu không được ở quá khứ."));
+            }
+            if (endDt != null && !endDt.toLocalDate().isAfter(startDt != null ? startDt.toLocalDate() : today)) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày hết hạn phải sau ngày bắt đầu."));
+            }
             Promotion promo = Promotion.builder()
                     .code(code)
                     .name((String) body.get("name"))
                     .description((String) body.get("description"))
                     .discountType((String) body.get("discountType"))
                     .discountValue(new BigDecimal(body.get("discountValue").toString()))
-                    .startDate(body.get("startDate") != null ? LocalDateTime.parse((String) body.get("startDate")) : null)
-                    .endDate(body.get("endDate") != null ? LocalDateTime.parse((String) body.get("endDate")) : null)
+                    .startDate(startDt)
+                    .endDate(endDt)
                     .isStackable(Boolean.parseBoolean(body.getOrDefault("isStackable", false).toString()))
                     .pointsRequired(body.get("pointsRequired") != null ? Integer.parseInt(body.get("pointsRequired").toString()) : 0)
                     .allowPointRedemption(Boolean.parseBoolean(body.getOrDefault("allowPointRedemption", false).toString()))
@@ -148,8 +158,28 @@ public class MarketingController {
             if (body.containsKey("description")) promo.setDescription((String) body.get("description"));
             if (body.containsKey("discountType")) promo.setDiscountType((String) body.get("discountType"));
             if (body.containsKey("discountValue")) promo.setDiscountValue(new BigDecimal(body.get("discountValue").toString()));
-            if (body.get("startDate") != null) promo.setStartDate(LocalDateTime.parse((String) body.get("startDate")));
-            if (body.get("endDate") != null) promo.setEndDate(LocalDateTime.parse((String) body.get("endDate")));
+            // Validate ngày + KHÓA ngày bắt đầu khi voucher đang chạy (start <= hôm nay hoặc null)
+            java.time.LocalDate today = java.time.LocalDate.now();
+            java.time.LocalDateTime existingStart = promo.getStartDate();
+            boolean running = existingStart == null || !existingStart.toLocalDate().isAfter(today);
+            java.time.LocalDateTime newStart = body.get("startDate") != null ? LocalDateTime.parse((String) body.get("startDate")) : null;
+            if (newStart != null) {
+                boolean changed = existingStart == null || !newStart.toLocalDate().isEqual(existingStart.toLocalDate());
+                if (running && changed) {
+                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Voucher đang chạy, không thể sửa ngày bắt đầu."));
+                }
+                if (!running && newStart.toLocalDate().isBefore(today)) {
+                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày bắt đầu không được ở quá khứ."));
+                }
+                promo.setStartDate(newStart);
+            }
+            java.time.LocalDateTime newEnd = body.get("endDate") != null ? LocalDateTime.parse((String) body.get("endDate")) : promo.getEndDate();
+            java.time.LocalDateTime effStart = newStart != null ? newStart : existingStart;
+            java.time.LocalDate effStartDate = effStart != null ? effStart.toLocalDate() : today;
+            if (newEnd != null && !newEnd.toLocalDate().isAfter(effStartDate)) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày hết hạn phải sau ngày bắt đầu."));
+            }
+            if (body.get("endDate") != null) promo.setEndDate(newEnd);
             if (body.containsKey("isStackable")) promo.setIsStackable(Boolean.parseBoolean(body.get("isStackable").toString()));
             if (body.containsKey("pointsRequired")) promo.setPointsRequired(body.get("pointsRequired") != null ? Integer.parseInt(body.get("pointsRequired").toString()) : 0);
             if (body.containsKey("allowPointRedemption")) promo.setAllowPointRedemption(Boolean.parseBoolean(body.get("allowPointRedemption").toString()));

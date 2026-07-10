@@ -208,6 +208,7 @@ const newVoucher = ref({
   pointsRequired: null,
   title: '',
   description: '',
+  startDate: '',
   expiry: '',
   minOrderValue: null,
   applicableMovieId: '',
@@ -248,6 +249,12 @@ const todayStr = computed(() => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
+// Ngày tối thiểu cho ô Hết hạn = NGÀY SAU ngày bắt đầu (hoặc sau hôm nay nếu chưa chọn) → ép end > start
+const endMinStr = computed(() => {
+  const base = newVoucher.value.startDate || todayStr.value
+  const d = new Date(`${base}T00:00:00`); d.setDate(d.getDate() + 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
 
 const newCombo = ref({
   name: '',
@@ -270,10 +277,13 @@ const removeComboItem = (index) => {
 
 const editingVoucherId = ref(null)
 const isSavingVoucher = ref(false)
+// Khóa cứng ô Ngày bắt đầu khi sửa voucher ĐANG CHẠY (start <= hôm nay hoặc null) — tránh sai lịch sử đơn cũ
+const editStartLocked = ref(false)
 
 const openVoucherDrawer = () => {
   editingVoucherId.value = null
-  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, maxTicketQuantity: null, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
+  editStartLocked.value = false
+  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', startDate: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, maxTicketQuantity: null, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
   voucherErrors.value = {}
   movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
   isVoucherDrawerOpen.value = true
@@ -289,6 +299,7 @@ const openEditVoucher = (promo) => {
     allowPointExchange: !!promo.allowPointRedemption,
     pointsRequired: promo.pointsRequired || null,
     title: promo.name || '', description: promo.description || '',
+    startDate: promo.startDate ? String(promo.startDate).slice(0, 10) : '',
     expiry: promo.endDate ? String(promo.endDate).slice(0, 10) : '',
     minOrderValue: promo.minOrderValue != null ? Number(promo.minOrderValue) : null,
     applicableMovieId: promo.applicableMovieId != null ? promo.applicableMovieId : '',
@@ -298,6 +309,8 @@ const openEditVoucher = (promo) => {
     maxDiscountAmount: promo.maxDiscountAmount != null ? Number(promo.maxDiscountAmount) : null,
     cinemaMode: 'all', selectedCinemas: []
   }
+  // Voucher ĐANG CHẠY (chưa có ngày bắt đầu = áp dụng ngay, hoặc bắt đầu <= hôm nay) → khóa ô ngày bắt đầu
+  editStartLocked.value = !promo.startDate || String(promo.startDate).slice(0, 10) <= todayStr.value
   voucherErrors.value = {}
   movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
   isVoucherDrawerOpen.value = true
@@ -329,7 +342,7 @@ const clearVErr = (key) => {
 
 // Cuộn + focus tới ô lỗi ĐẦU TIÊN (theo thứ tự hiển thị) khi validate fail
 const voucherBodyRef = ref(null)
-const voucherFieldOrder = ['code', 'title', 'description', 'value', 'expiry', 'minOrderValue', 'usageLimit', 'maxTicketQuantity', 'maxDiscountAmount', 'pointsRequired']
+const voucherFieldOrder = ['code', 'title', 'description', 'value', 'startDate', 'expiry', 'minOrderValue', 'usageLimit', 'maxTicketQuantity', 'maxDiscountAmount', 'pointsRequired']
 const focusFirstVoucherError = () => {
   const firstKey = voucherFieldOrder.find(k => voucherErrors.value[k])
   if (!firstKey) return
@@ -423,13 +436,22 @@ const validateVoucher = () => {
     if (dv <= 1000) e.value = 'Giá trị giảm (VNĐ) phải lớn hơn 1.000đ.'
   }
 
-  // expiryDate: bắt buộc, phải là ngày hôm nay trở đi
+  // ===== NGÀY BẮT ĐẦU & HẾT HẠN =====
+  // So sánh theo NGÀY (bỏ giờ). startDate trống = "áp dụng ngay" (hôm nay).
+  // Ô ngày bắt đầu bị khóa khi sửa voucher đang chạy → không validate lại (giữ nguyên).
+  if (!editStartLocked.value && v.startDate && v.startDate < todayStr.value) {
+    e.startDate = 'Ngày bắt đầu không được ở quá khứ.'
+  }
   if (!v.expiry) {
     e.expiry = 'Vui lòng chọn ngày hết hạn.'
   } else {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const exp = new Date(`${v.expiry}T23:59:59`)
-    if (exp < today) e.expiry = 'Ngày hết hạn phải từ hôm nay trở đi.'
+    // Ngày bắt đầu hiệu lực: ô nhập (nếu có) → nếu trống thì coi là hôm nay
+    const effStart = v.startDate || todayStr.value
+    if (v.expiry <= effStart) {
+      e.expiry = 'Ngày hết hạn phải sau ngày bắt đầu.'
+    } else if (v.expiry < todayStr.value) {
+      e.expiry = 'Ngày hết hạn phải từ hôm nay trở đi.'
+    }
   }
 
   // minOrderAmount: số nguyên >= 0
@@ -494,6 +516,10 @@ const handleSaveVoucher = async () => {
       maxTicketQuantity: Number(newVoucher.value.maxTicketQuantity || 0),
       // Tiền cố định: trần giảm = chính giá trị giảm (đã tự đồng bộ)
       maxDiscountAmount: isFixed.value ? Number(newVoucher.value.value || 0) : Number(newVoucher.value.maxDiscountAmount || 0)
+    }
+    // Ngày bắt đầu: gửi khi TẠO MỚI hoặc SỬA mà ô chưa khóa; sửa-đang-chạy thì bỏ qua để BE giữ nguyên
+    if (!editingVoucherId.value || !editStartLocked.value) {
+      payload.startDate = newVoucher.value.startDate ? `${newVoucher.value.startDate}T00:00:00` : null
     }
     if (editingVoucherId.value) {
       await marketingApi.updatePromotion(editingVoucherId.value, payload)
@@ -1016,10 +1042,29 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày hết hạn</label>
-            <input v-model="newVoucher.expiry" @input="clearVErr('expiry')" type="date" :min="todayStr" data-field="expiry" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.expiry ? 'border-red-500' : 'border-outline-variant/20'" />
-            <p v-if="voucherErrors.expiry" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.expiry }}</p>
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Ngày bắt đầu (khóa khi voucher đang chạy) -->
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày bắt đầu</label>
+              <template v-if="editStartLocked">
+                <div class="w-full bg-surface-container-highest/50 border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface-variant/70 flex items-center gap-2 cursor-not-allowed">
+                  <span class="material-symbols-outlined text-sm">lock</span>
+                  {{ newVoucher.startDate ? new Date(newVoucher.startDate).toLocaleDateString('vi-VN') : 'Áp dụng ngay' }}
+                </div>
+                <p class="text-[10px] text-on-surface-variant/60">Đang chạy — không sửa được.</p>
+              </template>
+              <template v-else>
+                <input v-model="newVoucher.startDate" @input="clearVErr('startDate')" type="date" :min="todayStr" data-field="startDate" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.startDate ? 'border-red-500' : 'border-outline-variant/20'" />
+                <p v-if="voucherErrors.startDate" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.startDate }}</p>
+                <p v-else class="text-[10px] text-on-surface-variant/60">Trống = áp dụng ngay.</p>
+              </template>
+            </div>
+            <!-- Ngày hết hạn -->
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày hết hạn</label>
+              <input v-model="newVoucher.expiry" @input="clearVErr('expiry')" type="date" :min="endMinStr" data-field="expiry" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.expiry ? 'border-red-500' : 'border-outline-variant/20'" />
+              <p v-if="voucherErrors.expiry" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.expiry }}</p>
+            </div>
           </div>
 
           <!-- Điều kiện áp dụng nâng cao -->
@@ -1449,7 +1494,7 @@ onUnmounted(() => {
             <div class="rounded-xl bg-surface-container p-4 space-y-2.5">
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Bắt đầu</span>
-                <span class="text-sm font-bold text-on-surface">{{ formatPromoDate(detailTarget.startDate) }}</span>
+                <span class="text-sm font-bold text-on-surface">{{ detailTarget.startDate ? formatPromoDate(detailTarget.startDate) : 'Áp dụng ngay' }}</span>
               </div>
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Hết hạn</span>
