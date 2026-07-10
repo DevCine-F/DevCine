@@ -285,6 +285,7 @@ const openVoucherDrawer = () => {
   editStartLocked.value = false
   newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', startDate: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, maxTicketQuantity: null, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
   voucherErrors.value = {}
+  pctLimitWarn.value = ''
   movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
   isVoucherDrawerOpen.value = true
 }
@@ -312,6 +313,7 @@ const openEditVoucher = (promo) => {
   // Voucher ĐANG CHẠY (chưa có ngày bắt đầu = áp dụng ngay, hoặc bắt đầu <= hôm nay) → khóa ô ngày bắt đầu
   editStartLocked.value = !promo.startDate || String(promo.startDate).slice(0, 10) <= todayStr.value
   voucherErrors.value = {}
+  pctLimitWarn.value = ''
   movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
   isVoucherDrawerOpen.value = true
 }
@@ -384,13 +386,27 @@ const onIntInput = (e, key) => {
   e.target.value = digits
   clearVErr(key)
 }
-// Giá trị giảm: % -> số nguyên; VNĐ -> tiền tệ (chấm phân cách)
+// Cảnh báo khi CHẶN nhập vượt trần % (minh bạch, không tự đè ngầm)
+const pctLimitWarn = ref('')
+// Giá trị giảm: % -> chặn keystroke làm vượt 100 (giữ số hợp lệ trước đó + cảnh báo); VNĐ -> tiền tệ.
 const onDiscountValueInput = (e) => {
   const digits = e.target.value.replace(/\D/g, '')
-  newVoucher.value.value = digits ? Number(digits) : null
-  e.target.value = newVoucher.value.type === 'PERCENTAGE'
-    ? digits
-    : (digits ? Number(digits).toLocaleString('vi-VN') : '')
+  if (newVoucher.value.type === 'PERCENTAGE') {
+    const num = digits ? Number(digits) : null
+    if (num != null && num > 100) {
+      // Vượt 100 → KHÔNG nhận ký tự này: trả ô về giá trị hợp lệ trước đó + báo cho người dùng
+      pctLimitWarn.value = 'Chỉ nhập được tối đa 100%. Giá trị giảm (%) từ 1 đến 100.'
+      e.target.value = newVoucher.value.value != null ? String(newVoucher.value.value) : ''
+      return
+    }
+    pctLimitWarn.value = ''
+    newVoucher.value.value = num
+    e.target.value = digits
+  } else {
+    pctLimitWarn.value = ''
+    newVoucher.value.value = digits ? Number(digits) : null
+    e.target.value = digits ? Number(digits).toLocaleString('vi-VN') : ''
+  }
   clearVErr('value')
 }
 // Giá trị hiển thị cho ô "Giá trị giảm" tuỳ loại
@@ -398,6 +414,20 @@ const discountValueDisplay = computed(() =>
   newVoucher.value.type === 'PERCENTAGE'
     ? (newVoucher.value.value ?? '')
     : fmtThousand(newVoucher.value.value))
+
+// Lỗi giá trị giảm THEO THỜI GIAN THỰC (không tự sửa số) — dùng để viền đỏ + khóa nút Lưu ngay khi vượt ngưỡng
+const discountValueError = computed(() => {
+  const v = newVoucher.value
+  if (v.value == null || v.value === '') return ''         // trống → để validate lúc Lưu xử lý (không chặn nút vì lý do này)
+  const dv = Number(v.value)
+  if (Number.isNaN(dv)) return 'Giá trị giảm không hợp lệ.'
+  if (v.type === 'PERCENTAGE') {
+    if (dv < 1 || dv > 100) return 'Giá trị giảm (%) phải từ 1 đến 100.'
+  } else if (dv <= 1000) {
+    return 'Giá trị giảm (VNĐ) phải lớn hơn 1.000đ.'
+  }
+  return ''
+})
 
 // ---- (3) RÀNG BUỘC CHÉO (phản ứng ngay khi đổi loại/giá trị) ----
 // Loại "Tiền cố định": trần Giảm tối đa = chính giá trị giảm và bị khoá.
@@ -461,21 +491,25 @@ const validateVoucher = () => {
     }
   }
 
-  // minOrderAmount: số nguyên >= 0
+  // minOrderAmount: BẮT BUỘC, số nguyên >= 0 (nhập 0 nếu không yêu cầu)
   const minOrder = Number(v.minOrderValue || 0)
-  if (!Number.isInteger(minOrder) || minOrder < 0) e.minOrderValue = 'Đơn tối thiểu phải là số nguyên ≥ 0.'
+  if (v.minOrderValue == null || v.minOrderValue === '') e.minOrderValue = 'Vui lòng nhập đơn tối thiểu (nhập 0 nếu không yêu cầu).'
+  else if (!Number.isInteger(minOrder) || minOrder < 0) e.minOrderValue = 'Đơn tối thiểu phải là số nguyên ≥ 0.'
 
-  // usageLimit: số nguyên >= 0
+  // usageLimit: BẮT BUỘC, số nguyên >= 0 (0 = không giới hạn)
   const usage = Number(v.usageLimit || 0)
-  if (!Number.isInteger(usage) || usage < 0) e.usageLimit = 'Giới hạn lượt dùng phải là số nguyên ≥ 0.'
+  if (v.usageLimit == null || v.usageLimit === '') e.usageLimit = 'Vui lòng nhập giới hạn lượt dùng (nhập 0 nếu không giới hạn).'
+  else if (!Number.isInteger(usage) || usage < 0) e.usageLimit = 'Giới hạn lượt dùng phải là số nguyên ≥ 0.'
 
-  // maxApplicableTickets: số nguyên >= 0
+  // maxApplicableTickets: BẮT BUỘC, số nguyên >= 0 (0 = không giới hạn)
   const maxTk = Number(v.maxTicketQuantity || 0)
-  if (!Number.isInteger(maxTk) || maxTk < 0) e.maxTicketQuantity = 'Số vé tối đa phải là số nguyên ≥ 0.'
+  if (v.maxTicketQuantity == null || v.maxTicketQuantity === '') e.maxTicketQuantity = 'Vui lòng nhập số vé tối đa được giảm (nhập 0 nếu không giới hạn).'
+  else if (!Number.isInteger(maxTk) || maxTk < 0) e.maxTicketQuantity = 'Số vé tối đa phải là số nguyên ≥ 0.'
 
-  // maxDiscountAmount: số nguyên >= 0
+  // maxDiscountAmount: BẮT BUỘC, số nguyên >= 0 (mã tiền cố định tự điền = giá trị giảm)
   const maxDisc = Number(v.maxDiscountAmount || 0)
-  if (!Number.isInteger(maxDisc) || maxDisc < 0) e.maxDiscountAmount = 'Giảm tối đa phải là số nguyên ≥ 0.'
+  if (!isFixed.value && (v.maxDiscountAmount == null || v.maxDiscountAmount === '')) e.maxDiscountAmount = 'Vui lòng nhập giảm tối đa (nhập 0 nếu không giới hạn).'
+  else if (!Number.isInteger(maxDisc) || maxDisc < 0) e.maxDiscountAmount = 'Giảm tối đa phải là số nguyên ≥ 0.'
 
   // ===== RÀNG BUỘC CHÉO =====
   if (v.type === 'PERCENTAGE') {
@@ -1059,8 +1093,8 @@ onUnmounted(() => {
             </div>
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá trị giảm {{ newVoucher.type === 'PERCENTAGE' ? '(%)' : '(VNĐ)' }}</label>
-              <input :value="discountValueDisplay" @input="onDiscountValueInput" type="text" inputmode="numeric" data-field="value" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.value ? 'border-red-500' : 'border-outline-variant/20'" :placeholder="newVoucher.type === 'PERCENTAGE' ? '1 - 100' : 'VD: 20.000'" />
-              <p v-if="voucherErrors.value" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.value }}</p>
+              <input :value="discountValueDisplay" @input="onDiscountValueInput" type="text" inputmode="numeric" data-field="value" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.value || discountValueError || pctLimitWarn) ? 'border-red-500' : 'border-outline-variant/20'" :placeholder="newVoucher.type === 'PERCENTAGE' ? '1 - 100' : 'VD: 20.000'" />
+              <p v-if="voucherErrors.value || discountValueError || pctLimitWarn" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.value || discountValueError || pctLimitWarn }}</p>
             </div>
           </div>
 
@@ -1208,7 +1242,7 @@ onUnmounted(() => {
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
           <button @click="isVoucherDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button @click="handleSaveVoucher" :disabled="isSavingVoucher" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-60">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
+          <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:hover:scale-100">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
         </div>
       </div>
     </div>
