@@ -358,8 +358,15 @@ const focusFirstVoucherError = () => {
 const fmtThousand = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('vi-VN'))
 
 // Mã code: viết hoa + chỉ giữ chữ và số (bỏ khoảng trắng & ký tự đặc biệt)
+// Ô Mã code: bỏ dấu (É→E, Đ→D), viết hoa, chỉ giữ chữ & số. Lọc ở input để không "nhảy" con trỏ.
+// Lưu ý: bộ gõ tiếng Việt cấp HĐH (Unikey/EVKey) biến s/f/r/x/j thành dấu THANH trước khi tới ô,
+// JS không chặn được — nên khuyến nghị người dùng tắt bộ gõ khi nhập mã (xem gợi ý dưới ô).
 const onCodeInput = () => {
-  newVoucher.value.code = (newVoucher.value.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  newVoucher.value.code = (newVoucher.value.code || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
   clearVErr('code')
 }
 // Ô tiền tệ: chỉ giữ số, model lưu số nguyên thô. Gán lại e.target.value để chặn
@@ -1018,8 +1025,12 @@ onUnmounted(() => {
         <div ref="voucherBodyRef" class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom" @click="movieDropdownOpen = false">
           <div class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã Code (Tự tạo)</label>
-            <input v-model="newVoucher.code" @input="onCodeInput" maxlength="20" data-field="code" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none font-mono uppercase tracking-widest" :class="voucherErrors.code ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: SUMMER2026" />
+            <input v-model="newVoucher.code" @input="onCodeInput" maxlength="20" data-field="code" autocomplete="off" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none font-mono uppercase tracking-widest" :class="voucherErrors.code ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: SUMMER2026" />
             <p v-if="voucherErrors.code" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.code }}</p>
+            <p v-else class="text-[10px] text-on-surface-variant/60 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px]">keyboard</span>
+              Chỉ chữ &amp; số, không dấu. Nếu đang bật gõ tiếng Việt (Unikey/EVKey), hãy tắt khi nhập mã.
+            </p>
           </div>
 
           <div class="space-y-2">
