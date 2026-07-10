@@ -202,6 +202,27 @@ export const useBookingStore = defineStore('booking', {
         return false;
       }
     },
+    // Nhả đơn đang giữ ghế dưới DB (best-effort) — dùng khi hết giờ giữ chỗ
+    async releaseHold() {
+      if (!this.bookingId) return;
+      try { await bookingApi.releaseHold(this.bookingId); } catch (e) { /* best-effort, không chặn UI */ }
+    },
+    // Xoá SẠCH toàn bộ state tạm của phiên đặt vé (ghế/vé/combo/voucher/giá) — GIỮ movie + showtime
+    // để khách chọn lại từ bước 1 cho cùng suất. Chống rò rỉ state sang phiên/API lượt sau.
+    resetSelections() {
+      this.selectedSeats = [];
+      this.ticketQuantities = {};
+      this.selectedFnbs = [];
+      this.selectedVoucher = null;
+      this.totalPrice = 0;
+      this.finalPrice = 0;
+      this.bookingId = null;
+      this.bookingCode = null;
+      this.heldAt = null;
+      this.paymentMethod = null;
+      this.paidAt = null;
+      this.lastHoldError = '';
+    },
     resetBooking() {
       this.selectedMovie = null;
       this.selectedShowtime = null;

@@ -155,18 +155,27 @@ watch(() => store.selectedSeats.length, (n) => {
   }
 })
 
+// Hết giờ giữ chỗ = PHIÊN CŨ ĐÃ CHẾT → dọn SẠCH mọi state tạm để bắt đầu phiên mới ở bước 1,
+// tránh rò rỉ state (ghế/combo/voucher/giá) làm sai logic API lượt sau.
 const handleHoldExpired = async () => {
   if (expiredHandled) return
   expiredHandled = true
   holdStartTs.value = 0
   held.value = false
-  store.bookingId = null
-  store.heldAt = null
-  // Nhả khóa real-time TỪNG ghế trên server trước khi xoá lựa chọn — nếu không server vẫn giữ ghế
+  // 1) Nhả khóa real-time TỪNG ghế trên server (in-memory) trước khi xoá lựa chọn
   store.selectedSeats.forEach(seat => seatRealtime.deselect(seat.seatId))
-  store.selectedSeats = []         // bỏ ghế đã chọn để khách chọn lại từ đầu
-  store.calculateTotal()
-  await store.fetchSeats()         // làm mới sơ đồ ghế (ghế đã/sẽ được nhả)
+  // 2) Nhả đơn đang giữ ghế dưới DB (nếu đã tạo) → mở ghế cho khách khác mua ngay
+  await store.releaseHold()
+  // 3) Xoá sạch toàn bộ state tạm của phiên (ghế/vé/combo/voucher/giá) — giữ movie + showtime
+  store.resetSelections()
+  // 4) Dọn state cục bộ của màn đặt vé (ô nhập mã, số giảm, thông báo, kết quả preview voucher)
+  voucherCode.value = ''
+  discountAmount.value = 0
+  voucherError.value = ''
+  voucherSuccess.value = ''
+  voucherEvals.value = {}
+  // 5) Làm mới sơ đồ ghế + đưa về bước 1
+  await store.fetchSeats()
   currentStep.value = 1
   scrollTop()
   toast.warning(`Đã hết thời gian giữ chỗ (${holdMinutes.value} phút). Vui lòng chọn lại ghế.`)

@@ -8,6 +8,7 @@ import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.repository.TicketRepository;
 import com.devcine.backend.service.BookingService;
+import com.devcine.backend.service.PosHoldService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final PosHoldService posHoldService;
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final TicketRepository ticketRepository;
@@ -46,6 +48,15 @@ public class BookingController {
         } catch (RuntimeException ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }
+    }
+
+    /**
+     * Nhả một đơn đang giữ ghế (PENDING) khi khách hết giờ giữ chỗ ở bước đặt vé online →
+     * ghế mở lại cho người khác mua ngay. Đơn đã CONFIRMED sẽ KHÔNG bị nhả.
+     */
+    @PostMapping("/{bookingId}/release")
+    public ResponseEntity<?> releaseHold(@PathVariable Integer bookingId) {
+        return ResponseEntity.ok(Map.of("result", posHoldService.releaseHold(bookingId)));
     }
 
     @GetMapping("/history")

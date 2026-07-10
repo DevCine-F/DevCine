@@ -30,6 +30,8 @@ export const bookingApi = {
   holdSeats: (data) => api.post('/bookings/hold', data),
   completePayment: (bookingId, paymentMethod) => api.post(`/bookings/${bookingId}/payment/complete`, null, { params: { paymentMethod } }),
   getHistory: (customerId) => api.get('/bookings/history', { params: { customerId } }),
+  // Nhả đơn đang giữ ghế khi hết giờ giữ chỗ → mở ghế cho khách khác mua ngay
+  releaseHold: (bookingId) => api.post(`/bookings/${bookingId}/release`, null),
 };
 
 export const paymentApi = {
