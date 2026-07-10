@@ -39,6 +39,33 @@ public class VoucherService {
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
     private final LoyaltyService loyaltyService;
+    private final MailService mailService;
+
+    /**
+     * Gửi email chiến dịch (chỉ thông báo mã) tới TOÀN BỘ khách thuộc đúng ĐỐI TƯỢNG áp dụng của
+     * ưu đãi — dùng chung bộ lọc {@link #eligibilityReason} (khách hợp lệ ⟺ reason == null).
+     * Bỏ qua khách không có email; mã đổi-điểm không cho gửi (khách không nhập mã trực tiếp được).
+     *
+     * @return số khách đã gửi (dispatch async).
+     */
+    @Transactional(readOnly = true)
+    public int sendCampaignEmails(Integer promoId) {
+        Promotion promo = promotionRepository.findById(promoId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ưu đãi."));
+        if (Boolean.TRUE.equals(promo.getAllowPointRedemption())) {
+            throw new RuntimeException("Mã đổi-điểm không gửi email chiến dịch được (khách không nhập mã trực tiếp).");
+        }
+        int sent = 0;
+        for (Customer c : customerRepository.findAllWithUser()) {
+            User u = c.getUser();
+            if (u == null || u.getEmail() == null || u.getEmail().isBlank()) continue;
+            if (eligibilityReason(c.getUserId(), c, promo) != null) continue; // không thuộc đối tượng
+            mailService.sendPromotionEmail(u.getEmail(), u.getFullName(), promo);
+            sent++;
+        }
+        log.info("Chiến dịch email ưu đãi #{} ({}): gửi tới {} khách.", promoId, promo.getCode(), sent);
+        return sent;
+    }
 
     /** Kết quả chấm một voucher theo giỏ hàng. reason = null khi đủ điều kiện. discountAmount = số giảm THÔ. */
     public record VoucherEval(boolean applicable, String reason, BigDecimal discountAmount) {}

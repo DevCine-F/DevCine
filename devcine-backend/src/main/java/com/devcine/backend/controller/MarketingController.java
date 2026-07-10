@@ -27,6 +27,7 @@ public class MarketingController {
     private final PromotionRepository promotionRepository;
     private final VoucherRepository voucherRepository;
     private final CustomerRepository customerRepository;
+    private final com.devcine.backend.service.VoucherService voucherService;
 
     @GetMapping("/promotions")
     public ResponseEntity<?> getAllPromotions() {
@@ -185,6 +186,19 @@ public class MarketingController {
                 .filter(v -> !Boolean.TRUE.equals(v.getIsUsed()))
                 .toList();
         return ResponseEntity.ok(vouchers);
+    }
+
+    // Gửi email chiến dịch mã ưu đãi tới toàn bộ khách thuộc đối tượng áp dụng
+    @PostMapping("/promotions/{id}/send-campaign")
+    @PreAuthorize("@perm.can('promotions','edit')")
+    public ResponseEntity<?> sendCampaign(@PathVariable Integer id) {
+        try {
+            int sent = voucherService.sendCampaignEmails(id);
+            return ResponseEntity.ok(Map.of("success", true, "sent", sent,
+                    "message", "Đã gửi email chiến dịch tới " + sent + " khách hàng."));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
+        }
     }
 
     // Phát voucher cho khách hàng

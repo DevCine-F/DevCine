@@ -104,6 +104,58 @@ public class MailService {
         }
     }
 
+    /**
+     * Gửi email chiến dịch báo MÃ ưu đãi tới khách (chỉ thông báo mã — khách tự nhập khi đặt vé).
+     * Best-effort & @Async: một email lỗi không chặn cả chiến dịch; tắt mail thì bỏ qua.
+     */
+    @Async
+    public void sendPromotionEmail(String toEmail, String fullName, com.devcine.backend.entity.Promotion promo) {
+        if (!enabled || toEmail == null || toEmail.isBlank() || promo == null) return;
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(toEmail);
+            helper.setSubject("DevCine • Ưu đãi mới dành cho bạn — mã " + (promo.getCode() != null ? promo.getCode() : ""));
+            helper.setText(buildPromotionHtml(fullName, promo), true);
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.error("Gửi email chiến dịch tới {} thất bại: {}", toEmail, e.getMessage());
+        }
+    }
+
+    private String buildPromotionHtml(String fullName, com.devcine.backend.entity.Promotion promo) {
+        boolean percent = "PERCENTAGE".equalsIgnoreCase(promo.getDiscountType());
+        String discountText = percent
+                ? "Giảm " + promo.getDiscountValue().toBigInteger() + "%"
+                : "Giảm " + String.format("%,d", promo.getDiscountValue().toBigInteger()) + "đ";
+        String expiry = promo.getEndDate() != null
+                ? promo.getEndDate().toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                : "Không giới hạn";
+        String minOrder = (promo.getMinOrderValue() != null && promo.getMinOrderValue().signum() > 0)
+                ? "Áp dụng cho đơn từ " + String.format("%,d", promo.getMinOrderValue().toBigInteger()) + "đ." : "";
+        String name = promo.getName() != null && !promo.getName().isBlank() ? promo.getName() : "Ưu đãi DevCine";
+        return """
+                <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
+                  <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
+                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
+                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">Ưu đãi mới dành riêng cho bạn</div>
+                  </div>
+                  <div style="padding:28px 24px;">
+                    <p style="font-size:15px;color:#111;margin:0 0 6px;">Xin chào <b>%s</b>,</p>
+                    <p style="font-size:14px;color:#555;margin:0 0 18px;">DevCine gửi tặng bạn ưu đãi <b>%s</b> — <b style="color:#8a6d00;">%s</b>.</p>
+                    <div style="text-align:center;margin:8px 0 18px;">
+                      <div style="font-size:12px;color:#888;margin-bottom:6px;">Mã ưu đãi của bạn</div>
+                      <span style="display:inline-block;font-size:26px;font-weight:800;letter-spacing:6px;color:#111;background:#faf6e6;border:1px dashed #e0b400;border-radius:10px;padding:12px 22px;">%s</span>
+                    </div>
+                    <p style="font-size:13px;color:#555;margin:0 0 4px;">%s Nhập mã khi đặt vé để được áp dụng.</p>
+                    <p style="font-size:13px;color:#888;margin:0;">Hạn sử dụng: <b>%s</b></p>
+                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Đây là email tự động, vui lòng không trả lời. — DevCine Cinema</p>
+                  </div>
+                </div>
+                """.formatted(escape(fullName), escape(name), discountText, escape(promo.getCode()), minOrder, expiry);
+    }
+
     private String buildStaffCredentialsHtml(String fullName, String username, String password) {
         return """
                 <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">

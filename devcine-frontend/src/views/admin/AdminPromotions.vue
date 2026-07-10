@@ -551,6 +551,25 @@ const confirmDeleteVoucher = async () => {
   }
 }
 
+// ===== Gửi email chiến dịch (thông báo mã) tới khách theo đối tượng áp dụng =====
+const emailTarget = ref(null)        // promotion đang chờ xác nhận gửi email
+const isSendingCampaign = ref(false)
+const eligibilityLabel = (val) => eligibilityOptions.find(o => o.value === val)?.label || 'Mọi khách hàng'
+const askSendCampaign = (promo) => { emailTarget.value = promo }
+const confirmSendCampaign = async () => {
+  if (!emailTarget.value) return
+  isSendingCampaign.value = true
+  try {
+    const { data } = await marketingApi.sendCampaign(emailTarget.value.id)
+    showToast(data.message || `Đã gửi email tới ${data.sent ?? 0} khách hàng.`)
+    emailTarget.value = null
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Gửi email chiến dịch thất bại.', 'error')
+  } finally {
+    isSendingCampaign.value = false
+  }
+}
+
 // Phát voucher cho khách
 const issueTarget = ref(null) // promotion đang phát
 const customerResults = ref([])
@@ -787,6 +806,9 @@ onUnmounted(() => {
               <span class="material-symbols-outlined text-xs">card_giftcard</span> Phát cho khách
             </button>
             <div class="flex items-center gap-1">
+              <button v-if="can('promotions', 'edit') && !promo.allowPointRedemption" @click="askSendCampaign(promo)" title="Gửi email chiến dịch" class="w-8 h-8 rounded-lg hover:bg-primary/15 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
+                <span class="material-symbols-outlined text-sm">mail</span>
+              </button>
               <button v-if="can('promotions', 'edit')" @click="openEditVoucher(promo)" title="Chỉnh sửa" class="w-8 h-8 rounded-lg hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
                 <span class="material-symbols-outlined text-sm">edit</span>
               </button>
@@ -1394,6 +1416,24 @@ onUnmounted(() => {
         <div class="flex gap-3 mt-6">
           <button @click="deleteTarget = null" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>
           <button @click="confirmDeleteVoucher" :disabled="isDeleting" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-60">{{ isDeleting ? 'Đang xoá...' : 'Xoá' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Send campaign email confirm modal -->
+    <div v-if="emailTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="emailTarget = null"></div>
+      <div class="relative w-full max-w-sm bg-surface-container-low border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
+        <span class="material-symbols-outlined text-4xl text-primary mb-3">mark_email_read</span>
+        <h3 class="text-lg font-bold font-headline text-white mb-2">Gửi email chiến dịch?</h3>
+        <p class="text-sm text-on-surface-variant">
+          Gửi email kèm mã <span class="font-mono font-bold text-primary">{{ emailTarget.code }}</span>
+          tới <span class="font-bold text-on-surface">toàn bộ khách thuộc "{{ eligibilityLabel(emailTarget.customerEligibility) }}"</span> có email.
+        </p>
+        <p class="text-[11px] text-on-surface-variant/70 mt-2">Hành động này gửi email thật, không thể thu hồi.</p>
+        <div class="flex gap-3 mt-6">
+          <button @click="emailTarget = null" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>
+          <button @click="confirmSendCampaign" :disabled="isSendingCampaign" class="flex-1 px-4 py-3 rounded-xl bg-primary text-on-primary text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-60">{{ isSendingCampaign ? 'Đang gửi...' : 'Gửi email' }}</button>
         </div>
       </div>
     </div>
