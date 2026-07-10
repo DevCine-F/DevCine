@@ -555,6 +555,7 @@ const confirmDeleteVoucher = async () => {
 const emailTarget = ref(null)        // promotion đang chờ xác nhận gửi email
 const isSendingCampaign = ref(false)
 const eligibilityLabel = (val) => eligibilityOptions.find(o => o.value === val)?.label || 'Mọi khách hàng'
+const movieTitleById = (id) => id ? (moviesList.value.find(m => m.id === id)?.title || 'Tất cả phim') : 'Tất cả phim'
 const askSendCampaign = (promo) => { emailTarget.value = promo }
 const confirmSendCampaign = async () => {
   if (!emailTarget.value) return
@@ -644,6 +645,8 @@ const fetchMarketingData = async () => {
       pointsRequired: p.pointsRequired,
       allowPointRedemption: p.allowPointRedemption,
       minOrderValue: p.minOrderValue,
+      maxTicketQuantity: p.maxTicketQuantity,
+      maxDiscountAmount: p.maxDiscountAmount,
       applicableMovieId: p.applicableMovieId,
       customerEligibility: p.customerEligibility,
       usageLimit: p.usageLimit,
@@ -1392,6 +1395,46 @@ onUnmounted(() => {
             <div class="space-y-1">
               <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Cộng dồn</p>
               <p class="text-sm font-bold text-on-surface">{{ detailTarget.isStackable ? 'Có' : 'Không' }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đơn tối thiểu</p>
+              <p class="text-sm font-bold text-on-surface">{{ Number(detailTarget.minOrderValue || 0) > 0 ? Number(detailTarget.minOrderValue).toLocaleString() + 'đ' : 'Không yêu cầu' }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa được giảm</p>
+              <p class="text-sm font-bold text-on-surface">{{ Number(detailTarget.maxTicketQuantity || 0) > 0 ? Number(detailTarget.maxTicketQuantity).toLocaleString() + ' vé' : 'Không giới hạn' }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giảm tối đa</p>
+              <p class="text-sm font-bold text-on-surface">{{ Number(detailTarget.maxDiscountAmount || 0) > 0 ? Number(detailTarget.maxDiscountAmount).toLocaleString() + 'đ' : 'Không giới hạn' }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đối tượng áp dụng</p>
+              <p class="text-sm font-bold text-on-surface">{{ eligibilityLabel(detailTarget.customerEligibility) }}</p>
+            </div>
+            <div class="space-y-1 col-span-2">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Áp dụng theo phim</p>
+              <p class="text-sm font-bold text-on-surface truncate" :title="movieTitleById(detailTarget.applicableMovieId)">{{ movieTitleById(detailTarget.applicableMovieId) }}</p>
+            </div>
+          </div>
+
+          <!-- Số lượt đã sử dụng (kèm giới hạn nếu có) -->
+          <div class="pt-3 border-t border-outline-variant/10 space-y-1.5">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số lượt đã sử dụng</p>
+            <div class="flex items-baseline gap-2">
+              <p class="text-sm font-black text-on-surface">
+                {{ Number(detailTarget.usedCount || 0).toLocaleString() }}<template v-if="Number(detailTarget.usageLimit || 0) > 0">/{{ Number(detailTarget.usageLimit).toLocaleString() }}</template>
+                <span class="text-on-surface-variant font-bold"> lượt</span>
+              </p>
+              <span v-if="Number(detailTarget.usageLimit || 0) > 0" class="text-[10px] font-bold text-on-surface-variant/70">
+                (còn {{ Math.max(0, Number(detailTarget.usageLimit) - Number(detailTarget.usedCount || 0)).toLocaleString() }} lượt)
+              </span>
+              <span v-else class="text-[10px] font-bold text-on-surface-variant/60">(không giới hạn)</span>
+            </div>
+            <!-- Thanh tiến độ khi có giới hạn lượt dùng -->
+            <div v-if="Number(detailTarget.usageLimit || 0) > 0" class="h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <div class="h-full bg-primary rounded-full transition-all"
+                :style="{ width: Math.min(100, (Number(detailTarget.usedCount || 0) / Number(detailTarget.usageLimit)) * 100) + '%' }"></div>
             </div>
           </div>
         </div>
