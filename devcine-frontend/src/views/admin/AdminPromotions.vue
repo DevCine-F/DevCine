@@ -475,9 +475,14 @@ const validateVoucher = () => {
     // % bắt buộc đặt trần Giảm tối đa để chặn đơn lớn giảm quá tay
     if (!maxDisc || maxDisc <= 0) e.maxDiscountAmount = 'Mã giảm % cần đặt trần Giảm tối đa (> 0).'
   } else {
-    // Tiền cố định: giá trị giảm phải ≤ đơn tối thiểu (tránh bán lỗ âm tiền)
-    if (!Number.isNaN(dv) && !e.value && dv > minOrder) {
-      e.value = 'Giảm cố định phải ≤ Đơn tối thiểu (tránh lỗ).'
+    // Tiền cố định: cần Đơn tối thiểu ≥ giá trị giảm (tránh bán lỗ âm tiền)
+    if (!Number.isNaN(dv) && !e.value) {
+      if (minOrder <= 0) {
+        // Chưa nhập đơn tối thiểu → yêu cầu nhập trước (báo ngay tại ô Đơn tối thiểu)
+        e.minOrderValue = 'Mã tiền cố định cần nhập Đơn tối thiểu (≥ giá trị giảm).'
+      } else if (dv > minOrder) {
+        e.minOrderValue = 'Đơn tối thiểu phải ≥ giá trị giảm (tránh lỗ).'
+      }
     }
   }
 
