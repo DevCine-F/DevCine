@@ -371,17 +371,32 @@ const onCodeInput = () => {
     .replace(/[^A-Z0-9]/g, '')
   clearVErr('code')
 }
-// Ô tiền tệ: chỉ giữ số, model lưu số nguyên thô. Gán lại e.target.value để chặn
-// ký tự lạ ngay cả khi model không đổi (Vue bỏ qua patch :value khi giá trị trùng).
+// ===== Hạn mức trần (Ceiling Bounding) — khống chế SỐ KÝ TỰ để không nhập được số vô lý =====
+// 9 số = tối đa 999.999.999đ; 7 số = 9.999.999 lượt; 3 số = 999 vé.
+const FIELD_MAX_DIGITS = {
+  minOrderValue: 9,
+  maxDiscountAmount: 9,
+  usageLimit: 7,
+  maxTicketQuantity: 3,
+  pointsRequired: 9,
+}
+const MAX_TICKETS_PER_HALL = 200 // trần "số vé/đơn" theo số ghế một phòng chiếu thực tế
+const MAX_MONEY = 999999999      // trần tiền (VNĐ) — đơn/giảm không quá ~1 tỷ
+const MAX_USAGE = 9999999        // trần lượt dùng — chiến dịch toàn quốc tối đa vài triệu lượt
+
+// Ô tiền tệ: chỉ giữ số, cắt theo trần ký tự, model lưu số nguyên thô. Gán lại e.target.value để
+// chặn ký tự lạ ngay cả khi model không đổi (Vue bỏ qua patch :value khi giá trị trùng).
 const onMoneyInput = (e, key) => {
-  const digits = e.target.value.replace(/\D/g, '')
+  let digits = e.target.value.replace(/\D/g, '')
+  if (FIELD_MAX_DIGITS[key]) digits = digits.slice(0, FIELD_MAX_DIGITS[key])
   newVoucher.value[key] = digits ? Number(digits) : null
   e.target.value = digits ? Number(digits).toLocaleString('vi-VN') : ''
   clearVErr(key)
 }
-// Ô chỉ cho số nguyên (không phân cách)
+// Ô chỉ cho số nguyên (không phân cách) — cũng cắt theo trần ký tự
 const onIntInput = (e, key) => {
-  const digits = e.target.value.replace(/\D/g, '')
+  let digits = e.target.value.replace(/\D/g, '')
+  if (FIELD_MAX_DIGITS[key]) digits = digits.slice(0, FIELD_MAX_DIGITS[key])
   newVoucher.value[key] = digits ? Number(digits) : null
   e.target.value = digits
   clearVErr(key)
@@ -425,6 +440,16 @@ const discountValueError = computed(() => {
     if (dv < 1 || dv > 100) return 'Giá trị giảm (%) phải từ 1 đến 100.'
   } else if (dv <= 1000) {
     return 'Giá trị giảm (VNĐ) phải lớn hơn 1.000đ.'
+  }
+  return ''
+})
+
+// Lỗi "Số vé tối đa/đơn" theo thời gian thực — không vượt quá số ghế một phòng chiếu
+const maxTicketError = computed(() => {
+  const v = newVoucher.value.maxTicketQuantity
+  if (v == null || v === '') return ''
+  if (Number(v) > MAX_TICKETS_PER_HALL) {
+    return `Số vé tối đa được ưu đãi trên một đơn không được vượt quá ${MAX_TICKETS_PER_HALL} (số ghế một phòng chiếu).`
   }
   return ''
 })
@@ -495,21 +520,25 @@ const validateVoucher = () => {
   const minOrder = Number(v.minOrderValue || 0)
   if (v.minOrderValue == null || v.minOrderValue === '') e.minOrderValue = 'Vui lòng nhập đơn tối thiểu (nhập 0 nếu không yêu cầu).'
   else if (!Number.isInteger(minOrder) || minOrder < 0) e.minOrderValue = 'Đơn tối thiểu phải là số nguyên ≥ 0.'
+  else if (minOrder > MAX_MONEY) e.minOrderValue = 'Đơn tối thiểu không được vượt quá 999.999.999đ.'
 
   // usageLimit: BẮT BUỘC, số nguyên >= 0 (0 = không giới hạn)
   const usage = Number(v.usageLimit || 0)
   if (v.usageLimit == null || v.usageLimit === '') e.usageLimit = 'Vui lòng nhập giới hạn lượt dùng (nhập 0 nếu không giới hạn).'
   else if (!Number.isInteger(usage) || usage < 0) e.usageLimit = 'Giới hạn lượt dùng phải là số nguyên ≥ 0.'
+  else if (usage > MAX_USAGE) e.usageLimit = 'Giới hạn lượt dùng không được vượt quá 9.999.999.'
 
   // maxApplicableTickets: BẮT BUỘC, số nguyên >= 0 (0 = không giới hạn)
   const maxTk = Number(v.maxTicketQuantity || 0)
   if (v.maxTicketQuantity == null || v.maxTicketQuantity === '') e.maxTicketQuantity = 'Vui lòng nhập số vé tối đa được giảm (nhập 0 nếu không giới hạn).'
   else if (!Number.isInteger(maxTk) || maxTk < 0) e.maxTicketQuantity = 'Số vé tối đa phải là số nguyên ≥ 0.'
+  else if (maxTk > MAX_TICKETS_PER_HALL) e.maxTicketQuantity = `Số vé tối đa/đơn không được vượt quá ${MAX_TICKETS_PER_HALL} (số ghế một phòng chiếu).`
 
   // maxDiscountAmount: BẮT BUỘC, số nguyên >= 0 (mã tiền cố định tự điền = giá trị giảm)
   const maxDisc = Number(v.maxDiscountAmount || 0)
   if (!isFixed.value && (v.maxDiscountAmount == null || v.maxDiscountAmount === '')) e.maxDiscountAmount = 'Vui lòng nhập giảm tối đa (nhập 0 nếu không giới hạn).'
   else if (!Number.isInteger(maxDisc) || maxDisc < 0) e.maxDiscountAmount = 'Giảm tối đa phải là số nguyên ≥ 0.'
+  else if (maxDisc > MAX_MONEY) e.maxDiscountAmount = 'Giảm tối đa không được vượt quá 999.999.999đ.'
 
   // ===== RÀNG BUỘC CHÉO =====
   if (v.type === 'PERCENTAGE') {
@@ -1136,13 +1165,13 @@ onUnmounted(() => {
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giới hạn lượt dùng</label>
-                <input :value="newVoucher.usageLimit ?? ''" @input="onIntInput($event, 'usageLimit')" type="text" inputmode="numeric" data-field="usageLimit" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.usageLimit ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
+                <input :value="fmtThousand(newVoucher.usageLimit)" @input="onMoneyInput($event, 'usageLimit')" type="text" inputmode="numeric" data-field="usageLimit" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.usageLimit ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
                 <p v-if="voucherErrors.usageLimit" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.usageLimit }}</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa được giảm / đơn</label>
-                <input :value="newVoucher.maxTicketQuantity ?? ''" @input="onIntInput($event, 'maxTicketQuantity')" type="text" inputmode="numeric" data-field="maxTicketQuantity" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.maxTicketQuantity ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
-                <p v-if="voucherErrors.maxTicketQuantity" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.maxTicketQuantity }}</p>
+                <input :value="newVoucher.maxTicketQuantity ?? ''" @input="onIntInput($event, 'maxTicketQuantity')" type="text" inputmode="numeric" data-field="maxTicketQuantity" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.maxTicketQuantity || maxTicketError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
+                <p v-if="voucherErrors.maxTicketQuantity || maxTicketError" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.maxTicketQuantity || maxTicketError }}</p>
                 <p v-else class="text-[10px] text-on-surface-variant/70">Chỉ áp cho tối đa X vé đắt nhất; vé còn lại giá gốc.</p>
               </div>
               <div class="space-y-2">
@@ -1150,7 +1179,6 @@ onUnmounted(() => {
                 <input :value="fmtThousand(newVoucher.maxDiscountAmount)" @input="onMoneyInput($event, 'maxDiscountAmount')" :disabled="isFixed" type="text" inputmode="numeric" data-field="maxDiscountAmount" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none disabled:opacity-50 disabled:cursor-not-allowed" :class="voucherErrors.maxDiscountAmount ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
                 <p v-if="voucherErrors.maxDiscountAmount" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.maxDiscountAmount }}</p>
                 <p v-else-if="isFixed" class="text-[10px] text-amber-400/80">Tự khoá = giá trị giảm (mã tiền cố định).</p>
-                <p v-else class="text-[10px] text-on-surface-variant/70">Bắt buộc với mã giảm %: trần số tiền giảm.</p>
               </div>
             </div>
             <div class="space-y-2 relative" @click.stop>
@@ -1242,7 +1270,7 @@ onUnmounted(() => {
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
           <button @click="isVoucherDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:hover:scale-100">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
+          <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError || !!maxTicketError" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:hover:scale-100">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
         </div>
       </div>
     </div>
