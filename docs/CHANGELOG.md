@@ -4,6 +4,24 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.5.0] — 2026-07-11
+
+### ✨ Changed — Tách bước Quét & In vé tại quầy
+- Quét mã QR đơn giờ **chỉ XÁC MINH** đơn (endpoint mới `POST /api/tickets/lookup`, read-only, không đổi trạng thái) → màn **"Quét thành công"** + chi tiết đơn + nút **"In vé"**. Chỉ khi bấm nút mới gọi `POST /api/tickets/print` để **đánh dấu đã in** + mở cửa sổ in vé giấy, rồi chuyển sang **"Đã in vé"**.
+- Vẫn chống in trùng ở cả 2 bước: đơn đã in → 400 *"Mã đặt vé này đã được in thành vé giấy trước đó..."*.
+- BE: `TicketService.lookupByBookingCode` (`@Transactional(readOnly=true)`); FE `TicketCheckIn.vue` thêm trạng thái `printed` + hành động `doPrint`.
+
+### ✨ Changed — Email vé gọn lại
+- Email vé chỉ còn **ảnh QR đơn** + dòng "quét 1 lần cho cả đơn (N ghế)"; bỏ danh sách ghế/loại vé và dòng "Vị trí ghế: ...".
+
+### 🐛 Fixed — POS thanh toán
+- Bỏ `@Transactional` khỏi controller `/api/ticketing/pay` & `/concession` → lỗi nghiệp vụ (vd **"Mỗi lần đặt tối đa N vé"**) không còn bị `UnexpectedRollbackException` đè thành 500 "Lỗi hệ thống nội bộ"; giữ làm tròn tiền mặt bằng lưu tường minh. POS chặn sớm khi chọn vượt `MAX_TICKETS_PER_BOOKING`.
+
+### 💄 UI
+- POS: chọn loại vé bằng **counter theo đối tượng** (tổng = số ghế) thay dropdown từng ghế; dropdown chọn **voucher của khách** làm lại thành custom dropdown khớp theme.
+
+---
+
 ## [1.4.0] — 2026-07-11
 
 ### ✨ Changed — Mã QR theo ĐƠN HÀNG + In vé tại quầy

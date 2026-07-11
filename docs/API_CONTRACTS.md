@@ -413,9 +413,19 @@ Lịch sử đặt vé của customer hiện tại.
 
 ## 12. Tickets (`/api/tickets`)
 
-### POST `/api/tickets/print?code={bookingCode}` 👷
-Quét QR (1 mã QR = **mã đặt vé**, đại diện cả đơn) → in toàn bộ vé giấy cho đơn & đánh dấu đã in.
-Chỉ đơn `CONFIRMED` (đã thanh toán) & **chưa in** mới hợp lệ; quét lại đơn đã in → 400 *"Mã đặt vé này đã được in thành vé giấy trước đó..."*. Trạng thái in quản lý ở cấp Đơn hàng (`bookings.printed_at`).
+> Luồng quầy tách 2 bước: **`/lookup`** (quét = xác minh, không đổi trạng thái) → **`/print`** (bấm nút = in + đánh dấu đã in).
+
+### POST `/api/tickets/lookup?code={bookingCode}` 👷 — Bước 1
+Quét/tra cứu mã đặt vé để **XÁC MINH** đơn (1 mã QR = mã đặt vé, đại diện cả đơn). **Không đánh dấu đã in.**
+Chỉ đơn `CONFIRMED` & **chưa in** mới hợp lệ; đơn đã in → 400 *"Mã đặt vé này đã được in thành vé giấy trước đó..."*.
+
+**Request:** query param `code` = mã đặt vé (vd `0AA550BA-0`).
+**Response 200:** giống `/print` nhưng `printedAt = null`.
+
+---
+
+### POST `/api/tickets/print?code={bookingCode}` 👷 — Bước 2
+Bấm "In vé" → in toàn bộ vé giấy cho đơn & **đánh dấu đã in** (`bookings.printed_at`, `printed_by`). Đồng bộ `tickets.is_checked_in`. Đơn đã in → 400 (chống in trùng).
 
 **Request:** query param `code` = mã đặt vé (vd `0AA550BA-0`).
 

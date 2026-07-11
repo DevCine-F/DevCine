@@ -190,7 +190,10 @@ entity/WalletTransaction.java
 ## 3. ✅ Luồng Quét QR & In vé (CRITICAL)
 
 ### Mô tả
-1 mã QR = **mã đặt vé** (đại diện cả đơn, không phải từng ghế). Staff quét → in toàn bộ vé giấy cho đơn & đánh dấu ĐÃ IN ở cấp Đơn hàng. Chống in trùng bằng `bookings.printed_at`.
+1 mã QR = **mã đặt vé** (đại diện cả đơn, không phải từng ghế). Tách 2 bước:
+**(1) Quét = XÁC MINH** đơn (không đổi trạng thái) → hiện "Quét thành công" + chi tiết;
+**(2) Bấm "In vé" = IN** toàn bộ vé giấy + đánh dấu ĐÃ IN ở cấp Đơn hàng.
+Chống in trùng bằng `bookings.printed_at`.
 
 ### Files liên quan
 ```
@@ -204,30 +207,25 @@ entity/Ticket.java, entity/BookingSeat.java
 
 ### Flow từng bước
 ```
-1. Staff → POST /api/tickets/print?code=0AA550BA-0
-   (code = mã đặt vé quét được từ 1 QR chung của đơn)
+--- BƯỚC 1: QUÉT / XÁC MINH (không đổi trạng thái) ---
+1. Staff quét QR → POST /api/tickets/lookup?code=0AA550BA-0
+   → Validate: role STAFF/MANAGER/ADMIN + đang trong ca CHECK_IN/SHIFT_LEAD
+   → TicketService.lookupByBookingCode() @Transactional(readOnly=true)
+   → findByBookingCodeForPrint(code) (JOIN FETCH tránh N+1); không thấy → lỗi
+   → VALIDATE: status = CONFIRMED (đã thanh toán) & printed_at = NULL
+     (đã in → "Mã đặt vé này đã được in ... trước đó" — chống in trùng)
+   ← 200 BookingPrintResponse (printedAt = null) → FE hiện "Quét thành công"
 
-2. TicketController.printTickets()
-   → Validate: staff authenticated (role STAFF/MANAGER/ADMIN)
-   → Yêu cầu đang trong ca CHECK_IN/SHIFT_LEAD (ShiftAccessService)
+--- BƯỚC 2: IN VÉ (khi nhân viên bấm nút "In vé") ---
+2. Staff bấm In vé → POST /api/tickets/print?code=0AA550BA-0
    → TicketService.printByBookingCode() (trong @Transactional)
-
-3. Step 3a: TÌM ĐƠN
-   → bookingRepository.findByBookingCodeForPrint(code) (JOIN FETCH tránh N+1)
-   → Không thấy → throw "Không tìm thấy đơn đặt vé với mã ..."
-
-4. Step 3b: VALIDATE (cấp ĐƠN HÀNG)
-   → status = CONFIRMED (đã thanh toán), nếu không → "Đơn chưa thanh toán..."
-   → printed_at = NULL, nếu đã có → "Mã đặt vé này đã được in ... trước đó"
-
-5. Step 3c: ĐÁNH DẤU ĐÃ IN
-   → booking.printed_at = now(), booking.printed_by = currentStaff
+   → VALIDATE lại (CONFIRMED & chưa in)
+   → ĐÁNH DẤU ĐÃ IN: booking.printed_at = now(), printed_by = currentStaff
    → Đồng bộ mọi vé ghế: is_checked_in = true, check_in_time, checked_in_by
      (giữ báo cáo tiến độ check-in nhất quán)
 
-6. ← Response 200: BookingPrintResponse
-   { bookingCode, phim, phòng, giờ, seats[], fnbs[], printedAt }
-   → FE tự mở cửa sổ in vé giấy (invoiceTemplate) cho cả đơn
+3. ← Response 200: BookingPrintResponse (có printedAt)
+   → FE mở cửa sổ in vé giấy (invoiceTemplate) cho cả đơn + hiện "Đã in vé"
 ```
 
 ---
