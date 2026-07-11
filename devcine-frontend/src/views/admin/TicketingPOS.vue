@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { ticketingApi, settingsApi, approvalApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
@@ -77,6 +77,47 @@ const priceOf = (seat) => {
 }
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+
+// ===== Loại vé theo SỐ LƯỢNG (counter) thay cho dropdown từng ghế =====
+// Nguồn sự thật hiển thị là số lượng theo đối tượng; khi khớp đủ số ghế sẽ gán
+// ticketType cho từng ghế (theo thứ tự) để giữ nguyên cách tính giá + payload.
+const ticketCounts = ref({}) // mã đối tượng -> số vé
+const totalTicketCount = computed(() =>
+  Object.values(ticketCounts.value).reduce((a, b) => a + (Number(b) || 0), 0))
+const ticketsMatchSeats = computed(() =>
+  selectedSeats.value.length > 0 && totalTicketCount.value === selectedSeats.value.length)
+
+// Dựng lại counts từ ticketType hiện có của ghế (khi vào bước xác nhận / đổi ghế)
+const syncTicketCountsFromSeats = () => {
+  const counts = {}
+  Object.keys(audienceLabels.value).forEach(k => { counts[k] = 0 })
+  if (counts.ADULT == null) counts.ADULT = 0
+  for (const s of selectedSeats.value) {
+    const t = s.ticketType || 'ADULT'
+    counts[t] = (counts[t] || 0) + 1
+  }
+  ticketCounts.value = counts
+}
+
+// Gán loại vé cho từng ghế theo counts (thứ tự ghế) → priceOf/seatTypeBreakdown tự cập nhật
+const assignTicketCountsToSeats = () => {
+  const order = []
+  for (const [code, qty] of Object.entries(ticketCounts.value)) {
+    for (let i = 0; i < (Number(qty) || 0); i++) order.push(code)
+  }
+  selectedSeats.value.forEach((s, i) => { s.ticketType = order[i] || 'ADULT' })
+}
+
+const setTicketCount = (code, delta) => {
+  const cur = Number(ticketCounts.value[code] || 0)
+  if (delta > 0 && totalTicketCount.value >= selectedSeats.value.length) return // không vượt số ghế
+  const next = Math.max(0, cur + delta)
+  ticketCounts.value = { ...ticketCounts.value, [code]: next }
+  assignTicketCountsToSeats()
+}
+
+// Vào bước 3 (xác nhận vé) → đồng bộ counter với các ghế đang chọn
+watch(currentStep, (step) => { if (step === 3) syncTicketCountsFromSeats() })
 
 // ===== Định dạng & validate suất chiếu =====
 const isPastShowtime = (st) => !!(st?.startTime) && new Date(st.startTime).getTime() < Date.now()
@@ -1445,32 +1486,42 @@ onUnmounted(() => {
           </div>
 
           <div class="flex-grow overflow-y-auto custom-scrollbar space-y-4 pr-2">
-            <div v-for="seat in selectedSeats" :key="seat.seatId"
-                 class="p-5 bg-surface-container-high rounded-[24px] border border-outline-variant/10 flex items-center justify-between gap-4">
-              <div class="flex items-center gap-4 min-w-0">
-                <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary border border-primary/20 shrink-0">
-                  <span class="material-symbols-outlined">event_seat</span>
+            <p class="px-1 text-xs text-on-surface-variant">
+              Chọn số lượng vé theo đối tượng — tổng phải bằng số ghế đã chọn ({{ selectedSeats.length }} ghế).
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div v-for="(label, code) in audienceLabels" :key="code"
+                   class="p-5 bg-surface-container-high rounded-[24px] border border-outline-variant/10 flex items-center justify-between gap-4">
+                <span class="text-sm font-black text-on-surface uppercase">{{ label }}</span>
+                <div class="flex items-center gap-3 shrink-0">
+                  <button @click="setTicketCount(code, -1)" :disabled="(ticketCounts[code] || 0) <= 0"
+                          class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined text-base">remove</span>
+                  </button>
+                  <span class="w-7 text-center text-lg font-black tabular-nums text-on-surface">{{ ticketCounts[code] || 0 }}</span>
+                  <button @click="setTicketCount(code, 1)" :disabled="totalTicketCount >= selectedSeats.length"
+                          class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined text-base">add</span>
+                  </button>
                 </div>
-                <div class="min-w-0">
-                  <p class="text-sm font-black text-on-surface uppercase">Ghế {{ seat.rowChar + seat.colNum }}</p>
-                  <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{{ seatTypeLabel(seat.seatType) }}</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-3 shrink-0">
-                <select v-model="seat.ticketType"
-                        class="bg-surface-container border border-outline-variant/10 rounded-xl px-3 py-2 text-xs font-bold text-on-surface outline-none focus:border-primary/50">
-                  <option v-for="(label, code) in audienceLabels" :key="code" :value="code">{{ label }}</option>
-                </select>
-                <p class="text-base font-black italic text-primary w-24 text-right">{{ fmt(priceOf(seat)) }}đ</p>
               </div>
             </div>
-            <div class="px-2 pt-2 text-xs font-bold text-on-surface-variant">
+
+            <div class="flex items-center justify-between px-2 pt-2 text-sm">
+              <span class="text-on-surface-variant">Đã gán</span>
+              <span class="font-black tabular-nums" :class="ticketsMatchSeats ? 'text-green-400' : 'text-primary'">
+                {{ totalTicketCount }} / {{ selectedSeats.length }} vé
+              </span>
+            </div>
+            <div class="px-2 text-xs font-bold text-on-surface-variant">
               Ghế đã chọn: <span class="text-primary">{{ selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
             </div>
           </div>
 
-          <div class="mt-6 flex justify-end">
-            <AppButton @click="currentStep = 4">4. Combo / Đồ ăn</AppButton>
+          <div class="mt-6 flex items-center justify-end gap-4">
+            <span v-if="!ticketsMatchSeats" class="text-xs font-bold text-amber-400">Cần gán đủ {{ selectedSeats.length }} vé</span>
+            <AppButton @click="currentStep = 4" :disabled="!ticketsMatchSeats">4. Combo / Đồ ăn</AppButton>
           </div>
         </div>
 
