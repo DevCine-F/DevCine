@@ -11,8 +11,12 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 - Vẫn chống in trùng ở cả 2 bước: đơn đã in → 400 *"Mã đặt vé này đã được in thành vé giấy trước đó..."*.
 - BE: `TicketService.lookupByBookingCode` (`@Transactional(readOnly=true)`); FE `TicketCheckIn.vue` thêm trạng thái `printed` + hành động `doPrint`.
 
-### ✨ Changed — Email vé gọn lại
-- Email vé chỉ còn **ảnh QR đơn** + dòng "quét 1 lần cho cả đơn (N ghế)"; bỏ danh sách ghế/loại vé và dòng "Vị trí ghế: ...".
+### ✨ Changed — Email vé (gọn lại + tách Online/POS)
+- Khối "Vé & mã QR" chỉ còn **ảnh QR đơn** + dòng "quét 1 lần cho cả đơn (N ghế)"; bỏ danh sách ghế/loại vé và dòng "Vị trí ghế: ...".
+- **Tách nội dung mail theo nguồn đơn** (dùng chung 1 template + cờ `TicketEmailData.showQr`):
+  - **Đơn Online** (`staffSchedule == null`): hiện QR, tiêu đề *"Vé điện tử đơn ..."* (khách ra rạp quét in vé).
+  - **Đơn POS / đã in vé giấy**: **ẩn QR**, tiêu đề *"Hoá đơn thanh toán đơn ..."* + dòng *"Cảm ơn bạn đã sử dụng dịch vụ tại DevCine. Chúc bạn xem phim vui vẻ!"*.
+  - `completePayment` đặt `showQr` theo `staffSchedule`. Khi **in vé tại quầy** (`/tickets/print`) gửi thêm mail hoá đơn/cảm ơn (ẩn QR) **chỉ cho đơn Online gốc**; đơn POS đã nhận hoá đơn lúc thanh toán → bỏ qua để tránh làm phiền hộp thư.
 
 ### 🐛 Fixed — POS thanh toán
 - Bỏ `@Transactional` khỏi controller `/api/ticketing/pay` & `/concession` → lỗi nghiệp vụ (vd **"Mỗi lần đặt tối đa N vé"**) không còn bị `UnexpectedRollbackException` đè thành 500 "Lỗi hệ thống nội bộ"; giữ làm tròn tiền mặt bằng lưu tường minh. POS chặn sớm khi chọn vượt `MAX_TICKETS_PER_BOOKING`.

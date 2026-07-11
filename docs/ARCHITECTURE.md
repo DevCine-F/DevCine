@@ -221,9 +221,10 @@ Bước 2 — IN VÉ (khi bấm nút):
 |---------|----------|---------|
 | **Supabase** | PostgreSQL Database hosting | Region: AWS ap-southeast-1 (Singapore) |
 | **JWT** | Token-based authentication | Self-issued, không cần 3rd party |
-| *(Tương lai)* QR Code Generator | Generate QR cho vé | Có thể dùng thư viện Java local |
-| *(Tương lai)* Email Service | Gửi email xác nhận đặt vé | SendGrid / SES |
-| *(Tương lai)* Payment Gateway | Thanh toán online | VNPay / MoMo / ZaloPay |
+| **Cloudinary** | Lưu ảnh (poster, banner, ảnh món F&B) | Upload qua `/api/upload` |
+| **QR Code** | Sinh ảnh QR mã hoá `booking_code` | `api.qrserver.com` (email) + payload VietQR EMVCo tự dựng (thanh toán) |
+| **Email (SMTP)** | `MailService` qua Spring `JavaMailSender` (Gmail) | Vé QR (đơn Online) / Hoá đơn–cảm ơn ẩn QR (đơn POS & đã in). Gửi `@Async`, fail-safe |
+| **VNPAY** | Cổng thanh toán online cho khách | POS dùng CASH/CARD/TRANSFER (VietQR) |
 
 ---
 

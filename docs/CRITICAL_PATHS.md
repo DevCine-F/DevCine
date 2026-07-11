@@ -223,6 +223,8 @@ entity/Ticket.java, entity/BookingSeat.java
    → ĐÁNH DẤU ĐÃ IN: booking.printed_at = now(), printed_by = currentStaff
    → Đồng bộ mọi vé ghế: is_checked_in = true, check_in_time, checked_in_by
      (giữ báo cáo tiến độ check-in nhất quán)
+   → Gửi email HOÁ ĐƠN/CẢM ƠN (ẩn QR) — CHỈ cho đơn Online gốc
+     (staffSchedule == null); đơn POS đã nhận hoá đơn lúc thanh toán → bỏ qua
 
 3. ← Response 200: BookingPrintResponse (có printedAt)
    → FE mở cửa sổ in vé giấy (invoiceTemplate) cho cả đơn + hiện "Đã in vé"
