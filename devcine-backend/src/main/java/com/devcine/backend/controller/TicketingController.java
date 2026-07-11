@@ -12,7 +12,6 @@ import com.devcine.backend.dto.request.SeatSelectionDTO;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import com.devcine.backend.dto.request.FnbSelectionDTO;
@@ -101,9 +100,11 @@ public class TicketingController {
     }
 
     // Thanh toán tại quầy (POS checkout)
+    // Không gắn @Transactional ở controller: holdSeats/completePayment đã tự @Transactional.
+    // Nếu bọc tx ở đây, lỗi nghiệp vụ trong service (vd "Mỗi lần đặt tối đa N vé") bị catch rồi
+    // commit tx rollback-only → UnexpectedRollbackException đè message thật thành "Lỗi hệ thống nội bộ".
     @PostMapping("/pay")
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
-    @Transactional
     public ResponseEntity<?> posCheckout(@RequestBody Map<String, Object> body) {
         try {
             StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
@@ -168,7 +169,11 @@ public class TicketingController {
             if ("CASH".equalsIgnoreCase(paymentMethod) && customerId == null) {
                 BigDecimal rounded = roundToNearestThousand(preRoundFinal);
                 roundingAmount = rounded.subtract(preRoundFinal);
-                if (roundingAmount.signum() != 0) booking.setFinalPrice(rounded);
+                if (roundingAmount.signum() != 0) {
+                    booking.setFinalPrice(rounded);
+                    // Lưu ngay giá đã làm tròn (controller không còn bọc tx) để completePayment nạp lại đúng.
+                    bookingRepository.save(booking);
+                }
             }
             BigDecimal finalAmount = booking.getFinalPrice() != null ? booking.getFinalPrice() : preRoundFinal;
 
@@ -211,10 +216,10 @@ public class TicketingController {
                 .multiply(new BigDecimal("1000"));
     }
 
-    // Bán nhanh bắp nước độc lập tại quầy (Concession Only) — không suất chiếu / không ghế
+    // Bán nhanh bắp nước độc lập tại quầy (Concession Only) — không suất chiếu / không ghế.
+    // Không bọc @Transactional ở controller (createSale đã tự @Transactional) — tránh bug rollback-only che message.
     @PostMapping("/concession")
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
-    @Transactional
     public ResponseEntity<?> concessionCheckout(@RequestBody Map<String, Object> body) {
         try {
             StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quay F&B");

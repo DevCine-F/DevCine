@@ -40,6 +40,8 @@ const voucherError = ref('')
 
 // Thanh toán: tài khoản nhận tiền (QR) + modal tiền mặt / QR
 const bankInfo = ref({ code: '', name: '', accountNo: '', accountName: '' })
+// Giới hạn số vé/lần đặt (cấu hình admin MAX_TICKETS_PER_BOOKING) — chặn sớm ngay khi chọn ghế
+const maxTicketsPerBooking = ref(8)
 const showCashModal = ref(false)
 const showQrModal = ref(false)
 const cashGiven = ref(0)
@@ -710,6 +712,11 @@ const toggleSeat = (seat) => {
       showToast(`Ghế ${seat.rowChar + seat.colNum} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
       return
     }
+    // Chặn sớm khi vượt giới hạn số vé/lần đặt (chống phe vé) — khớp với ràng buộc backend
+    if (selectedSeats.value.length >= maxTicketsPerBooking.value) {
+      showToast(`Mỗi lần đặt tối đa ${maxTicketsPerBooking.value} vé.`, 'error')
+      return
+    }
     seat.ticketType = seat.ticketType || 'ADULT'
     selectedSeats.value.push(seat)
     seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
@@ -868,6 +875,8 @@ const loadBankInfo = async () => {
       accountNo: map.PAYMENT_ACCOUNT_NO || '',
       accountName: map.PAYMENT_ACCOUNT_NAME || ''
     }
+    const mt = parseInt(map.MAX_TICKETS_PER_BOOKING)
+    if (!isNaN(mt)) maxTicketsPerBooking.value = Math.min(20, Math.max(1, mt))
   } catch (err) {
     // Không chặn POS nếu lỗi — modal QR sẽ báo "chưa cấu hình"
   }
