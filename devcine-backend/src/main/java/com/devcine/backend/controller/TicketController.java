@@ -32,6 +32,22 @@ public class TicketController {
     }
 
     /**
+     * Quét/tra cứu mã đặt vé để XÁC MINH đơn (chưa in). Trả chi tiết để hiển thị "Quét thành công".
+     * Không đánh dấu đã in — việc in do endpoint /print thực hiện khi nhân viên bấm nút.
+     */
+    @PostMapping("/lookup")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> lookupBooking(@RequestParam("code") String code) {
+        try {
+            return ResponseEntity.ok(ticketService.lookupByBookingCode(code));
+        } catch (AccessDeniedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    /**
      * Quét QR/nhập mã đặt vé tại quầy → in toàn bộ vé giấy cho đơn & đánh dấu đã in.
      * Nhận mã đặt vé (booking_code) — 1 mã QR đại diện cả đơn, không phải từng ghế.
      */

@@ -41,6 +41,30 @@ public class TicketService {
     }
 
     /**
+     * Quét/tra cứu mã đặt vé để XÁC MINH đơn (chưa in). Trả chi tiết đơn để hiển thị
+     * "Quét thành công"; KHÔNG đánh dấu đã in. Đơn đã in trước đó → báo lỗi chống trùng.
+     */
+    @Transactional(readOnly = true)
+    public BookingPrintResponse lookupByBookingCode(String bookingCode) {
+        shiftAccessService.requireCurrentShiftForStaff(List.of("CHECK_IN", "SHIFT_LEAD"), "kiem tra ve");
+
+        if (bookingCode == null || bookingCode.isBlank()) {
+            throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
+        }
+        Booking booking = bookingRepository.findByBookingCodeForPrint(bookingCode.trim())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn đặt vé với mã: " + bookingCode));
+
+        if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
+            throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để in vé.");
+        }
+        if (booking.getPrintedAt() != null) {
+            throw new RuntimeException("Mã đặt vé này đã được in thành vé giấy trước đó vào lúc: "
+                    + booking.getPrintedAt().format(TIME_FMT));
+        }
+        return buildResponse(booking);
+    }
+
+    /**
      * Quét QR/nhập mã đặt vé tại quầy → in toàn bộ vé giấy cho đơn.
      * <p>Chỉ đơn đã thanh toán (CONFIRMED) & CHƯA in mới được in. Quét lại đơn
      * đã in → báo lỗi (chống in trùng). Quản lý trạng thái ở cấp Đơn hàng

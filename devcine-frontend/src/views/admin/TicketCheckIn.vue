@@ -151,27 +151,60 @@ const handleCheckIn = async (code) => {
   checkInResult.value = null
 
   try {
-    const response = await api.post('/tickets/print', null, {
+    // Bước 1: chỉ XÁC MINH đơn (chưa in) → hiển thị "Quét thành công" + chi tiết
+    const response = await api.post('/tickets/lookup', null, {
       params: { code: code.trim() }
     })
 
     checkInResult.value = {
       success: true,
-      message: 'Đã in vé cho toàn bộ đơn!',
-      data: response.data
+      message: 'Đơn hợp lệ — sẵn sàng in vé.',
+      data: response.data,
+      printed: false
     }
     playBeep('success')
-    printBooking(response.data) // tự động mở cửa sổ in vé giấy
   } catch (error) {
-    const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Đã xảy ra lỗi khi in vé.'
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Đã xảy ra lỗi khi quét vé.'
     checkInResult.value = {
       success: false,
       message: errorMsg,
-      data: null
+      data: null,
+      printed: false
     }
     playBeep('error')
   } finally {
     isLoading.value = false
+  }
+}
+
+// Bước 2: bấm "In vé" → đánh dấu đã in + mở cửa sổ in vé giấy
+const isPrinting = ref(false)
+const doPrint = async () => {
+  const booking = checkInResult.value?.data
+  if (!booking || isPrinting.value) return
+  isPrinting.value = true
+  try {
+    const response = await api.post('/tickets/print', null, {
+      params: { code: booking.bookingCode }
+    })
+    checkInResult.value = {
+      success: true,
+      message: 'Đã in vé cho toàn bộ đơn!',
+      data: response.data,
+      printed: true
+    }
+    playBeep('success')
+    printBooking(response.data) // mở cửa sổ in vé giấy
+  } catch (error) {
+    checkInResult.value = {
+      success: false,
+      message: error.response?.data?.error || error.response?.data?.message || 'Không in được vé.',
+      data: null,
+      printed: false
+    }
+    playBeep('error')
+  } finally {
+    isPrinting.value = false
   }
 }
 
@@ -206,7 +239,8 @@ const triggerMockCheckIn = (status = 'success') => {
     if (status === 'success') {
       checkInResult.value = {
         success: true,
-        message: 'Đã in vé cho toàn bộ đơn! (Dữ liệu giả lập)',
+        message: 'Đơn hợp lệ — sẵn sàng in vé. (Dữ liệu giả lập)',
+        printed: false,
         data: {
           bookingCode: '0AA550BA-0',
           movieTitle: 'Godzilla x Kong: Đế Chế Mới',
@@ -224,7 +258,7 @@ const triggerMockCheckIn = (status = 'success') => {
           totalPrice: 289000,
           finalPrice: 289000,
           discount: 0,
-          printedAt: new Date().toISOString()
+          printedAt: null
         }
       }
       playBeep('success')
@@ -315,11 +349,14 @@ onUnmounted(() => {
       <div v-else-if="checkInResult" class="space-y-8 animate-fade-in">
         <!-- Success Banner -->
         <div v-if="checkInResult.success" class="flex flex-col items-center text-center space-y-4">
-          <div class="w-20 h-20 bg-green-500/10 text-green-400 border border-green-500/20 rounded-full flex items-center justify-center shadow-lg shadow-green-500/10">
-            <span class="material-symbols-outlined text-5xl animate-bounce">check_circle</span>
+          <div class="w-20 h-20 rounded-full flex items-center justify-center shadow-lg"
+               :class="checkInResult.printed ? 'bg-green-500/10 text-green-400 border border-green-500/20 shadow-green-500/10' : 'bg-primary/10 text-primary border border-primary/20 shadow-primary/10'">
+            <span class="material-symbols-outlined text-5xl animate-bounce">{{ checkInResult.printed ? 'print' : 'check_circle' }}</span>
           </div>
           <div>
-            <h2 class="text-2xl font-black text-green-400 uppercase italic">Đã In Vé!</h2>
+            <h2 class="text-2xl font-black uppercase italic" :class="checkInResult.printed ? 'text-green-400' : 'text-primary'">
+              {{ checkInResult.printed ? 'Đã In Vé!' : 'Quét Thành Công' }}
+            </h2>
             <p class="text-xs text-on-surface-variant mt-1">{{ checkInResult.message }}</p>
           </div>
 
@@ -365,13 +402,19 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div class="border-t border-outline-variant/10 pt-3 flex justify-between items-center text-[10px] text-on-surface-variant/70 italic">
+            <div v-if="checkInResult.printed" class="border-t border-outline-variant/10 pt-3 flex justify-between items-center text-[10px] text-on-surface-variant/70 italic">
               <span>Đã in lúc:</span>
               <span>{{ formatDateTime(checkInResult.data.printedAt) }}</span>
             </div>
           </div>
 
-          <button @click="printBooking(checkInResult.data)"
+          <!-- Chưa in: nút In vé (thực sự in + đánh dấu đã in) -->
+          <button v-if="!checkInResult.printed" @click="doPrint" :disabled="isPrinting"
+            class="flex items-center gap-2 text-sm font-bold text-on-primary bg-primary hover:bg-primary/90 rounded-xl px-8 py-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:scale-100 cursor-pointer">
+            <span class="material-symbols-outlined text-base">print</span> {{ isPrinting ? 'Đang in...' : 'In vé giấy' }}
+          </button>
+          <!-- Đã in: cho phép in lại (không đánh dấu lại) -->
+          <button v-else @click="printBooking(checkInResult.data)"
             class="flex items-center gap-2 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-xl px-5 py-2.5 transition-all cursor-pointer">
             <span class="material-symbols-outlined text-base">print</span> In lại vé giấy
           </button>
