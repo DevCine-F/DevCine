@@ -114,7 +114,7 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 - **Trailer Modal tái dùng** (`TrailerModal.vue`): hero trang chủ + chi tiết phim, seed trailer chính thức. Chi tiết phim: synopsis thu/mở + lọc theo cụm rạp.
 - **Đặt vé nâng cấp:** cấu hình thời gian giữ ghế / giới hạn số vé / thời gian mở bán; điều kiện voucher nâng cao + chống thanh toán trùng; yêu cầu đăng nhập khi rời bước chọn ghế (modal nhắc); chọn số lượng vé trước khi chọn ghế.
 - **Dashboard real-data** (filter khoảng thời gian, widget thật); **Admin Movies** (bảng dày, bulk action, thống kê/phim); **Admin Bookings** (loại đối tượng vé + tiến độ check-in).
-- **Tài liệu BA mới:** `Tai_lieu_BA_DevCine.docx` (phân tích nghiệp vụ).
+- **Tài liệu BA mới:** `docs/nghiep-vu/Tai_lieu_BA_DevCine.docx` (phân tích nghiệp vụ).
 
 ### 4.2.3 ĐANG LÀM DỞ (chưa commit, nằm trong working tree)
 - **Hệ thống Toast + Friendly Error** (`AppToast.vue`, `stores/toast.js`, `utils/friendlyError.js`): hạ tầng đã có nhưng **mới áp 5/43 view** (Vouchers, KhuyenMai, Contact, BookingSuccess, Booking + CustomerLayout). Cần rollout ra toàn bộ view admin và các view khách còn lại để đạt chuẩn "4 trạng thái" của RULES.
@@ -133,4 +133,4 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 ### 4.5 Tài liệu liên quan
 - `RULES.md` — quy tắc bắt buộc.
 - `docs/` — `ARCHITECTURE.md`, `DATABASE.md`, `API_CONTRACTS.md`, `CRITICAL_PATHS.md`, `SECURITY.md`.
-- `Bao_cao_thong_ke_DevCine.docx` — báo cáo thống kê & phân tích tiến độ (sinh bởi `generate_report.py`).
+- `docs/bao-cao/Bao_cao_thong_ke_DevCine.docx` — báo cáo thống kê & phân tích tiến độ (sinh bởi `generate_report.py`).

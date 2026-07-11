@@ -508,6 +508,6 @@ r.italic = True
 r.font.color.rgb = GREY
 
 # Lưu file
-out = r'E:\DATN\DevCine\Bao_cao_thong_ke_DevCine.docx'
+out = r'E:\DATN\DevCine\docs\bao-cao\Bao_cao_thong_ke_DevCine.docx'
 doc.save(out)
 print('DONE:', out)
