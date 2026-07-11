@@ -55,7 +55,6 @@ public class ApprovalService {
     private final BookingSeatRepository bookingSeatRepository;
     private final SeatRepository seatRepository;
     private final UserRepository userRepository;
-    private final InventoryService inventoryService;
     private final ShiftAccessService shiftAccessService;
     private final LoyaltyService loyaltyService;
     private final ObjectMapper objectMapper;
@@ -193,17 +192,6 @@ public class ApprovalService {
                 .orElseThrow(() -> new IllegalArgumentException("Hóa đơn F&B không còn tồn tại."));
         if (!"CONFIRMED".equalsIgnoreCase(sale.getStatus())) {
             throw new IllegalArgumentException("Hóa đơn đã được xử lý trước đó.");
-        }
-
-        Integer cinemaId = sale.getStaffSchedule() != null && sale.getStaffSchedule().getCinema() != null
-                ? sale.getStaffSchedule().getCinema().getId()
-                : null;
-
-        // Hoàn kho đúng lượng đã trừ khi bán (theo BOM nếu là combo).
-        if (cinemaId != null) {
-            for (ConcessionSaleItem item : concessionSaleItemRepository.findBySaleIdWithItem(sale.getId())) {
-                inventoryService.restockForVoid(cinemaId, item.getFnbItem().getId(), item.getQuantity(), approverSchedule);
-            }
         }
 
         // Thu hồi điểm thưởng đã cộng cho thành viên (đảo cả ví lẫn tích lũy trọn đời, ghi sổ điểm).

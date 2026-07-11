@@ -22,7 +22,6 @@ public class DashboardStatsResponse {
     private List<TopMovie> topMovies;
     private List<RecentBooking> recentBookings;
     private List<TodayShowtime> todayShowtimes;
-    private List<LowStockItem> lowStock;
 
     @Data
     @Builder
@@ -81,15 +80,5 @@ public class DashboardStatsResponse {
         private Integer sold;
         private Integer total;
         private Double occupancy;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LowStockItem {
-        private String name;
-        private String cinemaName;
-        private Integer inStock;
     }
 }

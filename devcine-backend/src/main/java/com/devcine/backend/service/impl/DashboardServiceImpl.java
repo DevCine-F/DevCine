@@ -2,10 +2,8 @@ package com.devcine.backend.service.impl;
 
 import com.devcine.backend.dto.response.DashboardStatsResponse;
 import com.devcine.backend.entity.Booking;
-import com.devcine.backend.entity.CinemaInventory;
 import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.repository.BookingRepository;
-import com.devcine.backend.repository.CinemaInventoryRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.service.DashboardService;
@@ -29,12 +27,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
 
-    private static final int LOW_STOCK_THRESHOLD = 20;
-
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final ShowtimeRepository showtimeRepository;
-    private final CinemaInventoryRepository cinemaInventoryRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -69,7 +64,6 @@ public class DashboardServiceImpl implements DashboardService {
                 .topMovies(buildTopMovies())
                 .recentBookings(buildRecentBookings())
                 .todayShowtimes(buildTodayShowtimes())
-                .lowStock(buildLowStock())
                 .build();
     }
 
@@ -197,19 +191,6 @@ public class DashboardServiceImpl implements DashboardService {
                     .sold(sold)
                     .total(total)
                     .occupancy(occ)
-                    .build());
-        }
-        return list;
-    }
-
-    // ===== Cảnh báo tồn kho F&B thấp =====
-    private List<DashboardStatsResponse.LowStockItem> buildLowStock() {
-        List<DashboardStatsResponse.LowStockItem> list = new ArrayList<>();
-        for (CinemaInventory ci : cinemaInventoryRepository.findLowStock(LOW_STOCK_THRESHOLD, PageRequest.of(0, 8))) {
-            list.add(DashboardStatsResponse.LowStockItem.builder()
-                    .name(ci.getFnbItem().getName())
-                    .cinemaName(ci.getCinema().getName())
-                    .inStock(ci.getInStock())
                     .build());
         }
         return list;

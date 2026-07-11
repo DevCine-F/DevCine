@@ -24,7 +24,6 @@ const data = ref({
   topMovies: [],
   recentBookings: [],
   todayShowtimes: [],
-  lowStock: [],
 });
 
 const colorMap = {
@@ -351,33 +350,6 @@ onMounted(fetchStats);
           </div>
         </div>
 
-        <!-- Cảnh báo tồn kho F&B -->
-        <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-6">
-          <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-5 flex items-center gap-2">
-            <span class="material-symbols-outlined text-orange-500 text-xl">warning</span> Cảnh báo tồn kho
-          </h3>
-          <div v-if="isLoading" class="space-y-3">
-            <div v-for="i in 5" :key="i" class="h-12 bg-white/5 rounded animate-pulse"></div>
-          </div>
-          <div v-else-if="!data.lowStock.length" class="text-center py-8">
-            <span class="material-symbols-outlined text-4xl text-green-500/60 mb-2">check_circle</span>
-            <p class="text-xs text-on-surface-variant">Kho ổn định, không có cảnh báo.</p>
-          </div>
-          <div v-else class="space-y-1">
-            <div v-for="(item, i) in data.lowStock" :key="i"
-              class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/5 transition-all">
-              <div class="w-9 h-9 rounded-lg bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0">
-                <span class="material-symbols-outlined text-base">inventory_2</span>
-              </div>
-              <div class="flex-grow min-w-0">
-                <p class="text-xs font-bold text-on-surface truncate">{{ item.name }}</p>
-                <p class="text-[10px] text-on-surface-variant truncate">{{ item.cinemaName }}</p>
-              </div>
-              <span :class="item.inStock <= 5 ? 'text-red-500 bg-red-500/10' : 'text-orange-500 bg-orange-500/10'"
-                class="text-[10px] font-bold px-2 py-1 rounded shrink-0">Còn {{ item.inStock }}</span>
-            </div>
-          </div>
-        </div>
       </div>
     </template>
   </div>

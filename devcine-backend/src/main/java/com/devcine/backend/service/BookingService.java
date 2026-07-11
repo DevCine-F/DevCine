@@ -34,7 +34,6 @@ public class BookingService {
     private final SystemSettingRepository systemSettingRepository;
     private final SystemSettingService systemSettingService;
     private final NotificationService notificationService;
-    private final InventoryService inventoryService;
     private final PricingService pricingService;
     private final UserRepository userRepository;
     private final MailService mailService;
@@ -292,15 +291,6 @@ public class BookingService {
             if (promo != null) {
                 promo.setUsedCount((promo.getUsedCount() != null ? promo.getUsedCount() : 0) + 1);
                 promotionRepository.save(promo);
-            }
-        }
-
-        // Tự trừ tồn kho F&B theo định mức nguyên liệu (BOM) của rạp tương ứng
-        if (booking.getShowtime() != null && booking.getShowtime().getRoom() != null
-                && booking.getShowtime().getRoom().getCinema() != null) {
-            Integer cinemaId = booking.getShowtime().getRoom().getCinema().getId();
-            for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(bookingId)) {
-                inventoryService.deductForSale(cinemaId, bf.getFnbItem().getId(), bf.getQuantity(), booking.getStaffSchedule());
             }
         }
 

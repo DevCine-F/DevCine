@@ -35,7 +35,6 @@ public class ConcessionService {
     private final ConcessionSaleItemRepository itemRepository;
     private final FnbItemRepository fnbItemRepository;
     private final CustomerRepository customerRepository;
-    private final InventoryService inventoryService;
     private final LoyaltyService loyaltyService;
 
     @Transactional
@@ -92,15 +91,6 @@ public class ConcessionService {
 
         sale.setTotalPrice(total);
         saleRepository.save(sale);
-
-        Integer cinemaId = staffSchedule != null && staffSchedule.getCinema() != null
-                ? staffSchedule.getCinema().getId()
-                : null;
-        if (cinemaId != null) {
-            for (ConcessionSaleItem row : rows) {
-                inventoryService.deductForSale(cinemaId, row.getFnbItem().getId(), row.getQuantity(), staffSchedule);
-            }
-        }
 
         // Tích điểm F&B qua LoyaltyService (đồng nhất với vé: cập nhật hạng + ghi sổ điểm).
         loyaltyService.award(customer, total, "FNB", sale.getSaleCode());

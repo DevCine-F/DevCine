@@ -118,11 +118,6 @@ onMounted(() => {
           <span class="font-semibold text-sm">Thực đơn F&B / Combo</span>
         </router-link>
 
-        <router-link v-if="canShow('pos_inventory')" to="/admin/inventory" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">inventory_2</span>
-          <span class="font-semibold text-sm">Quản lý kho (F&B)</span>
-        </router-link>
-
         <!-- ===== KINH DOANH & KHÁCH HÀNG ===== -->
         <div v-if="canShowAny(['pricing', 'promotions', 'support'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
 

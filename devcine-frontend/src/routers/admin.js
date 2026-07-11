@@ -85,12 +85,6 @@ export default [
         component: () => import('../views/admin/MovieCategoryManager.vue')
       },
       {
-        path: 'inventory',
-        name: 'admin-inventory',
-        meta: { permission: { feature: 'pos_inventory', action: 'view' } },
-        component: () => import('../views/admin/InventoryManagement.vue')
-      },
-      {
         path: 'fnb',
         name: 'admin-fnb',
         meta: { permission: { feature: 'pos_inventory', action: 'view' } },
