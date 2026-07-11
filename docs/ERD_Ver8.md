@@ -293,27 +293,6 @@ erDiagram
         string description
         boolean is_active
     }
-    BOM_RECIPES {
-        int id PK
-        int combo_id FK
-        int ingredient_id FK
-        decimal quantity
-    }
-    CINEMA_INVENTORY {
-        int id PK
-        int cinema_id FK
-        int fnb_item_id FK
-        int in_stock
-        datetime last_updated
-    }
-    INVENTORY_LOGS {
-        int id PK
-        int cinema_inventory_id FK
-        int changed_by_staff FK
-        string type
-        int quantity_change
-        datetime timestamp
-    }
     CONCESSION_SALES {
         int id PK
         string sale_code UK
@@ -428,12 +407,6 @@ erDiagram
     TICKETS       ||--o{ REVIEWS          : "verifies"
     PROMOTIONS    ||--o{ VOUCHERS         : "issues"
     CUSTOMERS     ||--o{ VOUCHERS         : "owns"
-    FNB_ITEMS     ||--o{ BOM_RECIPES      : "combo"
-    FNB_ITEMS     ||--o{ BOM_RECIPES      : "ingredient"
-    CINEMAS       ||--o{ CINEMA_INVENTORY : "stocks"
-    FNB_ITEMS     ||--o{ CINEMA_INVENTORY : "stocked"
-    CINEMA_INVENTORY ||--o{ INVENTORY_LOGS : "logged"
-    STAFFS        ||--o{ INVENTORY_LOGS   : "changes"
     CUSTOMERS     ||--o{ CONCESSION_SALES : "buys"
     CONCESSION_SALES ||--o{ CONCESSION_SALE_ITEMS : "has"
     FNB_ITEMS     ||--o{ CONCESSION_SALE_ITEMS : "sold"

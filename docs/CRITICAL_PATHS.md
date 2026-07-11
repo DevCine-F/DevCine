@@ -301,39 +301,7 @@ entity/StaffSchedule.java
 
 ---
 
-## 6. 📦 Luồng Quản Lý Kho (IMPORTANT)
-
-### Mô tả
-Nhập/xuất kho F&B. Sai → tồn kho âm, mất kiểm soát.
-
-### Files liên quan
-```
-controller/InventoryController.java
-service/InventoryService.java
-repository/CinemaInventoryRepository.java
-repository/InventoryLogRepository.java
-entity/CinemaInventory.java
-entity/InventoryLog.java
-```
-
-### Flow từng bước (Cập nhật tồn kho)
-```
-1. Staff → PUT /api/inventory/{id}/adjust
-   { quantityChange: +50, type: "IMPORT" }
-
-2. InventoryService.adjust() (trong @Transactional)
-   a. Lock cinema_inventory (SELECT FOR UPDATE)
-   b. Validate: in_stock + quantityChange >= 0
-   c. cinema_inventory.in_stock += quantityChange
-   d. Tạo InventoryLog(type, quantityChange, changedByStaff)
-   e. Update last_updated = now()
-
-3. ← Response 200: { newStock }
-```
-
----
-
-## 7. Dependency Map
+## 6. Dependency Map
 
 ```
                     ┌──────────────┐

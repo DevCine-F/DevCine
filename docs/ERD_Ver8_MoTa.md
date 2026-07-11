@@ -11,7 +11,7 @@
 
 # PHẦN A — Danh sách tất cả bảng trong ERD
 
-Tổng cộng **40 bảng**, chia theo 7 nhóm chức năng.
+Tổng cộng **37 bảng**, chia theo 7 nhóm chức năng.
 
 ## A.1. Người dùng & phân quyền (7 bảng)
 | # | Bảng | Mục đích ngắn gọn |
@@ -59,27 +59,24 @@ Tổng cộng **40 bảng**, chia theo 7 nhóm chức năng.
 | 25 | `promo_articles` | Tin khuyến mãi biên tập (nội dung hiển thị) |
 | 26 | `banners` | Banner trang chủ (ảnh hoặc dựng theo phim) |
 
-## A.6. Bắp nước (F&B) & kho (6 bảng)
+## A.6. Bắp nước (F&B) (3 bảng)
 | # | Bảng | Mục đích ngắn gọn |
 |---|---|---|
-| 27 | `fnb_items` | Món bắp nước / combo / nguyên liệu |
-| 28 | `bom_recipes` | Định mức nguyên liệu cho combo (BOM) |
-| 29 | `cinema_inventory` | Tồn kho F&B theo từng rạp |
-| 30 | `inventory_logs` | Nhật ký thay đổi tồn kho |
-| 31 | `concession_sales` | Đơn bán bắp nước tại quầy (không gắn suất chiếu) |
-| 32 | `concession_sale_items` | Dòng món trong đơn bán bắp nước độc lập |
+| 27 | `fnb_items` | Món bắp nước / combo |
+| 28 | `concession_sales` | Đơn bán bắp nước tại quầy (không gắn suất chiếu) |
+| 29 | `concession_sale_items` | Dòng món trong đơn bán bắp nước độc lập |
 
 ## A.7. Vận hành ca làm & cấu hình (8 bảng)
 | # | Bảng | Mục đích ngắn gọn |
 |---|---|---|
-| 33 | `shifts` | Định nghĩa ca làm việc (khung giờ) |
-| 34 | `staff_schedules` | Phân ca cho nhân viên theo ngày |
-| 35 | `shift_handovers` | Bàn giao ca: đối chiếu tiền mặt cuối ca |
-| 36 | `pricing_rules` | Quy tắc giá nền theo ngày/giờ/đối tượng |
-| 37 | `special_seat_prices` | Giá cố định cho định dạng/phòng đặc biệt theo loại ghế |
-| 38 | `holidays` | Ngày lễ (áp giá nền HOLIDAY) |
-| 39 | `faqs` | Câu hỏi thường gặp |
-| 40 | `system_settings` | Cấu hình hệ thống dạng key-value |
+| 30 | `shifts` | Định nghĩa ca làm việc (khung giờ) |
+| 31 | `staff_schedules` | Phân ca cho nhân viên theo ngày |
+| 32 | `shift_handovers` | Bàn giao ca: đối chiếu tiền mặt cuối ca |
+| 33 | `pricing_rules` | Quy tắc giá nền theo ngày/giờ/đối tượng |
+| 34 | `special_seat_prices` | Giá cố định cho định dạng/phòng đặc biệt theo loại ghế |
+| 35 | `holidays` | Ngày lễ (áp giá nền HOLIDAY) |
+| 36 | `faqs` | Câu hỏi thường gặp |
+| 37 | `system_settings` | Cấu hình hệ thống dạng key-value |
 
 > **Ghi chú quan trọng:** Bảng ví điện tử (`wallets`, `wallet_transactions`) trong các bản ERD cũ **đã bị gỡ hoàn toàn**.
 > Quan hệ "mềm" sau **không khai báo FK** trong code (chỉ là cột số): `movies.age_rating` ↔ `age_ratings`,
@@ -487,40 +484,7 @@ Món bắp nước, combo, hoặc nguyên liệu. Một dòng đóng nhiều vai
 | description | string | | Mô tả |
 | is_active | boolean | mặc định true | Còn bán/hiển thị cho khách không |
 
-### 28. `bom_recipes` (BomRecipe)
-Định mức nguyên liệu (Bill of Materials) cho một combo: combo gồm những nguyên liệu nào, số lượng bao nhiêu. Cả `combo_id` và `ingredient_id` đều trỏ về `fnb_items`.
-
-| Cột | Kiểu | Khóa | Ý nghĩa |
-|---|---|---|---|
-| id | int | PK | Định danh dòng định mức |
-| combo_id | int | FK→fnb_items, not null | Combo cần định mức |
-| ingredient_id | int | FK→fnb_items, not null | Nguyên liệu thành phần |
-| quantity | decimal | not null | Số lượng nguyên liệu cho 1 combo |
-
-### 29. `cinema_inventory` (CinemaInventory)
-Tồn kho F&B theo từng rạp (mỗi rạp giữ tồn riêng cho từng món).
-
-| Cột | Kiểu | Khóa | Ý nghĩa |
-|---|---|---|---|
-| id | int | PK | Định danh dòng tồn |
-| cinema_id | int | FK→cinemas, not null | Rạp |
-| fnb_item_id | int | FK→fnb_items, not null | Món |
-| in_stock | int | mặc định 0 | Số lượng tồn |
-| last_updated | datetime | | Lần cập nhật gần nhất |
-
-### 30. `inventory_logs` (InventoryLog)
-Nhật ký mọi thay đổi tồn kho (nhập/xuất/điều chỉnh), gắn nhân viên thực hiện.
-
-| Cột | Kiểu | Khóa | Ý nghĩa |
-|---|---|---|---|
-| id | int | PK | Định danh log |
-| cinema_inventory_id | int | FK→cinema_inventory, not null | Dòng tồn bị thay đổi |
-| changed_by_staff | int | FK→staffs | Nhân viên thực hiện |
-| type | string | | Loại thay đổi (IMPORT/EXPORT/ADJUST…) |
-| quantity_change | int | not null | Lượng thay đổi (có thể âm) |
-| timestamp | datetime | not null | Thời điểm |
-
-### 31. `concession_sales` (ConcessionSale)
+### 28. `concession_sales` (ConcessionSale)
 Đơn bán bắp nước **độc lập tại quầy** — không gắn suất chiếu/ghế, tách khỏi `bookings` để doanh thu phòng vé không bị sai lệch bởi khách vãng lai.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -533,7 +497,7 @@ Nhật ký mọi thay đổi tồn kho (nhập/xuất/điều chỉnh), gắn nh
 | status | string | | Trạng thái đơn |
 | created_at | datetime | not null | Thời điểm tạo |
 
-### 32. `concession_sale_items` (ConcessionSaleItem)
+### 29. `concession_sale_items` (ConcessionSaleItem)
 Từng dòng món trong một đơn bán bắp nước độc lập.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -548,7 +512,7 @@ Từng dòng món trong một đơn bán bắp nước độc lập.
 
 ## B.7. Vận hành ca làm & cấu hình
 
-### 33. `shifts` (Shift)
+### 30. `shifts` (Shift)
 Định nghĩa khung giờ các ca làm việc.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -558,7 +522,7 @@ Từng dòng món trong một đơn bán bắp nước độc lập.
 | end_time | datetime | not null | Giờ kết thúc ca |
 | status | string | | Trạng thái |
 
-### 34. `staff_schedules` (StaffSchedule)
+### 31. `staff_schedules` (StaffSchedule)
 Phân ca cho nhân viên theo từng ngày làm việc.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -569,7 +533,7 @@ Phân ca cho nhân viên theo từng ngày làm việc.
 | work_date | date | not null | Ngày làm |
 | status | string | | Trạng thái (đã nhận/đã làm…) |
 
-### 35. `shift_handovers` (ShiftHandover)
+### 32. `shift_handovers` (ShiftHandover)
 Bàn giao ca cuối ngày: nhân viên khai tiền mặt, hệ thống đối chiếu, quản lý duyệt.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -582,7 +546,7 @@ Bàn giao ca cuối ngày: nhân viên khai tiền mặt, hệ thống đối ch
 | difference | decimal | | Chênh lệch (khai − hệ thống) |
 | status | string | | Trạng thái duyệt |
 
-### 36. `pricing_rules` (PricingRule)
+### 33. `pricing_rules` (PricingRule)
 Quy tắc giá nền theo ngày/khung giờ/đối tượng. Khi nhiều rule cùng khớp, rule có `priority` cao hơn được ưu tiên.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -599,7 +563,7 @@ Quy tắc giá nền theo ngày/khung giờ/đối tượng. Khi nhiều rule c�
 | start_date | datetime | | Bắt đầu hiệu lực |
 | end_date | datetime | | Kết thúc hiệu lực |
 
-### 37. `special_seat_prices` (SpecialSeatPrice)
+### 34. `special_seat_prices` (SpecialSeatPrice)
 Bảng giá **cố định** cho định dạng/phòng đặc biệt (IMAX/4DX/Gold) theo từng loại ghế; ghi đè công thức cộng dồn khi `movie_formats.is_fixed_price=true`. Ràng buộc duy nhất theo cặp (format_id, seat_type_id).
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -609,7 +573,7 @@ Bảng giá **cố định** cho định dạng/phòng đặc biệt (IMAX/4DX/G
 | seat_type_id | int | FK→seat_types, not null | Loại ghế |
 | price | decimal | not null | Giá cố định |
 
-### 38. `holidays` (Holiday)
+### 35. `holidays` (Holiday)
 Danh sách ngày lễ; suất chiếu rơi vào ngày này áp giá nền `day_type=HOLIDAY`.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -618,7 +582,7 @@ Danh sách ngày lễ; suất chiếu rơi vào ngày này áp giá nền `day_t
 | holiday_date | date | UK | Ngày lễ |
 | name | string | not null | Tên ngày lễ |
 
-### 39. `faqs` (Faq)
+### 36. `faqs` (Faq)
 Câu hỏi thường gặp hiển thị ở trang Hỗ trợ, admin CRUD được.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -630,7 +594,7 @@ Câu hỏi thường gặp hiển thị ở trang Hỗ trợ, admin CRUD đượ
 | display_order | int | | Thứ tự hiển thị |
 | is_active | boolean | | Bật/tắt |
 
-### 40. `system_settings` (SystemSetting)
+### 37. `system_settings` (SystemSetting)
 Cấu hình hệ thống dạng key-value, khóa chính là chính cái key.
 
 | Cột | Kiểu | Khóa | Ý nghĩa |
@@ -676,12 +640,6 @@ Cấu hình hệ thống dạng key-value, khóa chính là chính cái key.
 | tickets | checked_in_by | staffs |
 | vouchers | customer_id | customers |
 | vouchers | promotion_id | promotions |
-| bom_recipes | combo_id | fnb_items |
-| bom_recipes | ingredient_id | fnb_items |
-| cinema_inventory | cinema_id | cinemas |
-| cinema_inventory | fnb_item_id | fnb_items |
-| inventory_logs | cinema_inventory_id | cinema_inventory |
-| inventory_logs | changed_by_staff | staffs |
 | concession_sales | customer_id | customers |
 | concession_sale_items | sale_id | concession_sales |
 | concession_sale_items | fnb_item_id | fnb_items |

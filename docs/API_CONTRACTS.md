@@ -468,16 +468,6 @@ Xác minh tuổi cho phim 18+.
 
 ---
 
-## 15. Inventory (`/api/inventory`)
-
-| Method | Endpoint | Auth | Mô tả |
-|--------|----------|------|-------|
-| GET | `/api/cinemas/{cinemaId}/inventory` | 👷 | Tồn kho theo rạp |
-| PUT | `/api/inventory/{id}/adjust` | 👷 | Cập nhật tồn kho (+/-) |
-| GET | `/api/inventory/{id}/logs` | 🏢 | Lịch sử thay đổi tồn kho |
-
----
-
 ## 16. Wallets (`/api/wallets`)
 
 | Method | Endpoint | Auth | Mô tả |
@@ -595,16 +585,6 @@ Xác minh tuổi cho phim 18+.
 | GET | `/api/lost-and-founds` | 👷 | Danh sách đồ thất lạc |
 | POST | `/api/lost-and-founds` | 👷 | Ghi nhận đồ tìm thấy |
 | PUT | `/api/lost-and-founds/{id}/claim` | 👷 | Đánh dấu đã trả |
-
----
-
-## 27. BOM Recipes (`/api/bom-recipes`)
-
-| Method | Endpoint | Auth | Mô tả |
-|--------|----------|------|-------|
-| GET | `/api/fnb-items/{comboId}/recipes` | 🏢 | Công thức combo |
-| POST | `/api/bom-recipes` | 🏢 | Thêm nguyên liệu vào combo |
-| DELETE | `/api/bom-recipes/{id}` | 🏢 | Xóa nguyên liệu khỏi combo |
 
 ---
 

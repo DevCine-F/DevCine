@@ -4,6 +4,19 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.3.0] — 2026-07-11
+
+### 🗑️ Removed — Gỡ lớp Quản lý kho / Định mức (ngoài phạm vi đồ án)
+- **Entity/Bảng:** xóa `CinemaInventory`, `InventoryLog`, `BomRecipe` (+ repository tương ứng). Bảng DB cũ (`cinema_inventory`, `inventory_logs`, `bom_recipes`) để lại rỗng, vô hại (`ddl-auto=update` không drop).
+- **Service/Controller:** xóa `InventoryService`, `InventoryController` (`/api/inventory`), `BomController` (`/api/bom`).
+- **Frontend:** xóa màn `InventoryManagement.vue`, route `/admin/inventory`, link sidebar "Quản lý kho (F&B)", và widget "Cảnh báo tồn kho" ở Dashboard (+ `DashboardStatsResponse.LowStockItem`).
+- **Logic:** gỡ trừ/hoàn kho trong `BookingService.completePayment`, `ConcessionService.createSale`, `ApprovalService.executeFnbVoid` → **tồn kho vô hạn**, luôn cho thanh toán. Void hóa đơn F&B vẫn hoàn điểm + set VOIDED.
+
+### ✅ Kept — Bán bắp nước & doanh thu
+- POS bán F&B lẻ (`ConcessionSale`), Thực đơn F&B (`FnbMenuManager.vue`, `FnbController` `/api/fnbs`), bước chọn combo khi đặt vé; bảng `concession_sales`/`booking_fnbs` giữ để tổng hợp doanh thu.
+
+---
+
 ## [1.2.0] — 2026-06-19
 
 ### 🔒 Security

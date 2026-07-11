@@ -4,7 +4,7 @@
 > **Cập nhật:** 2026-05-26  
 > **Database:** PostgreSQL 15+ (Supabase)  
 > **ORM:** Hibernate 7.x / Spring Data JPA  
-> **Tổng bảng:** 33
+> **Tổng bảng:** 30
 
 ---
 
@@ -248,7 +248,7 @@
 
 ---
 
-## 6. F&B Domain (5 bảng)
+## 6. F&B Domain (2 bảng)
 
 ### 6.1 `fnb_items`
 
@@ -256,19 +256,10 @@
 |-----|------|-----------|-------|
 | `id` | `INTEGER` | PK, AUTO_INCREMENT | ID sản phẩm |
 | `name` | `VARCHAR(255)` | NOT NULL | Tên (Bắp rang bơ, Coca Cola...) |
-| `type` | `VARCHAR(30)` | — | Loại (FOOD, DRINK, COMBO, INGREDIENT) |
+| `type` | `VARCHAR(30)` | — | Loại (FOOD, DRINK, COMBO) |
 | `price` | `DECIMAL(15,2)` | NOT NULL | Giá bán |
 
-### 6.2 `bom_recipes` (Bill of Materials)
-
-| Cột | Type | Constraint | Mô tả |
-|-----|------|-----------|-------|
-| `id` | `INTEGER` | PK, AUTO_INCREMENT | ID công thức |
-| `combo_id` | `INTEGER` | NOT NULL, FK → `fnb_items.id` | Combo chứa |
-| `ingredient_id` | `INTEGER` | NOT NULL, FK → `fnb_items.id` | Nguyên liệu |
-| `quantity` | `DECIMAL(10,2)` | NOT NULL | Số lượng |
-
-### 6.3 `booking_fnbs`
+### 6.2 `booking_fnbs`
 
 | Cột | Type | Constraint | Mô tả |
 |-----|------|-----------|-------|
@@ -277,27 +268,6 @@
 | `fnb_item_id` | `INTEGER` | NOT NULL, FK → `fnb_items.id` | Sản phẩm |
 | `quantity` | `INTEGER` | NOT NULL | Số lượng |
 | `price_snapshot` | `DECIMAL(15,2)` | — | Giá tại thời điểm đặt |
-
-### 6.4 `cinema_inventory`
-
-| Cột | Type | Constraint | Mô tả |
-|-----|------|-----------|-------|
-| `id` | `INTEGER` | PK, AUTO_INCREMENT | ID tồn kho |
-| `cinema_id` | `INTEGER` | NOT NULL, FK → `cinemas.id` | Rạp |
-| `fnb_item_id` | `INTEGER` | NOT NULL, FK → `fnb_items.id` | Sản phẩm |
-| `in_stock` | `INTEGER` | NOT NULL, DEFAULT 0 | Số lượng tồn |
-| `last_updated` | `TIMESTAMP` | — | Cập nhật cuối |
-
-### 6.5 `inventory_logs`
-
-| Cột | Type | Constraint | Mô tả |
-|-----|------|-----------|-------|
-| `id` | `INTEGER` | PK, AUTO_INCREMENT | ID log |
-| `cinema_inventory_id` | `INTEGER` | NOT NULL, FK → `cinema_inventory.id` | Tồn kho liên quan |
-| `changed_by_staff` | `INTEGER` | FK → `staffs.user_id` | Nhân viên thay đổi |
-| `type` | `VARCHAR(20)` | — | Loại (IMPORT, EXPORT, ADJUST, RETURN) |
-| `quantity_change` | `INTEGER` | NOT NULL | Thay đổi (+/-) |
-| `timestamp` | `TIMESTAMP` | NOT NULL | Thời điểm |
 
 ---
 
@@ -430,9 +400,6 @@ promotions      1 ──→ N vouchers
 staffs          1 ──→ N staff_schedules
 shifts          1 ──→ N staff_schedules
 staff_schedules 1 ──→ N shift_handovers
-cinemas         1 ──→ N cinema_inventory
-fnb_items       1 ──→ N cinema_inventory
-cinema_inventory 1 ──→ N inventory_logs
 staffs (self)   1 ──→ N staffs (manager_id)
 cinemas         1 ──→ N lost_and_founds
 ```
@@ -441,7 +408,6 @@ cinemas         1 ──→ N lost_and_founds
 
 ```
 movies ←──── N:N ────→ categories   (qua movie_categories)
-fnb_items ←── N:N ────→ fnb_items   (qua bom_recipes: combo ↔ ingredient)
 ```
 
 ---

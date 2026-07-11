@@ -11,12 +11,12 @@
 
 | Nhóm | Số lượng | Danh sách |
 |---|---|---|
-| Bảng **khớp tên** giữa ERD và code | 24 | roles, users, customers, staffs, audit_logs, support_tickets, cinemas, rooms, seats, seat_types, showtimes, movies, movie_formats, movie_categories, categories, bookings, booking_seats, booking_fnbs, tickets, reviews, promotions, vouchers, fnb_items, bom_recipes, cinema_inventory, inventory_logs, shifts, staff_schedules, shift_handovers, pricing_rules, banners |
-| Bảng **chỉ có trong ERD** (đã gỡ) | 2 | `wallets`, `wallet_transactions` |
+| Bảng **khớp tên** giữa ERD và code | 21 | roles, users, customers, staffs, audit_logs, support_tickets, cinemas, rooms, seats, seat_types, showtimes, movies, movie_formats, movie_categories, categories, bookings, booking_seats, booking_fnbs, tickets, reviews, promotions, vouchers, fnb_items, shifts, staff_schedules, shift_handovers, pricing_rules, banners |
+| Bảng **chỉ có trong ERD** (đã gỡ khỏi code) | 5 | `wallets`, `wallet_transactions`, `bom_recipes`, `cinema_inventory`, `inventory_logs` |
 | Bảng **chỉ có trong code** (thêm mới sau ERD) | 9 | `system_settings`, `notifications`, `age_ratings`, `faqs`, `holidays`, `special_seat_prices`, `promo_articles`, `concession_sales`, `concession_sale_items` |
 | Bảng nối **không có trong ERD** | 1 | `movie_genre_mapping` (Movie `@ManyToMany`) — trùng vai trò với `movie_categories` |
 
-**Kết luận nhanh:** ERD = 33 bảng → Code = 40 bảng (+9 mới, −2 ví, và 1 bảng nối ẩn). Nhiều bảng giữ nguyên tên nhưng số cột đã phình to so với ERD.
+**Kết luận nhanh:** ERD = 33 bảng → Code = 37 bảng (+9 mới, −2 ví, −3 kho/định mức, và 1 bảng nối ẩn). Lớp Quản lý kho (`bom_recipes`, `cinema_inventory`, `inventory_logs`) đã gỡ khỏi code (ngoài phạm vi đồ án); bảng cũ để lại rỗng trong DB. Nhiều bảng giữ nguyên tên nhưng số cột đã phình to so với ERD.
 
 ---
 
@@ -259,15 +259,6 @@ id, customer_id (FK), promotion_id (FK), valid_until, is_used.
 |---|---|---|
 | ✅ | id, name, type, price | (giống) |
 | ➕ | — | **image_url, description, is_active** |
-
-### `bom_recipes` ✅ khớp
-id, combo_id (FK → fnb_items), ingredient_id (FK → fnb_items), quantity.
-
-### `cinema_inventory` ✅ khớp
-id, cinema_id (FK), fnb_item_id (FK), in_stock, last_updated.
-
-### `inventory_logs` ✅ khớp
-id, cinema_inventory_id (FK), changed_by_staff (FK), quantity_change, type, timestamp.
 
 ### `shifts` ✅ khớp
 id, start_time, end_time, status.
