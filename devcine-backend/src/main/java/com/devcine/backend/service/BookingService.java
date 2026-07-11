@@ -341,6 +341,8 @@ public class BookingService {
                 fnbLines.add(new TicketEmailData.FnbLine(bf.getFnbItem().getName(), bf.getQuantity()));
             }
 
+            // Đơn POS có staffSchedule (khách nhận vé giấy ngay) → ẩn QR; đơn online → hiện QR.
+            boolean showQr = booking.getStaffSchedule() == null;
             mailService.sendTicketEmail(new TicketEmailData(
                     user.getEmail(),
                     user.getFullName(),
@@ -352,7 +354,8 @@ public class BookingService {
                     booking.getPaymentMethod(),
                     booking.getFinalPrice(),
                     seatLines,
-                    fnbLines));
+                    fnbLines,
+                    showQr));
         } catch (Exception e) {
             // Không để lỗi dựng email ảnh hưởng giao dịch đặt vé đã hoàn tất
             log.error("Lỗi chuẩn bị email vé cho đơn {}: {}", booking.getBookingCode(), e.getMessage(), e);

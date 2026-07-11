@@ -207,7 +207,9 @@ public class MailService {
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
         helper.setFrom(from);
         helper.setTo(data.toEmail());
-        helper.setSubject("DevCine • Vé điện tử đơn " + data.bookingCode());
+        helper.setSubject(data.showQr()
+                ? "DevCine • Vé điện tử đơn " + data.bookingCode()
+                : "DevCine • Hoá đơn thanh toán đơn " + data.bookingCode());
         helper.setText(buildHtml(data), true);
         mailSender.send(message);
     }
@@ -215,10 +217,6 @@ public class MailService {
     private String buildHtml(TicketEmailData data) {
         String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
         String price = formatMoney(data.finalPrice());
-
-        // 1 mã QR duy nhất mã hoá MÃ ĐẶT VÉ (đại diện cả đơn) — quét 1 lần tại quầy.
-        String bookingQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
-                + URLEncoder.encode(data.bookingCode() == null ? "" : data.bookingCode(), StandardCharsets.UTF_8);
 
         int seatCount = data.seats() != null ? data.seats().size() : 0;
 
@@ -232,15 +230,47 @@ public class MailService {
             fnbBlock.append("</div>");
         }
 
+        // Tiêu đề phụ + lời mở + khối chính (QR hoặc lời cảm ơn) + chân trang đổi theo showQr.
+        String subtitle;
+        String intro;
+        String mainBlock;
+        String footer;
+        if (data.showQr()) {
+            // ĐƠN ONLINE → hiện 1 mã QR chung để khách ra rạp quét in vé.
+            String bookingQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
+                    + URLEncoder.encode(data.bookingCode() == null ? "" : data.bookingCode(), StandardCharsets.UTF_8);
+            subtitle = "Vé điện tử của bạn đã sẵn sàng";
+            intro = "Cảm ơn bạn đã đặt vé tại DevCine. Vui lòng đưa mã QR bên dưới tại quầy để check-in.";
+            mainBlock = """
+                    <div style="font-weight:700;color:#111;margin:22px 0 8px;">Vé & mã QR</div>
+                    <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:22px;">
+                      <img src="%s" alt="QR đơn hàng" width="200" height="200" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
+                      <div style="font-size:12px;color:#888;margin-top:14px;">Đưa mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> (%d ghế)</div>
+                    </div>
+                    """.formatted(bookingQrUrl, seatCount);
+            footer = "Vui lòng đến trước giờ chiếu 15–30 phút. Mã QR đại diện cho cả đơn — chỉ cần quét một lần duy nhất tại quầy.<br/>Đây là email tự động, vui lòng không trả lời — DevCine Cinema";
+        } else {
+            // ĐƠN POS / ĐÃ IN VÉ GIẤY → ẩn QR, chỉ hoá đơn + lời cảm ơn.
+            subtitle = "Hoá đơn thanh toán đơn hàng";
+            intro = "Cảm ơn bạn đã đặt vé tại DevCine. Dưới đây là hoá đơn thanh toán của bạn.";
+            mainBlock = """
+                    <div style="text-align:center;background:#faf6e6;border:1px solid #f0e4b8;border-radius:12px;padding:26px;margin-top:8px;">
+                      <div style="font-size:15px;color:#8a6d00;font-weight:700;">Cảm ơn bạn đã sử dụng dịch vụ tại DevCine.</div>
+                      <div style="font-size:14px;color:#555;margin-top:6px;">Chúc bạn xem phim vui vẻ!</div>
+                    </div>
+                    """;
+            footer = "Vé giấy đã được in tại quầy — vui lòng giữ vé để vào phòng chiếu.<br/>Đây là email tự động, vui lòng không trả lời — DevCine Cinema";
+        }
+
         return """
                 <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
                   <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
                     <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
-                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">Vé điện tử của bạn đã sẵn sàng</div>
+                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">%s</div>
                   </div>
                   <div style="padding:24px;">
                     <p style="font-size:15px;color:#111;margin:0 0 4px;">Xin chào <b>%s</b>,</p>
-                    <p style="font-size:14px;color:#555;margin:0 0 18px;">Cảm ơn bạn đã đặt vé tại DevCine. Vui lòng đưa mã QR bên dưới tại quầy để check-in.</p>
+                    <p style="font-size:14px;color:#555;margin:0 0 18px;">%s</p>
 
                     <table style="width:100%%;border-collapse:collapse;background:#fafafa;border-radius:10px;">
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Mã đặt vé</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#8a6d00;font-size:15px;">%s</td></tr>
@@ -251,30 +281,25 @@ public class MailService {
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Tổng tiền</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#111;font-size:16px;">%s</td></tr>
                     </table>
 
-                    <div style="font-weight:700;color:#111;margin:22px 0 8px;">Vé & mã QR</div>
-                    <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:22px;">
-                      <img src="%s" alt="QR đơn hàng" width="200" height="200" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
-                      <div style="font-size:12px;color:#888;margin-top:14px;">Đưa mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> (%d ghế)</div>
-                    </div>
+                    %s
                     %s
 
-                    <p style="font-size:12px;color:#999;margin-top:24px;line-height:1.6;">
-                      Vui lòng đến trước giờ chiếu 15–30 phút. Mã QR đại diện cho cả đơn — chỉ cần quét một lần duy nhất tại quầy.<br/>
-                      Đây là email tự động, vui lòng không trả lời — DevCine Cinema
-                    </p>
+                    <p style="font-size:12px;color:#999;margin-top:24px;line-height:1.6;">%s</p>
                   </div>
                 </div>
                 """.formatted(
+                escape(subtitle),
                 escape(data.customerName()),
+                escape(intro),
                 escape(data.bookingCode()),
                 escape(data.movieTitle()),
                 escape(data.cinemaName()), escape(data.roomName()),
                 escape(time),
                 escape(paymentLabel(data.paymentMethod())),
                 price,
-                bookingQrUrl,
-                seatCount,
-                fnbBlock.toString());
+                mainBlock,
+                fnbBlock.toString(),
+                footer);   // footer chứa <br/> nên KHÔNG escape
     }
 
     private String formatMoney(java.math.BigDecimal amount) {

@@ -1,19 +1,23 @@
 package com.devcine.backend.service;
 
+import com.devcine.backend.dto.TicketEmailData;
 import com.devcine.backend.dto.response.BookingPrintResponse;
 import com.devcine.backend.entity.Booking;
 import com.devcine.backend.entity.BookingFnb;
 import com.devcine.backend.entity.BookingSeat;
 import com.devcine.backend.entity.Cinema;
+import com.devcine.backend.entity.Movie;
 import com.devcine.backend.entity.Room;
 import com.devcine.backend.entity.Seat;
 import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.entity.Ticket;
+import com.devcine.backend.entity.User;
 import com.devcine.backend.repository.BookingFnbRepository;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TicketService {
@@ -34,6 +39,7 @@ public class TicketService {
     private final BookingSeatRepository bookingSeatRepository;
     private final BookingFnbRepository bookingFnbRepository;
     private final ShiftAccessService shiftAccessService;
+    private final MailService mailService;
 
     @Transactional(readOnly = true)
     public List<Ticket> getTicketsByBooking(Integer bookingId) {
@@ -109,7 +115,56 @@ public class TicketService {
         }
         ticketRepository.saveAll(tickets);
 
+        // Đơn đã in vé giấy → gửi email hoá đơn/cảm ơn KHÔNG kèm QR (khách đã có vé giấy).
+        sendReceiptEmail(booking);
+
         return buildResponse(booking);
+    }
+
+    /**
+     * Gửi email hoá đơn (ẩn QR, chỉ lời cảm ơn) khi đơn đã được in vé giấy tại quầy.
+     * Best-effort: bỏ qua nếu không có khách/email; lỗi mail không ảnh hưởng việc in vé.
+     */
+    private void sendReceiptEmail(Booking booking) {
+        try {
+            // Chỉ gửi cho ĐƠN ONLINE GỐC (staffSchedule == null). Đơn POS đã nhận mail hoá đơn
+            // lúc thanh toán → khi quét in lại KHÔNG gửi thêm, tránh làm phiền hộp thư khách.
+            if (booking.getStaffSchedule() != null) {
+                return;
+            }
+            if (booking.getCustomer() == null || booking.getCustomer().getUser() == null) {
+                return;
+            }
+            User user = booking.getCustomer().getUser();
+            if (user.getEmail() == null || user.getEmail().isBlank()) {
+                return;
+            }
+            Showtime showtime = booking.getShowtime();
+            Movie movie = showtime != null ? showtime.getMovie() : null;
+            Room room = showtime != null ? showtime.getRoom() : null;
+            Cinema cinema = room != null ? room.getCinema() : null;
+
+            List<TicketEmailData.FnbLine> fnbLines = new ArrayList<>();
+            for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
+                fnbLines.add(new TicketEmailData.FnbLine(bf.getFnbItem().getName(), bf.getQuantity()));
+            }
+
+            mailService.sendTicketEmail(new TicketEmailData(
+                    user.getEmail(),
+                    user.getFullName(),
+                    booking.getBookingCode(),
+                    movie != null ? movie.getTitle() : "Phim",
+                    cinema != null ? cinema.getName() : "",
+                    room != null ? room.getName() : "",
+                    showtime != null ? showtime.getStartTime() : null,
+                    booking.getPaymentMethod(),
+                    booking.getFinalPrice(),
+                    List.of(),
+                    fnbLines,
+                    false)); // showQr = false → ẩn QR, hiển thị lời cảm ơn
+        } catch (Exception e) {
+            log.error("Lỗi gửi email hoá đơn khi in vé đơn {}: {}", booking.getBookingCode(), e.getMessage());
+        }
     }
 
     private BookingPrintResponse buildResponse(Booking booking) {

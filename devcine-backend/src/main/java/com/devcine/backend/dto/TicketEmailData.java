@@ -20,7 +20,10 @@ public record TicketEmailData(
         String paymentMethod,
         BigDecimal finalPrice,
         List<SeatLine> seats,
-        List<FnbLine> fnbs
+        List<FnbLine> fnbs,
+        /** true = đơn ONLINE (hiện QR để khách ra rạp quét in vé);
+         *  false = đơn POS / đã in vé giấy (ẩn QR, chỉ hoá đơn + lời cảm ơn). */
+        boolean showQr
 ) {
     /** Một vé/ghế: nhãn ghế (vd "A5"), loại đối tượng, mã QR check-in. */
     public record SeatLine(String seatLabel, String ticketType, String qrCode) {}
