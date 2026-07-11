@@ -170,9 +170,10 @@ entity/WalletTransaction.java
    → Tạo BookingFnb cho mỗi F&B item (price_snapshot)
 
 8. Step 3f: GENERATE TICKETS
-   → Mỗi BookingSeat → tạo 1 Ticket
-   → Generate QR code: "DEVCINE-T{id}-{date}"
+   → Mỗi BookingSeat → tạo 1 Ticket (qr_code nội bộ "DEVCINE-T{id}-...")
    → Set is_checked_in = false
+   → Lưu ý: QR gửi cho khách (email/lịch sử) là MÃ ĐẶT VÉ (booking_code) —
+     1 QR đại diện cả đơn; quét in vé xử lý ở "Luồng Quét QR & In vé"
 
 9. Step 3g: CẬP NHẬT
    → Mark voucher is_used = true (nếu có)
@@ -186,48 +187,47 @@ entity/WalletTransaction.java
 
 ---
 
-## 3. ✅ Luồng Check-in (CRITICAL)
+## 3. ✅ Luồng Quét QR & In vé (CRITICAL)
 
 ### Mô tả
-Staff scan QR → xác thực vé → cho vào rạp. Sai → trùng check-in, vào sai phòng.
+1 mã QR = **mã đặt vé** (đại diện cả đơn, không phải từng ghế). Staff quét → in toàn bộ vé giấy cho đơn & đánh dấu ĐÃ IN ở cấp Đơn hàng. Chống in trùng bằng `bookings.printed_at`.
 
 ### Files liên quan
 ```
 controller/TicketController.java
 service/TicketService.java           ← 🔒 PROTECTED
-repository/TicketRepository.java
-entity/Ticket.java
-entity/BookingSeat.java
+repository/BookingRepository.java
+dto/response/BookingPrintResponse.java
+entity/Booking.java (printed_at, printed_by)
+entity/Ticket.java, entity/BookingSeat.java
 ```
 
 ### Flow từng bước
 ```
-1. Staff → POST /api/tickets/check-in { qrCode: "DEVCINE-T001-20260527" }
+1. Staff → POST /api/tickets/print?code=0AA550BA-0
+   (code = mã đặt vé quét được từ 1 QR chung của đơn)
 
-2. TicketController.checkIn()
+2. TicketController.printTickets()
    → Validate: staff authenticated (role STAFF/MANAGER/ADMIN)
-   → TicketService.checkIn() (trong @Transactional)
+   → Yêu cầu đang trong ca CHECK_IN/SHIFT_LEAD (ShiftAccessService)
+   → TicketService.printByBookingCode() (trong @Transactional)
 
-3. Step 3a: TÌM VÉ
-   → ticketRepository.findByQrCode(qrCode)
-   → Nếu không tìm thấy → throw TicketNotFoundException
+3. Step 3a: TÌM ĐƠN
+   → bookingRepository.findByBookingCodeForPrint(code) (JOIN FETCH tránh N+1)
+   → Không thấy → throw "Không tìm thấy đơn đặt vé với mã ..."
 
-4. Step 3b: VALIDATE
-   → Check is_checked_in = false → throw AlreadyCheckedInException
-   → Check showtime.start_time within today → throw WrongDateException
-   → Check showtime.status = SCHEDULED/ONGOING
+4. Step 3b: VALIDATE (cấp ĐƠN HÀNG)
+   → status = CONFIRMED (đã thanh toán), nếu không → "Đơn chưa thanh toán..."
+   → printed_at = NULL, nếu đã có → "Mã đặt vé này đã được in ... trước đó"
 
-5. Step 3c: CHECK TUỔI (nếu phim 18+)
-   → Nếu movie.age_rating = "C18" && !ticket.is_age_verified
-   → Trả warning: cần xác minh tuổi trước
+5. Step 3c: ĐÁNH DẤU ĐÃ IN
+   → booking.printed_at = now(), booking.printed_by = currentStaff
+   → Đồng bộ mọi vé ghế: is_checked_in = true, check_in_time, checked_in_by
+     (giữ báo cáo tiến độ check-in nhất quán)
 
-6. Step 3d: UPDATE
-   → ticket.is_checked_in = true
-   → ticket.checked_in_by = currentStaff
-   → ticket.check_in_time = now()
-   → Ghi AuditLog
-
-7. ← Response 200: { ticket info, seat, movie, showtime }
+6. ← Response 200: BookingPrintResponse
+   { bookingCode, phim, phòng, giờ, seats[], fnbs[], printedAt }
+   → FE tự mở cửa sổ in vé giấy (invoiceTemplate) cho cả đơn
 ```
 
 ---

@@ -235,18 +235,15 @@ onMounted(fetchHistory)
               <p class="font-semibold text-primary-container">{{ qrBooking.seats || '—' }}</p>
             </div>
           </div>
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Vé điện tử ({{ qrBooking.qrCodes.length }})</p>
-          <div class="grid grid-cols-1 gap-4">
-            <div v-for="(code, i) in qrBooking.qrCodes" :key="i" class="flex items-center gap-4 bg-surface-container-high rounded-xl p-4 border border-white/5">
-              <div class="p-2 bg-white rounded-lg shrink-0">
-                <img :src="qrUrl(code)" class="w-24 h-24" :alt="`QR vé ${i + 1}`" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-1">Vé {{ i + 1 }}</p>
-                <p class="text-xs font-mono font-semibold text-white break-all">{{ code }}</p>
-                <p class="text-[10px] text-on-surface-variant mt-2 leading-relaxed">Xuất trình mã này tại quầy để check-in.</p>
-              </div>
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Mã QR vé điện tử</p>
+          <div class="flex flex-col items-center gap-3 bg-surface-container-high rounded-xl p-6 border border-white/5">
+            <div class="p-3 bg-white rounded-xl shrink-0">
+              <img :src="qrUrl(qrBooking.bookingCode)" class="w-44 h-44" alt="QR đơn hàng" />
             </div>
+            <p class="text-sm font-mono font-bold text-white break-all text-center">{{ qrBooking.bookingCode }}</p>
+            <p class="text-[11px] text-on-surface-variant text-center leading-relaxed max-w-[16rem]">
+              Đưa <b>một</b> mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> ({{ qrBooking.qrCodes.length }} vé). Không cần quét từng ghế.
+            </p>
           </div>
         </div>
       </div>

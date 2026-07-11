@@ -216,25 +216,26 @@ public class MailService {
         String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
         String price = formatMoney(data.finalPrice());
 
+        // 1 mã QR duy nhất mã hoá MÃ ĐẶT VÉ (đại diện cả đơn) — quét 1 lần tại quầy.
+        String bookingQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
+                + URLEncoder.encode(data.bookingCode() == null ? "" : data.bookingCode(), StandardCharsets.UTF_8);
+
         StringBuilder seatRows = new StringBuilder();
+        StringBuilder seatLabels = new StringBuilder();
+        int seatCount = 0;
         if (data.seats() != null) {
             for (TicketEmailData.SeatLine s : data.seats()) {
-                String qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data="
-                        + URLEncoder.encode(s.qrCode() == null ? "" : s.qrCode(), StandardCharsets.UTF_8);
+                seatCount++;
+                if (seatLabels.length() > 0) {
+                    seatLabels.append(", ");
+                }
+                seatLabels.append(escape(s.seatLabel()));
                 seatRows.append("""
                         <tr>
-                          <td style="padding:14px;border-bottom:1px solid #eee;vertical-align:top;">
-                            <div style="font-size:20px;font-weight:700;color:#111;">Ghế %s</div>
-                            <div style="font-size:13px;color:#666;margin-top:2px;">Loại vé: %s</div>
-                            <div style="font-size:12px;color:#999;margin-top:6px;">Mã: %s</div>
-                          </td>
-                          <td style="padding:14px;border-bottom:1px solid #eee;text-align:right;">
-                            <img src="%s" alt="QR %s" width="120" height="120" style="border:1px solid #eee;border-radius:8px;" />
-                          </td>
+                          <td style="padding:8px 14px;border-bottom:1px solid #eee;color:#111;font-weight:700;font-size:15px;">Ghế %s</td>
+                          <td style="padding:8px 14px;border-bottom:1px solid #eee;text-align:right;color:#666;font-size:13px;">%s</td>
                         </tr>
-                        """.formatted(
-                        escape(s.seatLabel()), escape(ticketTypeLabel(s.ticketType())),
-                        escape(s.qrCode()), qrUrl, escape(s.seatLabel())));
+                        """.formatted(escape(s.seatLabel()), escape(ticketTypeLabel(s.ticketType()))));
             }
         }
 
@@ -267,12 +268,17 @@ public class MailService {
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Tổng tiền</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#111;font-size:16px;">%s</td></tr>
                     </table>
 
-                    <div style="font-weight:700;color:#111;margin:22px 0 4px;">Vé & mã QR</div>
-                    <table style="width:100%%;border-collapse:collapse;">%s</table>
+                    <div style="font-weight:700;color:#111;margin:22px 0 8px;">Vé & mã QR</div>
+                    <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:22px;">
+                      <img src="%s" alt="QR đơn hàng" width="200" height="200" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
+                      <div style="font-size:14px;color:#111;margin-top:14px;">Vị trí ghế: <b>%s</b></div>
+                      <div style="font-size:12px;color:#888;margin-top:6px;">Đưa mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> (%d ghế)</div>
+                    </div>
+                    <table style="width:100%%;border-collapse:collapse;margin-top:12px;">%s</table>
                     %s
 
                     <p style="font-size:12px;color:#999;margin-top:24px;line-height:1.6;">
-                      Vui lòng đến trước giờ chiếu 15–30 phút. Mỗi mã QR chỉ dùng để check-in một lần.<br/>
+                      Vui lòng đến trước giờ chiếu 15–30 phút. Mã QR đại diện cho cả đơn — chỉ cần quét một lần duy nhất tại quầy.<br/>
                       Đây là email tự động, vui lòng không trả lời — DevCine Cinema
                     </p>
                   </div>
@@ -285,6 +291,9 @@ public class MailService {
                 escape(time),
                 escape(paymentLabel(data.paymentMethod())),
                 price,
+                bookingQrUrl,
+                seatLabels.toString(),
+                seatCount,
                 seatRows.toString(),
                 fnbBlock.toString());
     }

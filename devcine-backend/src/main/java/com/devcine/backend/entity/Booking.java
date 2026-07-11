@@ -52,4 +52,13 @@ public class Booking {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    /** Thời điểm đơn được quét QR & in vé giấy tại quầy. Null = chưa in. */
+    @Column(name = "printed_at")
+    private LocalDateTime printedAt;
+
+    /** Nhân viên đã thực hiện in vé cho đơn (kiểm soát tại quầy). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "printed_by")
+    private Staff printedBy;
 }

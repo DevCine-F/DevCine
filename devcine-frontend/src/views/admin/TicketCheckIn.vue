@@ -2,6 +2,38 @@
 import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/api/axios'
 import { useShiftStore } from '@/stores/shift'
+import { openInvoice, paymentLabel } from '@/utils/invoiceTemplate'
+
+// ===== Helpers hiển thị & dựng bản in vé giấy =====
+const seatTypeLabel = (t) =>
+  ({ ADULT: 'Người lớn', STUDENT: 'Học sinh/Sinh viên', CHILD: 'Trẻ em', SENIOR: 'Người cao tuổi' }[t] || 'Người lớn')
+
+const formatDateTime = (iso) => {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// Dựng dữ liệu hoá đơn từ phản hồi in vé (1 mã QR chung = mã đặt vé cho mọi vé giấy).
+const buildInv = (b) => ({
+  bookingCode: b.bookingCode,
+  movie: b.movieTitle,
+  room: b.roomName,
+  format: b.format || '',
+  dateStr: formatDateTime(b.startTime),
+  counter: 'Quầy in vé',
+  seatRows: (b.seats || []).map(s => ({ label: s.seatLabel, seats: seatTypeLabel(s.ticketType), count: 1, unit: Number(s.price || 0), subtotal: Number(s.price || 0) })),
+  combos: (b.fnbs || []).map(f => ({ name: f.name, quantity: f.quantity, price: Number(f.price || 0) })),
+  seatTotal: (b.seats || []).reduce((a, s) => a + Number(s.price || 0), 0),
+  comboTotal: (b.fnbs || []).reduce((a, f) => a + Number(f.price || 0) * Number(f.quantity || 0), 0),
+  discount: Number(b.discount || 0),
+  grandTotal: Number(b.finalPrice || 0),
+  seatCount: b.seatCount,
+  paymentLabel: paymentLabel(b.paymentMethod),
+  memberName: b.memberName,
+  tickets: (b.seats || []).map(s => ({ seatLabel: s.seatLabel, qrCode: b.bookingCode })),
+})
+
+const printBooking = (b) => { try { openInvoice(buildInv(b)) } catch (_) {} }
 
 const shiftStore = useShiftStore()
 const activeTab = ref('camera') // 'camera' or 'manual'
@@ -117,20 +149,21 @@ const handleCheckIn = async (code) => {
   
   isLoading.value = true
   checkInResult.value = null
-  
+
   try {
-    const response = await api.post('/tickets/check-in', null, {
-      params: { qrCode: code }
+    const response = await api.post('/tickets/print', null, {
+      params: { code: code.trim() }
     })
-    
+
     checkInResult.value = {
       success: true,
-      message: response.data.message || 'Check-in thành công!',
+      message: 'Đã in vé cho toàn bộ đơn!',
       data: response.data
     }
     playBeep('success')
+    printBooking(response.data) // tự động mở cửa sổ in vé giấy
   } catch (error) {
-    const errorMsg = error.response?.data?.message || error.response?.data?.error || 'Đã xảy ra lỗi khi xác thực vé.'
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Đã xảy ra lỗi khi in vé.'
     checkInResult.value = {
       success: false,
       message: errorMsg,
@@ -173,21 +206,32 @@ const triggerMockCheckIn = (status = 'success') => {
     if (status === 'success') {
       checkInResult.value = {
         success: true,
-        message: 'Check-in thành công! (Dữ liệu giả lập)',
+        message: 'Đã in vé cho toàn bộ đơn! (Dữ liệu giả lập)',
         data: {
-          ticketCode: 'DEVCINE-T-MOCK-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
-          seatName: 'H12 (Couples)',
-          movieTitle: 'Lật Mặt 7: Một Điều Ước',
-          roomName: 'IMAX Phòng 02',
-          startTime: '2026-06-15T20:30:00',
-          checkInTime: new Date().toISOString()
+          bookingCode: '0AA550BA-0',
+          movieTitle: 'Godzilla x Kong: Đế Chế Mới',
+          cinemaName: 'Test HN',
+          roomName: 'Phòng 1',
+          format: '2D',
+          startTime: '2026-07-10T16:00:00',
+          paymentMethod: 'TRANSFER',
+          seatCount: 2,
+          seats: [
+            { seatLabel: 'A5', ticketType: 'ADULT', price: 110000 },
+            { seatLabel: 'A6', ticketType: 'STUDENT', price: 90000 }
+          ],
+          fnbs: [{ name: 'Combo Bắp Phô Mai', quantity: 1, price: 89000 }],
+          totalPrice: 289000,
+          finalPrice: 289000,
+          discount: 0,
+          printedAt: new Date().toISOString()
         }
       }
       playBeep('success')
     } else {
       checkInResult.value = {
         success: false,
-        message: 'Vé này đã được check-in trước đó vào lúc: 15/06/2026 19:42:01',
+        message: 'Mã đặt vé này đã được in thành vé giấy trước đó vào lúc: 15:30 10/07/2026',
         data: null
       }
       playBeep('error')
@@ -216,8 +260,8 @@ onUnmounted(() => {
           <span class="material-symbols-outlined text-3xl">qr_code_scanner</span>
         </div>
         <div>
-          <h1 class="text-2xl font-black tracking-tighter uppercase italic text-on-surface">Kiểm soát vé</h1>
-          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Quét QR & check-in suất chiếu</p>
+          <h1 class="text-2xl font-black tracking-tighter uppercase italic text-on-surface">Quét & In vé</h1>
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Quét mã đơn → in toàn bộ vé giấy</p>
         </div>
       </div>
       
@@ -264,7 +308,7 @@ onUnmounted(() => {
       <!-- LOADING STATE -->
       <div v-else-if="isLoading" class="text-center py-12 space-y-4">
         <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang xác thực thông tin vé...</p>
+        <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang xử lý & in vé...</p>
       </div>
 
       <!-- RESULT STATE -->
@@ -275,29 +319,25 @@ onUnmounted(() => {
             <span class="material-symbols-outlined text-5xl animate-bounce">check_circle</span>
           </div>
           <div>
-            <h2 class="text-2xl font-black text-green-400 uppercase italic">Check-in Thành Công!</h2>
+            <h2 class="text-2xl font-black text-green-400 uppercase italic">Đã In Vé!</h2>
             <p class="text-xs text-on-surface-variant mt-1">{{ checkInResult.message }}</p>
           </div>
 
-          <!-- Ticket Info Details -->
+          <!-- Booking Info Details -->
           <div class="w-full max-w-md bg-surface-container-high rounded-2xl border border-outline-variant/20 p-6 text-left space-y-4">
             <div class="border-b border-outline-variant/10 pb-3 flex justify-between items-center">
-              <span class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã vé</span>
-              <span class="font-mono font-bold text-sm text-primary">{{ checkInResult.data.ticketCode }}</span>
+              <span class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã đặt vé</span>
+              <span class="font-mono font-bold text-sm text-primary">{{ checkInResult.data.bookingCode }}</span>
             </div>
-            
+
             <div class="grid grid-cols-2 gap-4">
-              <div>
+              <div class="col-span-2">
                 <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Phim</span>
                 <span class="text-sm font-black text-on-surface line-clamp-1">{{ checkInResult.data.movieTitle }}</span>
               </div>
               <div>
                 <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Phòng chiếu</span>
                 <span class="text-sm font-bold text-on-surface">{{ checkInResult.data.roomName }}</span>
-              </div>
-              <div>
-                <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Ghế</span>
-                <span class="text-sm font-black text-primary uppercase">{{ checkInResult.data.seatName }}</span>
               </div>
               <div>
                 <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Giờ chiếu</span>
@@ -307,11 +347,34 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <div>
+              <span class="text-[9px] font-bold text-on-surface-variant uppercase block mb-1.5">Ghế ({{ checkInResult.data.seatCount }})</span>
+              <div class="flex flex-wrap gap-1.5">
+                <span v-for="s in checkInResult.data.seats" :key="s.seatLabel"
+                  class="text-xs font-black text-primary bg-primary/10 border border-primary/20 rounded-lg px-2.5 py-1 uppercase">
+                  {{ s.seatLabel }}
+                  <span class="text-[9px] font-semibold text-on-surface-variant normal-case ml-0.5">· {{ seatTypeLabel(s.ticketType) }}</span>
+                </span>
+              </div>
+            </div>
+
+            <div v-if="checkInResult.data.fnbs && checkInResult.data.fnbs.length">
+              <span class="text-[9px] font-bold text-on-surface-variant uppercase block mb-1.5">Combo / Đồ ăn kèm</span>
+              <div v-for="f in checkInResult.data.fnbs" :key="f.name" class="text-xs text-on-surface">
+                • {{ f.name }} × {{ f.quantity }}
+              </div>
+            </div>
+
             <div class="border-t border-outline-variant/10 pt-3 flex justify-between items-center text-[10px] text-on-surface-variant/70 italic">
-              <span>Kiểm soát lúc:</span>
-              <span>{{ new Date(checkInResult.data.checkInTime).toLocaleString() }}</span>
+              <span>Đã in lúc:</span>
+              <span>{{ formatDateTime(checkInResult.data.printedAt) }}</span>
             </div>
           </div>
+
+          <button @click="printBooking(checkInResult.data)"
+            class="flex items-center gap-2 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-xl px-5 py-2.5 transition-all cursor-pointer">
+            <span class="material-symbols-outlined text-base">print</span> In lại vé giấy
+          </button>
         </div>
 
         <!-- Failure Banner -->
@@ -320,16 +383,16 @@ onUnmounted(() => {
             <span class="material-symbols-outlined text-5xl">cancel</span>
           </div>
           <div>
-            <h2 class="text-2xl font-black text-red-400 uppercase italic">Check-in Thất Bại</h2>
+            <h2 class="text-2xl font-black text-red-400 uppercase italic">In Vé Thất Bại</h2>
             <p class="text-sm text-on-surface font-bold mt-2 max-w-md">{{ checkInResult.message }}</p>
-            <p class="text-[10px] text-on-surface-variant mt-1">Vui lòng kiểm tra lại mã vé hoặc liên hệ quản lý.</p>
+            <p class="text-[10px] text-on-surface-variant mt-1">Vui lòng kiểm tra lại mã đặt vé hoặc liên hệ quản lý.</p>
           </div>
         </div>
 
         <!-- Action Button -->
         <div class="text-center pt-4">
           <button @click="resetScanner" class="bg-primary text-on-primary font-bold px-8 py-3 rounded-xl shadow-lg hover:shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer">
-            Tiếp tục quét vé
+            Quét đơn tiếp theo
           </button>
         </div>
       </div>
@@ -390,28 +453,28 @@ onUnmounted(() => {
       <div v-else-if="activeTab === 'manual'" class="max-w-md mx-auto w-full space-y-6">
         <div class="text-center space-y-2">
           <span class="material-symbols-outlined text-4xl text-primary/60">input</span>
-          <h2 class="font-black text-lg text-on-surface uppercase">Nhập mã vé thủ công</h2>
-          <p class="text-xs text-on-surface-variant">Nhập mã vé in trên vé giấy hoặc vé điện tử của khách hàng</p>
+          <h2 class="font-black text-lg text-on-surface uppercase">Nhập mã đặt vé thủ công</h2>
+          <p class="text-xs text-on-surface-variant">Nhập mã đặt vé (booking code) in trên vé điện tử của khách hàng</p>
         </div>
 
         <form @submit.prevent="submitManual" class="space-y-4">
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã QR / Code vé</label>
-            <input 
+            <label class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã đặt vé</label>
+            <input
               v-model="qrCodeInput"
-              type="text" 
-              placeholder="Ví dụ: DEVCINE-T-1-F2A8C4B9"
+              type="text"
+              placeholder="Ví dụ: 0AA550BA-0"
               class="w-full bg-surface-container-high border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-3.5 text-sm font-mono text-on-surface shadow-inner uppercase tracking-wider"
               required
             >
           </div>
 
-          <button 
+          <button
             type="submit"
             :disabled="!qrCodeInput.trim()"
             class="w-full bg-primary text-on-primary font-bold py-3.5 rounded-xl shadow-lg hover:shadow-primary/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none cursor-pointer text-center text-sm"
           >
-            Xác thực & Check-in
+            Xác nhận & In vé
           </button>
         </form>
       </div>

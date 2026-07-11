@@ -344,8 +344,10 @@ Lưu ý: việc giữ ghế tạm thời (chống đặt trùng) **không** lưu
 | final_price | decimal | not null | Tổng tiền phải trả sau giảm |
 | payment_method | string | | Phương thức thanh toán (VNPAY/CASH/CARD/TRANSFER) |
 | status | string | | Trạng thái đơn (gộp thanh toán + đặt chỗ) |
-| booking_code | string | UK | Mã đơn để tra cứu |
+| booking_code | string | UK | Mã đơn để tra cứu (nội dung mã QR — 1 QR đại diện cả đơn) |
 | created_at | datetime | not null | Thời điểm tạo |
+| printed_at | datetime | | Thời điểm quét QR & in vé giấy tại quầy (null = chưa in) |
+| printed_by | int | FK→staffs | Nhân viên đã in vé cho đơn |
 
 ### 19. `booking_seats` (BookingSeat)
 Mỗi ghế trong một đơn đặt vé, **chốt giá** tại thời điểm đặt.
@@ -632,6 +634,7 @@ Cấu hình hệ thống dạng key-value, khóa chính là chính cái key.
 | bookings | customer_id | customers |
 | bookings | showtime_id | showtimes |
 | bookings | voucher_id | vouchers |
+| bookings | printed_by | staffs |
 | booking_seats | booking_id | bookings |
 | booking_seats | seat_id | seats |
 | booking_fnbs | booking_id | bookings |

@@ -205,6 +205,8 @@ erDiagram
         string status
         string booking_code UK
         datetime created_at
+        datetime printed_at
+        int printed_by FK
     }
     BOOKING_SEATS {
         int id PK
@@ -396,6 +398,7 @@ erDiagram
     CUSTOMERS     ||--o{ BOOKINGS         : "books"
     SHOWTIMES     ||--o{ BOOKINGS         : "for"
     VOUCHERS      ||--o{ BOOKINGS         : "applied"
+    STAFFS        ||--o{ BOOKINGS         : "prints"
     BOOKINGS      ||--o{ BOOKING_SEATS    : "has"
     SEATS         ||--o{ BOOKING_SEATS    : "booked"
     BOOKINGS      ||--o{ BOOKING_FNBS     : "addons"

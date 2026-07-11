@@ -413,29 +413,33 @@ Lịch sử đặt vé của customer hiện tại.
 
 ## 12. Tickets (`/api/tickets`)
 
-### POST `/api/tickets/check-in` 👷
-Check-in vé bằng QR code.
+### POST `/api/tickets/print?code={bookingCode}` 👷
+Quét QR (1 mã QR = **mã đặt vé**, đại diện cả đơn) → in toàn bộ vé giấy cho đơn & đánh dấu đã in.
+Chỉ đơn `CONFIRMED` (đã thanh toán) & **chưa in** mới hợp lệ; quét lại đơn đã in → 400 *"Mã đặt vé này đã được in thành vé giấy trước đó..."*. Trạng thái in quản lý ở cấp Đơn hàng (`bookings.printed_at`).
 
-**Request:**
-```json
-{
-  "qrCode": "DEVCINE-T001-20260527"
-}
-```
+**Request:** query param `code` = mã đặt vé (vd `0AA550BA-0`).
 
 **Response 200:**
 ```json
 {
-  "success": true,
-  "data": {
-    "ticketId": 1,
-    "seat": "A1",
-    "movie": "Avengers: Endgame",
-    "showtime": "19:00 - 22:01",
-    "room": "Room 1",
-    "isAgeVerified": false,
-    "checkedInAt": "2026-05-27T18:45:00"
-  }
+  "bookingCode": "0AA550BA-0",
+  "movieTitle": "Godzilla x Kong: Đế Chế Mới",
+  "cinemaName": "Test HN",
+  "roomName": "Phòng 1",
+  "format": "2D",
+  "startTime": "2026-07-10T16:00:00",
+  "paymentMethod": "TRANSFER",
+  "totalPrice": 289000,
+  "finalPrice": 289000,
+  "discount": 0,
+  "memberName": "Nguyễn Văn A",
+  "seatCount": 2,
+  "seats": [
+    { "seatLabel": "A5", "ticketType": "ADULT", "price": 110000 },
+    { "seatLabel": "A6", "ticketType": "STUDENT", "price": 90000 }
+  ],
+  "fnbs": [{ "name": "Combo Bắp Phô Mai", "quantity": 1, "price": 89000 }],
+  "printedAt": "2026-07-10T15:30:00"
 }
 ```
 

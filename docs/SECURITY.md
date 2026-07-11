@@ -55,7 +55,7 @@ public class CreateMovieRequest {
 ```
 PUBLIC (no auth):     GET /api/movies, /api/cinemas, /api/banners, /auth/**
 CUSTOMER:             POST /api/bookings, GET /api/wallets/my, POST /api/reviews
-STAFF:                POST /api/tickets/check-in, POST /api/ticketing/pay
+STAFF:                POST /api/tickets/print, POST /api/ticketing/pay
 MANAGER:              POST /api/showtimes, PUT /api/staffs, /api/handovers/approve
 ADMIN:                POST /api/users, DELETE /api/**, GET /api/audit-logs
 ```

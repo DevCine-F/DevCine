@@ -991,10 +991,10 @@ const buildInvoiceHtml = () => {
             </dl>
           </div>
           <div class="tk-stub">
-            <div class="tk-stub-t">Quét để vào cổng</div>
-            <img src="${qrUrl(t.qrCode)}" alt="QR ${esc(t.seatLabel)}" />
-            <div class="tk-code">${esc(t.qrCode)}</div>
-            <div class="tk-note">Xuất trình tại cổng soát vé</div>
+            <div class="tk-stub-t">Mã đặt vé — quét tại quầy</div>
+            <img src="${qrUrl(bookingCode)}" alt="QR ${bookingCode}" />
+            <div class="tk-code">${bookingCode}</div>
+            <div class="tk-note">1 mã QR dùng chung cho cả đơn</div>
           </div>
         </article>`).join('')
     : '<div class="ticket"><p class="muted" style="padding:28px">Không có dữ liệu vé QR.</p></div>'

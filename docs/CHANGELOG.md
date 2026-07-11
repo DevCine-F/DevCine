@@ -4,6 +4,17 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.4.0] — 2026-07-11
+
+### ✨ Changed — Mã QR theo ĐƠN HÀNG + In vé tại quầy
+- **Mô hình QR:** 1 mã QR = **mã đặt vé** (đại diện cả đơn), thay cho QR từng ghế (`DEVCINE-T-...`). Email vé gộp ghế 1 dòng + 1 ô QR lớn; modal lịch sử đặt vé của khách & tem vé giấy (POS/in lại) cũng dùng chung 1 QR đơn.
+- **Luồng quét & in vé:** `POST /api/tickets/print?code={bookingCode}` — quét QR đơn → validate đơn `CONFIRMED` & chưa in → in toàn bộ vé giấy + đánh dấu đã in. Quét lại đơn đã in → 400 chống trùng. Thay endpoint cũ `POST /api/tickets/check-in`.
+- **Trạng thái cấp Đơn hàng:** thêm cột `bookings.printed_at`, `bookings.printed_by` (FK→staffs). Đồng bộ `tickets.is_checked_in` khi in để giữ báo cáo tiến độ nhất quán.
+- **Backend:** `TicketService.printByBookingCode`, `BookingRepository.findByBookingCodeForPrint` (JOIN FETCH), DTO `BookingPrintResponse`. Bỏ khung giờ check-in cũ (in được khi đã thanh toán & chưa in).
+- **Frontend:** màn "Quét & In vé" (`TicketCheckIn.vue`) hiện chi tiết đơn + tự mở cửa sổ in; `BookingHistoryView`, `invoiceTemplate.js`, POS đồng bộ 1 QR đơn.
+
+---
+
 ## [1.3.0] — 2026-07-11
 
 ### 🗑️ Removed — Gỡ lớp Quản lý kho / Định mức (ngoài phạm vi đồ án)

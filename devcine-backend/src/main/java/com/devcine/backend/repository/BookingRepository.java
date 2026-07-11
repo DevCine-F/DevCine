@@ -116,6 +116,14 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "WHERE b.id = :id")
     Optional<Booking> findDetailById(@Param("id") Integer id);
 
+    /** Nạp đơn theo mã (quét QR in vé): fetch suất/phim/phòng/rạp tránh N+1. */
+    @Query("SELECT b FROM Booking b " +
+           "JOIN FETCH b.showtime s JOIN FETCH s.movie JOIN FETCH s.room r LEFT JOIN FETCH r.cinema " +
+           "LEFT JOIN FETCH s.format " +
+           "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user " +
+           "WHERE b.bookingCode = :code")
+    Optional<Booking> findByBookingCodeForPrint(@Param("code") String code);
+
     @Query("SELECT bs.booking.id, COUNT(bs) FROM BookingSeat bs WHERE bs.booking.id IN :ids GROUP BY bs.booking.id")
     List<Object[]> countSeatsByBookingIds(@Param("ids") List<Integer> ids);
 

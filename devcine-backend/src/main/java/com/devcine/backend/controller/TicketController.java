@@ -31,20 +31,15 @@ public class TicketController {
         }
     }
 
-    @PostMapping("/check-in")
+    /**
+     * Quét QR/nhập mã đặt vé tại quầy → in toàn bộ vé giấy cho đơn & đánh dấu đã in.
+     * Nhận mã đặt vé (booking_code) — 1 mã QR đại diện cả đơn, không phải từng ghế.
+     */
+    @PostMapping("/print")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> checkIn(@RequestParam String qrCode) {
+    public ResponseEntity<?> printTickets(@RequestParam("code") String code) {
         try {
-            Ticket ticket = ticketService.checkIn(qrCode);
-            return ResponseEntity.ok(Map.of(
-                "message", "Check-in thành công!",
-                "ticketCode", ticket.getQrCode(),
-                "seatName", ticket.getBookingSeat().getSeat().getRowChar() + ticket.getBookingSeat().getSeat().getColNum(),
-                "movieTitle", ticket.getBookingSeat().getBooking().getShowtime().getMovie().getTitle(),
-                "roomName", ticket.getBookingSeat().getBooking().getShowtime().getRoom().getName(),
-                "startTime", ticket.getBookingSeat().getBooking().getShowtime().getStartTime().toString(),
-                "checkInTime", ticket.getCheckInTime().toString()
-            ));
+            return ResponseEntity.ok(ticketService.printByBookingCode(code));
         } catch (AccessDeniedException ex) {
             throw ex;
         } catch (Exception ex) {

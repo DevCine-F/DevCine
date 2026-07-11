@@ -193,16 +193,19 @@ Client lưu token vào localStorage/cookie
 6. Trả kết quả        ← Response: { booking, tickets[], qrCodes[] }
 ```
 
-### 5.3 Luồng Check-in
+### 5.3 Luồng Quét QR & In vé (theo Đơn hàng)
 
 ```
-1. Staff scan QR      → POST /api/tickets/check-in { qrCode }
-   → TicketService:
-      a. Tìm ticket bằng qr_code
-      b. Verify: chưa check-in, suất chiếu đúng ngày
-      c. Verify tuổi (nếu phim 18+) → is_age_verified
-      d. Update: is_checked_in = true, checked_in_by, check_in_time
-2. Trả kết quả        ← Response: { ticket, seatInfo, movieInfo }
+1. Staff quét QR      → POST /api/tickets/print?code={bookingCode}
+   (1 QR = mã đặt vé, đại diện cả đơn — không phải từng ghế)
+   → TicketService.printByBookingCode:
+      a. Tìm booking bằng booking_code (JOIN FETCH)
+      b. Verify: status = CONFIRMED (đã thanh toán) & printed_at = null
+      c. Update: booking.printed_at, printed_by
+         + đồng bộ mọi vé ghế is_checked_in = true
+      d. Quét lại đơn đã in → lỗi chống in trùng
+2. Trả kết quả        ← BookingPrintResponse { phim, ghế[], combo[], printedAt }
+   → FE tự mở cửa sổ in toàn bộ vé giấy cho đơn
 ```
 
 ---
