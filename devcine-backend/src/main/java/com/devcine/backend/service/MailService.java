@@ -220,24 +220,7 @@ public class MailService {
         String bookingQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
                 + URLEncoder.encode(data.bookingCode() == null ? "" : data.bookingCode(), StandardCharsets.UTF_8);
 
-        StringBuilder seatRows = new StringBuilder();
-        StringBuilder seatLabels = new StringBuilder();
-        int seatCount = 0;
-        if (data.seats() != null) {
-            for (TicketEmailData.SeatLine s : data.seats()) {
-                seatCount++;
-                if (seatLabels.length() > 0) {
-                    seatLabels.append(", ");
-                }
-                seatLabels.append(escape(s.seatLabel()));
-                seatRows.append("""
-                        <tr>
-                          <td style="padding:8px 14px;border-bottom:1px solid #eee;color:#111;font-weight:700;font-size:15px;">Ghế %s</td>
-                          <td style="padding:8px 14px;border-bottom:1px solid #eee;text-align:right;color:#666;font-size:13px;">%s</td>
-                        </tr>
-                        """.formatted(escape(s.seatLabel()), escape(ticketTypeLabel(s.ticketType()))));
-            }
-        }
+        int seatCount = data.seats() != null ? data.seats().size() : 0;
 
         StringBuilder fnbBlock = new StringBuilder();
         if (data.fnbs() != null && !data.fnbs().isEmpty()) {
@@ -271,10 +254,8 @@ public class MailService {
                     <div style="font-weight:700;color:#111;margin:22px 0 8px;">Vé & mã QR</div>
                     <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:22px;">
                       <img src="%s" alt="QR đơn hàng" width="200" height="200" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
-                      <div style="font-size:14px;color:#111;margin-top:14px;">Vị trí ghế: <b>%s</b></div>
-                      <div style="font-size:12px;color:#888;margin-top:6px;">Đưa mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> (%d ghế)</div>
+                      <div style="font-size:12px;color:#888;margin-top:14px;">Đưa mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> (%d ghế)</div>
                     </div>
-                    <table style="width:100%%;border-collapse:collapse;margin-top:12px;">%s</table>
                     %s
 
                     <p style="font-size:12px;color:#999;margin-top:24px;line-height:1.6;">
@@ -292,9 +273,7 @@ public class MailService {
                 escape(paymentLabel(data.paymentMethod())),
                 price,
                 bookingQrUrl,
-                seatLabels.toString(),
                 seatCount,
-                seatRows.toString(),
                 fnbBlock.toString());
     }
 
@@ -304,22 +283,6 @@ public class MailService {
         }
         NumberFormat nf = NumberFormat.getInstance(new Locale("vi", "VN"));
         return nf.format(amount.longValue()) + "đ";
-    }
-
-    private String ticketTypeLabel(String type) {
-        if (type == null) {
-            return "Người lớn";
-        }
-        return switch (type.toUpperCase()) {
-            case "STUDENT" ->
-                "Học sinh/Sinh viên";
-            case "CHILD" ->
-                "Trẻ em";
-            case "SENIOR" ->
-                "Người cao tuổi";
-            default ->
-                "Người lớn";
-        };
     }
 
     private String paymentLabel(String method) {
