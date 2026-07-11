@@ -947,6 +947,14 @@ const applyVoucher = async () => {
 }
 const clearVoucher = () => { appliedVoucher.value = null; voucherCodeInput.value = ''; voucherError.value = '' }
 
+// ===== Dropdown chọn voucher đã lưu của khách (custom UI thay <select> mặc định) =====
+const showVoucherDropdown = ref(false)
+const voucherDiscountLabel = (v) =>
+  v.discountType === 'PERCENTAGE' ? `Giảm ${v.discountValue}%` : `Giảm ${fmt(v.discountValue)}đ`
+const selectedOwnedVoucher = computed(() =>
+  ownedVouchers.value.find(v => v.code === voucherCodeInput.value) || null)
+const selectVoucher = (v) => { voucherCodeInput.value = v.code; showVoucherDropdown.value = false }
+
 const processPayment = async (method) => {
   if (saleMode.value === 'FNB') return processConcessionPayment(method)
   if (!canUseTicketing.value) { showToast(shiftStore.lockedMessage('bán vé POS'), 'error'); return }
@@ -1662,13 +1670,52 @@ onUnmounted(() => {
               <div v-if="member" class="bg-surface-container-high border border-outline-variant/10 p-6 rounded-3xl space-y-3">
                 <p class="text-[10px] font-black text-primary uppercase tracking-widest">Voucher / Khuyến mãi</p>
                 <template v-if="!appliedVoucher">
-                  <select v-if="ownedVouchers.length" v-model="voucherCodeInput"
-                          class="w-full bg-surface-container border border-outline-variant/10 rounded-2xl py-3 px-4 text-on-surface text-sm font-bold outline-none focus:border-primary/50">
-                    <option value="">— Voucher của khách ({{ ownedVouchers.length }}) —</option>
-                    <option v-for="v in ownedVouchers" :key="v.id" :value="v.code">
-                      {{ v.code }} · giảm {{ v.discountType === 'PERCENTAGE' ? v.discountValue + '%' : fmt(v.discountValue) + 'đ' }}
-                    </option>
-                  </select>
+                  <div v-if="ownedVouchers.length" class="relative">
+                    <!-- Trigger -->
+                    <button type="button" @click="showVoucherDropdown = !showVoucherDropdown"
+                            class="w-full flex items-center justify-between gap-2 bg-surface-container border rounded-2xl py-3 px-4 text-sm font-bold text-on-surface outline-none transition-colors"
+                            :class="showVoucherDropdown ? 'border-primary/50' : 'border-outline-variant/10 hover:border-primary/30'">
+                      <span class="flex items-center gap-2.5 min-w-0">
+                        <span class="material-symbols-outlined text-primary text-xl shrink-0">confirmation_number</span>
+                        <span v-if="selectedOwnedVoucher" class="truncate">
+                          {{ selectedOwnedVoucher.code }}
+                          <span class="text-on-surface-variant font-semibold">· {{ voucherDiscountLabel(selectedOwnedVoucher) }}</span>
+                        </span>
+                        <span v-else class="text-on-surface-variant">Voucher của khách ({{ ownedVouchers.length }})</span>
+                      </span>
+                      <span class="material-symbols-outlined text-on-surface-variant transition-transform duration-300 shrink-0"
+                            :class="{ 'rotate-180': showVoucherDropdown }">expand_more</span>
+                    </button>
+
+                    <!-- Backdrop đóng khi click ra ngoài -->
+                    <div v-if="showVoucherDropdown" class="fixed inset-0 z-40" @click="showVoucherDropdown = false"></div>
+
+                    <!-- Panel -->
+                    <transition
+                      enter-active-class="transition duration-200 ease-out" enter-from-class="transform scale-95 opacity-0 -translate-y-1" enter-to-class="transform scale-100 opacity-100 translate-y-0"
+                      leave-active-class="transition duration-100 ease-in" leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0 -translate-y-1">
+                      <div v-if="showVoucherDropdown"
+                           class="absolute z-50 left-0 right-0 mt-2 rounded-2xl border border-primary/15 bg-surface-container-high/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
+                        <p class="px-4 pt-3 pb-1.5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/10">
+                          Voucher của khách ({{ ownedVouchers.length }})
+                        </p>
+                        <div class="max-h-56 overflow-y-auto custom-scrollbar py-1">
+                          <button v-for="v in ownedVouchers" :key="v.id" type="button" @click="selectVoucher(v)"
+                                  class="w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                                  :class="{ 'bg-primary/10': voucherCodeInput === v.code }">
+                            <span class="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                              <span class="material-symbols-outlined text-lg">local_activity</span>
+                            </span>
+                            <span class="min-w-0 flex-grow">
+                              <span class="block text-sm font-black text-on-surface truncate uppercase">{{ v.code }}</span>
+                              <span class="block text-[11px] font-bold text-primary">{{ voucherDiscountLabel(v) }}</span>
+                            </span>
+                            <span v-if="voucherCodeInput === v.code" class="material-symbols-outlined text-primary text-xl shrink-0">check_circle</span>
+                          </button>
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
                   <div class="flex gap-2">
                     <input v-model="voucherCodeInput" type="text" placeholder="Nhập mã voucher..."
                            class="flex-1 bg-surface-container border border-outline-variant/10 rounded-2xl py-3 px-4 text-on-surface text-sm font-bold outline-none focus:border-primary/50 uppercase" />
