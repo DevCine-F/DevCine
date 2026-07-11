@@ -127,9 +127,10 @@ public class TicketService {
      */
     private void sendReceiptEmail(Booking booking) {
         try {
-            // Chỉ gửi cho ĐƠN ONLINE GỐC (staffSchedule == null). Đơn POS đã nhận mail hoá đơn
+            // Chỉ gửi cho ĐƠN ONLINE GỐC (channel = ONLINE). Đơn POS đã nhận mail hoá đơn
             // lúc thanh toán → khi quét in lại KHÔNG gửi thêm, tránh làm phiền hộp thư khách.
-            if (booking.getStaffSchedule() != null) {
+            // Dùng channel (tin cậy) thay staffSchedule vì admin/manager bán POS có schedule = null.
+            if (!"ONLINE".equalsIgnoreCase(booking.getChannel())) {
                 return;
             }
             if (booking.getCustomer() == null || booking.getCustomer().getUser() == null) {

@@ -50,6 +50,12 @@ public class Booking {
     @Column(name = "booking_code", length = 50, unique = true)
     private String bookingCode;
 
+    /** Kênh tạo đơn: "ONLINE" (khách tự đặt) | "POS" (bán tại quầy). Nguồn tin cậy để tách
+     *  email (đơn Online kèm QR, đơn POS chỉ hoá đơn) — KHÔNG dựa vào staffSchedule vì
+     *  admin/manager bán POS được bỏ qua ca (staffSchedule = null). */
+    @Column(length = 20)
+    private String channel;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

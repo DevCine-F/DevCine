@@ -43,15 +43,15 @@ public class BookingService {
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
-        return holdSeats(request, null);
+        return holdSeats(request, null, "ONLINE");
     }
 
     @Transactional
     public Booking holdSeatsForStaffSchedule(BookingRequestDTO request, StaffSchedule staffSchedule) {
-        return holdSeats(request, staffSchedule);
+        return holdSeats(request, staffSchedule, "POS");
     }
 
-    private Booking holdSeats(BookingRequestDTO request, StaffSchedule staffSchedule) {
+    private Booking holdSeats(BookingRequestDTO request, StaffSchedule staffSchedule, String channel) {
         // Khóa ghi bi quan trên suất → tuần tự hóa mọi lệnh giữ ghế cùng suất, chống bán trùng (race)
         Showtime showtime = showtimeRepository.findByIdForUpdate(request.getShowtimeId())
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
@@ -131,6 +131,7 @@ public class BookingService {
                 .customer(customer)
                 .showtime(showtime)
                 .staffSchedule(staffSchedule)
+                .channel(channel) // ONLINE (khách đặt) | POS (bán quầy) — nguồn tin cậy tách email
                 .bookingCode(UUID.randomUUID().toString().substring(0, 10).toUpperCase())
                 .status("HOLD") // Initial status
                 .createdAt(LocalDateTime.now())
@@ -341,8 +342,9 @@ public class BookingService {
                 fnbLines.add(new TicketEmailData.FnbLine(bf.getFnbItem().getName(), bf.getQuantity()));
             }
 
-            // Đơn POS có staffSchedule (khách nhận vé giấy ngay) → ẩn QR; đơn online → hiện QR.
-            boolean showQr = booking.getStaffSchedule() == null;
+            // Tách email theo KÊNH đơn (tin cậy): đơn Online → hiện QR để khách ra rạp quét in vé;
+            // đơn POS (kể cả admin/manager bán không-ca) → ẩn QR, chỉ hoá đơn + lời cảm ơn.
+            boolean showQr = !"POS".equalsIgnoreCase(booking.getChannel());
             mailService.sendTicketEmail(new TicketEmailData(
                     user.getEmail(),
                     user.getFullName(),
