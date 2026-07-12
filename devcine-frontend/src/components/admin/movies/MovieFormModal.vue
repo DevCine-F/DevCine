@@ -345,18 +345,18 @@ const handleSave = () => {
               <span class="text-[10px] font-black uppercase tracking-[0.2em]">01. Định danh & Nội dung</span>
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Tên phim</label>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Tên phim <span class="text-red-500">*</span></label>
               <input v-model="newMovie.title" @input="clearErr('title')" type="text" maxlength="150" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" :class="errors.title ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: Oppenheimer" />
               <p v-if="errors.title" class="text-[10px] text-red-400 font-bold">{{ errors.title }}</p>
             </div>
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Thời lượng (Phút)</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Thời lượng (Phút) <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <input :value="newMovie.duration" @input="onDurationInput" type="text" inputmode="numeric" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-6 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.duration || durationError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="120" />
                 <p v-if="errors.duration || durationError" class="text-[10px] text-red-400 font-bold">{{ errors.duration || durationError }}</p>
               </div>
               <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trailer URL (YouTube)</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trailer URL (YouTube) <span class="text-red-500">*</span></label>
                 <input v-model="newMovie.trailerUrl" @input="clearErr('trailerUrl')" type="text" maxlength="255" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.trailerUrl || trailerError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="https://youtube.com/..." />
                 <p v-if="errors.trailerUrl || trailerError" class="text-[10px] text-red-400 font-bold">{{ errors.trailerUrl || trailerError }}</p>
               </div>
@@ -384,7 +384,7 @@ const handleSave = () => {
                 </select>
               </div>
               <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Năm sản xuất</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Năm sản xuất <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <input :value="newMovie.productionYear" @input="onYearInput" type="text" inputmode="numeric" maxlength="4" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.productionYear || yearError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="2024" />
                 <p v-if="errors.productionYear || yearError" class="text-[10px] text-red-400 font-bold">{{ errors.productionYear || yearError }}</p>
               </div>
@@ -409,7 +409,7 @@ const handleSave = () => {
             <!-- Thể loại -->
             <div class="space-y-4">
               <div class="flex justify-between items-center px-1">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thể loại phim</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thể loại phim <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <div class="flex gap-4">
                   <button @click="resetGenres" type="button" class="text-on-surface-variant/40 hover:text-red-500 transition-all"><span class="material-symbols-outlined text-base">restart_alt</span></button>
                   <button @click="scrollLeft" type="button" class="text-on-surface-variant/40 hover:text-primary transition-all"><span class="material-symbols-outlined text-base">chevron_left</span></button>
@@ -436,7 +436,7 @@ const handleSave = () => {
 
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-4">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Định dạng hỗ trợ (Tick chọn nhiều)</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Định dạng hỗ trợ (Tick chọn nhiều) <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <div class="flex flex-wrap gap-2">
                   <button v-for="fmt in availableFormats" :key="fmt" type="button" @click="toggleFormat(fmt)" :class="selectedFormats.includes(fmt) ? 'bg-primary text-on-primary' : 'bg-surface-container-high/50 text-on-surface-variant'" class="px-4 py-2 rounded-full border border-outline-variant/10 text-[9px] font-bold uppercase tracking-widest transition-all min-w-[60px]">{{ fmt }}</button>
                 </div>
@@ -464,7 +464,7 @@ const handleSave = () => {
                 </select>
               </div>
               <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Giá vé gốc (VNĐ)</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Giá vé gốc (VNĐ) <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <input :value="fmtThousand(newMovie.basePrice)" @input="onPriceInput" type="text" inputmode="numeric" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.basePrice || priceError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: 85.000" />
                 <p v-if="errors.basePrice || priceError" class="text-[10px] text-red-400 font-bold">{{ errors.basePrice || priceError }}</p>
               </div>
@@ -479,11 +479,11 @@ const handleSave = () => {
             </div>
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày khởi chiếu</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày khởi chiếu <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <input v-model="newMovie.startDate" @input="clearErr('dates')" type="date" :min="isEditing ? undefined : todayStr" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20'" />
               </div>
               <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày kết thúc (Dự kiến)</label>
+                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày kết thúc (Dự kiến) <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <input v-model="newMovie.endDate" @input="clearErr('dates')" type="date" :min="newMovie.startDate || (isEditing ? undefined : todayStr)" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20'" />
               </div>
             </div>
