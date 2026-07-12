@@ -32,6 +32,9 @@ public class MovieService {
     @Autowired
     private ShowtimeRepository showtimeRepository;
 
+    @Autowired
+    private BannerSyncService bannerSyncService;
+
     public List<MovieSummaryDTO> getAllMovies() {
         return movieRepository.findAllWithGenres().stream()
                 .map(this::toSummary)
@@ -94,13 +97,18 @@ public class MovieService {
         return movieRepository.findByIdWithGenres(id).orElse(null);
     }
 
+    @Transactional
     public Movie createMovie(Movie movie) {
         if (movie.getTitle() != null && movieRepository.existsByTitleIgnoreCase(movie.getTitle().trim())) {
             throw new IllegalStateException("Thêm phim thất bại. Tên phim hoặc mã ID đã tồn tại trên hệ thống!");
         }
-        return movieRepository.save(movie);
+        Movie saved = movieRepository.save(movie);
+        // Đồng bộ banner theo phim theo cờ showOnBanner (bật -> tạo banner, tắt -> không có).
+        bannerSyncService.applyMovieFlag(saved.getId(), Boolean.TRUE.equals(saved.getShowOnBanner()), saved.getTitle());
+        return saved;
     }
 
+    @Transactional
     public Movie updateMovie(Integer id, Movie movieDetails) {
         Movie existingMovie = movieRepository.findById(id).orElse(null);
         if (existingMovie != null) {
@@ -137,7 +145,10 @@ public class MovieService {
             existingMovie.setCastMembers(movieDetails.getCastMembers());
             existingMovie.setDistributor(movieDetails.getDistributor());
             existingMovie.setRatingCount(movieDetails.getRatingCount());
-            return movieRepository.save(existingMovie);
+            Movie saved = movieRepository.save(existingMovie);
+            // Đồng bộ lại banner theo phim theo cờ showOnBanner vừa cập nhật.
+            bannerSyncService.applyMovieFlag(saved.getId(), Boolean.TRUE.equals(saved.getShowOnBanner()), saved.getTitle());
+            return saved;
         }
         return null;
     }
@@ -151,6 +162,8 @@ public class MovieService {
             throw new IllegalStateException(reason);
         }
         movieRepository.deleteById(id);
+        // Dọn banner theo phim để không còn banner mồ côi trỏ tới phim đã xoá.
+        bannerSyncService.applyMovieFlag(id, false, null);
     }
 
     /** Lý do KHÔNG cho xoá cứng phim (null = được phép xoá). Bảo vệ dữ liệu hoá đơn/lịch chiếu. */
@@ -226,6 +239,7 @@ public class MovieService {
                     continue;
                 }
                 movieRepository.deleteById(id);
+                bannerSyncService.applyMovieFlag(id, false, null); // dọn banner theo phim đã xoá
                 deleted++;
             }
         }

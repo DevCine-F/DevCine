@@ -2,6 +2,7 @@ package com.devcine.backend.controller;
 
 import com.devcine.backend.entity.Banner;
 import com.devcine.backend.repository.BannerRepository;
+import com.devcine.backend.service.BannerSyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +18,7 @@ import java.util.Map;
 public class BannerController {
 
     private final BannerRepository bannerRepository;
+    private final BannerSyncService bannerSyncService;
 
     @GetMapping
     public ResponseEntity<?> getAllBanners() {
@@ -46,6 +48,8 @@ public class BannerController {
                     .endDate(body.get("endDate") != null ? LocalDateTime.parse((String) body.get("endDate")) : LocalDateTime.now().plusMonths(1))
                     .build();
             bannerRepository.save(banner);
+            // Banner theo phim -> bật cờ showOnBanner của phim tương ứng.
+            bannerSyncService.syncMovieFlag(banner.getMovieId());
             return ResponseEntity.status(201).body(Map.of("success", true, "data", banner));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
@@ -59,6 +63,7 @@ public class BannerController {
         try {
             Banner banner = bannerRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy banner"));
+            Integer oldMovieId = banner.getMovieId(); // phim gắn trước khi sửa (để đồng bộ lại cờ nếu đổi phim/chế độ)
             if (body.containsKey("title")) banner.setTitle((String) body.get("title"));
             if (body.containsKey("imageUrl")) banner.setImageUrl((String) body.get("imageUrl"));
             if (body.containsKey("link")) banner.setLink((String) body.get("link"));
@@ -70,6 +75,11 @@ public class BannerController {
             if (body.get("startDate") != null) banner.setStartDate(LocalDateTime.parse((String) body.get("startDate")));
             if (body.get("endDate") != null) banner.setEndDate(LocalDateTime.parse((String) body.get("endDate")));
             bannerRepository.save(banner);
+            // Đồng bộ cờ cho cả phim cũ (nếu đổi phim/bỏ chế độ MOVIE) lẫn phim mới.
+            bannerSyncService.syncMovieFlag(oldMovieId);
+            if (banner.getMovieId() != null && !banner.getMovieId().equals(oldMovieId)) {
+                bannerSyncService.syncMovieFlag(banner.getMovieId());
+            }
             return ResponseEntity.ok(Map.of("success", true, "data", banner));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
@@ -80,7 +90,10 @@ public class BannerController {
     @PreAuthorize("@perm.can('banners','delete')")
     public ResponseEntity<?> deleteBanner(@PathVariable Integer id) {
         try {
+            // Lấy movieId trước khi xoá để đồng bộ tắt cờ showOnBanner nếu phim không còn banner nào.
+            Integer movieId = bannerRepository.findById(id).map(Banner::getMovieId).orElse(null);
             bannerRepository.deleteById(id);
+            bannerSyncService.syncMovieFlag(movieId);
             return ResponseEntity.ok(Map.of("success", true));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));

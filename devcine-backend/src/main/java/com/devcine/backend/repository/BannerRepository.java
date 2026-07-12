@@ -13,6 +13,11 @@ import java.util.List;
 public interface BannerRepository extends JpaRepository<Banner, Integer> {
     List<Banner> findAllByOrderByIdDesc();
 
+    // Banner "theo phim" gắn với một phim cụ thể — dùng cho đồng bộ 2 chiều với Movie.showOnBanner.
+    List<Banner> findByModeAndMovieId(String mode, Integer movieId);
+
+    boolean existsByModeAndMovieId(String mode, Integer movieId);
+
     // Banner đang hiển thị cho khách: đang bật, đúng vị trí, còn trong khoảng ngày,
     // sắp xếp theo thứ tự ưu tiên (displayOrder tăng dần, null coi như 0).
     @Query("SELECT b FROM Banner b WHERE b.isActive = true "
