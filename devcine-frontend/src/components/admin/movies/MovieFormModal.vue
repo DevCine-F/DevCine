@@ -240,6 +240,7 @@ const isFormInvalid = computed(() => {
 
   // Tên phim bắt buộc cả 2 chế độ; các lỗi "giá trị sai" luôn áp dụng.
   if (!m.title || !m.title.trim() || m.title.trim().length > 150) return true;
+  if (!m.trailerUrl || !m.trailerUrl.trim()) return true; // trailer bắt buộc cả tạo mới lẫn sửa
   if (durationError.value || yearError.value || trailerError.value || priceError.value) return true;
   if (dateError.value) return true;
   if ((m.description || "").length > 1000) return true;
@@ -283,7 +284,9 @@ const handleSave = () => {
   if (m.productionYear) { if (yearError.value) e.productionYear = yearError.value; }
   else if (creating) e.productionYear = "Vui lòng nhập năm sản xuất.";
 
-  if (trailerError.value) e.trailerUrl = trailerError.value;
+  // Trailer bắt buộc cả 2 chế độ (tạo mới & sửa).
+  if ((m.trailerUrl || "").trim()) { if (trailerError.value) e.trailerUrl = trailerError.value; }
+  else e.trailerUrl = "Vui lòng nhập đường dẫn Trailer.";
 
   if (m.basePrice != null && m.basePrice !== "") { if (priceError.value) e.basePrice = priceError.value; }
   else if (creating) e.basePrice = "Vui lòng nhập giá vé gốc.";
