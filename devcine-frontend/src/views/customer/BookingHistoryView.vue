@@ -97,12 +97,6 @@ const statusClass = (s) => ({
   CANCELLED: 'bg-red-500/10 text-red-400'
 }[s] || 'bg-white/10 text-on-surface-variant')
 
-// Vé QR
-const qrBooking = ref(null)
-const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(code)}`
-const openTickets = (b) => { qrBooking.value = b }
-const closeTickets = () => { qrBooking.value = null }
-
 onMounted(fetchHistory)
 </script>
 
@@ -176,12 +170,6 @@ onMounted(fetchHistory)
             </div>
           </div>
         </div>
-        <!-- Action: xem vé QR (chỉ với vé đã xác nhận và có mã QR) -->
-        <div v-if="b.status === 'CONFIRMED' && b.qrCodes && b.qrCodes.length" class="flex items-center px-4 py-4 md:py-0 shrink-0">
-          <button @click="openTickets(b)" class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-4 py-2.5 bg-primary-container/10 text-primary-container border border-primary-container/30 rounded-sm hover:bg-primary-container/20 transition-colors">
-            <span class="material-symbols-outlined text-base">qr_code_2</span> Xem vé QR
-          </button>
-        </div>
       </div>
 
       <!-- Preview: gợi ý chuyển sang trang Lịch sử đặt vé đầy đủ -->
@@ -211,42 +199,5 @@ onMounted(fetchHistory)
       </button>
     </div>
 
-    <!-- QR Ticket Modal -->
-    <div v-if="qrBooking" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="closeTickets"></div>
-      <div class="relative w-full max-w-md bg-surface-container-low border border-white/10 rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
-        <div class="flex justify-between items-center p-6 border-b border-white/5 sticky top-0 bg-surface-container-low">
-          <div>
-            <h3 class="text-lg font-bold font-headline text-white uppercase">{{ qrBooking.showtime?.movieTitle }}</h3>
-            <p class="text-xs text-on-surface-variant mt-1">Mã đặt vé: <span class="font-mono font-bold text-primary-container">{{ qrBooking.bookingCode }}</span></p>
-          </div>
-          <button @click="closeTickets" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div class="p-6 space-y-3">
-          <div class="grid grid-cols-2 gap-3 text-xs mb-4">
-            <div>
-              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Suất chiếu</p>
-              <p class="font-semibold">{{ formatDate(qrBooking.showtime?.startTime) }}</p>
-            </div>
-            <div>
-              <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Ghế</p>
-              <p class="font-semibold text-primary-container">{{ qrBooking.seats || '—' }}</p>
-            </div>
-          </div>
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Mã QR vé điện tử</p>
-          <div class="flex flex-col items-center gap-3 bg-surface-container-high rounded-xl p-6 border border-white/5">
-            <div class="p-3 bg-white rounded-xl shrink-0">
-              <img :src="qrUrl(qrBooking.bookingCode)" class="w-44 h-44" alt="QR đơn hàng" />
-            </div>
-            <p class="text-sm font-mono font-bold text-white break-all text-center">{{ qrBooking.bookingCode }}</p>
-            <p class="text-[11px] text-on-surface-variant text-center leading-relaxed max-w-[16rem]">
-              Đưa <b>một</b> mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> ({{ qrBooking.qrCodes.length }} vé). Không cần quét từng ghế.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
   </section>
 </template>
