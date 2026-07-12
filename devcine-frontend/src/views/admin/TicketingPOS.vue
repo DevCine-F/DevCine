@@ -663,7 +663,14 @@ const fetchData = async () => {
     showtimes.value = canUseTicketing.value ? (stRes.data.data ?? stRes.data) : []
     combos.value = cbRes.data.data ?? cbRes.data
   } catch (err) {
-    error.value = 'Không tải được dữ liệu bán vé. Kiểm tra đăng nhập/quyền.'
+    // 401 (hết phiên) đã được interceptor axios xử lý tập trung (logout + về login),
+    // nên ở đây chỉ còn 403 (thiếu quyền) hoặc 500/mạng — KHÔNG đẩy về đăng nhập.
+    const status = err.response?.status
+    if (status === 403) {
+      error.value = 'Tài khoản không có quyền bán vé POS (cần đang trong ca làm việc).'
+    } else {
+      error.value = 'Không tải được dữ liệu bán vé. Vui lòng thử lại.'
+    }
   } finally {
     isLoading.value = false
   }
@@ -1414,7 +1421,13 @@ onUnmounted(() => {
           <div v-if="isLoading" class="grid grid-cols-2 gap-6">
             <div v-for="i in 4" :key="i" class="h-44 bg-surface-container-high rounded-3xl animate-pulse"></div>
           </div>
-          <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm">{{ error }}</div>
+          <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm flex items-center justify-between gap-4">
+            <span>{{ error }}</span>
+            <button type="button" @click="fetchData"
+              class="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold transition-colors">
+              <span class="material-symbols-outlined text-base">refresh</span>Thử lại
+            </button>
+          </div>
           <div v-else-if="visibleShowtimes.length === 0" class="py-20 text-center border border-dashed border-outline-variant/20 rounded-3xl">
             <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-3">event_busy</span>
             <p class="text-on-surface-variant font-semibold">Không có suất chiếu nào hôm nay/sắp tới.</p>
