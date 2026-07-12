@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { customerApi } from '@/api/customer'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
@@ -15,6 +15,27 @@ const isEditing = ref(false)
 const editForm = ref({ fullName: '', email: '', phone: '', dob: '' })
 const pointHistory = ref([])
 const isLoadingHistory = ref(false)
+
+// Phân trang lịch sử điểm
+const POINT_PAGE_SIZE = 8
+const pointPage = ref(1)
+const pointTotalPages = computed(() => Math.max(1, Math.ceil(pointHistory.value.length / POINT_PAGE_SIZE)))
+const pagedPointHistory = computed(() => {
+  const start = (pointPage.value - 1) * POINT_PAGE_SIZE
+  return pointHistory.value.slice(start, start + POINT_PAGE_SIZE)
+})
+const pointPageNumbers = computed(() => {
+  const total = pointTotalPages.value, cur = pointPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = [1]
+  if (cur > 3) pages.push('...')
+  for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i)
+  if (cur < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+})
+const goToPointPage = (p) => { if (typeof p === 'number' && p >= 1 && p <= pointTotalPages.value) pointPage.value = p }
+watch(pointTotalPages, (n) => { if (pointPage.value > n) pointPage.value = n }) // dữ liệu giảm -> kẹp lại
 
 const fetchProfile = async () => {
   if (!authStore.isAuthenticated || !authStore.user?.id) return
@@ -352,7 +373,7 @@ const tierInfo = computed(() => {
         Chưa có biến động điểm nào. Điểm sẽ được cộng khi bạn mua vé hoặc bắp nước.
       </div>
       <div v-else class="divide-y divide-outline-variant/10">
-        <div v-for="tx in pointHistory" :key="tx.id" class="flex items-center justify-between py-3">
+        <div v-for="tx in pagedPointHistory" :key="tx.id" class="flex items-center justify-between py-3">
           <div class="min-w-0">
             <p class="text-sm font-bold text-on-surface">{{ pointSourceLabel(tx) }}</p>
             <p class="text-[11px] text-on-surface-variant">{{ pointDateLabel(tx.createdAt) }}<span v-if="tx.refCode"> · {{ tx.refCode }}</span></p>
@@ -364,6 +385,25 @@ const tierInfo = computed(() => {
             <p class="text-[10px] text-on-surface-variant">Số dư: {{ tx.balanceAfter?.toLocaleString() }}</p>
           </div>
         </div>
+      </div>
+
+      <!-- Phân trang -->
+      <div v-if="!isLoadingHistory && pointTotalPages > 1" class="mt-6 flex items-center justify-center gap-2">
+        <button @click="goToPointPage(pointPage - 1)" :disabled="pointPage === 1"
+                class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+          <span class="material-symbols-outlined text-lg">chevron_left</span>
+        </button>
+        <template v-for="(p, i) in pointPageNumbers" :key="i">
+          <span v-if="p === '...'" class="w-9 h-9 flex items-center justify-center text-on-surface-variant">…</span>
+          <button v-else @click="goToPointPage(p)"
+                  :class="['w-9 h-9 flex items-center justify-center rounded text-sm font-bold transition-colors border', p === pointPage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white']">
+            {{ p }}
+          </button>
+        </template>
+        <button @click="goToPointPage(pointPage + 1)" :disabled="pointPage === pointTotalPages"
+                class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+          <span class="material-symbols-outlined text-lg">chevron_right</span>
+        </button>
       </div>
     </div>
 

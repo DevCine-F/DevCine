@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { voucherApi, customerApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
@@ -52,6 +52,28 @@ const historyVouchers = computed(() => vouchers.value
     description: formatDiscount(v),
     status: v.status === 'USED' ? 'Đã sử dụng' : 'Đã hết hạn'
   })))
+
+// Phân trang lịch sử voucher
+const HISTORY_PAGE_SIZE = 8
+const historyPage = ref(1)
+const historyTotalPages = computed(() => Math.max(1, Math.ceil(historyVouchers.value.length / HISTORY_PAGE_SIZE)))
+const pagedHistory = computed(() => {
+  const start = (historyPage.value - 1) * HISTORY_PAGE_SIZE
+  return historyVouchers.value.slice(start, start + HISTORY_PAGE_SIZE)
+})
+const historyPageNumbers = computed(() => {
+  const total = historyTotalPages.value, cur = historyPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = [1]
+  if (cur > 3) pages.push('...')
+  for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i)
+  if (cur < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+})
+const goToHistoryPage = (p) => { if (typeof p === 'number' && p >= 1 && p <= historyTotalPages.value) historyPage.value = p }
+watch(() => activeTab.value, () => { historyPage.value = 1 }) // đổi tab -> về trang 1
+watch(historyTotalPages, (n) => { if (historyPage.value > n) historyPage.value = n }) // dữ liệu giảm -> kẹp lại
 
 const fetchVouchers = async () => {
   if (!authStore.isAuthenticated || !authStore.user?.id) return
@@ -334,7 +356,8 @@ onUnmounted(() => {
     </div>
 
     <!-- Tab 3: Voucher History -->
-    <div v-else-if="activeTab === 'history'" class="bg-surface-container-low rounded-xl border border-white/5 overflow-hidden shadow-xl">
+    <div v-else-if="activeTab === 'history'">
+      <div class="bg-surface-container-low rounded-xl border border-white/5 overflow-hidden shadow-xl">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
@@ -347,7 +370,7 @@ onUnmounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(item, index) in historyVouchers" :key="index" class="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+            <tr v-for="(item, index) in pagedHistory" :key="index" class="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
               <td class="py-4 px-6 text-sm whitespace-nowrap">{{ item.usedAt }}</td>
               <td class="py-4 px-6 text-sm whitespace-nowrap">{{ item.date }}</td>
               <td class="py-4 px-6">
@@ -368,6 +391,26 @@ onUnmounted(() => {
             </tr>
           </tbody>
         </table>
+      </div>
+      </div>
+
+      <!-- Phân trang -->
+      <div v-if="historyTotalPages > 1" class="mt-8 flex items-center justify-center gap-2">
+        <button @click="goToHistoryPage(historyPage - 1)" :disabled="historyPage === 1"
+                class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+          <span class="material-symbols-outlined text-lg">chevron_left</span>
+        </button>
+        <template v-for="(p, i) in historyPageNumbers" :key="i">
+          <span v-if="p === '...'" class="w-9 h-9 flex items-center justify-center text-on-surface-variant">…</span>
+          <button v-else @click="goToHistoryPage(p)"
+                  :class="['w-9 h-9 flex items-center justify-center rounded text-sm font-bold transition-colors border', p === historyPage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white']">
+            {{ p }}
+          </button>
+        </template>
+        <button @click="goToHistoryPage(historyPage + 1)" :disabled="historyPage === historyTotalPages"
+                class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+          <span class="material-symbols-outlined text-lg">chevron_right</span>
+        </button>
       </div>
     </div>
 
