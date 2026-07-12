@@ -46,6 +46,7 @@ const activeVouchers = computed(() => vouchers.value
 const historyVouchers = computed(() => vouchers.value
   .filter(v => v.status !== 'ACTIVE')
   .map(v => ({
+    usedAt: v.usedAt ? formatDate(v.usedAt) : '—', // '—' cho voucher hết hạn hoặc dữ liệu cũ chưa lưu mốc dùng
     date: formatDate(v.validUntil),
     code: v.code,
     description: formatDiscount(v),
@@ -338,7 +339,8 @@ onUnmounted(() => {
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-surface-container-high border-b border-white/5">
-              <th class="py-4 px-6 text-[10px] uppercase font-bold tracking-widest text-on-surface-variant whitespace-nowrap">Thời gian</th>
+              <th class="py-4 px-6 text-[10px] uppercase font-bold tracking-widest text-on-surface-variant whitespace-nowrap">Thời điểm sử dụng</th>
+              <th class="py-4 px-6 text-[10px] uppercase font-bold tracking-widest text-on-surface-variant whitespace-nowrap">Hạn sử dụng</th>
               <th class="py-4 px-6 text-[10px] uppercase font-bold tracking-widest text-on-surface-variant whitespace-nowrap">Mã voucher</th>
               <th class="py-4 px-6 text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">Nội dung voucher</th>
               <th class="py-4 px-6 text-[10px] uppercase font-bold tracking-widest text-on-surface-variant whitespace-nowrap text-right">Trạng thái</th>
@@ -346,6 +348,7 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr v-for="(item, index) in historyVouchers" :key="index" class="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+              <td class="py-4 px-6 text-sm whitespace-nowrap">{{ item.usedAt }}</td>
               <td class="py-4 px-6 text-sm whitespace-nowrap">{{ item.date }}</td>
               <td class="py-4 px-6">
                 <span class="bg-surface-container-highest px-2 py-1 rounded text-[10px] font-bold tracking-widest border border-white/5 inline-block">{{ item.code }}</span>
@@ -361,7 +364,7 @@ onUnmounted(() => {
               </td>
             </tr>
             <tr v-if="historyVouchers.length === 0">
-              <td colspan="4" class="py-12 text-center text-neutral-500">Chưa có lịch sử sử dụng voucher.</td>
+              <td colspan="5" class="py-12 text-center text-neutral-500">Chưa có lịch sử sử dụng voucher.</td>
             </tr>
           </tbody>
         </table>

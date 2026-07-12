@@ -63,6 +63,7 @@ public class VoucherController {
                             "discountType", v.getPromotion().getDiscountType() != null ? v.getPromotion().getDiscountType() : "",
                             "discountValue", v.getPromotion().getDiscountValue() != null ? v.getPromotion().getDiscountValue() : 0,
                             "validUntil", v.getValidUntil() != null ? v.getValidUntil().toString() : "",
+                            "usedAt", v.getUsedAt() != null ? v.getUsedAt().toString() : "",
                             "status", status
                     );
                 }).collect(Collectors.toList());

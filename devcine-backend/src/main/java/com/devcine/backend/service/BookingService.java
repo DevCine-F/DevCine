@@ -287,6 +287,7 @@ public class BookingService {
         if (booking.getVoucher() != null) {
             Voucher v = booking.getVoucher();
             v.setIsUsed(true);
+            v.setUsedAt(LocalDateTime.now()); // ghi mốc thời điểm sử dụng voucher
             voucherRepository.save(v);
             Promotion promo = v.getPromotion();
             if (promo != null) {
