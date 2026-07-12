@@ -5,16 +5,12 @@ import com.devcine.backend.dto.request.ShiftHandoverRequest;
 import com.devcine.backend.dto.request.StaffShiftRequest;
 import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Role;
-import com.devcine.backend.entity.Shift;
-import com.devcine.backend.entity.ShiftHandover;
 import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.RoleRepository;
-import com.devcine.backend.repository.ShiftHandoverRepository;
-import com.devcine.backend.repository.ShiftRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.StaffScheduleRepository;
 import com.devcine.backend.repository.UserRepository;
@@ -29,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -46,8 +41,6 @@ public class StaffController {
 
     private final StaffRepository staffRepository;
     private final StaffScheduleRepository staffScheduleRepository;
-    private final ShiftRepository shiftRepository;
-    private final ShiftHandoverRepository shiftHandoverRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final CinemaRepository cinemaRepository;
@@ -537,75 +530,7 @@ public class StaffController {
         return ResponseEntity.ok(staffScheduleService.checkOut(id));
     }
 
-    @GetMapping("/shifts/all")
-    @Transactional(readOnly = true)
-    public ResponseEntity<?> getAllShiftTemplates() {
-        List<Shift> shifts = shiftRepository.findAll();
-        return ResponseEntity.ok(shifts);
-    }
-
-    @PostMapping("/shifts/template")
-    @PreAuthorize("@perm.can('staff_management','add')")
-    @Transactional
-    public ResponseEntity<?> createShiftTemplate(@RequestBody Map<String, Object> body) {
-        try {
-            Shift shift = Shift.builder()
-                    .startTime(LocalDateTime.parse((String) body.get("startTime")))
-                    .endTime(LocalDateTime.parse((String) body.get("endTime")))
-                    .status("ACTIVE")
-                    .build();
-            shiftRepository.save(shift);
-            return ResponseEntity.status(201).body(Map.of("success", true, "data", shift));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
-        }
-    }
-
     // ===== Bàn giao ca (Shift Handover) =====
-
-    @GetMapping("/handovers/legacy")
-    @Transactional(readOnly = true)
-    public ResponseEntity<?> getHandovers() {
-        List<Map<String, Object>> result = shiftHandoverRepository.findAllWithDetails().stream().map(h -> Map.<String, Object>of(
-                "id", h.getId(),
-                "staffScheduleId", h.getStaffSchedule().getId(),
-                "staffName", h.getStaffSchedule().getStaff() != null && h.getStaffSchedule().getStaff().getUser() != null
-                        ? h.getStaffSchedule().getStaff().getUser().getFullName() : "Nhân viên",
-                "workDate", h.getStaffSchedule().getWorkDate() != null ? h.getStaffSchedule().getWorkDate().toString() : "",
-                "declaredCash", h.getDeclaredCash() != null ? h.getDeclaredCash() : BigDecimal.ZERO,
-                "systemCash", h.getSystemCash() != null ? h.getSystemCash() : BigDecimal.ZERO,
-                "difference", h.getDifference() != null ? h.getDifference() : BigDecimal.ZERO,
-                "status", h.getStatus() != null ? h.getStatus() : "SUBMITTED"
-        )).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
-    }
-
-    @PostMapping("/handovers/legacy")
-    @PreAuthorize("@perm.can('staff_management','edit')")
-    @Transactional
-    public ResponseEntity<?> createHandover(@RequestBody Map<String, Object> body) {
-        try {
-            Integer staffScheduleId = Integer.parseInt(body.get("staffScheduleId").toString());
-            StaffSchedule schedule = staffScheduleRepository.findById(staffScheduleId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch làm việc"));
-
-            BigDecimal declared = new BigDecimal(body.getOrDefault("declaredCash", "0").toString());
-            BigDecimal system = new BigDecimal(body.getOrDefault("systemCash", "0").toString());
-
-            ShiftHandover handover = ShiftHandover.builder()
-                    .staffSchedule(schedule)
-                    .declaredCash(declared)
-                    .systemCash(system)
-                    .difference(declared.subtract(system))
-                    .status("SUBMITTED")
-                    .build();
-            shiftHandoverRepository.save(handover);
-            return ResponseEntity.status(201).body(Map.of("success", true, "id", handover.getId(),
-                    "difference", handover.getDifference()));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
-        }
-    }
 
     @GetMapping("/handovers")
     @PreAuthorize("@perm.can('staff_management','view')")

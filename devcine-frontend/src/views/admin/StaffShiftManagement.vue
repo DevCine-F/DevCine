@@ -37,7 +37,7 @@ const form = reactive({
 })
 
 const statuses = [{ value: 'ALL', label: 'Tất cả' }, { value: 'SCHEDULED', label: 'Chờ duyệt' }, { value: 'APPROVED', label: 'Đã duyệt' }, { value: 'IN_PROGRESS', label: 'Đang trong ca' }, { value: 'COMPLETED', label: 'Đã kết ca' }, { value: 'REJECTED', label: 'Từ chối' }]
-const workPositions = [{ value: 'POS_TICKETING', label: 'Bán vé POS' }, { value: 'CHECK_IN', label: 'Kiểm soát vé' }, { value: 'FNB', label: 'Quầy F&B' }, { value: 'PROJECTION', label: 'Phòng chiếu' }, { value: 'SHIFT_LEAD', label: 'Trưởng ca' }]
+const workPositions = [{ value: 'POS_TICKETING', label: 'Bán vé POS' }, { value: 'CHECK_IN', label: 'Kiểm soát vé' }, { value: 'FNB', label: 'Quầy F&B' }, { value: 'SHIFT_LEAD', label: 'Trưởng ca' }]
 
 const normalizeList = (payload) => Array.isArray(payload) ? payload : (payload?.data ?? [])
 const positionLabel = (value) => workPositions.find(p => p.value === value)?.label || value || 'Chưa gán'

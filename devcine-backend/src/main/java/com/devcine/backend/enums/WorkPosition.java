@@ -19,8 +19,6 @@ public final class WorkPosition {
     public static final String CHECK_IN = "CHECK_IN";
     /** Trưởng ca (Shift_Leader): chạy giữa các quầy, có quyền phê duyệt sửa sai. */
     public static final String SHIFT_LEAD = "SHIFT_LEAD";
-    /** Phòng chiếu (giữ tương thích dữ liệu cũ; không thuộc 4 vị trí spec chính). */
-    public static final String PROJECTION = "PROJECTION";
 
     /** Vị trí có quyền phê duyệt (duyệt void F&B / đổi ghế). */
     public static final List<String> APPROVERS = List.of(SHIFT_LEAD);

@@ -23,7 +23,4 @@ public class Shift {
 
     @Column(name = "end_time", nullable = false)
     private LocalDateTime endTime;
-
-    @Column(length = 20)
-    private String status;
 }

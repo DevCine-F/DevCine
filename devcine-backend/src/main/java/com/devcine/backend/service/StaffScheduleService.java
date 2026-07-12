@@ -103,7 +103,6 @@ public class StaffScheduleService {
         Shift shift = Shift.builder()
                 .startTime(startAt)
                 .endTime(endAt)
-                .status("ACTIVE")
                 .build();
         shiftRepository.save(shift);
 

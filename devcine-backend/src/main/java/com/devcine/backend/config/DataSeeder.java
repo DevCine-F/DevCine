@@ -912,7 +912,6 @@ public class DataSeeder {
                         Shift shift = shiftRepository.save(Shift.builder()
                                 .startTime(d.atTime(8, 0))
                                 .endTime(d.atTime(23, 30))
-                                .status("ACTIVE")
                                 .build());
                         staffScheduleRepository.save(StaffSchedule.builder()
                                 .staff(st)

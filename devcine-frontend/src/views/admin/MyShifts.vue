@@ -23,7 +23,6 @@ const positions = {
   POS_TICKETING: 'Bán vé POS',
   CHECK_IN: 'Kiểm soát vé',
   FNB: 'Quầy F&B',
-  PROJECTION: 'Phòng chiếu',
   SHIFT_LEAD: 'Trưởng ca',
 }
 
