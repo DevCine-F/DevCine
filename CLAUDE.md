@@ -55,9 +55,17 @@ Dùng `tools.jackson.*` — KHÔNG phải `com.fasterxml.jackson.*`
 
 Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 
+**Đã hoàn thiện — Phân hệ Ca làm việc & Bàn giao ca (13/07/2026):**
+- Chia ca theo Position + duyệt + check-in/out (lưu `actual_check_in_at/out_at` để hiển thị, KHÔNG tính lương/phạt)
+- Bàn giao ca TỰ ĐỘNG (không cần Manager duyệt): nhập tiền → `difference = thực đếm − (quỹ đầu ca + DT tiền mặt)` → chốt COMPLETED + khóa POS
+- Quỹ đầu ca cố định qua SystemSetting `SHIFT_OPENING_FLOAT` (mặc định 2.000.000)
+- Preset ca Sáng/Chiều/Tối (cứng ở FE); màn Lịch sử bàn giao tô đỏ dòng lệch quỹ + cột Vào–Ra
+- Đã gỡ: endpoint `/handovers/legacy`, `/shifts/{all,template}`, receive/confirm/reject/receivers; `Shift.status`; vị trí `PROJECTION`
+- Phạm vi CỐ Ý bỏ (Quản lý Vận hành, không HRM): tính lương, phạt đi muộn, đơn nghỉ, đổi ca, tồn kho F&B
+
 **Đang dở (chưa commit, 24/06/2026):**
 - Rollout Toast/FriendlyError mới áp 5/43 view (cần toàn bộ view admin + khách còn lại)
-- Admin UI cho BOM (định mức) & Bàn giao ca (API đã có, chưa có route)
+- Admin UI cho BOM (định mức) — chưa có route
 - Chuẩn hóa ApiResponse<T> + @ControllerAdvice toàn BE
 
 ## Commit convention
