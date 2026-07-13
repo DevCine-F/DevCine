@@ -39,6 +39,17 @@ const form = reactive({
 const statuses = [{ value: 'ALL', label: 'Tất cả' }, { value: 'SCHEDULED', label: 'Chờ duyệt' }, { value: 'APPROVED', label: 'Đã duyệt' }, { value: 'IN_PROGRESS', label: 'Đang trong ca' }, { value: 'COMPLETED', label: 'Đã kết ca' }, { value: 'REJECTED', label: 'Từ chối' }]
 const workPositions = [{ value: 'POS_TICKETING', label: 'Bán vé POS' }, { value: 'CHECK_IN', label: 'Kiểm soát vé' }, { value: 'FNB', label: 'Quầy F&B' }, { value: 'SHIFT_LEAD', label: 'Trưởng ca' }]
 
+// Ca mẫu chọn nhanh (cứng ở frontend) — điền sẵn giờ, Manager vẫn có thể tinh chỉnh tay.
+const shiftPresets = [
+  { key: 'MORNING', label: 'Ca Sáng · 08:00 – 14:00', start: '08:00', end: '14:00' },
+  { key: 'AFTERNOON', label: 'Ca Chiều · 14:00 – 20:00', start: '14:00', end: '20:00' },
+  { key: 'EVENING', label: 'Ca Tối · 20:00 – 01:00', start: '20:00', end: '01:00' },
+]
+const applyPreset = (event) => {
+  const preset = shiftPresets.find(p => p.key === event.target.value)
+  if (preset) { form.startTime = preset.start; form.endTime = preset.end }
+}
+
 const normalizeList = (payload) => Array.isArray(payload) ? payload : (payload?.data ?? [])
 const positionLabel = (value) => workPositions.find(p => p.value === value)?.label || value || 'Chưa gán'
 const statusLabel = (value) => statuses.find(s => s.value === value)?.label || value
@@ -291,6 +302,7 @@ onMounted(fetchData)
 
     <AppModal :show="isAddModalOpen" title="Tạo ca làm việc" @close="isAddModalOpen = false">
       <div class="space-y-5">
+        <label class="space-y-2 block"><span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-black">Ca mẫu (chọn nhanh)</span><select @change="applyPreset" class="w-full bg-surface-container-high rounded-xl px-4 py-3 text-sm outline-none"><option value="">Tùy chỉnh giờ thủ công…</option><option v-for="preset in shiftPresets" :key="preset.key" :value="preset.key">{{ preset.label }}</option></select></label>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label class="space-y-2"><span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-black">Cơ sở</span><select v-model="form.cinemaId" @change="handleCinemaChange" class="w-full bg-surface-container-high rounded-xl px-4 py-3 text-sm outline-none"><option value="">Chọn cơ sở</option><option v-for="cinema in cinemas" :key="cinema.id" :value="cinema.id">{{ cinema.name }}</option></select></label>
           <label class="space-y-2"><span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-black">Nhân viên</span><select v-model="form.staffId" @change="handleStaffChange" class="w-full bg-surface-container-high rounded-xl px-4 py-3 text-sm outline-none"><option value="">Chọn nhân viên</option><option v-for="staff in availableStaff" :key="staff.userId" :value="staff.userId">{{ staff.fullName }} - {{ staff.staffCode }}</option></select></label>

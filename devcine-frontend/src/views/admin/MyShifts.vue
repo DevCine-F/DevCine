@@ -57,6 +57,7 @@ const formatDate = (value) => {
   })
 }
 const formatTime = (value) => value ? value.slice(0, 5) : '--:--'
+const clockTime = (value) => value ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'
 
 // Trạng thái vận hành theo status ca (mô hình Check-in):
 //  PENDING (chờ duyệt) · WAITING (đã duyệt, chờ vào ca) · ACTIVE (đã check-in) · ENDED · REJECTED
@@ -275,6 +276,9 @@ onMounted(fetchShifts)
               </div>
               <p class="text-xs font-bold text-on-surface-variant mt-2">
                 {{ formatDate(shift.workDate) }} · {{ formatTime(shift.startTime) }} - {{ formatTime(shift.endTime) }}
+              </p>
+              <p v-if="shift.actualCheckInAt" class="text-[11px] font-semibold text-primary-container mt-1">
+                Thực tế: vào {{ clockTime(shift.actualCheckInAt) }}<span v-if="shift.actualCheckOutAt"> · ra {{ clockTime(shift.actualCheckOutAt) }}</span>
               </p>
               <p class="text-xs text-on-surface-variant mt-1">
                 {{ shift.cinemaName || 'Chưa gán cơ sở' }} · {{ shift.location || 'Theo điều phối trưởng ca' }}

@@ -36,6 +36,7 @@ const canSubmitHandover = computed(() => !activeHandoverForSummary.value)
 const money = (value) => new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + 'đ'
 const datetime = (value) => value ? new Date(value).toLocaleString('vi-VN') : '-'
 const dateOnly = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : '-'
+const timeShort = (value) => value ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'
 const positionLabel = (value) => shiftStore.positionLabel(value)
 const isMismatch = (handover) => Number(handover.difference || 0) !== 0
 // Kỳ vọng = quỹ đầu ca + doanh thu tiền mặt hệ thống.
@@ -206,6 +207,7 @@ onMounted(loadData)
             <tr>
               <th class="px-4 py-3 text-left">Ca</th>
               <th class="px-4 py-3 text-left">Người gửi</th>
+              <th class="px-4 py-3 text-left">Vào–Ra</th>
               <th class="px-4 py-3 text-right">Quỹ đầu ca</th>
               <th class="px-4 py-3 text-right">DT tiền mặt</th>
               <th class="px-4 py-3 text-right">Thực đếm</th>
@@ -217,6 +219,7 @@ onMounted(loadData)
             <tr v-for="handover in handovers" :key="handover.id" :class="isMismatch(handover) ? 'bg-red-500/5' : ''">
               <td class="px-4 py-3">{{ dateOnly(handover.workDate) }} · {{ positionLabel(handover.workPosition) }}</td>
               <td class="px-4 py-3">{{ handover.staffName }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-on-surface-variant">{{ timeShort(handover.actualCheckInAt) }} – {{ timeShort(handover.actualCheckOutAt) }}</td>
               <td class="px-4 py-3 text-right">{{ money(handover.openingFloat) }}</td>
               <td class="px-4 py-3 text-right">{{ money(handover.systemCash) }}</td>
               <td class="px-4 py-3 text-right">{{ money(handover.declaredCash) }}</td>
