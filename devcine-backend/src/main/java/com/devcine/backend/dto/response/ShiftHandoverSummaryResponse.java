@@ -27,6 +27,8 @@ public class ShiftHandoverSummaryResponse {
     private BigDecimal cardSales;
     private BigDecimal transferSales;
     private BigDecimal systemCash;
+    private BigDecimal openingFloat;   // quỹ đầu ca (từ cấu hình)
+    private BigDecimal expectedCash;    // tiền két kỳ vọng = quỹ đầu ca + doanh thu tiền mặt
     private BigDecimal ticketRevenue;
     private BigDecimal concessionRevenue;
     private Long ticketCount;

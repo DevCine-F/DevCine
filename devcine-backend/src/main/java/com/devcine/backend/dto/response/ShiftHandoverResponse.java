@@ -40,12 +40,6 @@ public class ShiftHandoverResponse {
     private BigDecimal difference;
     private String status;
     private LocalDateTime submittedAt;
-    private LocalDateTime receivedAt;
-    private LocalDateTime confirmedAt;
-    private Integer receivedByStaffId;
-    private String receivedByStaffName;
-    private String approvedBy;
-    private String receiverNote;
     private String note;
 
     public static ShiftHandoverResponse fromEntity(ShiftHandover handover) {
@@ -54,10 +48,6 @@ public class ShiftHandoverResponse {
         var user = staff != null ? staff.getUser() : null;
         var shift = schedule != null ? schedule.getShift() : null;
         var cinema = schedule != null ? schedule.getCinema() : null;
-        var manager = handover.getApprovedByManager();
-        var managerUser = manager != null ? manager.getUser() : null;
-        var receiver = handover.getReceivedByStaff();
-        var receiverUser = receiver != null ? receiver.getUser() : null;
 
         return ShiftHandoverResponse.builder()
                 .id(handover.getId())
@@ -85,12 +75,6 @@ public class ShiftHandoverResponse {
                 .difference(defaultMoney(handover.getDifference()))
                 .status(normalizeStatus(handover.getStatus()))
                 .submittedAt(handover.getSubmittedAt())
-                .receivedAt(handover.getReceivedAt())
-                .confirmedAt(handover.getConfirmedAt())
-                .receivedByStaffId(receiver != null ? receiver.getUserId() : null)
-                .receivedByStaffName(receiverUser != null ? receiverUser.getFullName() : null)
-                .approvedBy(managerUser != null ? managerUser.getFullName() : null)
-                .receiverNote(handover.getReceiverNote())
                 .note(handover.getNote())
                 .build();
     }

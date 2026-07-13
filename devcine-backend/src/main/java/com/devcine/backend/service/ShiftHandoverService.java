@@ -164,6 +164,8 @@ public class ShiftHandoverService {
         var cinema = schedule.getCinema();
         var shift = schedule.getShift();
 
+        BigDecimal openingFloat = systemSettingService.getShiftOpeningFloat();
+
         return ShiftHandoverSummaryResponse.builder()
                 .staffScheduleId(schedule.getId())
                 .staffId(staff != null ? staff.getUserId() : null)
@@ -178,6 +180,8 @@ public class ShiftHandoverService {
                 .cardSales(cardSales)
                 .transferSales(transferSales)
                 .systemCash(cashSales)
+                .openingFloat(openingFloat)
+                .expectedCash(openingFloat.add(cashSales))
                 .ticketRevenue(ticketRevenue)
                 .concessionRevenue(concessionRevenue)
                 .ticketCount(ticketCount)

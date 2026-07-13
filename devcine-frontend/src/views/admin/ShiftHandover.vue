@@ -32,6 +32,11 @@ const activeHandoverForSummary = computed(() => {
   return handovers.value.find((h) => Number(h.staffScheduleId) === Number(summary.value.staffScheduleId)) || null
 })
 const canSubmitHandover = computed(() => !activeHandoverForSummary.value)
+// Chênh lệch dự kiến = tiền đếm − tiền két kỳ vọng (khớp công thức backend).
+const liveDiff = computed(() => {
+  if (!summary.value) return 0
+  return Number(declaredCash.value || 0) - Number(summary.value.expectedCash ?? summary.value.systemCash ?? 0)
+})
 
 const money = (value) => new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + 'đ'
 const datetime = (value) => value ? new Date(value).toLocaleString('vi-VN') : '-'
@@ -68,7 +73,8 @@ const loadData = async () => {
     const [summaryData, listRes] = await Promise.all([summaryRequest, listRequest])
 
     summary.value = summaryData
-    declaredCash.value = summaryData ? String(Number(summaryData.systemCash || 0)) : ''
+    // Điền sẵn = tiền két kỳ vọng (quỹ đầu ca + DT tiền mặt) → đếm đúng thì chênh lệch = 0.
+    declaredCash.value = summaryData ? String(Number(summaryData.expectedCash ?? summaryData.systemCash ?? 0)) : ''
     if (listRes) handovers.value = listRes.data?.data ?? listRes.data ?? []
   } catch (error) {
     errorMessage.value = friendlyError(error, 'Không tải được dữ liệu bàn giao ca.')
@@ -176,9 +182,15 @@ onMounted(loadData)
 
         <form v-else class="rounded-lg border border-outline-variant/10 bg-surface p-6 space-y-4" @submit.prevent="handleSubmit">
           <h2 class="text-lg font-black text-on-surface">Bàn giao cuối ca</h2>
+          <div class="rounded-lg bg-surface-container-high p-4 text-sm space-y-1.5">
+            <div class="flex justify-between text-on-surface-variant"><span>Quỹ đầu ca</span><span class="font-bold text-on-surface">{{ money(summary.openingFloat) }}</span></div>
+            <div class="flex justify-between text-on-surface-variant"><span>Doanh thu tiền mặt</span><span class="font-bold text-on-surface">{{ money(summary.systemCash) }}</span></div>
+            <div class="flex justify-between border-t border-outline-variant/10 pt-1.5"><span class="font-bold text-on-surface">Tiền két kỳ vọng</span><span class="font-black text-primary">{{ money(summary.expectedCash) }}</span></div>
+          </div>
           <label class="block">
             <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Tiền mặt thực tế trong két</span>
             <input v-model="declaredCash" type="number" min="0" class="mt-2 w-full rounded-lg border border-outline-variant/20 bg-surface-container-high px-4 py-3 text-on-surface outline-none focus:border-primary">
+            <p class="mt-2 text-xs font-bold" :class="liveDiff === 0 ? 'text-green-400' : 'text-red-300'">Chênh lệch dự kiến: {{ money(liveDiff) }}</p>
           </label>
           <label class="block">
             <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Ghi chú (tuỳ chọn)</span>
