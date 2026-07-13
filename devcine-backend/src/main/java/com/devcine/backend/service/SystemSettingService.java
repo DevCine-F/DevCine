@@ -34,6 +34,10 @@ public class SystemSettingService {
     public static final int BOOKING_LATE_MAX = 60;
     public static final int BOOKING_LATE_DEFAULT = 15;
 
+    /** Quỹ đầu ca (tiền mặt sẵn trong két đầu ca) dùng cho đối soát cuối ca. */
+    public static final String KEY_SHIFT_OPENING_FLOAT = "SHIFT_OPENING_FLOAT";
+    public static final long SHIFT_OPENING_FLOAT_DEFAULT = 2_000_000L;
+
     /** Đọc một setting số nguyên, kẹp trong [min, max]; thiếu/sai → defaultValue. */
     private int getIntSetting(String key, int min, int max, int defaultValue) {
         return systemSettingRepository.findById(key)
@@ -64,6 +68,20 @@ public class SystemSettingService {
      */
     public int getSeatHoldMinutes() {
         return getIntSetting(KEY_SEAT_HOLD_MINUTES, SEAT_HOLD_MIN, SEAT_HOLD_MAX, SEAT_HOLD_DEFAULT);
+    }
+
+    /** Quỹ đầu ca (VNĐ) admin cấu hình; thiếu/sai/âm → mặc định 2.000.000. Không kẹp trần. */
+    public java.math.BigDecimal getShiftOpeningFloat() {
+        return systemSettingRepository.findById(KEY_SHIFT_OPENING_FLOAT)
+                .map(s -> {
+                    try {
+                        java.math.BigDecimal v = new java.math.BigDecimal(s.getSettingValue().trim());
+                        return v.signum() < 0 ? java.math.BigDecimal.ZERO : v;
+                    } catch (NumberFormatException | NullPointerException e) {
+                        return java.math.BigDecimal.valueOf(SHIFT_OPENING_FLOAT_DEFAULT);
+                    }
+                })
+                .orElse(java.math.BigDecimal.valueOf(SHIFT_OPENING_FLOAT_DEFAULT));
     }
 
     public List<SystemSettingResponseDTO> getAllSettings() {

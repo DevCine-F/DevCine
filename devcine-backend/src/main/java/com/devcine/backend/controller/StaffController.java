@@ -1,6 +1,5 @@
 package com.devcine.backend.controller;
 
-import com.devcine.backend.dto.request.ShiftHandoverDecisionRequest;
 import com.devcine.backend.dto.request.ShiftHandoverRequest;
 import com.devcine.backend.dto.request.StaffShiftRequest;
 import com.devcine.backend.entity.Cinema;
@@ -556,37 +555,10 @@ public class StaffController {
         return ResponseEntity.ok(shiftHandoverService.summary(staffScheduleId));
     }
 
-    @GetMapping("/handovers/receivers")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> getHandoverReceivers(@RequestParam Integer staffScheduleId) {
-        return ResponseEntity.ok(shiftHandoverService.receiverCandidates(staffScheduleId));
-    }
-
     @PostMapping("/handovers")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> submitShiftHandover(@Valid @RequestBody ShiftHandoverRequest request) {
         return ResponseEntity.status(201).body(shiftHandoverService.submit(request));
-    }
-
-    @PutMapping("/handovers/{id}/receive")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> receiveShiftHandover(@PathVariable Integer id,
-                                                  @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
-        return ResponseEntity.ok(shiftHandoverService.receive(id, request));
-    }
-
-    @PutMapping("/handovers/{id}/confirm")
-    @PreAuthorize("@perm.can('staff_management','edit')")
-    public ResponseEntity<?> confirmShiftHandover(@PathVariable Integer id,
-                                                  @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
-        return ResponseEntity.ok(shiftHandoverService.confirm(id, request));
-    }
-
-    @PutMapping("/handovers/{id}/reject")
-    @PreAuthorize("@perm.can('staff_management','edit')")
-    public ResponseEntity<?> rejectShiftHandover(@PathVariable Integer id,
-                                                 @RequestBody(required = false) ShiftHandoverDecisionRequest request) {
-        return ResponseEntity.ok(shiftHandoverService.reject(id, request));
     }
 
     @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})

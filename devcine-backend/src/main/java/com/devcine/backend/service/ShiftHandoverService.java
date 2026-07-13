@@ -1,17 +1,14 @@
 package com.devcine.backend.service;
 
-import com.devcine.backend.dto.request.ShiftHandoverDecisionRequest;
 import com.devcine.backend.dto.request.ShiftHandoverRequest;
 import com.devcine.backend.dto.response.ShiftHandoverResponse;
 import com.devcine.backend.dto.response.ShiftHandoverSummaryResponse;
 import com.devcine.backend.entity.ShiftHandover;
-import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.repository.BookingFnbRepository;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.ConcessionSaleRepository;
 import com.devcine.backend.repository.ShiftHandoverRepository;
-import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.StaffScheduleRepository;
 import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -22,17 +19,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * Bàn giao ca (đối soát tiền cuối ca) — luồng TỰ ĐỘNG, không có bước duyệt.
+ *
+ * <p>Nhân viên nhập tiền mặt thực đếm → hệ thống tính chênh lệch so với "tiền két kỳ vọng"
+ * (= quỹ đầu ca + doanh thu tiền mặt), lưu biên bản trạng thái {@code COMPLETED} và kết thúc ca
+ * ngay lập tức. Quản lý xem lại ở màn Lịch sử bàn giao; dòng chênh lệch ≠ 0 được tô cảnh báo.
+ */
 @Service
 @RequiredArgsConstructor
 public class ShiftHandoverService {
 
-    private static final String STATUS_SUBMITTED = "SUBMITTED";
-    private static final String STATUS_RECEIVED = "RECEIVED";
-    private static final String STATUS_PENDING_LEGACY = "PENDING";
-    private static final String STATUS_CONFIRMED = "CONFIRMED";
-    private static final String STATUS_REJECTED = "REJECTED";
+    private static final String STATUS_SUBMITTED = "SUBMITTED";     // dữ liệu cũ (luồng có duyệt trước đây)
+    private static final String STATUS_PENDING_LEGACY = "PENDING";  // dữ liệu cũ hơn nữa
+    private static final String STATUS_COMPLETED = "COMPLETED";     // trạng thái chốt của luồng tự động
     private static final String SCHEDULE_APPROVED = "APPROVED";
     private static final String SCHEDULE_IN_PROGRESS = "IN_PROGRESS";
     private static final String SCHEDULE_COMPLETED = "COMPLETED";
@@ -44,7 +45,7 @@ public class ShiftHandoverService {
     private final BookingRepository bookingRepository;
     private final BookingFnbRepository bookingFnbRepository;
     private final ConcessionSaleRepository concessionSaleRepository;
-    private final StaffRepository staffRepository;
+    private final SystemSettingService systemSettingService;
 
     @Transactional(readOnly = true)
     public ShiftHandoverSummaryResponse currentSummary() {
@@ -79,41 +80,21 @@ public class ShiftHandoverService {
     @Transactional(readOnly = true)
     public List<ShiftHandoverResponse> myList() {
         if (!SecurityUtils.hasRole("STAFF") || SecurityUtils.isAdmin()) {
-            throw new AccessDeniedException("Chi nhan vien moi co the xem bien ban ban giao cua minh.");
+            throw new AccessDeniedException("Chỉ nhân viên mới có thể xem biên bản bàn giao của mình.");
         }
         Integer currentUserId = SecurityUtils.getCurrentUserId();
         if (currentUserId == null) {
-            throw new AccessDeniedException("Ban can dang nhap de xem bien ban ban giao.");
+            throw new AccessDeniedException("Bạn cần đăng nhập để xem biên bản bàn giao.");
         }
         return shiftHandoverRepository.findMineWithDetails(currentUserId).stream()
                 .map(ShiftHandoverResponse::fromEntity)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> receiverCandidates(Integer staffScheduleId) {
-        StaffSchedule schedule = loadSchedule(staffScheduleId);
-        verifyScheduleAccess(schedule);
-        Integer cinemaId = schedule.getCinema() != null ? schedule.getCinema().getId() : null;
-        if (cinemaId == null) {
-            throw new IllegalArgumentException("Ca lam viec chua co co so de chon nguoi nhan ban giao.");
-        }
-        Integer senderId = schedule.getStaff() != null ? schedule.getStaff().getUserId() : null;
-        return staffRepository.findByCinemaIdWithDetails(cinemaId).stream()
-                .filter(staff -> staff.getUser() != null && Boolean.TRUE.equals(staff.getUser().getIsActive()))
-                .filter(staff -> senderId == null || !senderId.equals(staff.getUserId()))
-                .map(staff -> {
-                    var user = staff.getUser();
-                    return Map.<String, Object>of(
-                            "userId", staff.getUserId(),
-                            "staffCode", staff.getStaffCode() != null ? staff.getStaffCode() : "",
-                            "fullName", user != null ? user.getFullName() : "Nhan vien",
-                            "cinemaId", cinemaId
-                    );
-                })
-                .toList();
-    }
-
+    /**
+     * Gửi bàn giao — TỰ ĐỘNG chốt: tính chênh lệch, lưu biên bản COMPLETED và kết thúc ca.
+     * Không cần người nhận, không cần quản lý duyệt.
+     */
     @Transactional
     public ShiftHandoverResponse submit(ShiftHandoverRequest request) {
         StaffSchedule schedule = request.getStaffScheduleId() != null
@@ -121,80 +102,45 @@ public class ShiftHandoverService {
                 : shiftAccessService.requireCurrentStaffSchedule();
         verifyScheduleAccess(schedule);
         validateScheduleReadyForHandover(schedule);
-        if (shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_SUBMITTED)
-                || shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_RECEIVED)
+
+        // Mỗi ca chỉ bàn giao một lần.
+        if (shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_COMPLETED)
+                || shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_SUBMITTED)
                 || shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_PENDING_LEGACY)) {
-            throw new IllegalArgumentException("Ca này đã có biên bản bàn giao đang chờ xác nhận.");
+            throw new IllegalArgumentException("Ca này đã được bàn giao, không thể bàn giao lại.");
         }
-
-        if (shiftHandoverRepository.existsByStaffScheduleIdAndStatus(schedule.getId(), STATUS_CONFIRMED)) {
-            throw new IllegalArgumentException("Ca nay da duoc xac nhan ban giao, khong the tao lai.");
-        }
-
-        Staff receiver = loadReceiver(request.getReceiverStaffId(), schedule);
 
         ShiftHandoverSummaryResponse summary = buildSummary(schedule);
         BigDecimal declaredCash = money(request.getDeclaredCash());
-        BigDecimal systemCash = money(summary.getSystemCash());
+        BigDecimal cashSales = money(summary.getCashSales());
+        BigDecimal openingFloat = systemSettingService.getShiftOpeningFloat();
+        // Tiền két kỳ vọng = quỹ đầu ca + doanh thu tiền mặt; chênh lệch = thực đếm − kỳ vọng.
+        BigDecimal expectedCash = openingFloat.add(cashSales);
 
         ShiftHandover handover = ShiftHandover.builder()
                 .staffSchedule(schedule)
-                .receivedByStaff(receiver)
                 .declaredCash(declaredCash)
-                .systemCash(systemCash)
-                .cashSales(money(summary.getCashSales()))
+                .systemCash(cashSales)
+                .openingFloat(openingFloat)
+                .cashSales(cashSales)
                 .cardSales(money(summary.getCardSales()))
                 .transferSales(money(summary.getTransferSales()))
                 .ticketRevenue(money(summary.getTicketRevenue()))
                 .concessionRevenue(money(summary.getConcessionRevenue()))
                 .ticketCount(summary.getTicketCount())
                 .concessionOrderCount(summary.getConcessionOrderCount())
-                .difference(declaredCash.subtract(systemCash))
-                .status(STATUS_SUBMITTED)
+                .difference(declaredCash.subtract(expectedCash))
+                .status(STATUS_COMPLETED)
                 .submittedAt(LocalDateTime.now())
                 .note(cleanNote(request.getNote()))
                 .build();
         ShiftHandover saved = shiftHandoverRepository.save(handover);
 
-        // Khóa POS: kết thúc ca ngay khi gửi bàn giao (IN_PROGRESS/APPROVED → COMPLETED) để không
-        // phát sinh thêm doanh thu làm lệch số liệu đối soát. Quyền theo Position bị thu hồi tức thì.
+        // Kết thúc ca ngay: thu hồi quyền theo Position, khóa POS để không phát sinh thêm doanh thu.
         schedule.setStatus(SCHEDULE_COMPLETED);
         staffScheduleRepository.save(schedule);
 
         return ShiftHandoverResponse.fromEntity(saved);
-    }
-
-    @Transactional
-    public ShiftHandoverResponse receive(Integer id, ShiftHandoverDecisionRequest request) {
-        ShiftHandover handover = loadHandover(id);
-        ensureSubmitted(handover);
-        verifyReceiverAccess(handover);
-        handover.setStatus(STATUS_RECEIVED);
-        handover.setReceivedAt(LocalDateTime.now());
-        handover.setReceiverNote(cleanNote(request != null ? request.getNote() : null));
-        return ShiftHandoverResponse.fromEntity(shiftHandoverRepository.save(handover));
-    }
-
-    @Transactional
-    public ShiftHandoverResponse confirm(Integer id, ShiftHandoverDecisionRequest request) {
-        ShiftHandover handover = loadHandover(id);
-        ensureReceived(handover);
-        handover.setStatus(STATUS_CONFIRMED);
-        handover.setConfirmedAt(LocalDateTime.now());
-        handover.setApprovedByManager(currentStaffOrNull());
-        mergeNote(handover, request);
-        return ShiftHandoverResponse.fromEntity(shiftHandoverRepository.save(handover));
-    }
-
-    @Transactional
-    public ShiftHandoverResponse reject(Integer id, ShiftHandoverDecisionRequest request) {
-        ShiftHandover handover = loadHandover(id);
-        ensureReviewable(handover);
-        handover.setStatus(STATUS_REJECTED);
-        handover.setConfirmedAt(LocalDateTime.now());
-        handover.setApprovedByManager(currentStaffOrNull());
-        mergeNote(handover, request);
-        return ShiftHandoverResponse.fromEntity(shiftHandoverRepository.save(handover));
     }
 
     private ShiftHandoverSummaryResponse buildSummary(StaffSchedule schedule) {
@@ -217,7 +163,7 @@ public class ShiftHandoverService {
         return ShiftHandoverSummaryResponse.builder()
                 .staffScheduleId(schedule.getId())
                 .staffId(staff != null ? staff.getUserId() : null)
-                .staffName(user != null ? user.getFullName() : "Nhan vien")
+                .staffName(user != null ? user.getFullName() : "Nhân viên")
                 .workPosition(schedule.getWorkPosition())
                 .cinemaId(cinema != null ? cinema.getId() : null)
                 .cinemaName(cinema != null ? cinema.getName() : null)
@@ -243,32 +189,6 @@ public class ShiftHandoverService {
     private StaffSchedule loadSchedule(Integer id) {
         return staffScheduleRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca làm việc."));
-    }
-
-    private Staff loadReceiver(Integer receiverStaffId, StaffSchedule schedule) {
-        if (receiverStaffId == null) {
-            throw new IllegalArgumentException("Vui long chon nhan vien nhan ban giao.");
-        }
-        Staff receiver = staffRepository.findByIdWithDetails(receiverStaffId)
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay nhan vien nhan ban giao."));
-        if (receiver.getUser() == null || !Boolean.TRUE.equals(receiver.getUser().getIsActive())) {
-            throw new IllegalArgumentException("Nhan vien nhan ban giao khong hoat dong.");
-        }
-        Integer senderId = schedule.getStaff() != null ? schedule.getStaff().getUserId() : null;
-        if (senderId != null && senderId.equals(receiver.getUserId())) {
-            throw new IllegalArgumentException("Nguoi nhan ban giao phai khac nhan vien ket ca.");
-        }
-        Integer scheduleCinemaId = schedule.getCinema() != null ? schedule.getCinema().getId() : null;
-        Integer receiverCinemaId = receiver.getCinema() != null ? receiver.getCinema().getId() : null;
-        if (scheduleCinemaId == null || !scheduleCinemaId.equals(receiverCinemaId)) {
-            throw new IllegalArgumentException("Nguoi nhan ban giao phai thuoc cung co so.");
-        }
-        return receiver;
-    }
-
-    private ShiftHandover loadHandover(Integer id) {
-        return shiftHandoverRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biên bản bàn giao ca."));
     }
 
     private void verifyScheduleAccess(StaffSchedule schedule) {
@@ -297,69 +217,15 @@ public class ShiftHandoverService {
         // Ca đã Check-in (IN_PROGRESS) hoặc đã duyệt (APPROVED, tương thích luồng cũ) mới được bàn giao.
         if (!SCHEDULE_APPROVED.equalsIgnoreCase(scheduleStatus)
                 && !SCHEDULE_IN_PROGRESS.equalsIgnoreCase(scheduleStatus)) {
-            throw new IllegalArgumentException("Chi ca da duyet hoac dang lam viec moi duoc ban giao.");
+            throw new IllegalArgumentException("Chỉ ca đã duyệt hoặc đang làm việc mới được bàn giao.");
         }
         var shift = schedule.getShift();
         if (shift == null || shift.getEndTime() == null) {
-            throw new IllegalArgumentException("Ca lam viec chua co gio ket thuc hop le.");
+            throw new IllegalArgumentException("Ca làm việc chưa có giờ kết thúc hợp lệ.");
         }
         LocalDateTime handoverOpenAt = shift.getEndTime().minusMinutes(HANDOVER_EARLY_MINUTES);
         if (LocalDateTime.now().isBefore(handoverOpenAt)) {
-            throw new IllegalArgumentException("Chua den gio ban giao. Ban co the ban giao tu " + handoverOpenAt + ".");
-        }
-    }
-
-    private void ensureSubmitted(ShiftHandover handover) {
-        String status = normalizeStatus(handover.getStatus());
-        if (!STATUS_SUBMITTED.equals(status)) {
-            throw new IllegalArgumentException("Chi bien ban da gui moi duoc nhan ban giao.");
-        }
-    }
-
-    private void ensureReceived(ShiftHandover handover) {
-        if (!STATUS_RECEIVED.equals(normalizeStatus(handover.getStatus()))) {
-            throw new IllegalArgumentException("Chi bien ban da nhan moi duoc chot doi soat.");
-        }
-    }
-
-    private void ensureReviewable(ShiftHandover handover) {
-        String status = normalizeStatus(handover.getStatus());
-        if (STATUS_CONFIRMED.equals(status) || STATUS_REJECTED.equals(status)) {
-            throw new IllegalArgumentException("Bien ban ban giao nay da duoc xu ly.");
-        }
-    }
-
-    private void verifyReceiverAccess(ShiftHandover handover) {
-        if (SecurityUtils.isAdmin()) {
-            return;
-        }
-        Integer currentUserId = SecurityUtils.getCurrentUserId();
-        Integer receiverId = handover.getReceivedByStaff() != null ? handover.getReceivedByStaff().getUserId() : null;
-        if (currentUserId == null || receiverId == null || !currentUserId.equals(receiverId)) {
-            throw new AccessDeniedException("Ban khong phai nhan vien duoc chi dinh nhan ban giao.");
-        }
-    }
-
-    private String normalizeStatus(String status) {
-        if (STATUS_PENDING_LEGACY.equalsIgnoreCase(status)) {
-            return STATUS_SUBMITTED;
-        }
-        return status != null ? status.toUpperCase() : STATUS_SUBMITTED;
-    }
-
-    private Staff currentStaffOrNull() {
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null || !staffRepository.existsById(userId)) {
-            return null;
-        }
-        return staffRepository.getReferenceById(userId);
-    }
-
-    private void mergeNote(ShiftHandover handover, ShiftHandoverDecisionRequest request) {
-        String note = request != null ? cleanNote(request.getNote()) : null;
-        if (note != null) {
-            String current = handover.getNote();
-            handover.setNote(current == null || current.isBlank() ? note : current + "\n" + note);
+            throw new IllegalArgumentException("Chưa đến giờ bàn giao. Bạn có thể bàn giao từ " + handoverOpenAt + ".");
         }
     }
 

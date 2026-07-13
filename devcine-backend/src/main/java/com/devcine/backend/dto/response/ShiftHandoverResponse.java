@@ -27,6 +27,7 @@ public class ShiftHandoverResponse {
     private LocalDateTime endAt;
     private BigDecimal declaredCash;
     private BigDecimal systemCash;
+    private BigDecimal openingFloat;
     private BigDecimal cashSales;
     private BigDecimal cardSales;
     private BigDecimal transferSales;
@@ -69,6 +70,7 @@ public class ShiftHandoverResponse {
                 .endAt(shift != null ? shift.getEndTime() : null)
                 .declaredCash(defaultMoney(handover.getDeclaredCash()))
                 .systemCash(defaultMoney(handover.getSystemCash()))
+                .openingFloat(defaultMoney(handover.getOpeningFloat()))
                 .cashSales(defaultMoney(handover.getCashSales()))
                 .cardSales(defaultMoney(handover.getCardSales()))
                 .transferSales(defaultMoney(handover.getTransferSales()))

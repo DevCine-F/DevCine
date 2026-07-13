@@ -37,6 +37,10 @@ public class ShiftHandover {
     @Column(name = "system_cash", precision = 15, scale = 2)
     private BigDecimal systemCash;
 
+    // Quỹ đầu ca (opening float) áp dụng lúc bàn giao — chụp lại từ cấu hình để đối soát chính xác về sau.
+    @Column(name = "opening_float", precision = 15, scale = 2)
+    private BigDecimal openingFloat;
+
     @Column(name = "cash_sales", precision = 15, scale = 2)
     private BigDecimal cashSales;
 
