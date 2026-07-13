@@ -159,6 +159,7 @@ public class StaffScheduleService {
             throw new IllegalArgumentException("Bạn đang trong một ca làm việc khác. Hãy kết ca trước khi vào ca mới.");
         }
         schedule.setStatus(STATUS_IN_PROGRESS);
+        schedule.setActualCheckInAt(LocalDateTime.now()); // ghi mốc giờ vào ca thực tế
         return StaffShiftResponse.fromEntity(staffScheduleRepository.save(schedule));
     }
 
@@ -176,6 +177,7 @@ public class StaffScheduleService {
             throw new IllegalArgumentException("Chỉ ca đang làm việc mới có thể kết ca.");
         }
         schedule.setStatus(STATUS_COMPLETED);
+        schedule.setActualCheckOutAt(LocalDateTime.now()); // ghi mốc giờ kết ca thực tế
         return StaffShiftResponse.fromEntity(staffScheduleRepository.save(schedule));
     }
 

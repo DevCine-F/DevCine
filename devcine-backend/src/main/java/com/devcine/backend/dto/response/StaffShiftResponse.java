@@ -33,6 +33,8 @@ public class StaffShiftResponse {
     private LocalDateTime endAt;
     private String startTime;
     private String endTime;
+    private LocalDateTime actualCheckInAt;
+    private LocalDateTime actualCheckOutAt;
 
     public static StaffShiftResponse fromEntity(StaffSchedule schedule) {
         var staff = schedule.getStaff();
@@ -64,6 +66,8 @@ public class StaffShiftResponse {
                 .endAt(shift != null ? shift.getEndTime() : null)
                 .startTime(shift != null && shift.getStartTime() != null ? shift.getStartTime().toLocalTime().toString() : null)
                 .endTime(shift != null && shift.getEndTime() != null ? shift.getEndTime().toLocalTime().toString() : null)
+                .actualCheckInAt(schedule.getActualCheckInAt())
+                .actualCheckOutAt(schedule.getActualCheckOutAt())
                 .build();
     }
 }

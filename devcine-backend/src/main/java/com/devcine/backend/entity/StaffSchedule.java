@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "staff_schedules")
@@ -44,4 +45,11 @@ public class StaffSchedule {
 
     @Column(length = 20)
     private String status;
+
+    // Mốc giờ nhân viên bấm vào ca / kết ca thực tế (chỉ để hiển thị đối soát, không tính lương/phạt).
+    @Column(name = "actual_check_in_at")
+    private LocalDateTime actualCheckInAt;
+
+    @Column(name = "actual_check_out_at")
+    private LocalDateTime actualCheckOutAt;
 }

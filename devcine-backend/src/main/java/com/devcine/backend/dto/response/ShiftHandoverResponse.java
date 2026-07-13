@@ -25,6 +25,8 @@ public class ShiftHandoverResponse {
     private LocalDate workDate;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
+    private LocalDateTime actualCheckInAt;
+    private LocalDateTime actualCheckOutAt;
     private BigDecimal declaredCash;
     private BigDecimal systemCash;
     private BigDecimal openingFloat;
@@ -68,6 +70,8 @@ public class ShiftHandoverResponse {
                 .workDate(schedule != null ? schedule.getWorkDate() : null)
                 .startAt(shift != null ? shift.getStartTime() : null)
                 .endAt(shift != null ? shift.getEndTime() : null)
+                .actualCheckInAt(schedule != null ? schedule.getActualCheckInAt() : null)
+                .actualCheckOutAt(schedule != null ? schedule.getActualCheckOutAt() : null)
                 .declaredCash(defaultMoney(handover.getDeclaredCash()))
                 .systemCash(defaultMoney(handover.getSystemCash()))
                 .openingFloat(defaultMoney(handover.getOpeningFloat()))

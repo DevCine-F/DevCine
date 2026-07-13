@@ -137,7 +137,11 @@ public class ShiftHandoverService {
         ShiftHandover saved = shiftHandoverRepository.save(handover);
 
         // Kết thúc ca ngay: thu hồi quyền theo Position, khóa POS để không phát sinh thêm doanh thu.
+        // Bàn giao đóng vai trò kết ca cho quầy tiền → ghi luôn mốc giờ ra thực tế.
         schedule.setStatus(SCHEDULE_COMPLETED);
+        if (schedule.getActualCheckOutAt() == null) {
+            schedule.setActualCheckOutAt(LocalDateTime.now());
+        }
         staffScheduleRepository.save(schedule);
 
         return ShiftHandoverResponse.fromEntity(saved);
