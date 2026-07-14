@@ -320,8 +320,8 @@ onMounted(() => { fetchBanners(); fetchMovies() })
              dragOverIndex === i && dragIndex !== i ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant/10'
            ]">
 
-        <!-- Image Preview -->
-        <div class="relative h-32 w-full bg-surface-container-highest overflow-hidden">
+        <!-- Image Preview — giữ tỉ lệ 16:9 khớp khung banner thật (hero full màn hình) ở trang chủ -->
+        <div class="relative aspect-video w-full bg-surface-container-highest overflow-hidden">
           <img v-if="banner.mode !== 'MOVIE' && banner.imageUrl" :src="banner.imageUrl" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Banner preview" />
           <template v-else-if="banner.mode === 'MOVIE'">
             <!-- Có ảnh phim: hiện ảnh + phủ tên phim ở đáy -->
