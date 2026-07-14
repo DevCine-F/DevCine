@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -54,12 +55,12 @@ public class BannerController {
             // Edge case 3: thứ tự ưu tiên phải là số nguyên dương.
             Integer order = parsePriority(body.get("order"));
 
-            // Edge case 2: ngày hợp lệ & ngày kết thúc phải sau ngày bắt đầu.
-            LocalDateTime startDate = parseDate(body.get("startDate"), "ngày bắt đầu");
-            LocalDateTime endDate = parseDate(body.get("endDate"), "ngày kết thúc");
+            // Edge case 2: chuẩn hoá mốc giờ (bắt đầu -> 00:00:00, kết thúc -> 23:59:59) & endDate phải sau startDate.
+            LocalDateTime startDate = parseDate(body.get("startDate"), "ngày bắt đầu", false);
+            LocalDateTime endDate = parseDate(body.get("endDate"), "ngày kết thúc", true);
             if (startDate == null) startDate = LocalDateTime.now();
-            if (endDate == null) endDate = LocalDateTime.now().plusMonths(1);
-            if (!endDate.isAfter(startDate)) return badRequest("Ngày kết thúc phải sau ngày bắt đầu.");
+            // endDate để trống = treo banner vô thời hạn (hiển thị đến khi tự tắt/xoá).
+            if (endDate != null && !endDate.isAfter(startDate)) return badRequest("Ngày kết thúc phải sau ngày bắt đầu.");
 
             Banner banner = Banner.builder()
                     .title(sanitizeTitle((String) body.get("title"))) // Edge case 4: loại bỏ HTML/script khỏi tiêu đề
@@ -112,9 +113,9 @@ public class BannerController {
                 Integer order = parsePriority(body.get("order"));
                 if (order != null) banner.setDisplayOrder(order);
             }
-            // Edge case 2: định dạng ngày hợp lệ + ngày kết thúc phải sau ngày bắt đầu.
-            if (body.get("startDate") != null) banner.setStartDate(parseDate(body.get("startDate"), "ngày bắt đầu"));
-            if (body.get("endDate") != null) banner.setEndDate(parseDate(body.get("endDate"), "ngày kết thúc"));
+            // Edge case 2: chuẩn hoá mốc giờ (bắt đầu -> 00:00:00, kết thúc -> 23:59:59) + endDate phải sau startDate.
+            if (body.get("startDate") != null) banner.setStartDate(parseDate(body.get("startDate"), "ngày bắt đầu", false));
+            if (body.get("endDate") != null) banner.setEndDate(parseDate(body.get("endDate"), "ngày kết thúc", true));
             if (banner.getStartDate() != null && banner.getEndDate() != null
                     && !banner.getEndDate().isAfter(banner.getStartDate())) {
                 return badRequest("Ngày kết thúc phải sau ngày bắt đầu.");
@@ -171,11 +172,21 @@ public class BannerController {
         return value;
     }
 
-    /** Parse LocalDateTime với thông báo lỗi thân thiện khi định dạng sai. */
-    private LocalDateTime parseDate(Object raw, String fieldLabel) {
+    /**
+     * Parse ngày với thông báo lỗi thân thiện khi sai định dạng.
+     * Nếu chỉ nhận được ngày (yyyy-MM-dd, không có giờ) thì tự gán mốc giờ chuẩn:
+     * ngày bắt đầu -> 00:00:00, ngày kết thúc -> 23:59:59 ({@code endOfDay = true}).
+     */
+    private LocalDateTime parseDate(Object raw, String fieldLabel, boolean endOfDay) {
         if (raw == null) return null;
+        String value = ((String) raw).trim();
+        if (value.isEmpty()) return null;
         try {
-            return LocalDateTime.parse((String) raw);
+            if (value.length() == 10) { // chỉ có ngày yyyy-MM-dd -> gán mốc giờ chuẩn ở 2 đầu
+                LocalDate date = LocalDate.parse(value);
+                return endOfDay ? date.atTime(23, 59, 59) : date.atStartOfDay();
+            }
+            return LocalDateTime.parse(value);
         } catch (Exception e) {
             throw new IllegalArgumentException("Định dạng " + fieldLabel + " không hợp lệ.");
         }

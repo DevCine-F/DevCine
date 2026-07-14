@@ -130,7 +130,8 @@ const handleImageUpload = async (e) => {
   }
 }
 
-// Gói payload gửi backend (startDate/endDate dạng ISO LocalDateTime)
+// Gói payload gửi backend. Chuẩn hoá mốc giờ: bắt đầu -> 00:00:00, kết thúc -> 23:59:59.
+// Để trống ngày bắt đầu = bắt đầu ngay; để trống ngày kết thúc = treo vô thời hạn.
 const buildPayload = () => ({
   title: form.value.title?.trim() || null,
   imageUrl: form.value.mode === 'IMAGE' ? (form.value.imageUrl?.trim() || null) : null,
@@ -368,7 +369,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
 
           <div v-if="banner.startDate || banner.endDate" class="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
             <span class="material-symbols-outlined text-sm">date_range</span>
-            {{ toDateInput(banner.startDate) || '...' }} → {{ toDateInput(banner.endDate) || '...' }}
+            {{ toDateInput(banner.startDate) || '...' }} → {{ toDateInput(banner.endDate) || 'Vô thời hạn' }}
           </div>
 
           <div class="flex items-center justify-between mt-auto pt-3 border-t border-outline-variant/10">
@@ -480,10 +481,12 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             <div class="space-y-2 flex-1">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày bắt đầu</label>
               <input v-model="form.startDate" type="date" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+              <p class="text-[10px] text-on-surface-variant/60">Để trống = bắt đầu ngay · tự tính từ 00:00:00</p>
             </div>
             <div class="space-y-2 flex-1">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày kết thúc</label>
               <input v-model="form.endDate" type="date" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+              <p class="text-[10px] text-on-surface-variant/60">Để trống = vô thời hạn · tự tính đến 23:59:59</p>
             </div>
           </div>
 
