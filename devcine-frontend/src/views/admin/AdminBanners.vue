@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { bannerApi } from '@/api/admin/index'
 import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
@@ -20,6 +20,14 @@ const isUploading = ref(false)
 const editingId = ref(null) // null = thêm mới, có id = đang sửa
 const movies = ref([])      // danh sách phim cho dropdown chế độ "Theo phim"
 const movieImages = ref({}) // movieId -> URL ảnh phim (bannerUrl ưu tiên), khớp với banner trang chủ
+
+// Ngày hôm nay ('YYYY-MM-DD') để khóa min cho ô lịch — chặn chọn ngày quá khứ ngay trên Date Picker.
+const todayStr = computed(() => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
+// Trần thứ tự ưu tiên: thêm mới -> tổng banner + 1 (vị trí cuối); sửa -> tổng banner hiện có.
+const priorityMax = computed(() => banners.value.length + (editingId.value ? 0 : 1))
 
 const blankForm = () => ({ title: '', imageUrl: '', link: '', isActive: true, order: 1, startDate: '', endDate: '', mode: 'IMAGE', movieId: null })
 const form = ref(blankForm())
@@ -79,14 +87,18 @@ const fetchBannerMovieImages = async () => {
   movieImages.value = map
 }
 
+const originalStartDate = ref('') // ngày bắt đầu đang lưu (để bỏ qua kiểm tra "quá khứ" khi sửa mà không đổi ngày)
+
 const openAddModal = () => {
   editingId.value = null
-  form.value = { ...blankForm(), order: banners.value.length + 1 }
+  originalStartDate.value = ''
+  form.value = { ...blankForm(), order: Math.min(banners.value.length + 1, 99) }
   isModalOpen.value = true
 }
 
 const openEditModal = (banner) => {
   editingId.value = banner.id
+  originalStartDate.value = toDateInput(banner.startDate)
   form.value = {
     title: banner.title || '',
     imageUrl: banner.imageUrl || '',
@@ -109,7 +121,8 @@ const handleImageUpload = async (e) => {
   if (!file) return
   let prepared
   try {
-    prepared = await prepareImageForUpload(file)
+    // Banner chỉ nhận JPG/PNG/WEBP (không GIF), tối đa 5MB.
+    prepared = await prepareImageForUpload(file, { types: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'] })
   } catch (err) {
     toast.error(err.message)
     e.target.value = ''
@@ -145,34 +158,62 @@ const buildPayload = () => ({
   endDate: form.value.endDate ? `${form.value.endDate}T23:59:59` : null,
 })
 
-const saveBanner = async () => {
-  if (form.value.mode === 'IMAGE' && !form.value.imageUrl?.trim()) {
-    toast.warning('Vui lòng chọn hoặc nhập ảnh banner.')
-    return
+// Khi đổi ngày bắt đầu: nếu ngày kết thúc đang chọn trước đó -> xóa để buộc chọn lại (đồng bộ với :min).
+const onStartDateChange = () => {
+  if (form.value.endDate && form.value.startDate && form.value.endDate < form.value.startDate) {
+    form.value.endDate = ''
   }
-  if (form.value.mode === 'MOVIE' && !form.value.movieId) {
-    toast.warning('Vui lòng chọn phim để hiển thị.')
-    return
+}
+
+// Trả về thông báo lỗi đầu tiên gặp phải; null nếu form hợp lệ.
+const validateBannerForm = () => {
+  const f = form.value
+  // Chế độ hiển thị
+  if (f.mode !== 'IMAGE' && f.mode !== 'MOVIE') return 'Vui lòng chọn chế độ hiển thị.'
+  // Tiêu đề: 5–100 ký tự, không rỗng/toàn khoảng trắng, không chứa thẻ HTML/mã độc
+  const title = (f.title || '').trim()
+  if (/<[^>]*>/.test(title) || title.length < 5 || title.length > 100) {
+    return 'Tiêu đề banner phải từ 5 - 100 ký tự và không chứa mã độc.'
   }
-  // Edge case 1: chặn chọn phim đã ngừng chiếu (backend cũng chặn lại nếu phim bị xoá/đổi trạng thái).
-  if (form.value.mode === 'MOVIE') {
-    const picked = movies.value.find(m => m.id === form.value.movieId)
+  if (f.mode === 'IMAGE') {
+    // Ảnh: bắt buộc upload file
+    if (!f.imageUrl?.trim()) return 'Vui lòng tải lên file ảnh banner hợp lệ (định dạng JPG/PNG/WEBP, tối đa 5MB).'
+    // Link điều hướng (tuỳ chọn): nếu nhập phải là URL http(s) hoặc đường dẫn nội bộ bắt đầu bằng /
+    const link = (f.link || '').trim()
+    if (link && !(link.startsWith('/') || link.startsWith('http://') || link.startsWith('https://'))) {
+      return 'Đường dẫn điều hướng không hợp lệ.'
+    }
+  } else {
+    // Theo phim: bắt buộc chọn phim còn khả dụng (không ngừng chiếu)
+    if (!f.movieId) return 'Vui lòng chọn phim liên kết với Banner này.'
+    const picked = movies.value.find(m => m.id === f.movieId)
     if (picked && String(picked.status).toLowerCase() === 'archived') {
-      toast.warning('Phim được chọn hiện không còn khả dụng để tạo banner.')
-      return
+      return 'Phim được chọn hiện không còn khả dụng để tạo banner.'
     }
   }
-  // Edge case 3: thứ tự ưu tiên phải là số nguyên dương.
-  const order = Number(form.value.order)
-  if (!Number.isInteger(order) || order < 1) {
-    toast.warning('Thứ tự ưu tiên phải là số nguyên dương (>= 1).')
-    return
+  // Thứ tự ưu tiên: số nguyên dương, tối đa = tổng số banner (thêm mới cho phép vị trí cuối)
+  const order = Number(f.order)
+  if (!Number.isInteger(order) || order < 1 || order > priorityMax.value) {
+    return `Thứ tự ưu tiên phải là số nguyên dương từ 1 đến ${priorityMax.value}.`
   }
-  // Edge case 2: ngày kết thúc phải sau (hoặc bằng ngày, do end lấy mốc 23:59:59) ngày bắt đầu.
-  if (form.value.startDate && form.value.endDate && form.value.startDate > form.value.endDate) {
-    toast.warning('Ngày kết thúc phải sau ngày bắt đầu.')
-    return
+  // Ngày: mốc giờ gán ở buildPayload (bắt đầu 00:00:00, kết thúc 23:59:59)
+  const today = todayStr.value
+  const isCreate = !editingId.value
+  if (f.startDate) {
+    // Chặn quá khứ khi tạo mới; khi sửa chỉ chặn nếu ngày bắt đầu thực sự bị đổi
+    const startChanged = isCreate || f.startDate !== originalStartDate.value
+    if (startChanged && f.startDate < today) return 'Ngày bắt đầu không được ở trong quá khứ.'
   }
+  if (f.endDate) {
+    if (isCreate && f.endDate < today) return 'Ngày kết thúc phải sau thời điểm hiện tại.'
+    if (f.startDate && f.startDate > f.endDate) return 'Ngày kết thúc phải lớn hơn ngày bắt đầu.'
+  }
+  return null
+}
+
+const saveBanner = async () => {
+  const err = validateBannerForm()
+  if (err) { toast.warning(err); return }
   isSaving.value = true
   try {
     if (editingId.value) {
@@ -438,11 +479,11 @@ onMounted(() => { fetchBanners(); fetchMovies() })
 
           <!-- Tiêu đề -->
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiêu đề <span class="normal-case font-normal text-on-surface-variant/50">(nội bộ để dễ quản lý)</span></label>
-            <input v-model="form.title" type="text" placeholder="VD: Ưu đãi hè rực rỡ" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiêu đề <span class="text-error">*</span> <span class="normal-case font-normal text-on-surface-variant/50">(5–100 ký tự, nội bộ để dễ quản lý)</span></label>
+            <input v-model="form.title" type="text" maxlength="100" placeholder="VD: Ưu đãi hè rực rỡ" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
           </div>
 
-          <!-- CHẾ ĐỘ ẢNH: upload + URL -->
+          <!-- CHẾ ĐỘ ẢNH: chỉ upload file từ máy (JPG/PNG/WEBP, tối đa 5MB) -->
           <div v-if="form.mode === 'IMAGE'" class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Hình ảnh banner</label>
             <label class="flex flex-col items-center justify-center gap-2 h-24 rounded-lg border-2 border-dashed border-outline-variant/30 hover:border-primary/50 cursor-pointer transition-colors bg-surface-container-high/40 overflow-hidden relative">
@@ -452,9 +493,9 @@ onMounted(() => { fetchBanners(); fetchMovies() })
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant">{{ isUploading ? 'hourglass_empty' : 'cloud_upload' }}</span>
                 <span class="text-xs text-on-surface-variant">{{ isUploading ? 'Đang tải lên...' : 'Bấm để tải ảnh lên' }}</span>
               </template>
-              <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" :disabled="isUploading" />
+              <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" class="hidden" @change="handleImageUpload" :disabled="isUploading" />
             </label>
-            <input v-model="form.imageUrl" type="text" placeholder="hoặc dán URL ảnh: https://..." class="w-full bg-surface-container-high border-none text-xs rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface font-mono">
+            <p class="text-[10px] text-on-surface-variant/60">Định dạng JPG/PNG/WEBP · tối đa 5MB</p>
           </div>
 
           <!-- CHẾ ĐỘ THEO PHIM: chọn phim -->
@@ -480,12 +521,14 @@ onMounted(() => { fetchBanners(); fetchMovies() })
           <div class="flex gap-4">
             <div class="space-y-2 flex-1">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày bắt đầu</label>
-              <input v-model="form.startDate" type="date" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+              <!-- Chặn cứng: min = hôm nay (khóa ngày quá khứ) · onkeydown preventDefault (chỉ cho chọn qua lịch, không gõ tay) -->
+              <input v-model="form.startDate" type="date" :min="todayStr" @change="onStartDateChange" onkeydown="event.preventDefault()" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface cursor-pointer">
               <p class="text-[10px] text-on-surface-variant/60">Để trống = bắt đầu ngay · tự tính từ 00:00:00</p>
             </div>
             <div class="space-y-2 flex-1">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày kết thúc</label>
-              <input v-model="form.endDate" type="date" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+              <!-- Chặn cứng: min = ngày bắt đầu (khóa mọi ngày trước đó) · không gõ tay -->
+              <input v-model="form.endDate" type="date" :min="form.startDate || todayStr" onkeydown="event.preventDefault()" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface cursor-pointer">
               <p class="text-[10px] text-on-surface-variant/60">Để trống = vô thời hạn · tự tính đến 23:59:59</p>
             </div>
           </div>
@@ -493,8 +536,9 @@ onMounted(() => { fetchBanners(); fetchMovies() })
           <!-- Thứ tự + trạng thái -->
           <div class="flex gap-4">
              <div class="space-y-2 flex-1">
-               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thứ tự ưu tiên</label>
-               <input v-model="form.order" type="number" min="1" step="1" onkeydown="if(['-','+','e','E','.',','].includes(event.key)) event.preventDefault()" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thứ tự ưu tiên <span class="normal-case font-normal text-on-surface-variant/50">(1–{{ priorityMax }})</span></label>
+               <!-- Chặn cứng: type=number, min=1, max=tổng banner; onkeydown chặn dấu - + . , e (chỉ nhập số nguyên dương) -->
+               <input v-model="form.order" type="number" min="1" :max="priorityMax" step="1" onkeydown="if(['-','+','e','E','.',','].includes(event.key)) event.preventDefault()" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
              </div>
 
              <div class="space-y-2 flex-1 flex flex-col">
