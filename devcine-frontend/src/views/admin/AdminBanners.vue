@@ -357,7 +357,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
         <!-- Banner Info -->
         <div class="p-4 flex flex-col gap-3 flex-1">
           <div class="space-y-1">
-            <p class="text-sm font-bold text-on-surface truncate">{{ banner.title || 'Banner không tiêu đề' }}</p>
+            <p class="text-base font-bold text-on-surface truncate leading-relaxed py-0.5">{{ banner.title || 'Banner không tiêu đề' }}</p>
             <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mt-1.5">Link điều hướng</p>
             <p class="text-xs truncate font-mono px-2 py-1 rounded"
                :class="bannerLink(banner) ? 'text-primary bg-primary/10' : 'text-on-surface-variant/60 bg-surface-container-highest'">
