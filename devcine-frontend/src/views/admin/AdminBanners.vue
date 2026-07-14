@@ -132,6 +132,21 @@ const saveBanner = async () => {
     toast.warning('Vui lòng chọn phim để hiển thị.')
     return
   }
+  // Edge case 1: chặn chọn phim đã ngừng chiếu (backend cũng chặn lại nếu phim bị xoá/đổi trạng thái).
+  if (form.value.mode === 'MOVIE') {
+    const picked = movies.value.find(m => m.id === form.value.movieId)
+    if (picked && String(picked.status).toLowerCase() === 'archived') {
+      toast.warning('Phim được chọn hiện không còn khả dụng để tạo banner.')
+      return
+    }
+  }
+  // Edge case 3: thứ tự ưu tiên phải là số nguyên dương.
+  const order = Number(form.value.order)
+  if (!Number.isInteger(order) || order < 1) {
+    toast.warning('Thứ tự ưu tiên phải là số nguyên dương (>= 1).')
+    return
+  }
+  // Edge case 2: ngày kết thúc phải sau (hoặc bằng ngày, do end lấy mốc 23:59:59) ngày bắt đầu.
   if (form.value.startDate && form.value.endDate && form.value.startDate > form.value.endDate) {
     toast.warning('Ngày kết thúc phải sau ngày bắt đầu.')
     return
@@ -412,7 +427,10 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Chọn phim</label>
             <select v-model="form.movieId" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
               <option :value="null" disabled>-- Chọn phim hiển thị --</option>
-              <option v-for="m in movies" :key="m.id" :value="m.id">{{ m.title }}{{ m.status === 'active' ? '' : ` (${m.status})` }}</option>
+              <!-- Phim ngừng chiếu (archived) bị vô hiệu hoá: không thể gắn banner -->
+              <option v-for="m in movies" :key="m.id" :value="m.id" :disabled="String(m.status).toLowerCase() === 'archived'">
+                {{ m.title }}{{ String(m.status).toLowerCase() === 'archived' ? ' (Ngừng chiếu)' : (m.status === 'active' ? '' : ` (${m.status})`) }}
+              </option>
             </select>
             <p class="text-[11px] text-on-surface-variant/70">Banner sẽ tự lấy ảnh nền, tên, mô tả, đạo diễn, diễn viên từ phim này.</p>
           </div>
@@ -439,7 +457,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
           <div class="flex gap-4">
              <div class="space-y-2 flex-1">
                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thứ tự ưu tiên</label>
-               <input v-model="form.order" type="number" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+               <input v-model="form.order" type="number" min="1" step="1" onkeydown="if(['-','+','e','E','.',','].includes(event.key)) event.preventDefault()" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
              </div>
 
              <div class="space-y-2 flex-1 flex flex-col">
