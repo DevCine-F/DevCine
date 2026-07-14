@@ -19,6 +19,7 @@ const isSaving = ref(false)
 const isUploading = ref(false)
 const editingId = ref(null) // null = thêm mới, có id = đang sửa
 const movies = ref([])      // danh sách phim cho dropdown chế độ "Theo phim"
+const movieImages = ref({}) // movieId -> URL ảnh phim (bannerUrl ưu tiên), khớp với banner trang chủ
 
 const blankForm = () => ({ title: '', imageUrl: '', link: '', isActive: true, order: 1, startDate: '', endDate: '', mode: 'IMAGE', movieId: null })
 const form = ref(blankForm())
@@ -26,7 +27,9 @@ const form = ref(blankForm())
 const fetchMovies = async () => {
   try {
     const { data } = await api.get('/movies')
-    movies.value = (Array.isArray(data) ? data : (data.data ?? [])).map(m => ({ id: m.id, title: m.title, status: m.status }))
+    movies.value = (Array.isArray(data) ? data : (data.data ?? [])).map(m => ({
+      id: m.id, title: m.title, status: m.status, posterUrl: m.posterUrl || null,
+    }))
   } catch (e) {
     console.error('Failed to load movies', e)
   }
@@ -50,12 +53,30 @@ const fetchBanners = async () => {
     banners.value = list
       .map(b => ({ ...b, order: b.displayOrder ?? 0 }))
       .sort((a, b) => (a.order || 0) - (b.order || 0))
+    await fetchBannerMovieImages() // nạp ảnh phim (bannerUrl) cho banner chế độ MOVIE
   } catch (e) {
     console.error('Failed to load banners', e)
     toast.error(friendlyError(e, 'Không tải được danh sách banner.'))
   } finally {
     isLoading.value = false
   }
+}
+
+// Ảnh phim cho card banner MOVIE: lấy từ /movies/{id} (có bannerUrl) để KHỚP với banner trang chủ,
+// vì list /movies (MovieSummaryDTO) chỉ trả posterUrl.
+const fetchBannerMovieImages = async () => {
+  const ids = [...new Set(banners.value.filter(b => b.mode === 'MOVIE' && b.movieId).map(b => b.movieId))]
+  const missing = ids.filter(id => !(id in movieImages.value))
+  if (!missing.length) return
+  const results = await Promise.allSettled(missing.map(id => api.get(`/movies/${id}`)))
+  const map = { ...movieImages.value }
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      const m = r.value.data?.data ?? r.value.data
+      map[missing[i]] = m?.bannerUrl || m?.posterUrl || null
+    }
+  })
+  movieImages.value = map
 }
 
 const openAddModal = () => {
@@ -253,6 +274,9 @@ const deleteBanner = async (id) => {
 }
 
 const movieTitleById = (id) => movies.value.find(m => m.id === id)?.title || `Phim #${id}`
+// Ảnh đại diện phim cho card banner "Theo phim": ưu tiên bannerUrl (từ /movies/{id}, khớp trang chủ),
+// tạm thời dùng posterUrl từ list trong lúc chờ chi tiết tải xong.
+const movieImageById = (id) => movieImages.value[id] || movies.value.find(m => m.id === id)?.posterUrl || null
 
 // Link điều hướng thực tế của banner khi khách bấm vào:
 // - Theo phim  -> trang chi tiết phim /movie/:id (tự gắn, không cần nhập tay)
@@ -299,10 +323,20 @@ onMounted(() => { fetchBanners(); fetchMovies() })
         <!-- Image Preview -->
         <div class="relative h-32 w-full bg-surface-container-highest overflow-hidden">
           <img v-if="banner.mode !== 'MOVIE' && banner.imageUrl" :src="banner.imageUrl" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Banner preview" />
-          <div v-else-if="banner.mode === 'MOVIE'" class="w-full h-full flex flex-col items-center justify-center text-on-surface-variant gap-2">
-            <span class="material-symbols-outlined text-4xl text-primary/40">movie</span>
-            <span class="text-xs font-bold text-on-surface px-3 text-center line-clamp-2">{{ movieTitleById(banner.movieId) }}</span>
-          </div>
+          <template v-else-if="banner.mode === 'MOVIE'">
+            <!-- Có ảnh phim: hiện ảnh + phủ tên phim ở đáy -->
+            <template v-if="movieImageById(banner.movieId)">
+              <img :src="movieImageById(banner.movieId)" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Ảnh phim" />
+              <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                <span class="text-xs font-bold text-white line-clamp-1">{{ movieTitleById(banner.movieId) }}</span>
+              </div>
+            </template>
+            <!-- Không có ảnh phim: giữ placeholder icon + tên -->
+            <div v-else class="w-full h-full flex flex-col items-center justify-center text-on-surface-variant gap-2">
+              <span class="material-symbols-outlined text-4xl text-primary/40">movie</span>
+              <span class="text-xs font-bold text-on-surface px-3 text-center line-clamp-2">{{ movieTitleById(banner.movieId) }}</span>
+            </div>
+          </template>
           <div v-else class="w-full h-full flex items-center justify-center text-on-surface-variant">
             <span class="material-symbols-outlined text-4xl opacity-20">broken_image</span>
           </div>
