@@ -87,7 +87,7 @@ const tabs = [
   { id: "staff", label: "Nhân sự", icon: "badge" },
   { id: "fnb", label: "F&B / Kho", icon: "fastfood" },
   { id: "analytics", label: "Phân tích", icon: "monitoring" },
-  { id: "config", label: "Cấu hình", icon: "settings" },
+  { id: "config", label: "Thông tin cấu hình", icon: "settings" },
 ];
 
 // ===== Bộ lọc theo địa điểm (Tỉnh/TP + Quận/Huyện) =====

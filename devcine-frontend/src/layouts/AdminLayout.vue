@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../stores/auth'
@@ -32,12 +32,22 @@ const goProfile = () => { isAccountOpen.value = false; router.push('/admin/accou
 const goHome = () => { isAccountOpen.value = false; router.push('/') }
 const handleLogout = () => { isAccountOpen.value = false; authStore.logout(); router.push('/admin/login') }
 
+// Đóng dropdown tài khoản khi click ra ngoài (document listener — không bị kẹt trong stacking context của header sticky).
+const accountMenuRef = ref(null)
+const onClickOutsideAccount = (e) => {
+  if (isAccountOpen.value && accountMenuRef.value && !accountMenuRef.value.contains(e.target)) {
+    isAccountOpen.value = false
+  }
+}
+
 onMounted(() => {
   shiftStore.fetchCurrent(true)
   // Nạp lại quyền mỗi khi vào layout (F5) để phản ánh ngay thay đổi ma trận quyền do admin cập nhật;
   // ADMIN toàn quyền nên fetchPermissions tự bỏ qua gọi API.
   authStore.fetchPermissions(true).catch(() => {})
+  document.addEventListener('mousedown', onClickOutsideAccount)
 })
+onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAccount))
 </script>
 
 <template>
@@ -257,7 +267,7 @@ onMounted(() => {
           </div>
 
           <!-- Account Area -->
-          <div class="relative">
+          <div class="relative" ref="accountMenuRef">
             <button @click="isAccountOpen = !isAccountOpen"
                     class="flex items-center gap-3 pl-6 border-l border-outline-variant/10 cursor-pointer hover:opacity-80 transition-opacity">
               <div class="text-right hidden md:block">
@@ -269,9 +279,6 @@ onMounted(() => {
               </div>
               <span class="material-symbols-outlined text-on-surface-variant text-base transition-transform duration-200" :class="{ 'rotate-180': isAccountOpen }">expand_more</span>
             </button>
-
-            <!-- Backdrop đóng dropdown khi click ra ngoài -->
-            <div v-if="isAccountOpen" class="fixed inset-0 z-[105]" @click="isAccountOpen = false"></div>
 
             <!-- Account Dropdown -->
             <transition name="dropdown">
