@@ -89,7 +89,12 @@ const goBack = () => {
   if (currentStep.value > 1) {
     currentStep.value--
     scrollTop()
+    return
   }
+  // Ở bước 1 (chọn ghế): quay về trang trước (thường là màn chọn suất/lịch chiếu);
+  // nếu không có lịch sử điều hướng thì về trang Lịch chiếu.
+  if (window.history.length > 1) router.back()
+  else router.push('/lich-chieu')
 }
 const goToStep = (id) => {
   // Cho phép quay lại bất kỳ bước trước; chỉ chặn nhảy tới khi chưa chọn ghế
@@ -675,9 +680,8 @@ const proceedToPayment = async () => {
           </div>
           <p v-else class="text-sm text-on-surface-variant">{{ stepMeta.desc }}</p>
         </div>
-        <!-- Nút Quay lại đặt ở góc phải tiêu đề -->
+        <!-- Nút Quay lại: bước >1 lùi 1 bước; bước 1 quay về trang trước (chọn suất/lịch chiếu) -->
         <button
-          v-if="currentStep > 1"
           @click="goBack"
           class="flex-shrink-0 px-5 py-2.5 rounded-xl border border-outline-variant/30 text-on-surface-variant font-bold text-xs uppercase tracking-widest hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2"
         >
