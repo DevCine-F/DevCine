@@ -225,8 +225,8 @@ watch(() => props.cinema, (newCinema) => {
           <span class="material-symbols-outlined text-pink-400 text-lg">chair</span>
         </div>
         <div class="flex-1 text-left">
-          <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Loại ghế &amp; Giá mặc định</h4>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">Cấu hình loại ghế và giá vé theo từng loại</p>
+          <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Loại ghế &amp; Phụ thu</h4>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">Phụ thu cộng thêm vào giá nền — giá nền chạy theo đối tượng &amp; suất chiếu (cấu hình ở Bảng giá)</p>
         </div>
         <div class="flex items-center gap-3 flex-shrink-0">
           <span class="text-pink-400 text-[10px] font-black">{{ configSeats.types?.length || 0 }} loại ghế</span>
@@ -253,8 +253,8 @@ watch(() => props.cinema, (newCinema) => {
                       class="w-full bg-surface-container-high border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
                   </div>
                   <div class="space-y-1">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Giá mặc định (VND)</label>
-                    <input v-model.number="seat.defaultPrice" type="number" step="5000"
+                    <label class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Phụ thu loại ghế (VND)</label>
+                    <input v-model.number="seat.surcharge" type="number" min="0" step="5000"
                       class="w-full bg-surface-container-high border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
                   </div>
                 </div>

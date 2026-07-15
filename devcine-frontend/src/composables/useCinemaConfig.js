@@ -53,13 +53,25 @@ export function useCinemaConfig(selectedCinema) {
     cleaningMinutes: 20,
   });
 
-  const configSeats = reactive({
-    types: [
-      { id: 1, name: "Thường", color: "#6B7280", defaultPrice: 75000 },
-      { id: 2, name: "VIP", color: "#F5C518", defaultPrice: 120000 },
-      { id: 3, name: "Đôi", color: "#EC4899", defaultPrice: 180000 },
-    ],
-  });
+  // Loại ghế là dữ liệu TOÀN CỤC (bảng seat_types), nạp thật từ /pricing/config.
+  // `surcharge` = phụ thu cộng thêm vào giá nền (seat_types.price_modifier), KHÔNG phải giá trọn gói.
+  const configSeats = reactive({ types: [] });
+
+  // Nạp loại ghế thật từ backend (dùng chung endpoint với màn Bảng giá).
+  const loadSeatTypes = async () => {
+    try {
+      const { data } = await axios.get("/pricing/config");
+      const list = data?.seatTypes || [];
+      configSeats.types = list.map((s) => ({
+        id: s.id,
+        name: s.name,
+        color: s.colorCode || "#6B7280",
+        surcharge: Number(s.priceModifier) || 0,
+      }));
+    } catch (e) {
+      console.warn("[Config] Không tải được loại ghế từ /pricing/config:", e?.response?.status);
+    }
+  };
 
   const allFormats = ["2D", "3D", "IMAX", "4DX", "Dolby", "ScreenX"];
   const configFormats = reactive({
@@ -144,17 +156,23 @@ export function useCinemaConfig(selectedCinema) {
     }
   };
 
+  // Lưu tên + màu + phụ thu loại ghế THẬT vào seat_types qua /pricing/seat-types.
+  // (Loại ghế là cấu hình toàn cục nên không gắn theo selectedCinema.)
   const saveConfigSeats = async () => {
-    if (!selectedCinema.value) return;
     configSaving.seats = true;
     try {
-      await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/seats`, {
-        seatTypes: configSeats.types,
+      await axios.put("/pricing/seat-types", {
+        items: configSeats.types.map((t) => ({
+          id: t.id,
+          name: t.name,
+          colorCode: t.color,
+          priceModifier: Number(t.surcharge) || 0,
+        })),
       });
+      showConfigSuccess("seats"); // chỉ báo thành công khi lưu thật sự OK
     } catch (e) {
-      console.warn("[Config] Endpoint /config/seats chưa có ở backend:", e?.response?.status);
+      console.error("[Config] Lưu phụ thu loại ghế thất bại:", e?.response?.status, e);
     } finally {
-      showConfigSuccess("seats");
       configSaving.seats = false;
     }
   };
@@ -210,6 +228,8 @@ export function useCinemaConfig(selectedCinema) {
     }
   };
 
+  loadSeatTypes(); // nạp loại ghế thật ngay khi mở panel cấu hình
+
   return {
     openSections,
     toggleSection,
@@ -219,6 +239,7 @@ export function useCinemaConfig(selectedCinema) {
     configHours,
     configCleaning,
     configSeats,
+    loadSeatTypes,
     configFormats,
     configBanners,
     allFormats,

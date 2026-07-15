@@ -67,6 +67,7 @@ public class PricingController {
             m.put("id", s.getId());
             m.put("name", s.getName());
             m.put("priceModifier", s.getPriceModifier());
+            m.put("colorCode", s.getColorCode());
             seatTypes.add(m);
         }
         res.put("seatTypes", seatTypes);
@@ -150,7 +151,15 @@ public class PricingController {
                     Integer id = Integer.parseInt(it.get("id").toString());
                     SeatType s = seatTypeRepository.findById(id)
                             .orElseThrow(() -> new RuntimeException("Không tìm thấy loại ghế"));
-                    s.setPriceModifier(new BigDecimal(it.get("priceModifier").toString()));
+                    // Phụ thu loại ghế (số tiền cộng thêm vào giá nền); chỉ ghi khi có gửi.
+                    if (it.get("priceModifier") != null) {
+                        s.setPriceModifier(new BigDecimal(it.get("priceModifier").toString()));
+                    }
+                    // Cho phép sửa tên + màu ngay tại panel cấu hình (chỉ ghi khi có gửi & không rỗng).
+                    Object nm = it.get("name");
+                    if (nm != null && !nm.toString().isBlank()) s.setName(nm.toString().trim());
+                    Object cc = it.get("colorCode");
+                    if (cc != null && !cc.toString().isBlank()) s.setColorCode(cc.toString().trim());
                     seatTypeRepository.save(s);
                 }
             }

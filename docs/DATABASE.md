@@ -172,7 +172,7 @@
 | `id` | `INTEGER` | PK, AUTO_INCREMENT | ID loại ghế |
 | `name` | `VARCHAR(50)` | NOT NULL, UNIQUE | Tên (Standard, VIP, Couple, Sweetbox) |
 | `color_code` | `VARCHAR(10)` | — | Mã màu hiển thị (#FF5733) |
-| `price_modifier` | `DECIMAL(15,2)` | — | Hệ số giá (1.0 = base, 1.5 = 150%) |
+| `price_modifier` | `DECIMAL(15,2)` | — | Phụ thu loại ghế — số tiền **cộng thêm** vào giá nền (0 = không phụ thu, 15000 = +15.000đ). Xem `PricingService`. |
 
 ### 4.4 `seats`
 
