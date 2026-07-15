@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -97,8 +98,36 @@ public class MovieService {
         return movieRepository.findByIdWithGenres(id).orElse(null);
     }
 
+    private static final Pattern YOUTUBE_PATTERN =
+            Pattern.compile("^(https?://)?(www\\.)?(youtube\\.com|youtu\\.be)/.*$");
+
+    /**
+     * Lớp bảo vệ phía server (double protection) cho dữ liệu phim: chặn giá trị sai định dạng/vượt ngưỡng
+     * dù client có bị bỏ qua. Chỉ kiểm tra giá trị ĐÃ CÓ (trừ tên phim luôn bắt buộc) để không chặn nhầm
+     * khi sửa phim cũ thiếu dữ liệu. Ném {@link IllegalStateException} -> controller trả 400 kèm thông báo.
+     */
+    private void validateMoviePayload(Movie m) {
+        String title = m.getTitle() == null ? "" : m.getTitle().trim();
+        if (title.length() < 2 || title.length() > 150)
+            throw new IllegalStateException("Tên phim phải từ 2 đến 150 ký tự.");
+        if (m.getDurationMins() != null && (m.getDurationMins() < 30 || m.getDurationMins() > 300))
+            throw new IllegalStateException("Thời lượng phim phải từ 30 đến 300 phút.");
+        if (m.getProductionYear() != null && (m.getProductionYear() < 2020 || m.getProductionYear() > 2035))
+            throw new IllegalStateException("Năm sản xuất phải từ 2020 đến 2035.");
+        if (m.getBasePrice() != null && m.getBasePrice() < 10000)
+            throw new IllegalStateException("Giá vé gốc phải từ 10.000đ trở lên.");
+        if (m.getTrailerUrl() != null && !m.getTrailerUrl().isBlank()
+                && !YOUTUBE_PATTERN.matcher(m.getTrailerUrl().trim()).matches())
+            throw new IllegalStateException("Đường dẫn Trailer phải là link Youtube hợp lệ.");
+        if (m.getDescription() != null && m.getDescription().length() > 1000)
+            throw new IllegalStateException("Tóm tắt nội dung tối đa 1000 ký tự.");
+        if (m.getInternalNotes() != null && m.getInternalNotes().length() > 500)
+            throw new IllegalStateException("Ghi chú nội bộ tối đa 500 ký tự.");
+    }
+
     @Transactional
     public Movie createMovie(Movie movie) {
+        validateMoviePayload(movie);
         if (movie.getTitle() != null && movieRepository.existsByTitleIgnoreCase(movie.getTitle().trim())) {
             throw new IllegalStateException("Thêm phim thất bại. Tên phim hoặc mã ID đã tồn tại trên hệ thống!");
         }
@@ -110,6 +139,7 @@ public class MovieService {
 
     @Transactional
     public Movie updateMovie(Integer id, Movie movieDetails) {
+        validateMoviePayload(movieDetails);
         Movie existingMovie = movieRepository.findById(id).orElse(null);
         if (existingMovie != null) {
             if (movieDetails.getTitle() != null
