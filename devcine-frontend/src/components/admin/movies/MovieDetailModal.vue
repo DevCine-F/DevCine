@@ -195,10 +195,6 @@ const durationText = (m) => (m?.durationMins ? m.durationMins + " Phút" : "N/A"
                     <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Diễn viên chính</p>
                     <p class="text-sm font-medium text-white">{{ movie.castMembers || "Đang cập nhật" }}</p>
                   </div>
-                  <div>
-                    <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Nhà phát hành</p>
-                    <p class="text-sm font-medium text-white">{{ movie.distributor || "Đang cập nhật" }}</p>
-                  </div>
                 </div>
               </section>
 

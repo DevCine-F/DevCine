@@ -40,7 +40,6 @@ const blankMovie = () => ({
   trailerUrl: "",
   format: "2D",
   internalNotes: "",
-  distributor: "",
   director: "",
   castMembers: "",
   ratingCount: 0,
@@ -387,10 +386,6 @@ const handleSave = () => {
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Năm sản xuất <span v-if="!isEditing" class="text-red-500">*</span></label>
                 <input :value="newMovie.productionYear" @input="onYearInput" type="text" inputmode="numeric" maxlength="4" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.productionYear || yearError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="2024" />
                 <p v-if="errors.productionYear || yearError" class="text-[10px] text-red-400 font-bold">{{ errors.productionYear || yearError }}</p>
-              </div>
-              <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Nhà phát hành</label>
-                <input v-model="newMovie.distributor" type="text" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" placeholder="VD: CGV, Galaxy..." />
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngôn ngữ gốc</label>

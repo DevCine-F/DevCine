@@ -143,7 +143,6 @@ public class MovieService {
             existingMovie.setGenres(movieDetails.getGenres());
             existingMovie.setDirector(movieDetails.getDirector());
             existingMovie.setCastMembers(movieDetails.getCastMembers());
-            existingMovie.setDistributor(movieDetails.getDistributor());
             existingMovie.setRatingCount(movieDetails.getRatingCount());
             Movie saved = movieRepository.save(existingMovie);
             // Đồng bộ lại banner theo phim theo cờ showOnBanner vừa cập nhật.
