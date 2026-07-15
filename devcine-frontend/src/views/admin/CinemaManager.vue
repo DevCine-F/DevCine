@@ -20,7 +20,6 @@ import CinemaTabBar from "@/components/organisms/admin/CinemaTabBar.vue";
 import CinemaInfrastructureTab from "@/components/organisms/admin/CinemaInfrastructureTab.vue";
 import CinemaShowtimesTab from "@/components/organisms/admin/CinemaShowtimesTab.vue";
 import CinemaStaffTab from "@/components/organisms/admin/CinemaStaffTab.vue";
-import CinemaFnbTab from "@/components/organisms/admin/CinemaFnbTab.vue";
 import CinemaAnalyticsTab from "@/components/organisms/admin/CinemaAnalyticsTab.vue";
 import CinemaConfigTab from "@/components/organisms/admin/CinemaConfigTab.vue";
 import CreateCinemaModal from "@/components/organisms/admin/CreateCinemaModal.vue";
@@ -85,7 +84,6 @@ const tabs = [
   { id: "infrastructure", label: "Phòng chiếu", icon: "tv_gen" },
   { id: "showtimes", label: "Lịch chiếu", icon: "calendar_month" },
   { id: "staff", label: "Nhân sự", icon: "badge" },
-  { id: "fnb", label: "F&B / Kho", icon: "fastfood" },
   { id: "analytics", label: "Phân tích", icon: "monitoring" },
   { id: "config", label: "Thông tin cấu hình", icon: "settings" },
 ];
@@ -329,11 +327,6 @@ const showCleaningSettingsModal = ref(false);
           <CinemaStaffTab
             v-else-if="activeTab === 'staff'"
             :staff="selectedCinema.staff"
-          />
-
-          <CinemaFnbTab
-            v-else-if="activeTab === 'fnb'"
-            :inventory="selectedCinema.inventory"
           />
 
           <CinemaAnalyticsTab
