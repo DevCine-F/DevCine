@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { bannerApi } from '@/api/admin/index'
 import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
@@ -28,6 +28,50 @@ const todayStr = computed(() => {
 })
 // Trần thứ tự ưu tiên: thêm mới -> tổng banner + 1 (vị trí cuối); sửa -> tổng banner hiện có.
 const priorityMax = computed(() => banners.value.length + (editingId.value ? 0 : 1))
+
+// ===== Combobox tìm kiếm phim cho dropdown "Chọn phim" =====
+const movieSearch = ref('')
+const movieDropdownOpen = ref(false)
+const movieSelectRef = ref(null)   // wrapper để bắt sự kiện click ra ngoài
+const movieSearchInput = ref(null) // ô nhập tìm kiếm (auto focus khi mở)
+
+// Bỏ dấu tiếng Việt để tìm kiếm không phân biệt dấu (vd gõ "nguoi dep" ra "Người đẹp").
+const normalizeVi = (s) => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().trim()
+
+const isArchived = (m) => String(m?.status).toLowerCase() === 'archived'
+const movieStatusLabel = (m) => isArchived(m) ? ' (Ngừng chiếu)' : (m.status === 'active' ? '' : ` (${m.status})`)
+
+const selectedMovieLabel = computed(() => {
+  const m = movies.value.find(x => x.id === form.value.movieId)
+  return m ? `${m.title}${movieStatusLabel(m)}` : '-- Chọn phim hiển thị --'
+})
+
+const filteredMovies = computed(() => {
+  const q = normalizeVi(movieSearch.value)
+  if (!q) return movies.value
+  return movies.value.filter(m => normalizeVi(m.title).includes(q))
+})
+
+const openMovieDropdown = () => {
+  movieDropdownOpen.value = true
+  movieSearch.value = ''
+  nextTick(() => movieSearchInput.value?.focus())
+}
+const toggleMovieDropdown = () => { movieDropdownOpen.value ? (movieDropdownOpen.value = false) : openMovieDropdown() }
+
+const selectMovie = (m) => {
+  if (isArchived(m)) return // phim ngừng chiếu không cho chọn
+  form.value.movieId = m.id
+  movieDropdownOpen.value = false
+}
+
+const onClickOutsideMovie = (e) => {
+  if (movieDropdownOpen.value && movieSelectRef.value && !movieSelectRef.value.contains(e.target)) {
+    movieDropdownOpen.value = false
+  }
+}
+onMounted(() => document.addEventListener('mousedown', onClickOutsideMovie))
+onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideMovie))
 
 const blankForm = () => ({ title: '', imageUrl: '', link: '', isActive: true, order: 1, startDate: '', endDate: '', mode: 'IMAGE', movieId: null })
 const form = ref(blankForm())
@@ -113,7 +157,7 @@ const openEditModal = (banner) => {
   isModalOpen.value = true
 }
 
-const closeModal = () => { isModalOpen.value = false }
+const closeModal = () => { isModalOpen.value = false; movieDropdownOpen.value = false }
 
 // Upload ảnh lên Cloudinary qua /api/upload (giống màn Tin khuyến mãi / F&B)
 const handleImageUpload = async (e) => {
@@ -498,16 +542,44 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             <p class="text-[10px] text-on-surface-variant/60">Định dạng JPG/PNG/WEBP · tối đa 5MB</p>
           </div>
 
-          <!-- CHẾ ĐỘ THEO PHIM: chọn phim -->
+          <!-- CHẾ ĐỘ THEO PHIM: combobox chọn phim có tìm kiếm -->
           <div v-else class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Chọn phim</label>
-            <select v-model="form.movieId" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
-              <option :value="null" disabled>-- Chọn phim hiển thị --</option>
-              <!-- Phim ngừng chiếu (archived) bị vô hiệu hoá: không thể gắn banner -->
-              <option v-for="m in movies" :key="m.id" :value="m.id" :disabled="String(m.status).toLowerCase() === 'archived'">
-                {{ m.title }}{{ String(m.status).toLowerCase() === 'archived' ? ' (Ngừng chiếu)' : (m.status === 'active' ? '' : ` (${m.status})`) }}
-              </option>
-            </select>
+            <div ref="movieSelectRef" class="relative">
+              <!-- Nút hiển thị phim đang chọn / mở dropdown -->
+              <button type="button" @click="toggleMovieDropdown"
+                      class="w-full flex items-center justify-between gap-2 bg-surface-container-high text-sm rounded-lg py-2.5 px-4 text-left transition-all"
+                      :class="movieDropdownOpen ? 'ring-1 ring-primary' : ''">
+                <span class="truncate" :class="form.movieId ? 'text-on-surface' : 'text-on-surface-variant'">{{ selectedMovieLabel }}</span>
+                <span class="material-symbols-outlined text-lg text-on-surface-variant transition-transform" :class="movieDropdownOpen ? 'rotate-180' : ''">expand_more</span>
+              </button>
+
+              <!-- Panel dropdown: ô tìm kiếm + danh sách phim đã lọc -->
+              <div v-if="movieDropdownOpen" class="absolute z-30 mt-1 w-full bg-surface-container-high rounded-lg shadow-2xl border border-outline-variant/20 overflow-hidden">
+                <div class="p-2 border-b border-outline-variant/10">
+                  <div class="flex items-center gap-2 bg-surface-container-highest rounded-lg px-3">
+                    <span class="material-symbols-outlined text-base text-on-surface-variant">search</span>
+                    <input ref="movieSearchInput" v-model="movieSearch" type="text" placeholder="Tìm tên phim..."
+                           @keydown.esc="movieDropdownOpen = false"
+                           class="w-full bg-transparent border-none text-sm py-2 text-on-surface focus:ring-0 focus:outline-none placeholder:text-on-surface-variant/50">
+                  </div>
+                </div>
+                <ul class="max-h-56 overflow-y-auto py-1">
+                  <li v-if="!filteredMovies.length" class="px-4 py-3 text-xs text-on-surface-variant text-center">Không tìm thấy phim phù hợp.</li>
+                  <li v-for="m in filteredMovies" :key="m.id" @click="selectMovie(m)"
+                      class="px-4 py-2.5 text-sm flex items-center justify-between gap-2 transition-colors"
+                      :class="[
+                        isArchived(m) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-primary/10',
+                        m.id === form.movieId ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                      ]">
+                    <span class="truncate">{{ m.title }}</span>
+                    <span v-if="isArchived(m)" class="text-[10px] uppercase tracking-wide text-red-400 shrink-0">Ngừng chiếu</span>
+                    <span v-else-if="m.status !== 'active'" class="text-[10px] uppercase tracking-wide text-on-surface-variant/60 shrink-0">{{ m.status }}</span>
+                    <span v-else-if="m.id === form.movieId" class="material-symbols-outlined text-base shrink-0">check</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
             <p class="text-[11px] text-on-surface-variant/70">Banner sẽ tự lấy ảnh nền, tên, mô tả, đạo diễn, diễn viên từ phim này.</p>
           </div>
 
