@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, computed, onMounted, watch } from 'vue'
+import { reactive, ref, onMounted, watch } from 'vue'
 import api from '@/api/axios'
 
 const props = defineProps({
@@ -64,7 +64,6 @@ const formatHotline = (s) => {
 
 // ===== Validators (set errors[field], trả về true nếu hợp lệ) =====
 const NAME_RE = /^[\p{L}\p{N} \-&_]+$/u
-const URL_IMG_RE = /^(https?:\/\/).+\.(jpg|jpeg|png|webp)(\?.*)?$/i
 
 const validateName = () => {
   const v = collapseSpaces(c.name)
@@ -98,12 +97,6 @@ const validateDistrict = () => {
   else errors.district = ''
   return !errors.district
 }
-const validateImageUrl = () => {
-  const v = (c.imageUrl || '').trim()
-  if (v && !URL_IMG_RE.test(v)) errors.imageUrl = 'URL ảnh phải bắt đầu http(s) và kết thúc .jpg/.jpeg/.png/.webp'
-  else errors.imageUrl = ''
-  return !errors.imageUrl
-}
 const validateDescription = () => {
   if ((c.description || '').length > 1000) errors.description = 'Mô tả tối đa 1000 ký tự'
   else errors.description = ''
@@ -116,22 +109,14 @@ const onAddressBlur = () => { c.address = titleCase(c.address); validateAddress(
 const onHotlineInput = () => { c.hotline = formatHotline(c.hotline); if (errors.hotline) validateHotline() }
 const onHotlineBlur = () => { c.hotline = formatHotline(c.hotline); validateHotline() }
 const onCityBlur = () => { c.city = collapseSpaces(c.city); validateCity() }
-const onImageBlur = () => { c.imageUrl = (c.imageUrl || '').trim(); validateImageUrl() }
 const onDescBlur = () => {
   // Gộp tối đa 2 lần xuống dòng liên tiếp, cắt khoảng trắng đầu/cuối
   c.description = (c.description || '').replace(/\n{3,}/g, '\n\n').trim()
   validateDescription()
 }
 
-// ===== Preview ảnh =====
-const imgLoadFailed = ref(false)
-const previewUrl = computed(() => {
-  const v = (c.imageUrl || '').trim()
-  return URL_IMG_RE.test(v) ? v : ''
-})
-
 const validateAll = () =>
-  [validateName(), validateHotline(), validateAddress(), validateCity(), validateDistrict(), validateImageUrl(), validateDescription()]
+  [validateName(), validateHotline(), validateAddress(), validateCity(), validateDistrict(), validateDescription()]
     .every(Boolean)
 
 const handleCreate = () => {
@@ -228,26 +213,6 @@ const handleCreate = () => {
               <option value="MAINTENANCE" class="bg-surface-container-high">Bảo trì</option>
               <option value="CLOSED" class="bg-surface-container-high">Tạm đóng</option>
             </select>
-          </div>
-
-          <!-- Ảnh rạp (URL) + preview -->
-          <div class="space-y-1.5 col-span-2">
-            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Ảnh rạp (URL)</label>
-            <div class="flex gap-3">
-              <div class="flex-1 space-y-1.5">
-                <input v-model="c.imageUrl" @blur="onImageBlur" @input="imgLoadFailed = false" type="text" placeholder="https://....jpg"
-                  :class="errors.imageUrl ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
-                  class="w-full bg-black/20 border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 outline-none transition-all placeholder-white/20">
-                <p v-if="errors.imageUrl" class="text-red-400 text-xs">{{ errors.imageUrl }}</p>
-                <p v-else-if="previewUrl && imgLoadFailed" class="text-amber-400 text-xs">Không tải được ảnh từ liên kết này.</p>
-              </div>
-              <!-- Khung preview -->
-              <div class="w-20 h-20 shrink-0 rounded-xl border border-white/10 bg-black/30 overflow-hidden flex items-center justify-center">
-                <img v-if="previewUrl && !imgLoadFailed" :src="previewUrl" alt="preview" class="w-full h-full object-cover"
-                  @error="imgLoadFailed = true" @load="imgLoadFailed = false" />
-                <span v-else class="material-symbols-outlined text-white/20 text-2xl">image</span>
-              </div>
-            </div>
           </div>
 
           <!-- Mô tả -->
