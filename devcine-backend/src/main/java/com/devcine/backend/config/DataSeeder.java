@@ -301,7 +301,7 @@ public class DataSeeder {
                             .address("Tầng 3, Bitexco Financial Tower, 2 Hải Triều, Quận 1")
                             .city("Hồ Chí Minh")
                             .district("Quận 1")
-                            .type("Standard/Sweetbox")
+                            .type("Sweetbox")
                             .hotline("1900 5678")
                             .rooms(5)
                             .build();

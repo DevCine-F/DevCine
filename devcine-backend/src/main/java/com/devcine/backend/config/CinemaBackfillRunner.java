@@ -30,6 +30,12 @@ public class CinemaBackfillRunner implements CommandLineRunner {
         this.cinemaRepository = cinemaRepository;
     }
 
+    // Map loại cụm rạp legacy (không thuộc danh mục hợp lệ) -> giá trị chuẩn, để updateCinema không 400.
+    private static final java.util.Map<String, String> LEGACY_TYPE_FIX = java.util.Map.of(
+            "Standard/Sweetbox", "Sweetbox",
+            "Premium/IMAX ", "Premium/IMAX"
+    );
+
     // Danh mục quận/huyện để dò trong địa chỉ. Thứ tự quan trọng: các mục dài/đặc thù đứng trước
     // để "Quận 1" không "ăn" nhầm địa chỉ của "Quận 10/11/12".
     private static final List<String> DISTRICTS = List.of(
@@ -47,18 +53,36 @@ public class CinemaBackfillRunner implements CommandLineRunner {
     @Override
     public void run(String... args) {
         int filled = 0, skipped = 0;
+        int typeFixed = 0;
         for (Cinema c : cinemaRepository.findAll()) {
-            if (c.getDistrict() != null && !c.getDistrict().isBlank()) continue; // đã có district -> bỏ qua
-            String district = extractDistrict(c.getAddress());
-            if (district == null) {
-                skipped++;
-                log.warn("[CinemaBackfill] Không suy được Quận/Huyện cho cụm rạp #{} '{}' (địa chỉ: {}).",
-                        c.getId(), c.getName(), c.getAddress());
-                continue;
+            boolean dirty = false;
+
+            // Chuẩn hoá loại cụm rạp legacy không còn hợp lệ (chặn 400 khi cập nhật qua updateCinema).
+            String canonicalType = LEGACY_TYPE_FIX.get(c.getType());
+            if (canonicalType != null) {
+                c.setType(canonicalType);
+                dirty = true;
+                typeFixed++;
             }
-            c.setDistrict(district);
-            cinemaRepository.save(c);
-            filled++;
+
+            // Điền Quận/Huyện nếu đang trống (suy từ address).
+            if (c.getDistrict() == null || c.getDistrict().isBlank()) {
+                String district = extractDistrict(c.getAddress());
+                if (district != null) {
+                    c.setDistrict(district);
+                    dirty = true;
+                    filled++;
+                } else {
+                    skipped++;
+                    log.warn("[CinemaBackfill] Không suy được Quận/Huyện cho cụm rạp #{} '{}' (địa chỉ: {}).",
+                            c.getId(), c.getName(), c.getAddress());
+                }
+            }
+
+            if (dirty) cinemaRepository.save(c);
+        }
+        if (typeFixed > 0) {
+            log.info("[CinemaBackfill] Chuẩn hoá loại cụm rạp legacy: {} cụm được cập nhật.", typeFixed);
         }
         if (filled > 0 || skipped > 0) {
             log.info("[CinemaBackfill] Điền Quận/Huyện: {} cụm rạp được cập nhật, {} cụm không suy được (cần sửa tay).",

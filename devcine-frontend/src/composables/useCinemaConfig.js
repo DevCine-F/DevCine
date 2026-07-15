@@ -10,7 +10,6 @@ export function useCinemaConfig(selectedCinema) {
     cleaning: false,
     seats: false,
     formats: false,
-    banners: false,
   });
 
   const toggleSection = (key) => {
@@ -19,29 +18,22 @@ export function useCinemaConfig(selectedCinema) {
 
   const configSaving = reactive({
     basic: false,
-    hours: false,
-    cleaning: false,
     seats: false,
-    formats: false,
-    banners: false,
   });
 
   const configSuccess = reactive({
     basic: false,
-    hours: false,
-    cleaning: false,
     seats: false,
-    formats: false,
-    banners: false,
   });
 
+  // Chỉ Mục 1 (Thông tin cơ bản) còn ghi thật -> giữ 4 trường khớp updateCinema.
   const configBasic = reactive({
     name: "",
     address: "",
-    phone: "",
-    email: "",
-    openTime: "08:00",
+    hotline: "",
+    description: "",
   });
+  const configError = reactive({ basic: "" }); // thông báo lỗi lưu (hiển thị inline, không giả "Đã lưu")
 
   const configHours = reactive({
     openTime: "08:00",
@@ -78,24 +70,19 @@ export function useCinemaConfig(selectedCinema) {
     supported: ["2D", "3D"],
   });
 
-  const configBanners = reactive({
-    banners: [],
-    newBannerUrl: "",
-    newBannerTitle: "",
-  });
-
   const loadConfigForCinema = (cinema) => {
+    // Mục 1 (ghi thật): 4 trường khớp updateCinema.
     configBasic.name = cinema.name || "";
     configBasic.address = cinema.address || "";
-    configBasic.phone = cinema.phone || "";
-    configBasic.email = cinema.email || "";
-    configBasic.openTime = cinema.openTime || "08:00";
+    configBasic.hotline = cinema.hotline || "";
+    configBasic.description = cinema.description || "";
+    configError.basic = "";
+    // Mục 2, 3, 5 là thông tin TĨNH (seed) chỉ để giải trình nghiệp vụ — không ghi DB.
     configHours.openTime = cinema.openTime || "08:00";
     configHours.closeTime = cinema.closeTime || "23:30";
-    configHours.holidays = cinema.holidays || "";
+    configHours.holidays = cinema.holidays || "01/01\n30/04\n01/05\n02/09";
     configCleaning.cleaningMinutes = cinema.cleaningMinutes || 20;
     if (cinema.supportedFormats) configFormats.supported = [...cinema.supportedFormats];
-    if (cinema.banners) configBanners.banners = [...cinema.banners];
   };
 
   const showConfigSuccess = (section) => {
@@ -103,56 +90,42 @@ export function useCinemaConfig(selectedCinema) {
     setTimeout(() => { configSuccess[section] = false; }, 2500);
   };
 
+  // Mục 1: ghi THẬT qua PUT /api/v1/cinemas/{id} (updateCinema). updateCinema ghi đè toàn bộ
+  // nên phải gửi kèm các trường không sửa (city/district/type/status...) để không mất dữ liệu.
   const saveConfigBasic = async () => {
-    if (!selectedCinema.value) return;
+    const c = selectedCinema.value;
+    if (!c) return;
     configSaving.basic = true;
+    configError.basic = "";
     try {
-      await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/basic`, {
+      await axios.put(`${API_BASE_URL}/${c.id}`, {
         name: configBasic.name,
         address: configBasic.address,
-        phone: configBasic.phone,
-        email: configBasic.email,
-        openTime: configBasic.openTime,
+        description: configBasic.description || null,
+        hotline: (configBasic.hotline || "").replace(/\D/g, ""), // API yêu cầu chuỗi số thuần
+        city: c.city,
+        district: c.district,
+        type: c.type,
+        status: c.status,
+        rooms: c.rooms,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        amenities: c.amenities,
+        managerId: c.managerId ?? null,
+        imageUrl: null, // null = giữ nguyên ảnh hiện có (updateCinema chỉ ghi khi != null)
       });
-      selectedCinema.value.name = configBasic.name;
-    } catch (e) {
-      console.warn("[Config] Endpoint /config/basic chưa có ở backend:", e?.response?.status);
-    } finally {
+      // Đồng bộ vào object đang chọn để danh sách/thẻ phản ánh ngay
+      c.name = configBasic.name;
+      c.address = configBasic.address;
+      c.hotline = configBasic.hotline;
+      c.description = configBasic.description;
       showConfigSuccess("basic");
+    } catch (e) {
+      configError.basic = e?.response?.data?.message
+        || "Lưu thất bại — kiểm tra Tên (5–100 ký tự), Địa chỉ (≥10 ký tự), Hotline (8–11 số).";
+      console.error("[Config] Lưu thông tin cơ bản thất bại:", e);
+    } finally {
       configSaving.basic = false;
-    }
-  };
-
-  const saveConfigHours = async () => {
-    if (!selectedCinema.value) return;
-    configSaving.hours = true;
-    try {
-      await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/hours`, {
-        openTime: configHours.openTime,
-        closeTime: configHours.closeTime,
-        holidays: configHours.holidays,
-      });
-    } catch (e) {
-      console.warn("[Config] Endpoint /config/hours chưa có ở backend:", e?.response?.status);
-    } finally {
-      showConfigSuccess("hours");
-      configSaving.hours = false;
-    }
-  };
-
-  const saveConfigCleaning = async (tempCleaningTimeRef) => {
-    if (!selectedCinema.value) return;
-    configSaving.cleaning = true;
-    try {
-      await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/cleaning`, {
-        cleaningMinutes: configCleaning.cleaningMinutes,
-      });
-      if (tempCleaningTimeRef) tempCleaningTimeRef.value = configCleaning.cleaningMinutes;
-    } catch (e) {
-      console.warn("[Config] Endpoint /config/cleaning chưa có ở backend:", e?.response?.status);
-    } finally {
-      showConfigSuccess("cleaning");
-      configSaving.cleaning = false;
     }
   };
 
@@ -177,57 +150,6 @@ export function useCinemaConfig(selectedCinema) {
     }
   };
 
-  const saveConfigFormats = async () => {
-    if (!selectedCinema.value) return;
-    configSaving.formats = true;
-    try {
-      await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/formats`, {
-        supportedFormats: configFormats.supported,
-      });
-    } catch (e) {
-      console.warn("[Config] Endpoint /config/formats chưa có ở backend:", e?.response?.status);
-    } finally {
-      showConfigSuccess("formats");
-      configSaving.formats = false;
-    }
-  };
-
-  const toggleFormat = (fmt) => {
-    const idx = configFormats.supported.indexOf(fmt);
-    if (idx === -1) configFormats.supported.push(fmt);
-    else configFormats.supported.splice(idx, 1);
-  };
-
-  const addBanner = () => {
-    if (!configBanners.newBannerUrl.trim()) return;
-    configBanners.banners.push({
-      id: Date.now(),
-      url: configBanners.newBannerUrl,
-      title: configBanners.newBannerTitle || "Banner",
-    });
-    configBanners.newBannerUrl = "";
-    configBanners.newBannerTitle = "";
-  };
-
-  const removeBanner = (id) => {
-    configBanners.banners = configBanners.banners.filter((b) => b.id !== id);
-  };
-
-  const saveConfigBanners = async () => {
-    if (!selectedCinema.value) return;
-    configSaving.banners = true;
-    try {
-      await axios.put(`${API_BASE_URL}/${selectedCinema.value.id}/config/banners`, {
-        banners: configBanners.banners,
-      });
-    } catch (e) {
-      console.warn("[Config] Endpoint /config/banners chưa có ở backend:", e?.response?.status);
-    } finally {
-      showConfigSuccess("banners");
-      configSaving.banners = false;
-    }
-  };
-
   loadSeatTypes(); // nạp loại ghế thật ngay khi mở panel cấu hình
 
   return {
@@ -235,23 +157,16 @@ export function useCinemaConfig(selectedCinema) {
     toggleSection,
     configSaving,
     configSuccess,
+    configError,
     configBasic,
     configHours,
     configCleaning,
     configSeats,
     loadSeatTypes,
     configFormats,
-    configBanners,
     allFormats,
     loadConfigForCinema,
     saveConfigBasic,
-    saveConfigHours,
-    saveConfigCleaning,
     saveConfigSeats,
-    saveConfigFormats,
-    toggleFormat,
-    addBanner,
-    removeBanner,
-    saveConfigBanners
   };
 }
