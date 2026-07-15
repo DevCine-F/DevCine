@@ -48,6 +48,55 @@ const tabLabel = computed(() =>
       : 'mục kiểm duyệt'
 )
 
+// ===== Validate tên danh mục (scoped theo tab) =====
+// Ký tự đặc biệt nguy hiểm bị chặn ở MỌI tab; riêng THỂ LOẠI còn chặn cả chữ số
+// (Định dạng cần "2D/3D/IMAX 2D" nên chừa số).
+const FORBIDDEN_NAME = /[@#$%^&*<>/,[\]{}]/g
+const nameRules = computed(() => {
+  if (activeTab.value === 'formats') return { min: 2, max: 30, blockDigits: false, capitalize: false }
+  if (activeTab.value === 'age-ratings') return { min: 2, max: 100, blockDigits: false, capitalize: false }
+  return { min: 2, max: 30, blockDigits: true, capitalize: true } // genres
+})
+const capitalizeFirst = (s) => { const t = (s || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t }
+
+// Chặn cứng khi gõ: bỏ ký tự cấm (+ số cho tab thể loại), giới hạn độ dài tối đa.
+const onNameInput = (e) => {
+  const r = nameRules.value
+  let v = e.target.value.replace(FORBIDDEN_NAME, '')
+  if (r.blockDigits) v = v.replace(/[0-9]/g, '')
+  v = v.slice(0, r.max)
+  newItem.value.name = v
+  e.target.value = v
+}
+// Viết hoa chữ cái đầu cụm từ khi rời ô (chỉ tab Thể loại): "hành động" -> "Hành động".
+const onNameBlur = () => { if (nameRules.value.capitalize) newItem.value.name = capitalizeFirst(newItem.value.name) }
+
+const nameError = computed(() => {
+  const r = nameRules.value
+  const t = (newItem.value.name || '').trim()
+  if (t.length === 0) return 'Tên danh mục không được để trống.'
+  if (t.length < r.min || t.length > r.max) return `Tên danh mục phải từ ${r.min} đến ${r.max} ký tự.`
+  // Trùng lặp (không phân biệt hoa/thường) trong tab hiện tại, loại trừ chính nó khi sửa.
+  const dup = currentList.value.some((it) =>
+    it.name && it.name.trim().toLowerCase() === t.toLowerCase()
+    && (!editingItem.value || it.id !== editingItem.value.id))
+  if (dup) return 'Tên danh mục này đã tồn tại!'
+  return ''
+})
+const codeError = computed(() => {
+  if (activeTab.value !== 'age-ratings') return ''
+  const c = (newItem.value.code || '').trim()
+  if (!c) return 'Vui lòng nhập mã kiểm duyệt.'
+  const dup = ageRatings.value.some((it) =>
+    it.code && it.code.trim().toLowerCase() === c.toLowerCase()
+    && (!editingItem.value || it.id !== editingItem.value.id))
+  if (dup) return 'Mã kiểm duyệt này đã tồn tại!'
+  return ''
+})
+const descError = computed(() => ((newItem.value.description || '').length > 150 ? 'Mô tả tối đa 150 ký tự.' : ''))
+// Nút Lưu chỉ sáng khi mọi ràng buộc hợp lệ.
+const isSaveDisabled = computed(() => isSaving.value || !!nameError.value || !!codeError.value || !!descError.value)
+
 // ===== Phân trang (client-side, dùng chung 3 tab) =====
 const PAGE_SIZE = 8
 const currentPage = ref(1)
@@ -93,19 +142,15 @@ const openModal = (item = null) => {
 }
 
 const saveItem = async () => {
-  // Validate phía client trước khi gọi API
-  if (activeTab.value === 'age-ratings' && !newItem.value.code.trim()) {
-    showToast('Vui lòng nhập mã kiểm duyệt', 'error')
-    return
-  }
-  if (!newItem.value.name.trim()) {
-    showToast('Vui lòng nhập tên danh mục', 'error')
-    return
-  }
+  // Validate phía client trước khi gọi API (chặn cứng theo nameError/codeError/descError).
+  const firstErr = codeError.value || nameError.value || descError.value
+  if (firstErr) { showToast(firstErr, 'error'); return }
 
+  const finalName = nameRules.value.capitalize ? capitalizeFirst(newItem.value.name) : newItem.value.name.trim()
+  const finalDesc = (newItem.value.description || '').trim() || null
   const payload = activeTab.value === 'age-ratings'
-    ? { code: newItem.value.code.trim(), name: newItem.value.name.trim(), description: newItem.value.description }
-    : { name: newItem.value.name.trim(), description: newItem.value.description }
+    ? { code: newItem.value.code.trim().toUpperCase(), name: finalName, description: finalDesc }
+    : { name: finalName, description: finalDesc }
 
   isSaving.value = true
   try {
@@ -288,21 +333,28 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
         <div v-if="activeTab === 'age-ratings'" class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã kiểm duyệt (Code)</label>
           <input v-model="newItem.code" placeholder="P, T13, T16..." @keyup.enter="saveItem"
-                 class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm" />
+                 :class="codeError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
+                 class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface outline-none text-sm" />
+          <p v-if="codeError" class="text-[11px] text-red-400 font-bold">{{ codeError }}</p>
         </div>
         <div class="space-y-2">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tên danh mục</label>
-          <input v-model="newItem.name" placeholder="Nhập tên..." @keyup.enter="saveItem"
-                 class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm" />
+          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tên danh mục <span class="text-red-500">*</span></label>
+          <input :value="newItem.name" @input="onNameInput" @blur="onNameBlur" @keyup.enter="saveItem" :maxlength="nameRules.max" placeholder="Nhập tên..."
+                 :class="nameError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
+                 class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface outline-none text-sm" />
+          <p v-if="nameError" class="text-[11px] text-red-400 font-bold">{{ nameError }}</p>
         </div>
         <div class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mô tả</label>
-          <textarea v-model="newItem.description" rows="3" placeholder="Ghi chú thêm..."
+          <textarea v-model="newItem.description" rows="3" maxlength="150" placeholder="Ghi chú thêm..."
                     class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm resize-none"></textarea>
+          <div class="flex justify-end">
+            <span class="text-[10px] text-on-surface-variant/60">{{ (newItem.description || '').length }}/150</span>
+          </div>
         </div>
         <div class="flex gap-4 pt-4">
           <AppButton variant="ghost" class="flex-1" @click="isModalOpen = false" :disabled="isSaving">Hủy</AppButton>
-          <AppButton class="flex-1" @click="saveItem" :disabled="isSaving">
+          <AppButton class="flex-1" @click="saveItem" :disabled="isSaveDisabled">
             {{ isSaving ? 'Đang lưu...' : 'Lưu thay đổi' }}
           </AppButton>
         </div>
