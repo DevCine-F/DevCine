@@ -105,13 +105,17 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public CinemaResponse getCinemaById(Integer id) {
-        if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
+        // Chỉ STAFF/MANAGER bị giới hạn xem đúng cụm của mình. ADMIN và khách/khách vãng lai
+        // (trang chi tiết rạp công khai) đều được xem — đồng bộ với getAllCinemas.
+        boolean scopedToCinema = com.devcine.backend.util.SecurityUtils.isManager()
+                || com.devcine.backend.util.SecurityUtils.hasRole("STAFF");
+        if (scopedToCinema) {
             Integer staffCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
             if (staffCinemaId == null || !staffCinemaId.equals(id)) {
                 throw new RuntimeException("Bạn không có quyền truy cập cơ sở này");
             }
         }
-        // Dùng findByIdWithManager (LEFT JOIN FETCH) thay vì findById: tránh 500 khi manager_id
+        // Dùng findByIdWithManager (LEFT JOIN FETCH) thay vì findById: tránh lỗi khi manager_id
         // trỏ tới staff không còn tồn tại (lazy proxy sẽ ném EntityNotFoundException).
         Cinema cinema = cinemaRepository.findByIdWithManager(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
