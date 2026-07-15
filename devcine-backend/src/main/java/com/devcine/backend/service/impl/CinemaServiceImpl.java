@@ -111,7 +111,9 @@ public class CinemaServiceImpl implements CinemaService {
                 throw new RuntimeException("Bạn không có quyền truy cập cơ sở này");
             }
         }
-        Cinema cinema = cinemaRepository.findById(id)
+        // Dùng findByIdWithManager (LEFT JOIN FETCH) thay vì findById: tránh 500 khi manager_id
+        // trỏ tới staff không còn tồn tại (lazy proxy sẽ ném EntityNotFoundException).
+        Cinema cinema = cinemaRepository.findByIdWithManager(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
         return toResponse(cinema);
     }
