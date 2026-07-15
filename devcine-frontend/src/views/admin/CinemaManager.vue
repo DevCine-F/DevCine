@@ -99,15 +99,15 @@ const cityOptions = computed(() => {
   return ["Tất cả", ...Array.from(set)];
 });
 
+// Chỉ liệt kê Quận/Huyện THỰC SỰ có cụm rạp trong Tỉnh/TP đang chọn (không show toàn bộ quận của tỉnh).
 const districtOptions = computed(() => {
-  // Chưa chọn Tỉnh/TP thì không liệt kê Quận/Huyện — buộc chọn tỉnh trước.
-  if (filterCity.value === "Tất cả") return ["Tất cả"];
+  if (filterCity.value === "Tất cả") return ["Tất cả"]; // chưa chọn tỉnh -> không liệt kê quận
   const pool = cinemas.value.filter(c => c.city === filterCity.value);
   const set = new Set(pool.map(c => c.district).filter(Boolean));
   return ["Tất cả", ...Array.from(set)];
 });
 
-// Đổi tỉnh thì reset quận
+// Đổi tỉnh thì reset lựa chọn quận.
 watch(filterCity, () => { filterDistrict.value = "Tất cả"; });
 
 const filteredCinemas = computed(() => cinemas.value.filter(c => {
