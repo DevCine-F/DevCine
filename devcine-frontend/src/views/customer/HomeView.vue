@@ -160,8 +160,10 @@ const onImageBannerClick = (link) => {
 }
 
 const getGenreNames = (movie) => {
-  if (!movie.genres) return 'ĐANG CẬP NHẬT'
-  return movie.genres.map(g => g.name).join(', ').toUpperCase()
+  if (!movie.genres || !movie.genres.length) return 'ĐANG CẬP NHẬT'
+  // Chỉ hiển thị tối đa 2 thể loại chính cho card gọn gàng, đều khung;
+  // danh sách đầy đủ xem ở trang Chi tiết phim.
+  return movie.genres.slice(0, 2).map(g => g.name).join(', ').toUpperCase()
 }
 </script>
 
