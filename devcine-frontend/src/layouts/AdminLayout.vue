@@ -23,8 +23,6 @@ const accountRole = computed(() => {
   return 'Nhân viên'
 })
 
-const shiftStatusText = computed(() => shiftStore.shiftLabel)
-const shiftStatusClass = computed(() => shiftStore.hasActiveShift ? 'border-green-500/25 bg-green-500/10 text-green-300' : 'border-outline-variant/20 bg-surface-container-high text-on-surface-variant')
 const firstAccessiblePath = computed(() => resolveFirstAccessibleAdminPath(adminRoutes, authStore))
 
 const canShow = (feature, action = 'view') => canUseAdminPermission(authStore, { feature, action })
@@ -208,14 +206,6 @@ onMounted(() => {
         <div class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant italic">Quản lý DevCine V2.1</div>
         
         <div class="flex items-center gap-6">
-          <div class="hidden xl:flex items-center gap-2 rounded-lg border px-3 py-2 max-w-sm" :class="shiftStatusClass">
-            <span class="material-symbols-outlined text-base">schedule</span>
-            <div class="min-w-0">
-              <p class="text-[8px] font-black uppercase tracking-widest opacity-70">Ca hiện tại</p>
-              <p class="text-[10px] font-bold truncate">{{ shiftStatusText }}</p>
-            </div>
-          </div>
-
           <!-- Theme Toggle -->
           <button @click="toggleTheme" class="relative p-2 hover:bg-white/5 rounded-full transition-colors cursor-pointer flex items-center">
             <span class="material-symbols-outlined text-on-surface-variant group-hover:text-white transition-colors">
