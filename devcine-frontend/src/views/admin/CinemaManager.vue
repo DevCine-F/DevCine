@@ -100,9 +100,9 @@ const cityOptions = computed(() => {
 });
 
 const districtOptions = computed(() => {
-  const pool = filterCity.value === "Tất cả"
-    ? cinemas.value
-    : cinemas.value.filter(c => c.city === filterCity.value);
+  // Chưa chọn Tỉnh/TP thì không liệt kê Quận/Huyện — buộc chọn tỉnh trước.
+  if (filterCity.value === "Tất cả") return ["Tất cả"];
+  const pool = cinemas.value.filter(c => c.city === filterCity.value);
   const set = new Set(pool.map(c => c.district).filter(Boolean));
   return ["Tất cả", ...Array.from(set)];
 });
@@ -224,7 +224,9 @@ const showCleaningSettingsModal = ref(false);
           <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">expand_more</span>
         </div>
         <div class="relative">
-          <select v-model="filterDistrict" class="bg-surface-container-high border border-outline-variant/20 text-sm text-on-surface rounded-xl pl-4 pr-9 py-2.5 outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer">
+          <select v-model="filterDistrict" :disabled="filterCity === 'Tất cả'"
+            :title="filterCity === 'Tất cả' ? 'Vui lòng chọn Tỉnh/TP trước' : ''"
+            class="bg-surface-container-high border border-outline-variant/20 text-sm text-on-surface rounded-xl pl-4 pr-9 py-2.5 outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
             <option v-for="d in districtOptions" :key="d" :value="d" class="bg-surface-container-high">{{ d === 'Tất cả' ? 'Tất cả Quận/Huyện' : d }}</option>
           </select>
           <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">expand_more</span>
