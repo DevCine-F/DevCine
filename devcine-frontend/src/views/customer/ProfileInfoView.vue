@@ -83,7 +83,7 @@ const handleSaveProfile = async () => {
   isSaving.value = true
   try {
     const res = await customerApi.updateProfile(authStore.user.id, editForm.value)
-    customer.value = res.data.data
+    customer.value = res.data?.data ?? res.data
     isEditing.value = false
     toast.success('Cập nhật hồ sơ thành công.')
   } catch (err) {

@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.SupportTicket;
 import com.devcine.backend.repository.CustomerRepository;
@@ -38,7 +39,7 @@ public class SupportTicketController {
                     ? t.getCustomer().getUser().getEmail() : "");
             return map;
         }).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PostMapping
@@ -56,9 +57,9 @@ public class SupportTicketController {
                     .createdAt(LocalDateTime.now())
                     .build();
             supportTicketRepository.save(ticket);
-            return ResponseEntity.status(201).body(Map.of("success", true, "id", ticket.getId()));
+            return ResponseEntity.status(201).body(ApiResponse.ok(Map.of("id", ticket.getId())));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -71,9 +72,9 @@ public class SupportTicketController {
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy ticket"));
             ticket.setStatus(status);
             supportTicketRepository.save(ticket);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã cập nhật trạng thái."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -82,9 +83,9 @@ public class SupportTicketController {
     public ResponseEntity<?> deleteTicket(@PathVariable Integer id) {
         try {
             supportTicketRepository.deleteById(id);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá yêu cầu hỗ trợ."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

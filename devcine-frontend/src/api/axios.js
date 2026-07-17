@@ -27,7 +27,19 @@ instance.interceptors.request.use(
 // thay vì để từng view tự bung toast (gây nhiều toast giống hệt).
 let handling401 = false;
 instance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Bóc envelope ApiResponse<T> thống nhất từ backend: { success, message, data, errors }.
+    // Chỉ bóc khi ĐÚNG hình dạng envelope (có cờ boolean `success` VÀ khóa `data`) để không
+    // đụng vào payload thô (mảng, object nghiệp vụ, hay { code, data } của VNPAY...).
+    // Nhờ vậy mọi consumer đọc `response.data` / `data.data ?? data` đều nhận đúng payload,
+    // FE không phải sửa từng call-site khi backend chuyển sang bọc data.
+    const body = response.data;
+    if (body && typeof body === 'object' && typeof body.success === 'boolean'
+        && Object.prototype.hasOwnProperty.call(body, 'data')) {
+      response.data = body.data;
+    }
+    return response;
+  },
   async (error) => {
     if (error.response?.status === 401) {
       // import động để tránh phụ thuộc vòng khi module axios được nạp sớm

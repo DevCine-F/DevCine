@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Review;
 import com.devcine.backend.service.ReviewService;
 import lombok.RequiredArgsConstructor;
@@ -18,13 +19,13 @@ public class ReviewController {
 
     @GetMapping("/movie/{movieId}")
     public ResponseEntity<?> getMovieReviews(@PathVariable Integer movieId) {
-        return ResponseEntity.ok(reviewService.getMovieReviews(movieId));
+        return ResponseEntity.ok(ApiResponse.ok(reviewService.getMovieReviews(movieId)));
     }
 
     /** Quyền đánh giá của khách với phim này — FE dùng để render form động (đủ điều kiện / chưa mua vé). */
     @GetMapping("/movie/{movieId}/eligibility")
     public ResponseEntity<?> getEligibility(@PathVariable Integer movieId, @RequestParam Integer customerId) {
-        return ResponseEntity.ok(reviewService.getReviewEligibility(movieId, customerId));
+        return ResponseEntity.ok(ApiResponse.ok(reviewService.getReviewEligibility(movieId, customerId)));
     }
 
     @PostMapping
@@ -36,11 +37,11 @@ public class ReviewController {
             String comment = body.get("comment") != null ? body.get("comment").toString() : "";
 
             Review review = reviewService.createOrUpdateReview(movieId, customerId, rating, comment);
-            return ResponseEntity.status(201).body(Map.of("success", true, "id", review.getId()));
+            return ResponseEntity.status(201).body(ApiResponse.ok(Map.of("id", review.getId())));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Gửi đánh giá thất bại."));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Gửi đánh giá thất bại."));
         }
     }
 
@@ -49,7 +50,7 @@ public class ReviewController {
     @GetMapping("/admin/list")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getAllForAdmin() {
-        return ResponseEntity.ok(reviewService.getAllForAdmin());
+        return ResponseEntity.ok(ApiResponse.ok(reviewService.getAllForAdmin()));
     }
 
     @PutMapping("/{id}/visibility")
@@ -57,9 +58,9 @@ public class ReviewController {
     public ResponseEntity<?> toggleVisibility(@PathVariable Integer id) {
         try {
             boolean hidden = reviewService.toggleHidden(id);
-            return ResponseEntity.ok(Map.of("success", true, "hidden", hidden));
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("hidden", hidden)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -68,9 +69,9 @@ public class ReviewController {
     public ResponseEntity<?> deleteReview(@PathVariable Integer id) {
         try {
             reviewService.deleteReview(id);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá đánh giá."));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

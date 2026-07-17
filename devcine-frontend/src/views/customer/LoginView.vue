@@ -61,7 +61,7 @@ const handleLogin = async () => {
   isLoading.value = true
   try {
     const res = await authApi.login(identifier, loginForm.value.password)
-    const { token, user } = res.data.data
+    const { token, user } = res.data?.data ?? res.data
     const role = user.role.toLowerCase()
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, role)
     if (role === 'admin' || role === 'manager' || role === 'staff') {
@@ -137,7 +137,7 @@ const handleRegister = async () => {
   try {
     await authApi.register(payload)
     const res = await authApi.login(payload.phone, payload.password) // tự đăng nhập bằng SĐT
-    const { token, user } = res.data.data
+    const { token, user } = res.data?.data ?? res.data
     authStore.login({ id: user.id, username: user.username, email: user.email, fullName: user.fullName }, token, user.role.toLowerCase())
     toast.success('Đăng ký thành công! Chào mừng bạn đến với DevCine.')
     router.push(route.query.redirect || '/')

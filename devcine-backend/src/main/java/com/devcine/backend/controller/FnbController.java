@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.FnbItem;
 import com.devcine.backend.repository.FnbItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,15 +21,15 @@ public class FnbController {
 
     /** Công khai — chỉ trả món còn bán, phục vụ bước chọn combo khi đặt vé. */
     @GetMapping
-    public ResponseEntity<List<FnbItem>> getActiveFnbs() {
-        return ResponseEntity.ok(fnbItemRepository.findByIsActiveTrueOrderByTypeAscNameAsc());
+    public ResponseEntity<ApiResponse<List<FnbItem>>> getActiveFnbs() {
+        return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findByIsActiveTrueOrderByTypeAscNameAsc()));
     }
 
     /** Toàn bộ thực đơn (kể cả đang ẩn) cho khu vực quản trị. */
     @GetMapping("/all")
     @PreAuthorize("@perm.can('pos_inventory','view')")
-    public ResponseEntity<List<FnbItem>> getAllFnbs() {
-        return ResponseEntity.ok(fnbItemRepository.findAll());
+    public ResponseEntity<ApiResponse<List<FnbItem>>> getAllFnbs() {
+        return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findAll()));
     }
 
     @PostMapping
@@ -44,9 +45,9 @@ public class FnbController {
                     .isActive(body.get("isActive") == null || Boolean.parseBoolean(body.get("isActive").toString()))
                     .build();
             fnbItemRepository.save(item);
-            return ResponseEntity.status(201).body(Map.of("success", true, "data", item));
+            return ResponseEntity.status(201).body(ApiResponse.ok(item));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -63,9 +64,9 @@ public class FnbController {
             if (body.containsKey("description")) item.setDescription((String) body.get("description"));
             if (body.containsKey("isActive")) item.setIsActive(Boolean.parseBoolean(body.get("isActive").toString()));
             fnbItemRepository.save(item);
-            return ResponseEntity.ok(Map.of("success", true, "data", item));
+            return ResponseEntity.ok(ApiResponse.ok(item));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -74,9 +75,9 @@ public class FnbController {
     public ResponseEntity<?> deleteFnb(@PathVariable Integer id) {
         try {
             fnbItemRepository.deleteById(id);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá món F&B."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.VoucherPreviewRequest;
 import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.Voucher;
@@ -27,7 +28,7 @@ public class VoucherController {
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<?> getActiveVouchers(@PathVariable Integer customerId) {
         List<Voucher> vouchers = voucherRepository.findActiveVouchersByCustomerId(customerId, java.time.LocalDateTime.now());
-        return ResponseEntity.ok(vouchers);
+        return ResponseEntity.ok(ApiResponse.ok(vouchers));
     }
 
     /**
@@ -36,7 +37,7 @@ public class VoucherController {
      */
     @PostMapping("/preview")
     public ResponseEntity<?> previewVouchers(@RequestBody VoucherPreviewRequest req) {
-        return ResponseEntity.ok(voucherService.previewActiveVouchers(req));
+        return ResponseEntity.ok(ApiResponse.ok(voucherService.previewActiveVouchers(req)));
     }
 
     /**
@@ -66,7 +67,7 @@ public class VoucherController {
                             "status", status
                     );
                 }).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PostMapping("/validate")
@@ -75,27 +76,27 @@ public class VoucherController {
                 .orElse(null);
         
         if (voucher == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Mã giảm giá không tồn tại, đã sử dụng hoặc hết hạn."));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Mã giảm giá không tồn tại, đã sử dụng hoặc hết hạn."));
         }
 
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok(ApiResponse.ok(Map.of(
             "id", voucher.getId(),
             "code", voucher.getPromotion().getCode(),
             "discountType", voucher.getPromotion().getDiscountType(),
             "discountValue", voucher.getPromotion().getDiscountValue(),
             "validUntil", voucher.getValidUntil().toString()
-        ));
+        )));
     }
 
     /** Tra cứu một mã ưu đãi để xem có thể lưu vào ví hay không (phục vụ ô tìm/nhập mã ở "Ưu đãi của tôi"). */
     @GetMapping("/lookup")
     public ResponseEntity<?> lookupByCode(@RequestParam Integer customerId, @RequestParam String code) {
         if (code == null || code.isBlank()) {
-            return ResponseEntity.ok(Map.of("found", false, "reason", "NOT_FOUND"));
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("found", false, "reason", "NOT_FOUND")));
         }
         Promotion promo = promotionRepository.findByCodeIgnoreCase(code.trim()).orElse(null);
         if (promo == null) {
-            return ResponseEntity.ok(Map.of("found", false, "reason", "NOT_FOUND"));
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("found", false, "reason", "NOT_FOUND")));
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -106,7 +107,7 @@ public class VoucherController {
         boolean claimable = !pointOnly && !expired && !owned;
         String reason = pointOnly ? "POINT_ONLY" : expired ? "EXPIRED" : owned ? "ALREADY_OWNED" : "OK";
 
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "found", true,
                 "claimable", claimable,
                 "reason", reason,
@@ -114,7 +115,7 @@ public class VoucherController {
                 "discountType", promo.getDiscountType() != null ? promo.getDiscountType() : "",
                 "discountValue", promo.getDiscountValue() != null ? promo.getDiscountValue() : 0,
                 "endDate", promo.getEndDate() != null ? promo.getEndDate().toString() : ""
-        ));
+        )));
     }
 
     /** Bước thanh toán: áp dụng voucher theo mã (tự lưu nếu hợp lệ mà chưa có), trả về để áp dụng. */
@@ -123,7 +124,7 @@ public class VoucherController {
         try {
             Voucher voucher = voucherService.getOrClaimForCheckout(customerId, code);
             Promotion p = voucher.getPromotion();
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "id", voucher.getId(),
                 "code", p.getCode() != null ? p.getCode() : "",
                 "discountType", p.getDiscountType() != null ? p.getDiscountType() : "",
@@ -131,9 +132,9 @@ public class VoucherController {
                 "maxTicketQuantity", p.getMaxTicketQuantity() != null ? p.getMaxTicketQuantity() : 0,
                 "maxDiscountAmount", p.getMaxDiscountAmount() != null ? p.getMaxDiscountAmount() : 0,
                 "validUntil", voucher.getValidUntil() != null ? voucher.getValidUntil().toString() : ""
-            ));
+            )));
         } catch (RuntimeException ex) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 
@@ -142,13 +143,12 @@ public class VoucherController {
     public ResponseEntity<?> claimByCode(@RequestParam Integer customerId, @RequestParam String code) {
         try {
             Voucher voucher = voucherService.claimByCode(customerId, code);
-            return ResponseEntity.ok(Map.of(
-                "success", true,
+            return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "voucherId", voucher.getId(),
                 "code", voucher.getPromotion().getCode() != null ? voucher.getPromotion().getCode() : ""
-            ));
+            )));
         } catch (RuntimeException ex) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 
@@ -157,14 +157,13 @@ public class VoucherController {
     public ResponseEntity<?> redeemWithPoints(@RequestParam Integer customerId, @RequestParam Integer promoId) {
         try {
             Voucher voucher = voucherService.redeemWithPoints(customerId, promoId);
-            return ResponseEntity.ok(Map.of(
-                "success", true,
+            return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "voucherId", voucher.getId(),
                 "code", voucher.getPromotion().getCode() != null ? voucher.getPromotion().getCode() : "",
                 "remainingPoints", voucher.getCustomer().getLoyaltyPoints() != null ? voucher.getCustomer().getLoyaltyPoints() : 0
-            ));
+            )));
         } catch (RuntimeException ex) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 }

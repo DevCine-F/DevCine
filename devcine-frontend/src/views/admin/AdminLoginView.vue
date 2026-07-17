@@ -78,7 +78,7 @@ const loginAsAdmin = async (e) => {
   isLoading.value = true
   try {
     const res = await authApi.login(user, pass)
-    const { token, user: userData } = res.data.data
+    const { token, user: userData } = res.data?.data ?? res.data
     const role = userData.role.toLowerCase()
 
     if (!['admin', 'manager', 'staff'].includes(role)) {
