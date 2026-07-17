@@ -6,6 +6,7 @@ import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +43,12 @@ public class NotificationService {
     }
 
     @Transactional
-    public void markAsRead(Integer notificationId) {
+    public void markAsRead(Integer notificationId, Integer currentUserId) {
         notificationRepository.findById(notificationId).ifPresent(n -> {
+            // Chặn IDOR: chỉ chủ sở hữu mới được đánh dấu đã đọc
+            if (!n.getCustomer().getUserId().equals(currentUserId)) {
+                throw new AccessDeniedException("Bạn không có quyền cập nhật thông báo của người khác.");
+            }
             n.setIsRead(true);
             notificationRepository.save(n);
         });

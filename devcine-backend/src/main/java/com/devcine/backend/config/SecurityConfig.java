@@ -60,7 +60,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/banners/active").permitAll()
                 .requestMatchers("/api/payment/vnpay_return").permitAll()
                 .requestMatchers("/api/system/**").permitAll()
-                .requestMatchers("/api/upload/**").permitAll()
+                // Upload ảnh (Cloudinary) — yêu cầu đăng nhập + @PreAuthorize theo role trong UploadController
                 // Yêu cầu xác thực
                 .anyRequest().authenticated()
             )
