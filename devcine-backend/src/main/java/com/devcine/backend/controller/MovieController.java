@@ -1,6 +1,7 @@
 package com.devcine.backend.controller;
 
 import com.devcine.backend.dto.request.MovieBulkRequest;
+import com.devcine.backend.dto.request.MovieRequest;
 import com.devcine.backend.entity.Movie;
 import com.devcine.backend.service.MovieService;
 import jakarta.validation.Valid;
@@ -76,9 +77,9 @@ public class MovieController {
 
     @PostMapping
     @PreAuthorize("@perm.can('movies','add')")
-    public ResponseEntity<?> createMovie(@RequestBody Movie movie) {
+    public ResponseEntity<?> createMovie(@Valid @RequestBody MovieRequest request) {
         try {
-            return ResponseEntity.ok(movieService.createMovie(movie));
+            return ResponseEntity.ok(movieService.createMovie(request));
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
@@ -86,9 +87,9 @@ public class MovieController {
 
     @PutMapping("/{id}")
     @PreAuthorize("@perm.can('movies','edit')")
-    public ResponseEntity<?> updateMovie(@PathVariable Integer id, @RequestBody Movie movie) {
+    public ResponseEntity<?> updateMovie(@PathVariable Integer id, @Valid @RequestBody MovieRequest request) {
         try {
-            Movie updatedMovie = movieService.updateMovie(id, movie);
+            Movie updatedMovie = movieService.updateMovie(id, request);
             if (updatedMovie != null) {
                 return ResponseEntity.ok(updatedMovie);
             }

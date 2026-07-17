@@ -1,7 +1,10 @@
 package com.devcine.backend.service;
 
+import com.devcine.backend.dto.request.MovieRequest;
+import com.devcine.backend.entity.Category;
 import com.devcine.backend.entity.Movie;
 import com.devcine.backend.repository.BookingRepository;
+import com.devcine.backend.repository.CategoryRepository;
 import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,8 +17,11 @@ import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import com.devcine.backend.dto.response.MovieStatsResponse;
 import com.devcine.backend.dto.response.MovieStatsResponse.ClassRevenue;
@@ -35,6 +41,9 @@ public class MovieService {
 
     @Autowired
     private BannerSyncService bannerSyncService;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     public List<MovieSummaryDTO> getAllMovies() {
         return movieRepository.findAllWithGenres().stream()
@@ -126,7 +135,9 @@ public class MovieService {
     }
 
     @Transactional
-    public Movie createMovie(Movie movie) {
+    public Movie createMovie(MovieRequest request) {
+        Movie movie = new Movie();
+        applyRequest(movie, request);
         validateMoviePayload(movie);
         if (movie.getTitle() != null && movieRepository.existsByTitleIgnoreCase(movie.getTitle().trim())) {
             throw new IllegalStateException("Thêm phim thất bại. Tên phim hoặc mã ID đã tồn tại trên hệ thống!");
@@ -138,48 +149,68 @@ public class MovieService {
     }
 
     @Transactional
-    public Movie updateMovie(Integer id, Movie movieDetails) {
-        validateMoviePayload(movieDetails);
+    public Movie updateMovie(Integer id, MovieRequest request) {
         Movie existingMovie = movieRepository.findById(id).orElse(null);
-        if (existingMovie != null) {
-            if (movieDetails.getTitle() != null
-                    && movieRepository.existsByTitleIgnoreCaseAndIdNot(movieDetails.getTitle().trim(), id)) {
-                throw new IllegalStateException("Cập nhật thất bại. Tên phim đã tồn tại trên hệ thống!");
-            }
-            existingMovie.setTitle(movieDetails.getTitle());
-            existingMovie.setSlug(movieDetails.getSlug());
-            existingMovie.setDurationMins(movieDetails.getDurationMins());
-            existingMovie.setAgeRating(movieDetails.getAgeRating());
-            existingMovie.setReleaseDate(movieDetails.getReleaseDate());
-            existingMovie.setEndDate(movieDetails.getEndDate());
-            existingMovie.setStatus(movieDetails.getStatus());
-            existingMovie.setCountry(movieDetails.getCountry());
-            existingMovie.setRating(movieDetails.getRating());
-            existingMovie.setPosterUrl(movieDetails.getPosterUrl());
-            existingMovie.setBannerUrl(movieDetails.getBannerUrl());
-            existingMovie.setShowOnBanner(movieDetails.getShowOnBanner());
-            existingMovie.setTrailerUrl(movieDetails.getTrailerUrl());
-            existingMovie.setFormat(movieDetails.getFormat());
-            existingMovie.setSupportedFormats(movieDetails.getSupportedFormats());
-            existingMovie.setTitleVietnamese(movieDetails.getTitleVietnamese());
-            existingMovie.setProductionYear(movieDetails.getProductionYear());
-            existingMovie.setLanguage(movieDetails.getLanguage());
-            existingMovie.setBasePrice(movieDetails.getBasePrice());
-            existingMovie.setDescription(movieDetails.getDescription());
-            existingMovie.setOriginalLanguage(movieDetails.getOriginalLanguage());
-            existingMovie.setVersionType(movieDetails.getVersionType());
-            existingMovie.setInternalNotes(movieDetails.getInternalNotes());
-            existingMovie.setStartDate(movieDetails.getStartDate());
-            existingMovie.setGenres(movieDetails.getGenres());
-            existingMovie.setDirector(movieDetails.getDirector());
-            existingMovie.setCastMembers(movieDetails.getCastMembers());
-            existingMovie.setRatingCount(movieDetails.getRatingCount());
-            Movie saved = movieRepository.save(existingMovie);
-            // Đồng bộ lại banner theo phim theo cờ showOnBanner vừa cập nhật.
-            bannerSyncService.applyMovieFlag(saved.getId(), Boolean.TRUE.equals(saved.getShowOnBanner()), saved.getTitle());
-            return saved;
+        if (existingMovie == null) {
+            return null;
         }
-        return null;
+        applyRequest(existingMovie, request);
+        validateMoviePayload(existingMovie);
+        if (existingMovie.getTitle() != null
+                && movieRepository.existsByTitleIgnoreCaseAndIdNot(existingMovie.getTitle().trim(), id)) {
+            throw new IllegalStateException("Cập nhật thất bại. Tên phim đã tồn tại trên hệ thống!");
+        }
+        Movie saved = movieRepository.save(existingMovie);
+        // Đồng bộ lại banner theo phim theo cờ showOnBanner vừa cập nhật.
+        bannerSyncService.applyMovieFlag(saved.getId(), Boolean.TRUE.equals(saved.getShowOnBanner()), saved.getTitle());
+        return saved;
+    }
+
+    /** Map dữ liệu từ request DTO sang entity (dùng chung cho tạo & cập nhật). */
+    private void applyRequest(Movie movie, MovieRequest r) {
+        movie.setTitle(r.getTitle());
+        movie.setSlug(r.getSlug());
+        movie.setDurationMins(r.getDurationMins());
+        movie.setAgeRating(r.getAgeRating());
+        movie.setReleaseDate(r.getReleaseDate());
+        movie.setEndDate(r.getEndDate());
+        movie.setStatus(r.getStatus());
+        movie.setCountry(r.getCountry());
+        movie.setRating(r.getRating());
+        movie.setPosterUrl(r.getPosterUrl());
+        movie.setBannerUrl(r.getBannerUrl());
+        movie.setShowOnBanner(r.getShowOnBanner());
+        movie.setTrailerUrl(r.getTrailerUrl());
+        movie.setFormat(r.getFormat());
+        movie.setSupportedFormats(r.getSupportedFormats());
+        movie.setTitleVietnamese(r.getTitleVietnamese());
+        movie.setProductionYear(r.getProductionYear());
+        movie.setLanguage(r.getLanguage());
+        movie.setBasePrice(r.getBasePrice());
+        movie.setDescription(r.getDescription());
+        movie.setOriginalLanguage(r.getOriginalLanguage());
+        movie.setVersionType(r.getVersionType());
+        movie.setInternalNotes(r.getInternalNotes());
+        movie.setStartDate(r.getStartDate());
+        movie.setDirector(r.getDirector());
+        movie.setCastMembers(r.getCastMembers());
+        movie.setRatingCount(r.getRatingCount());
+        movie.setGenres(resolveGenres(r.getGenres()));
+    }
+
+    /** Chuyển danh sách id thể loại từ FE thành các Category đang quản lý (bỏ id không tồn tại). */
+    private Set<Category> resolveGenres(Set<MovieRequest.GenreRef> refs) {
+        if (refs == null) {
+            return null;
+        }
+        List<Integer> ids = refs.stream()
+                .map(MovieRequest.GenreRef::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return new HashSet<>();
+        }
+        return new HashSet<>(categoryRepository.findAllById(ids));
     }
 
     @Transactional
