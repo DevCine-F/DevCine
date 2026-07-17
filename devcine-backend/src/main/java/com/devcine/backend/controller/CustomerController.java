@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.PointTransactionRepository;
@@ -34,7 +35,7 @@ public class CustomerController {
                 : customerRepository.findAllWithUser();
         List<Map<String, Object>> result = customers.stream()
                 .map(this::buildProfileResponse).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/{id}")
@@ -43,7 +44,7 @@ public class CustomerController {
         if (customer == null) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(buildProfileResponse(customer));
+        return ResponseEntity.ok(ApiResponse.ok(buildProfileResponse(customer)));
     }
 
     @PutMapping("/{id}")
@@ -88,9 +89,9 @@ public class CustomerController {
             }
             customerRepository.save(customer);
 
-            return ResponseEntity.ok(Map.of("success", true, "data", buildProfileResponse(customer)));
+            return ResponseEntity.ok(ApiResponse.ok(buildProfileResponse(customer)));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -110,7 +111,7 @@ public class CustomerController {
                     m.put("createdAt", t.getCreatedAt() != null ? t.getCreatedAt().toString() : null);
                     return m;
                 }).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     private Map<String, Object> buildProfileResponse(Customer customer) {

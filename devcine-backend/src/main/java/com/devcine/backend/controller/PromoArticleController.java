@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.PromoArticle;
 import com.devcine.backend.repository.PromoArticleRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,14 +34,14 @@ public class PromoArticleController {
                 .filter(a -> (a.getStartDate() == null || !a.getStartDate().isAfter(today))
                         && (a.getEndDate() == null || !a.getEndDate().isBefore(today)))
                 .toList();
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     /** Chi tiết một tin (công khai). */
     @GetMapping("/{id}")
     public ResponseEntity<?> getDetail(@PathVariable Integer id) {
         return repository.findById(id)
-                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .<ResponseEntity<?>>map(a -> ResponseEntity.ok(ApiResponse.ok(a)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -48,7 +49,7 @@ public class PromoArticleController {
     @GetMapping("/all")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
     public ResponseEntity<?> getAll() {
-        return ResponseEntity.ok(repository.findAllByOrderByDisplayOrderAscIdDesc());
+        return ResponseEntity.ok(ApiResponse.ok(repository.findAllByOrderByDisplayOrderAscIdDesc()));
     }
 
     @PostMapping
@@ -57,7 +58,7 @@ public class PromoArticleController {
         try {
             String title = str(body.get("title"));
             if (title == null || title.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Vui lòng nhập tiêu đề tin khuyến mãi."));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập tiêu đề tin khuyến mãi."));
             }
             PromoArticle article = PromoArticle.builder()
                     .title(title.trim())
@@ -71,10 +72,10 @@ public class PromoArticleController {
                     .createdAt(LocalDateTime.now())
                     .build();
             repository.save(article);
-            return ResponseEntity.status(201).body(Map.of("success", true, "data", article));
+            return ResponseEntity.status(201).body(ApiResponse.ok(article));
         } catch (Exception e) {
             log.error("Lỗi tạo tin khuyến mãi", e);
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể tạo tin. Vui lòng kiểm tra lại dữ liệu nhập."));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không thể tạo tin. Vui lòng kiểm tra lại dữ liệu nhập."));
         }
     }
 
@@ -87,7 +88,7 @@ public class PromoArticleController {
             if (body.containsKey("title")) {
                 String title = str(body.get("title"));
                 if (title == null || title.isBlank()) {
-                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Vui lòng nhập tiêu đề tin khuyến mãi."));
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập tiêu đề tin khuyến mãi."));
                 }
                 a.setTitle(title.trim());
             }
@@ -99,10 +100,10 @@ public class PromoArticleController {
             if (body.containsKey("isActive")) a.setIsActive(Boolean.parseBoolean(body.get("isActive").toString()));
             if (body.containsKey("displayOrder")) a.setDisplayOrder(body.get("displayOrder") != null ? Integer.parseInt(body.get("displayOrder").toString()) : 0);
             repository.save(a);
-            return ResponseEntity.ok(Map.of("success", true, "data", a));
+            return ResponseEntity.ok(ApiResponse.ok(a));
         } catch (Exception e) {
             log.error("Lỗi cập nhật tin khuyến mãi {}", id, e);
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể cập nhật tin. Vui lòng kiểm tra lại dữ liệu nhập."));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không thể cập nhật tin. Vui lòng kiểm tra lại dữ liệu nhập."));
         }
     }
 
@@ -115,9 +116,9 @@ public class PromoArticleController {
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy tin khuyến mãi"));
             a.setIsActive(!Boolean.TRUE.equals(a.getIsActive()));
             repository.save(a);
-            return ResponseEntity.ok(Map.of("success", true, "isActive", a.getIsActive()));
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("isActive", a.getIsActive())));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -126,9 +127,9 @@ public class PromoArticleController {
     public ResponseEntity<?> delete(@PathVariable Integer id) {
         try {
             repository.deleteById(id);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá tin khuyến mãi."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 

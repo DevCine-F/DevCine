@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.AuditLog;
 import com.devcine.backend.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -51,13 +52,13 @@ public class AuditLogController {
             return m;
         }).collect(Collectors.toList());
 
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "content", content,
                 "page", pageResult.getNumber(),
                 "size", pageResult.getSize(),
                 "totalElements", pageResult.getTotalElements(),
                 "totalPages", pageResult.getTotalPages()
-        ));
+        )));
     }
 
     // Mô tả hành động cho cột "Chi tiết" (AuditLog không lưu mô tả riêng — dựng từ action + bảng đích)
