@@ -22,6 +22,8 @@ const isSaving = ref(false)
 const isModalOpen = ref(false)
 const editingItem = ref(null)
 const newItem = ref({ name: '', code: '', description: '' })
+// Chỉ tô đỏ ô sau khi admin đã gõ / rời ô — form vừa mở không "quát" lỗi ngay.
+const touched = ref({ name: false, code: false })
 
 // Toast phản hồi thao tác
 const toast = ref({ show: false, type: 'success', message: '' })
@@ -54,7 +56,7 @@ const tabLabel = computed(() =>
 const FORBIDDEN_NAME = /[@#$%^&*<>/,[\]{}]/g
 const nameRules = computed(() => {
   if (activeTab.value === 'formats') return { min: 2, max: 30, blockDigits: false, capitalize: false }
-  if (activeTab.value === 'age-ratings') return { min: 2, max: 100, blockDigits: false, capitalize: false }
+  if (activeTab.value === 'age-ratings') return { min: 2, max: 50, blockDigits: false, capitalize: true }
   return { min: 2, max: 30, blockDigits: true, capitalize: true } // genres
 })
 const capitalizeFirst = (s) => { const t = (s || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t }
@@ -67,9 +69,15 @@ const onNameInput = (e) => {
   v = v.slice(0, r.max)
   newItem.value.name = v
   e.target.value = v
+  touched.value.name = true
 }
-// Viết hoa chữ cái đầu cụm từ khi rời ô (chỉ tab Thể loại): "hành động" -> "Hành động".
-const onNameBlur = () => { if (nameRules.value.capitalize) newItem.value.name = capitalizeFirst(newItem.value.name) }
+// Rời ô: luôn cắt khoảng trắng thừa 2 đầu; viết hoa chữ cái đầu ở tab có capitalize.
+const onNameBlur = () => {
+  touched.value.name = true
+  newItem.value.name = nameRules.value.capitalize
+    ? capitalizeFirst(newItem.value.name)
+    : (newItem.value.name || '').trim()
+}
 
 const nameError = computed(() => {
   const r = nameRules.value
@@ -83,10 +91,22 @@ const nameError = computed(() => {
   if (dup) return 'Tên danh mục này đã tồn tại!'
   return ''
 })
+// Mã kiểm duyệt: chỉ chữ HOA + số, 1-10 ký tự. Chặn cứng khi gõ để admin không thể
+// nhập dấu cách / ký tự đặc biệt / chữ thường ("t13 " -> "T13").
+const CODE_MAX = 10
+const onCodeInput = (e) => {
+  const v = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, CODE_MAX)
+  newItem.value.code = v
+  e.target.value = v
+  touched.value.code = true
+}
+
 const codeError = computed(() => {
   if (activeTab.value !== 'age-ratings') return ''
   const c = (newItem.value.code || '').trim()
   if (!c) return 'Vui lòng nhập mã kiểm duyệt.'
+  if (c.length > CODE_MAX) return `Mã kiểm duyệt tối đa ${CODE_MAX} ký tự.`
+  if (!/^[A-Z0-9]+$/.test(c)) return 'Mã kiểm duyệt chỉ gồm chữ in hoa và số.'
   const dup = ageRatings.value.some((it) =>
     it.code && it.code.trim().toLowerCase() === c.toLowerCase()
     && (!editingItem.value || it.id !== editingItem.value.id))
@@ -133,6 +153,8 @@ const fetchData = async () => {
 
 const openModal = (item = null) => {
   editingItem.value = item
+  // Sửa: dữ liệu đã có sẵn nên hiện lỗi ngay nếu bản ghi cũ không hợp lệ. Thêm mới: chờ admin gõ.
+  touched.value = { name: !!item, code: !!item }
   if (item) {
     newItem.value = { name: item.name || '', code: item.code || '', description: item.description || '' }
   } else {
@@ -143,6 +165,7 @@ const openModal = (item = null) => {
 
 const saveItem = async () => {
   // Validate phía client trước khi gọi API (chặn cứng theo nameError/codeError/descError).
+  touched.value = { name: true, code: true }
   const firstErr = codeError.value || nameError.value || descError.value
   if (firstErr) { showToast(firstErr, 'error'); return }
 
@@ -331,18 +354,19 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
     <AppModal :show="isModalOpen" @close="isModalOpen = false" :title="editingItem ? 'Sửa danh mục' : 'Thêm danh mục mới'">
       <div class="space-y-6 pt-4">
         <div v-if="activeTab === 'age-ratings'" class="space-y-2">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã kiểm duyệt (Code)</label>
-          <input v-model="newItem.code" placeholder="P, T13, T16..." @keyup.enter="saveItem"
-                 :class="codeError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
-                 class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface outline-none text-sm" />
-          <p v-if="codeError" class="text-[11px] text-red-400 font-bold">{{ codeError }}</p>
+          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã kiểm duyệt (Code) <span class="text-red-500">*</span></label>
+          <input :value="newItem.code" @input="onCodeInput" @blur="touched.code = true" @keyup.enter="saveItem" :maxlength="CODE_MAX"
+                 placeholder="VD: P, T13, T16..."
+                 :class="touched.code && codeError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
+                 class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface outline-none text-sm font-mono tracking-widest uppercase" />
+          <p v-if="touched.code && codeError" class="text-[11px] text-red-400 font-bold">{{ codeError }}</p>
         </div>
         <div class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tên danh mục <span class="text-red-500">*</span></label>
           <input :value="newItem.name" @input="onNameInput" @blur="onNameBlur" @keyup.enter="saveItem" :maxlength="nameRules.max" placeholder="Nhập tên..."
-                 :class="nameError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
+                 :class="touched.name && nameError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
                  class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface outline-none text-sm" />
-          <p v-if="nameError" class="text-[11px] text-red-400 font-bold">{{ nameError }}</p>
+          <p v-if="touched.name && nameError" class="text-[11px] text-red-400 font-bold">{{ nameError }}</p>
         </div>
         <div class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mô tả</label>

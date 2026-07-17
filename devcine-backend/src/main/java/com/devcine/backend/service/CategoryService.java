@@ -1,5 +1,8 @@
 package com.devcine.backend.service;
 
+import com.devcine.backend.dto.request.AgeRatingRequest;
+import com.devcine.backend.dto.request.CategoryRequest;
+import com.devcine.backend.dto.request.MovieFormatRequest;
 import com.devcine.backend.entity.AgeRating;
 import com.devcine.backend.entity.Category;
 import com.devcine.backend.entity.MovieFormat;
@@ -48,7 +51,7 @@ public class CategoryService {
     }
 
     @Transactional
-    public Category createGenre(Category input) {
+    public Category createGenre(CategoryRequest input) {
         String name = requireName(input.getName(), "Tên thể loại không được để trống");
         checkGenreName(name);
         if (categoryRepository.existsByNameIgnoreCase(name)) {
@@ -61,7 +64,7 @@ public class CategoryService {
     }
 
     @Transactional
-    public Category updateGenre(Integer id, Category input) {
+    public Category updateGenre(Integer id, CategoryRequest input) {
         Category existing = categoryRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thể loại #" + id));
         String name = requireName(input.getName(), "Tên thể loại không được để trống");
@@ -102,7 +105,7 @@ public class CategoryService {
     }
 
     @Transactional
-    public MovieFormat createFormat(MovieFormat input) {
+    public MovieFormat createFormat(MovieFormatRequest input) {
         String name = requireName(input.getName(), "Tên định dạng không được để trống");
         checkNameLen(name, 2, 30, "định dạng");
         if (movieFormatRepository.existsByNameIgnoreCase(name)) {
@@ -118,7 +121,7 @@ public class CategoryService {
 
     // Chỉ sửa tên + mô tả; phụ thu/giá cố định được chỉnh ở màn "Cấu hình giá".
     @Transactional
-    public MovieFormat updateFormat(Integer id, MovieFormat input) {
+    public MovieFormat updateFormat(Integer id, MovieFormatRequest input) {
         MovieFormat existing = movieFormatRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng #" + id));
         String name = requireName(input.getName(), "Tên định dạng không được để trống");
@@ -159,9 +162,11 @@ public class CategoryService {
     }
 
     @Transactional
-    public AgeRating createAgeRating(AgeRating input) {
+    public AgeRating createAgeRating(AgeRatingRequest input) {
         String code = requireName(input.getCode(), "Mã kiểm duyệt không được để trống").toUpperCase();
+        checkAgeRatingCode(code);
         String name = requireName(input.getName(), "Tên kiểm duyệt không được để trống");
+        checkNameLen(name, 2, 50, "kiểm duyệt");
         if (ageRatingRepository.existsByCodeIgnoreCase(code)) {
             throw new IllegalArgumentException("Mã kiểm duyệt \"" + code + "\" đã tồn tại");
         }
@@ -173,11 +178,13 @@ public class CategoryService {
     }
 
     @Transactional
-    public AgeRating updateAgeRating(Integer id, AgeRating input) {
+    public AgeRating updateAgeRating(Integer id, AgeRatingRequest input) {
         AgeRating existing = ageRatingRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mục kiểm duyệt #" + id));
         String code = requireName(input.getCode(), "Mã kiểm duyệt không được để trống").toUpperCase();
+        checkAgeRatingCode(code);
         String name = requireName(input.getName(), "Tên kiểm duyệt không được để trống");
+        checkNameLen(name, 2, 50, "kiểm duyệt");
         if (!code.equalsIgnoreCase(existing.getCode()) && ageRatingRepository.existsByCodeIgnoreCase(code)) {
             throw new IllegalArgumentException("Mã kiểm duyệt \"" + code + "\" đã tồn tại");
         }
@@ -228,6 +235,16 @@ public class CategoryService {
         checkNameLen(name, 2, 30, "thể loại");
         if (name.chars().anyMatch(Character::isDigit)) {
             throw new IllegalArgumentException("Tên thể loại không được chứa chữ số");
+        }
+    }
+
+    // Mã kiểm duyệt: 1-10 ký tự, chỉ chữ in hoa + số (P, T13, C18...) — đồng bộ với Frontend.
+    private static final java.util.regex.Pattern AGE_RATING_CODE =
+            java.util.regex.Pattern.compile("^[A-Z0-9]{1,10}$");
+
+    private void checkAgeRatingCode(String code) {
+        if (!AGE_RATING_CODE.matcher(code).matches()) {
+            throw new IllegalArgumentException("Mã kiểm duyệt chỉ gồm chữ in hoa và số, tối đa 10 ký tự");
         }
     }
 

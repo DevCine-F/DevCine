@@ -1,15 +1,20 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.request.AgeRatingRequest;
+import com.devcine.backend.dto.request.CategoryRequest;
+import com.devcine.backend.dto.request.MovieFormatRequest;
 import com.devcine.backend.entity.AgeRating;
 import com.devcine.backend.entity.Category;
 import com.devcine.backend.entity.MovieFormat;
 import com.devcine.backend.service.CategoryService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -38,13 +43,13 @@ public class CategoryController {
 
     @PostMapping("/genres")
     @PreAuthorize("@perm.can('movies','add')")
-    public ResponseEntity<?> createGenre(@RequestBody Category body) {
+    public ResponseEntity<?> createGenre(@Valid @RequestBody CategoryRequest body) {
         return ResponseEntity.ok(categoryService.createGenre(body));
     }
 
     @PutMapping("/genres/{id}")
     @PreAuthorize("@perm.can('movies','edit')")
-    public ResponseEntity<?> updateGenre(@PathVariable Integer id, @RequestBody Category body) {
+    public ResponseEntity<?> updateGenre(@PathVariable Integer id, @Valid @RequestBody CategoryRequest body) {
         return ResponseEntity.ok(categoryService.updateGenre(id, body));
     }
 
@@ -64,13 +69,13 @@ public class CategoryController {
 
     @PostMapping("/formats")
     @PreAuthorize("@perm.can('movies','add')")
-    public ResponseEntity<?> createFormat(@RequestBody MovieFormat body) {
+    public ResponseEntity<?> createFormat(@Valid @RequestBody MovieFormatRequest body) {
         return ResponseEntity.ok(categoryService.createFormat(body));
     }
 
     @PutMapping("/formats/{id}")
     @PreAuthorize("@perm.can('movies','edit')")
-    public ResponseEntity<?> updateFormat(@PathVariable Integer id, @RequestBody MovieFormat body) {
+    public ResponseEntity<?> updateFormat(@PathVariable Integer id, @Valid @RequestBody MovieFormatRequest body) {
         return ResponseEntity.ok(categoryService.updateFormat(id, body));
     }
 
@@ -90,13 +95,13 @@ public class CategoryController {
 
     @PostMapping("/age-ratings")
     @PreAuthorize("@perm.can('movies','add')")
-    public ResponseEntity<?> createAgeRating(@RequestBody AgeRating body) {
+    public ResponseEntity<?> createAgeRating(@Valid @RequestBody AgeRatingRequest body) {
         return ResponseEntity.ok(categoryService.createAgeRating(body));
     }
 
     @PutMapping("/age-ratings/{id}")
     @PreAuthorize("@perm.can('movies','edit')")
-    public ResponseEntity<?> updateAgeRating(@PathVariable Integer id, @RequestBody AgeRating body) {
+    public ResponseEntity<?> updateAgeRating(@PathVariable Integer id, @Valid @RequestBody AgeRatingRequest body) {
         return ResponseEntity.ok(categoryService.updateAgeRating(id, body));
     }
 
@@ -113,6 +118,16 @@ public class CategoryController {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    }
+
+    /** @Valid trên DTO thất bại → 400 kèm message của field đầu tiên (không trả bộ lỗi thô của Spring). */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
+        String msg = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(e -> e.getDefaultMessage())
+                .orElse("Dữ liệu không hợp lệ");
+        return ResponseEntity.badRequest().body(Map.of("message", msg));
     }
 
     /** Vi phạm ràng buộc nghiệp vụ (vd thể loại đang được dùng) → 409. */
