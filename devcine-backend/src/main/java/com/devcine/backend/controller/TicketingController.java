@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.*;
 import com.devcine.backend.repository.*;
 import com.devcine.backend.service.BookingService;
@@ -62,7 +63,7 @@ public class TicketingController {
                 "formatName", s.getFormat().getName(),
                 "status", s.getStatus() != null ? s.getStatus() : "SCHEDULED"
         )).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     // Lấy danh sách F&B combo cho POS
@@ -71,7 +72,7 @@ public class TicketingController {
     public ResponseEntity<?> getFnbCombos() {
         shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quay F&B");
         List<FnbItem> items = fnbItemRepository.findAll();
-        return ResponseEntity.ok(items);
+        return ResponseEntity.ok(ApiResponse.ok(items));
     }
 
     // Tra cứu khách hàng theo SỐ ĐIỆN THOẠI để tích điểm tại quầy
@@ -82,19 +83,19 @@ public class TicketingController {
         try {
             String p = phone == null ? "" : phone.trim().replaceAll("\\s+", "").replaceFirst("^\\+84", "0");
             if (p.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Vui lòng nhập số điện thoại"));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập số điện thoại"));
             }
             Customer customer = customerRepository.findByUserPhone(p).stream().findFirst()
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với số điện thoại này"));
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "customerId", customer.getUserId(),
                     "fullName", customer.getUser() != null ? customer.getUser().getFullName() : "Khách hàng",
                     "phone", customer.getUser() != null && customer.getUser().getPhone() != null ? customer.getUser().getPhone() : "",
                     "membershipTier", customer.getMembershipTier() != null ? customer.getMembershipTier() : "BRONZE",
                     "loyaltyPoints", customer.getLoyaltyPoints() != null ? customer.getLoyaltyPoints() : 0
-            ));
+            )));
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -190,21 +191,20 @@ public class TicketingController {
                     })
                     .collect(Collectors.toList());
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "bookingId", booking.getId(),
-                    "bookingCode", booking.getBookingCode(),
-                    "message", "Thanh toán thành công",
-                    "tickets", tickets,
-                    "totalAmount", totalAmount,
-                    "discountAmount", discountAmount,
-                    "roundingAmount", roundingAmount,
-                    "finalAmount", finalAmount
-            ));
+            java.util.Map<String, Object> result = new java.util.HashMap<>();
+            result.put("bookingId", booking.getId());
+            result.put("bookingCode", booking.getBookingCode());
+            result.put("message", "Thanh toán thành công");
+            result.put("tickets", tickets);
+            result.put("totalAmount", totalAmount);
+            result.put("discountAmount", discountAmount);
+            result.put("roundingAmount", roundingAmount);
+            result.put("finalAmount", finalAmount);
+            return ResponseEntity.ok(ApiResponse.ok(result));
         } catch (AccessDeniedException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -237,16 +237,15 @@ public class TicketingController {
 
             ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, schedule);
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
+            return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "saleId", sale.getId(),
                     "saleCode", sale.getSaleCode(),
                     "message", "Thanh toán thành công"
-            ));
+            )));
         } catch (AccessDeniedException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -276,15 +275,14 @@ public class TicketingController {
 
             Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule);
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
+            return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "bookingId", booking.getId(),
                     "bookingCode", booking.getBookingCode()
-            ));
+            )));
         } catch (AccessDeniedException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -295,11 +293,11 @@ public class TicketingController {
         try {
             shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             String status = posHoldService.releaseHold(bookingId);
-            return ResponseEntity.ok(Map.of("success", true, "status", status));
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("status", status)));
         } catch (AccessDeniedException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

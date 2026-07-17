@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.response.CinemaShowtimeDTO;
 import com.devcine.backend.dto.response.MovieCardDTO;
 import com.devcine.backend.dto.response.PublicShowtimeDTO;
@@ -24,57 +25,57 @@ public class ShowtimeController {
     private final ShowtimeService showtimeService;
 
     @GetMapping("/cities")
-    public ResponseEntity<List<String>> getAllCities() {
-        return ResponseEntity.ok(showtimeService.getAllCities());
+    public ResponseEntity<ApiResponse<List<String>>> getAllCities() {
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getAllCities()));
     }
 
     @GetMapping("/upcoming")
-    public ResponseEntity<List<com.devcine.backend.dto.response.PublicShowtimeDTO>> getAllUpcomingShowtimes() {
-        return ResponseEntity.ok(showtimeService.getAllUpcomingShowtimes());
+    public ResponseEntity<ApiResponse<List<PublicShowtimeDTO>>> getAllUpcomingShowtimes() {
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getAllUpcomingShowtimes()));
     }
 
     // ===== Trang Lịch chiếu: lọc phía server + phân trang =====
 
     @GetMapping("/cinemas")
-    public ResponseEntity<List<Map<String, Object>>> getCinemasByCity(@RequestParam(required = false) String city) {
-        return ResponseEntity.ok(showtimeService.getCinemasByCity(city));
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getCinemasByCity(@RequestParam(required = false) String city) {
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getCinemasByCity(city)));
     }
 
     @GetMapping("/movies")
-    public ResponseEntity<Page<MovieCardDTO>> getMoviesWithShowtimes(
+    public ResponseEntity<ApiResponse<Page<MovieCardDTO>>> getMoviesWithShowtimes(
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String date,
             @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size) {
-        return ResponseEntity.ok(showtimeService.getMoviesWithShowtimes(city, date, q, page, size));
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getMoviesWithShowtimes(city, date, q, page, size)));
     }
 
     @GetMapping("/by-movie")
-    public ResponseEntity<List<PublicShowtimeDTO>> getByMovie(
+    public ResponseEntity<ApiResponse<List<PublicShowtimeDTO>>> getByMovie(
             @RequestParam Integer movieId,
             @RequestParam(required = false) String date,
             @RequestParam(required = false) String city) {
-        return ResponseEntity.ok(showtimeService.getShowtimesByMovieAndDate(movieId, date, city));
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getShowtimesByMovieAndDate(movieId, date, city)));
     }
 
     @GetMapping("/by-cinema")
-    public ResponseEntity<List<PublicShowtimeDTO>> getByCinema(
+    public ResponseEntity<ApiResponse<List<PublicShowtimeDTO>>> getByCinema(
             @RequestParam Integer cinemaId,
             @RequestParam(required = false) String date) {
-        return ResponseEntity.ok(showtimeService.getShowtimesByCinemaAndDate(cinemaId, date));
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getShowtimesByCinemaAndDate(cinemaId, date)));
     }
 
     @GetMapping("/movie/{movieId}")
-    public ResponseEntity<List<CinemaShowtimeDTO>> getShowtimesForMovie(
+    public ResponseEntity<ApiResponse<List<CinemaShowtimeDTO>>> getShowtimesForMovie(
             @PathVariable Integer movieId,
             @RequestParam(required = false) String city) {
-        return ResponseEntity.ok(showtimeService.getShowtimesForMovie(movieId, city));
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getShowtimesForMovie(movieId, city)));
     }
 
     @GetMapping("/cinema/{cinemaId}")
-    public ResponseEntity<List<ShowtimeDTO>> getShowtimesByCinema(@PathVariable Integer cinemaId) {
-        return ResponseEntity.ok(showtimeService.getShowtimesByCinemaId(cinemaId));
+    public ResponseEntity<ApiResponse<List<ShowtimeDTO>>> getShowtimesByCinema(@PathVariable Integer cinemaId) {
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getShowtimesByCinemaId(cinemaId)));
     }
 
     @PostMapping
@@ -82,11 +83,9 @@ public class ShowtimeController {
     public ResponseEntity<?> createShowtime(@Valid @RequestBody ShowtimeRequest request) {
         try {
             ShowtimeDTO dto = showtimeService.createShowtime(request);
-            return ResponseEntity.ok(dto);
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.ok(ApiResponse.ok(dto));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -95,9 +94,9 @@ public class ShowtimeController {
     public ResponseEntity<?> createBatchShowtimes(
             @Valid @RequestBody com.devcine.backend.dto.request.BatchShowtimeRequest request) {
         try {
-            return ResponseEntity.ok(showtimeService.createBatchShowtimes(request));
+            return ResponseEntity.ok(ApiResponse.ok(showtimeService.createBatchShowtimes(request)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -106,9 +105,9 @@ public class ShowtimeController {
     public ResponseEntity<?> updateShowtime(@PathVariable Integer id, @RequestBody java.util.Map<String, Object> updates) {
         try {
             showtimeService.updateShowtime(id, updates);
-            return ResponseEntity.ok().build();
+            return ResponseEntity.ok(ApiResponse.success("Đã cập nhật suất chiếu."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

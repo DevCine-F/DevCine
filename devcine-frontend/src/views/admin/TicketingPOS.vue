@@ -264,7 +264,6 @@ const holdCurrentOrder = async () => {
         seatIds: selectedSeats.value.map(s => s.seatId),
         customerId: member.value ? member.value.customerId : null,
       })
-      if (!data.success) { showToast(data.message || 'Không giữ được ghế.', 'error'); return }
       bookingId = data.bookingId
     } catch (err) {
       showToast(err.response?.data?.message || 'Không giữ được ghế (có thể vừa bị đặt).', 'error')
@@ -527,14 +526,10 @@ const processConcessionPayment = async (method) => {
       paymentMethod: method,
     }
     const { data } = await ticketingApi.concession(payload)
-    if (data.success) {
-      concessionSale.value = data
-      showCashModal.value = false
-      showQrModal.value = false
-      fnbStep.value = 3
-    } else {
-      showToast(data.message || 'Thanh toán thất bại.', 'error')
-    }
+    concessionSale.value = data
+    showCashModal.value = false
+    showQrModal.value = false
+    fnbStep.value = 3
   } catch (err) {
     showToast(err.response?.data?.message || 'Thanh toán thất bại.', 'error')
   } finally {
@@ -982,16 +977,12 @@ const processPayment = async (method) => {
       paymentMethod: method
     }
     const { data } = await ticketingApi.pay(payload)
-    if (data.success) {
-      completedBooking.value = data
-      stopHoldTimer()
-      stopSeatPolling()
-      showCashModal.value = false
-      showQrModal.value = false
-      currentStep.value = 6
-    } else {
-      showToast(data.message || 'Thanh toán thất bại.', 'error')
-    }
+    completedBooking.value = data
+    stopHoldTimer()
+    stopSeatPolling()
+    showCashModal.value = false
+    showQrModal.value = false
+    currentStep.value = 6
   } catch (err) {
     showToast(err.response?.data?.message || 'Thanh toán thất bại (ghế có thể đã bán).', 'error')
   } finally {

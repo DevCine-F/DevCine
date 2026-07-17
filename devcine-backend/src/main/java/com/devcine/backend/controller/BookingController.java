@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.BookingRequestDTO;
 import com.devcine.backend.entity.Booking;
 import com.devcine.backend.entity.BookingSeat;
@@ -32,9 +33,9 @@ public class BookingController {
     public ResponseEntity<?> holdSeats(@RequestBody BookingRequestDTO request) {
         try {
             Booking booking = bookingService.holdSeats(request);
-            return ResponseEntity.ok(booking);
+            return ResponseEntity.ok(ApiResponse.ok(booking));
         } catch (RuntimeException ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 
@@ -43,9 +44,9 @@ public class BookingController {
                                               @RequestParam String paymentMethod) {
         try {
             bookingService.completePayment(bookingId, paymentMethod);
-            return ResponseEntity.ok(Map.of("message", "Payment completed and booking confirmed"));
+            return ResponseEntity.ok(ApiResponse.success("Payment completed and booking confirmed"));
         } catch (RuntimeException ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 
@@ -55,7 +56,7 @@ public class BookingController {
      */
     @PostMapping("/{bookingId}/release")
     public ResponseEntity<?> releaseHold(@PathVariable Integer bookingId) {
-        return ResponseEntity.ok(Map.of("result", posHoldService.releaseHold(bookingId)));
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("result", posHoldService.releaseHold(bookingId))));
     }
 
     @GetMapping("/history")
@@ -91,9 +92,9 @@ public class BookingController {
                 );
             }).collect(Collectors.toList());
 
-            return ResponseEntity.ok(result);
+            return ResponseEntity.ok(ApiResponse.ok(result));
         } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 }
