@@ -19,7 +19,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @RestController
 @RequestMapping("/api/showtimes")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // For development
 public class ShowtimeController {
 
     private final ShowtimeService showtimeService;

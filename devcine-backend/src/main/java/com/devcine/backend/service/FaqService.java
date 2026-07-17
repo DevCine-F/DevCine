@@ -1,5 +1,6 @@
 package com.devcine.backend.service;
 
+import com.devcine.backend.dto.request.FaqRequest;
 import com.devcine.backend.entity.Faq;
 import com.devcine.backend.repository.FaqRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ public class FaqService {
     }
 
     @Transactional
-    public Faq create(Faq input) {
+    public Faq create(FaqRequest input) {
         validate(input);
         return faqRepository.save(Faq.builder()
                 .category(input.getCategory().trim())
@@ -38,7 +39,7 @@ public class FaqService {
     }
 
     @Transactional
-    public Faq update(Integer id, Faq input) {
+    public Faq update(Integer id, FaqRequest input) {
         Faq existing = faqRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy FAQ #" + id));
         validate(input);
@@ -58,7 +59,7 @@ public class FaqService {
         faqRepository.deleteById(id);
     }
 
-    private void validate(Faq f) {
+    private void validate(FaqRequest f) {
         if (f.getCategory() == null || f.getCategory().isBlank())
             throw new IllegalArgumentException("Danh mục không được để trống");
         if (f.getQuestion() == null || f.getQuestion().isBlank())

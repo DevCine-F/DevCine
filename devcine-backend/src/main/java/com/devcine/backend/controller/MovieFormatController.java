@@ -11,7 +11,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/formats")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // For development
 public class MovieFormatController {
 
     private final MovieFormatRepository movieFormatRepository;

@@ -18,7 +18,6 @@ import java.util.regex.Pattern;
 @RestController
 @RequestMapping("/api/banners")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class BannerController {
 
     private final BannerRepository bannerRepository;

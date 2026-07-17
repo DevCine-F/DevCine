@@ -14,7 +14,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/fnbs")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class FnbController {
 
     private final FnbItemRepository fnbItemRepository;

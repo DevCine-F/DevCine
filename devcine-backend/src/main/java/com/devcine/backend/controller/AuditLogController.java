@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/admin/logs")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AuditLogController {
 
     private final AuditLogRepository auditLogRepository;

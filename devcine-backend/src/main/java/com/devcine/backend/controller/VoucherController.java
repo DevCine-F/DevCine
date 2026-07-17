@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/vouchers")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class VoucherController {
 
     private final VoucherRepository voucherRepository;

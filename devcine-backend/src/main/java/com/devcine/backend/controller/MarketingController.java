@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/marketing")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Slf4j
 public class MarketingController {
 

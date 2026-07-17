@@ -15,7 +15,6 @@ import com.devcine.backend.dto.response.MovieStatsResponse;
 import com.devcine.backend.dto.response.MovieSummaryDTO;
 @RestController
 @RequestMapping("/api/movies")
-@CrossOrigin("*") // Cho phép Frontend gọi API
 public class MovieController {
 
     @Autowired

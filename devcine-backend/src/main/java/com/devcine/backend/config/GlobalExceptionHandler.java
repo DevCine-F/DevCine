@@ -1,41 +1,54 @@
 package com.devcine.backend.config;
 
+import com.devcine.backend.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    /** Lỗi validate @Valid trên request DTO → 400, kèm chi tiết từng field. */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(fe ->
+                fieldErrors.putIfAbsent(fe.getField(),
+                        fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "Không hợp lệ"));
+        String message = fieldErrors.values().stream().findFirst().orElse("Dữ liệu không hợp lệ.");
+        return ResponseEntity.badRequest().body(ApiResponse.fail(message, fieldErrors));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", ex.getMessage() != null ? ex.getMessage() : "Bạn không có quyền thực hiện thao tác này.");
-        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        String message = ex.getMessage() != null ? ex.getMessage() : "Bạn không có quyền thực hiện thao tác này.";
+        return new ResponseEntity<>(ApiResponse.fail(message), HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", ex.getMessage() != null ? ex.getMessage() : "Dữ liệu không hợp lệ.");
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(IllegalArgumentException ex) {
+        String message = ex.getMessage() != null ? ex.getMessage() : "Dữ liệu không hợp lệ.";
+        return new ResponseEntity<>(ApiResponse.fail(message), HttpStatus.BAD_REQUEST);
+    }
+
+    /** Vi phạm ràng buộc nghiệp vụ (vd: danh mục đang được sử dụng) → 409. */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConflict(IllegalStateException ex) {
+        String message = ex.getMessage() != null ? ex.getMessage() : "Không thể thực hiện thao tác do xung đột trạng thái.";
+        return new ResponseEntity<>(ApiResponse.fail(message), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleAllExceptions(Exception ex) {
+    public ResponseEntity<ApiResponse<Void>> handleAllExceptions(Exception ex) {
         log.error("Unhandled backend exception", ex);
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", "Lỗi hệ thống nội bộ.");
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(ApiResponse.fail("Lỗi hệ thống nội bộ."), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

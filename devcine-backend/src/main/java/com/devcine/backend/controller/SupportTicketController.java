@@ -17,7 +17,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/support-tickets")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class SupportTicketController {
 
     private final SupportTicketRepository supportTicketRepository;

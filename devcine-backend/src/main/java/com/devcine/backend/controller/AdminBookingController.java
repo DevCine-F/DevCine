@@ -26,7 +26,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @RestController
 @RequestMapping("/api/admin/bookings")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AdminBookingController {
 
     private final BookingRepository bookingRepository;

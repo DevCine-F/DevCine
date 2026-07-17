@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/bookings")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class BookingController {
 
     private final BookingService bookingService;

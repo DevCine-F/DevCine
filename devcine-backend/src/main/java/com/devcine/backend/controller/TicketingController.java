@@ -29,7 +29,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @RestController
 @RequestMapping("/api/ticketing")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class TicketingController {
 
     private final ShowtimeRepository showtimeRepository;

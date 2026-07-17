@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/admin/roles")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class RolePermissionController {
 
     private final RoleRepository roleRepository;

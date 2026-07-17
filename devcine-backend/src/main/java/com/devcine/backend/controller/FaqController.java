@@ -1,14 +1,15 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.request.FaqRequest;
 import com.devcine.backend.entity.Faq;
 import com.devcine.backend.service.FaqService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * FAQ trang Hỗ trợ. GET công khai; thêm/sửa/xoá yêu cầu quyền ADMIN.
@@ -16,7 +17,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/faqs")
 @RequiredArgsConstructor
-@CrossOrigin("*")
 public class FaqController {
 
     private final FaqService faqService;
@@ -36,13 +36,13 @@ public class FaqController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> create(@RequestBody Faq body) {
+    public ResponseEntity<?> create(@Valid @RequestBody FaqRequest body) {
         return ResponseEntity.ok(faqService.create(body));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> update(@PathVariable Integer id, @RequestBody Faq body) {
+    public ResponseEntity<?> update(@PathVariable Integer id, @Valid @RequestBody FaqRequest body) {
         return ResponseEntity.ok(faqService.update(id, body));
     }
 
@@ -51,10 +51,5 @@ public class FaqController {
     public ResponseEntity<?> delete(@PathVariable Integer id) {
         faqService.delete(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
     }
 }

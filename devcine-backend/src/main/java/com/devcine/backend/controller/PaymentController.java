@@ -6,6 +6,7 @@ import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.service.BookingService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,10 +18,10 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/payment")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class PaymentController {
 
     private final BookingRepository bookingRepository;
@@ -142,7 +143,7 @@ public class PaymentController {
                 try {
                     hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
                 } catch (UnsupportedEncodingException e) {
-                    e.printStackTrace();
+                    log.error("Lỗi encode field VNPAY khi xác minh chữ ký", e);
                 }
                 if (itr.hasNext()) {
                     hashData.append('&');

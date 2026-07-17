@@ -21,7 +21,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -35,7 +34,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/staff")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class StaffController {
 
     private final StaffRepository staffRepository;
@@ -564,14 +562,5 @@ public class StaffController {
     @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})
     public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
         return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
-                .findFirst()
-                .map(error -> error.getDefaultMessage())
-                .orElse("Dữ liệu không hợp lệ");
-        return ResponseEntity.badRequest().body(Map.of("success", false, "message", message));
     }
 }

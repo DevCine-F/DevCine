@@ -28,7 +28,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/pricing")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class PricingController {
 
     private final PricingRuleRepository pricingRuleRepository;
