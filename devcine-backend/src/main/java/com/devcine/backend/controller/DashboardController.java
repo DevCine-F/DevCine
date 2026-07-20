@@ -22,8 +22,9 @@ public class DashboardController {
     @GetMapping("/stats")
     @PreAuthorize("@perm.can('dashboard_stats', 'view')")
     public ResponseEntity<DashboardStatsResponse> getDashboardStats(
-            @RequestParam(defaultValue = "today") String range) {
-        return ResponseEntity.ok(dashboardService.getDashboardStats(range));
+            @RequestParam(defaultValue = "today") String range,
+            @RequestParam(required = false) String month) {
+        return ResponseEntity.ok(dashboardService.getDashboardStats(range, month));
     }
 
     @GetMapping("/debug")

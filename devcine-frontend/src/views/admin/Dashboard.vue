@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import axios from "@/api/axios";
 import { useAdminPerm } from "@/composables/useAdminPerm";
 
@@ -7,6 +7,64 @@ const { can } = useAdminPerm();
 const range = ref("today");
 const isLoading = ref(true);
 const loadError = ref(false);
+
+// Tháng đang chọn dạng "yyyy-MM" — mặc định tháng gần nhất (tháng hiện tại)
+const nowMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+const selectedMonth = ref(nowMonth());
+const maxMonth = nowMonth();
+
+// ===== Month picker tự dựng (thay input type=month của trình duyệt) =====
+const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_MONTH = new Date().getMonth() + 1;
+const MIN_YEAR = 2020;
+
+const monthPickerOpen = ref(false);
+const pickerRef = ref(null);
+const viewYear = ref(CURRENT_YEAR);
+
+const selectedYear = computed(() => Number(selectedMonth.value.split("-")[0]));
+const selectedMonthNum = computed(() => Number(selectedMonth.value.split("-")[1]));
+
+const selectedMonthLabel = computed(
+  () => `Tháng ${String(selectedMonthNum.value).padStart(2, "0")}/${selectedYear.value}`
+);
+
+const canPrevYear = computed(() => viewYear.value > MIN_YEAR);
+const canNextYear = computed(() => viewYear.value < CURRENT_YEAR);
+const isMonthDisabled = (m) => viewYear.value > CURRENT_YEAR || (viewYear.value === CURRENT_YEAR && m > CURRENT_MONTH);
+const isMonthSelected = (m) => viewYear.value === selectedYear.value && m === selectedMonthNum.value;
+const isThisMonth = (m) => viewYear.value === CURRENT_YEAR && m === CURRENT_MONTH;
+const isAtCurrentMonth = computed(() => selectedMonth.value === maxMonth);
+
+const toggleMonthPicker = () => {
+  monthPickerOpen.value = !monthPickerOpen.value;
+  if (monthPickerOpen.value) viewYear.value = selectedYear.value;
+};
+
+const applyMonth = (year, m) => {
+  const next = `${year}-${String(m).padStart(2, "0")}`;
+  monthPickerOpen.value = false;
+  if (next === selectedMonth.value) return;
+  selectedMonth.value = next;
+  fetchStats();
+};
+
+const pickMonth = (m) => {
+  if (isMonthDisabled(m)) return;
+  applyMonth(viewYear.value, m);
+};
+
+const pickCurrentMonth = () => applyMonth(CURRENT_YEAR, CURRENT_MONTH);
+
+const handleClickOutside = (e) => {
+  if (pickerRef.value && !pickerRef.value.contains(e.target)) monthPickerOpen.value = false;
+};
+const handleEscape = (e) => {
+  if (e.key === "Escape") monthPickerOpen.value = false;
+};
 
 const ranges = [
   { key: "today", label: "Hôm nay" },
@@ -23,8 +81,11 @@ const data = ref({
   businessPerformance: [],
   topMovies: [],
   recentBookings: [],
-  todayShowtimes: [],
+  showtimes: [],
 });
+
+// Nhãn khoảng thời gian gắn kèm tiêu đề các khối (mọi khối đều lọc theo bộ lọc đang chọn)
+const rangeSuffix = computed(() => data.value.rangeLabel || "");
 
 const colorMap = {
   primary: { bg: "bg-primary/10", text: "text-primary" },
@@ -34,7 +95,9 @@ const colorMap = {
 };
 
 const revenueLabel = computed(() =>
-  range.value === "month" ? "Doanh thu tháng" : range.value === "week" ? "Doanh thu 7 ngày" : "Doanh thu hôm nay"
+  range.value === "month"
+    ? `Doanh thu ${data.value.rangeLabel?.toLowerCase() || "tháng"}`
+    : range.value === "week" ? "Doanh thu 7 ngày" : "Doanh thu hôm nay"
 );
 
 const kpiCards = computed(() => [
@@ -85,7 +148,9 @@ const fetchStats = async () => {
   isLoading.value = true;
   loadError.value = false;
   try {
-    const res = await axios.get("/dashboard/stats", { params: { range: range.value } });
+    const params = { range: range.value };
+    if (range.value === "month") params.month = selectedMonth.value;
+    const res = await axios.get("/dashboard/stats", { params });
     data.value = res.data;
   } catch (error) {
     console.error("Failed to fetch dashboard stats", error);
@@ -98,10 +163,25 @@ const fetchStats = async () => {
 const changeRange = (key) => {
   if (range.value === key) return;
   range.value = key;
+  // Mỗi lần chuyển sang xem theo tháng, quay về tháng gần nhất
+  if (key === "month") {
+    selectedMonth.value = nowMonth();
+    viewYear.value = CURRENT_YEAR;
+  }
+  monthPickerOpen.value = false;
   fetchStats();
 };
 
-onMounted(fetchStats);
+onMounted(() => {
+  fetchStats();
+  document.addEventListener("mousedown", handleClickOutside);
+  document.addEventListener("keydown", handleEscape);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("mousedown", handleClickOutside);
+  document.removeEventListener("keydown", handleEscape);
+});
 </script>
 
 <template>
@@ -125,6 +205,61 @@ onMounted(fetchStats);
             {{ r.label }}
           </button>
         </div>
+
+        <!-- Chọn tháng (chỉ hiện khi xem theo tháng) -->
+        <div v-if="range === 'month'" ref="pickerRef" class="relative">
+          <button type="button" @click="toggleMonthPicker"
+            :class="monthPickerOpen ? 'border-primary/50 text-on-surface' : 'border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-white/5'"
+            class="flex items-center gap-2 bg-surface-container-high rounded-lg pl-3 pr-2 py-2.5 border text-[10px] font-bold uppercase tracking-widest transition-all">
+            <span class="material-symbols-outlined text-base text-primary">calendar_month</span>
+            {{ selectedMonthLabel }}
+            <span class="material-symbols-outlined text-base transition-transform"
+              :class="monthPickerOpen ? 'rotate-180' : ''">expand_more</span>
+          </button>
+
+          <transition
+            enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0 -translate-y-1"
+            leave-active-class="transition duration-100 ease-in" leave-to-class="opacity-0 -translate-y-1">
+            <div v-if="monthPickerOpen"
+              class="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-outline-variant/20 bg-surface-container-high shadow-2xl overflow-hidden">
+              <!-- Điều hướng năm -->
+              <div class="flex items-center justify-between px-3 py-2.5 border-b border-outline-variant/20">
+                <button type="button" @click="viewYear--" :disabled="!canPrevYear"
+                  class="w-8 h-8 grid place-items-center rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface disabled:opacity-30 disabled:pointer-events-none transition-all">
+                  <span class="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <span class="text-sm font-extrabold tracking-widest font-headline">{{ viewYear }}</span>
+                <button type="button" @click="viewYear++" :disabled="!canNextYear"
+                  class="w-8 h-8 grid place-items-center rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface disabled:opacity-30 disabled:pointer-events-none transition-all">
+                  <span class="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+              </div>
+
+              <!-- Lưới 12 tháng -->
+              <div class="grid grid-cols-3 gap-1.5 p-3">
+                <button v-for="m in 12" :key="m" type="button" @click="pickMonth(m)" :disabled="isMonthDisabled(m)"
+                  :class="[
+                    isMonthSelected(m)
+                      ? 'bg-primary text-black shadow'
+                      : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface',
+                    !isMonthSelected(m) && isThisMonth(m) ? 'ring-1 ring-primary/40' : '',
+                  ]"
+                  class="py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all disabled:opacity-25 disabled:pointer-events-none">
+                  Th{{ m }}
+                </button>
+              </div>
+
+              <!-- Nút nhanh -->
+              <div class="px-3 py-2 border-t border-outline-variant/20">
+                <button type="button" @click="pickCurrentMonth" :disabled="isAtCurrentMonth"
+                  class="w-full py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/10 disabled:opacity-30 disabled:pointer-events-none transition-all">
+                  Tháng này
+                </button>
+              </div>
+            </div>
+          </transition>
+        </div>
+
         <button
           v-if="can('dashboard_stats', 'export')"
           class="bg-surface-container-high px-4 py-2.5 rounded-lg border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-all text-on-surface-variant">
@@ -185,7 +320,7 @@ onMounted(fetchStats);
             <div>
               <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface text-lg">Hiệu quả Kinh doanh</h3>
               <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">
-                Doanh thu & Lượng vé ({{ range === "month" ? "30 ngày qua" : "7 ngày qua" }})
+                Doanh thu & Lượng vé ({{ range === "month" ? data.rangeLabel : "7 ngày qua" }})
               </p>
             </div>
             <div class="flex gap-4">
@@ -235,7 +370,10 @@ onMounted(fetchStats);
         <!-- Top movies + occupancy -->
         <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-6 md:p-8 flex flex-col">
           <div class="flex justify-between items-center mb-6">
-            <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface">Phim hàng đầu</h3>
+            <div>
+              <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface">Phim hàng đầu</h3>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mt-0.5">{{ rangeSuffix }}</p>
+            </div>
             <router-link to="/admin/movies" class="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline">Xem tất cả</router-link>
           </div>
 
@@ -295,6 +433,7 @@ onMounted(fetchStats);
         <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-6">
           <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-5 flex items-center gap-2">
             <span class="material-symbols-outlined text-primary text-xl">receipt_long</span> Giao dịch gần đây
+            <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">({{ rangeSuffix }})</span>
           </h3>
           <div v-if="isLoading" class="space-y-3">
             <div v-for="i in 5" :key="i" class="h-12 bg-white/5 rounded animate-pulse"></div>
@@ -321,20 +460,24 @@ onMounted(fetchStats);
         <!-- Suất chiếu hôm nay -->
         <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-6">
           <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-5 flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary text-xl">event_seat</span> Suất chiếu hôm nay
+            <span class="material-symbols-outlined text-primary text-xl">event_seat</span> Suất chiếu
+            <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">({{ rangeSuffix }})</span>
           </h3>
           <div v-if="isLoading" class="space-y-3">
             <div v-for="i in 5" :key="i" class="h-12 bg-white/5 rounded animate-pulse"></div>
           </div>
-          <div v-else-if="!data.todayShowtimes.length" class="text-center py-8">
+          <div v-else-if="!data.showtimes.length" class="text-center py-8">
             <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">event_busy</span>
-            <p class="text-xs text-on-surface-variant">Hôm nay chưa có suất chiếu.</p>
+            <p class="text-xs text-on-surface-variant">Không có suất chiếu nào trong khoảng này.</p>
           </div>
           <div v-else class="space-y-3 max-h-[360px] overflow-y-auto pr-1 no-scrollbar">
-            <div v-for="(s, i) in data.todayShowtimes" :key="i" class="p-2.5 rounded-lg hover:bg-white/5 transition-all">
+            <div v-for="(s, i) in data.showtimes" :key="i" class="p-2.5 rounded-lg hover:bg-white/5 transition-all">
               <div class="flex items-center justify-between gap-2 mb-1.5">
                 <div class="flex items-center gap-2 min-w-0">
-                  <span class="text-xs font-black text-primary shrink-0">{{ s.time }}</span>
+                  <span class="text-xs font-black text-primary shrink-0">
+                    <span v-if="range !== 'today'" class="text-on-surface-variant font-bold">{{ s.date }}</span>
+                    {{ s.time }}
+                  </span>
                   <span class="text-xs font-bold text-on-surface truncate">{{ s.movieTitle }}</span>
                 </div>
                 <span class="text-[10px] font-bold text-on-surface-variant shrink-0">{{ s.sold }}/{{ s.total }}</span>

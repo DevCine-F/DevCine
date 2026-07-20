@@ -21,7 +21,7 @@ public class DashboardStatsResponse {
     private List<ChartData> businessPerformance;
     private List<TopMovie> topMovies;
     private List<RecentBooking> recentBookings;
-    private List<TodayShowtime> todayShowtimes;
+    private List<ShowtimeItem> showtimes;
 
     @Data
     @Builder
@@ -72,8 +72,9 @@ public class DashboardStatsResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class TodayShowtime {
+    public static class ShowtimeItem {
         private String time;
+        private String date;
         private String movieTitle;
         private String cinemaName;
         private String roomName;

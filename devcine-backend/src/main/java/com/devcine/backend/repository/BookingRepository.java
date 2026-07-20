@@ -48,18 +48,23 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "GROUP BY CAST(b.createdAt AS date)")
     List<Object[]> countTicketsGroupedByDay(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
+    // Top phim theo doanh thu trong khoảng thời gian đã chọn (dashboard)
     @Query("SELECT m.title, COALESCE(SUM(b.finalPrice), 0), COUNT(bs), m.posterUrl " +
            "FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s JOIN s.movie m " +
-           "WHERE b.status = 'CONFIRMED' " +
+           "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
            "GROUP BY m.id, m.title, m.posterUrl " +
            "ORDER BY COALESCE(SUM(b.finalPrice), 0) DESC")
-    List<Object[]> findTopMoviesByRevenue();
+    List<Object[]> findTopMoviesByRevenue(@Param("startDate") LocalDateTime startDate,
+                                          @Param("endDate") LocalDateTime endDate);
 
-    // Đơn đặt vé gần nhất cho dashboard (JOIN FETCH tránh N+1, phân trang lấy top N)
+    // Đơn đặt vé gần nhất trong khoảng đã chọn (JOIN FETCH tránh N+1, phân trang lấy top N)
     @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie m " +
            "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user u " +
-           "WHERE b.status = 'CONFIRMED' ORDER BY b.createdAt DESC")
-    List<Booking> findRecentConfirmed(Pageable pageable);
+           "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "ORDER BY b.createdAt DESC")
+    List<Booking> findRecentConfirmed(@Param("startDate") LocalDateTime startDate,
+                                      @Param("endDate") LocalDateTime endDate,
+                                      Pageable pageable);
 
     // Số vé đã bán theo từng suất trong khoảng (1 query thay vì N truy vấn)
     @Query("SELECT b.showtime.id, COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
