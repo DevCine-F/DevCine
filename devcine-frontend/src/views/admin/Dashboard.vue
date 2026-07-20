@@ -152,19 +152,11 @@ const hoverTip = computed(() => {
   if (hoverIdx.value === null) return null;
   const d = chartGeo.value.dots[hoverIdx.value];
   if (!d) return null;
+  // Neo đúng vào điểm cao nhất (y nhỏ nhất) — tooltip nằm lớp trên cùng nên
+  // cứ để tràn ra ngoài thẻ, không kẹp lề để vị trí luôn khớp với điểm
   const leftPct = (d.x / W) * 100;
-  // Neo vào điểm cao nhất (y nhỏ nhất) để tooltip không đè lên đường nào.
-  // Chặn sàn để đỉnh biểu đồ không đẩy tooltip tràn hẳn ra ngoài thẻ.
-  const topPx = Math.max(60, (Math.min(d.yRev, d.yTk) / H) * CHART_PX_H);
-  // Gần mép thì lệch tooltip vào trong thay vì canh giữa
-  const align = leftPct < 14 ? "start" : leftPct > 86 ? "end" : "center";
-  return { ...d, leftPct, topPx, align };
-});
-
-const tipTransform = computed(() => {
-  if (!hoverTip.value) return "";
-  const x = { start: "0", center: "-50%", end: "-100%" }[hoverTip.value.align];
-  return `translate(${x}, -100%)`;
+  const topPx = (Math.min(d.yRev, d.yTk) / H) * CHART_PX_H;
+  return { ...d, leftPct, topPx };
 });
 
 const fetchStats = async () => {
@@ -393,8 +385,8 @@ onBeforeUnmount(() => {
             <transition
               enter-active-class="transition duration-100 ease-out" enter-from-class="opacity-0 translate-y-1"
               leave-active-class="transition duration-75 ease-in" leave-to-class="opacity-0">
-              <div v-if="hoverTip" class="absolute z-20 pointer-events-none"
-                :style="{ left: hoverTip.leftPct + '%', top: hoverTip.topPx + 'px', transform: tipTransform, marginTop: '-14px' }">
+              <div v-if="hoverTip" class="absolute z-50 pointer-events-none"
+                :style="{ left: hoverTip.leftPct + '%', top: hoverTip.topPx + 'px', transform: 'translate(-50%, -100%)', marginTop: '-12px' }">
                 <div
                   class="rounded-lg border border-outline-variant/20 bg-surface-container-high/95 backdrop-blur px-3 py-2 shadow-2xl whitespace-nowrap">
                   <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">
@@ -410,8 +402,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <!-- mũi nhọn chỉ xuống điểm -->
-                <div class="w-2 h-2 rotate-45 -mt-1 mx-auto border-r border-b border-outline-variant/20 bg-surface-container-high/95"
-                  :class="{ 'ml-3 mr-auto': hoverTip.align === 'start', 'mr-3 ml-auto': hoverTip.align === 'end' }"></div>
+                <div class="w-2 h-2 rotate-45 -mt-1 mx-auto border-r border-b border-outline-variant/20 bg-surface-container-high/95"></div>
               </div>
             </transition>
           </div>
