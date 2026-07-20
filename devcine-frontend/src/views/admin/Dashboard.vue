@@ -144,6 +144,29 @@ const chartGeo = computed(() => {
   return { empty: false, revArea, revLine, tkLine, dots, labels, gridY };
 });
 
+// ===== Tooltip biểu đồ (tự dựng, nổi phía TRÊN điểm) =====
+const CHART_PX_H = 260; // khớp style height của <svg>
+const hoverIdx = ref(null);
+
+const hoverTip = computed(() => {
+  if (hoverIdx.value === null) return null;
+  const d = chartGeo.value.dots[hoverIdx.value];
+  if (!d) return null;
+  const leftPct = (d.x / W) * 100;
+  // Neo vào điểm cao nhất (y nhỏ nhất) để tooltip không đè lên đường nào.
+  // Chặn sàn để đỉnh biểu đồ không đẩy tooltip tràn hẳn ra ngoài thẻ.
+  const topPx = Math.max(60, (Math.min(d.yRev, d.yTk) / H) * CHART_PX_H);
+  // Gần mép thì lệch tooltip vào trong thay vì canh giữa
+  const align = leftPct < 14 ? "start" : leftPct > 86 ? "end" : "center";
+  return { ...d, leftPct, topPx, align };
+});
+
+const tipTransform = computed(() => {
+  if (!hoverTip.value) return "";
+  const x = { start: "0", center: "-50%", end: "-100%" }[hoverTip.value.align];
+  return `translate(${x}, -100%)`;
+});
+
 const fetchStats = async () => {
   isLoading.value = true;
   loadError.value = false;
@@ -336,7 +359,8 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="isLoading" class="h-64 bg-white/5 rounded-lg animate-pulse"></div>
-          <svg v-else :viewBox="`0 0 ${W} ${H}`" class="w-full" style="height: 260px" preserveAspectRatio="none">
+          <div v-else class="relative" @mouseleave="hoverIdx = null">
+          <svg :viewBox="`0 0 ${W} ${H}`" class="w-full" style="height: 260px" preserveAspectRatio="none">
             <!-- grid -->
             <line v-for="(gy, i) in chartGeo.gridY" :key="i" :x1="padL" :x2="W - padR" :y1="gy" :y2="gy"
               class="stroke-on-surface" stroke-width="1" opacity="0.06" />
@@ -347,13 +371,15 @@ onBeforeUnmount(() => {
             <!-- tickets line -->
             <polyline :points="chartGeo.tkLine" fill="none" class="stroke-blue-500" stroke-width="2" stroke-dasharray="4 4"
               stroke-linejoin="round" stroke-linecap="round" opacity="0.9" />
-            <!-- dots + native tooltip -->
+            <!-- đường dóng của điểm đang hover -->
+            <line v-if="hoverTip" :x1="hoverTip.x" :x2="hoverTip.x" :y1="padT" :y2="H - padB"
+              class="stroke-on-surface" stroke-width="1" opacity="0.2" stroke-dasharray="3 3" />
+            <!-- dots + vùng bắt hover -->
             <g v-for="(d, i) in chartGeo.dots" :key="'d' + i">
-              <circle :cx="d.x" :cy="d.yRev" r="3" class="fill-primary" />
-              <circle :cx="d.x" :cy="d.yTk" r="2.5" class="fill-blue-500" />
-              <rect :x="d.x - 18" y="0" width="36" :height="H" fill="transparent">
-                <title>{{ d.label }} · {{ d.revenueLabel }} · {{ d.ticketLabel }}</title>
-              </rect>
+              <circle :cx="d.x" :cy="d.yRev" :r="hoverIdx === i ? 5 : 3" class="fill-primary transition-all" />
+              <circle :cx="d.x" :cy="d.yTk" :r="hoverIdx === i ? 4.5 : 2.5" class="fill-blue-500 transition-all" />
+              <rect :x="d.x - 18" y="0" width="36" :height="H" fill="transparent"
+                @mouseenter="hoverIdx = i" />
             </g>
             <defs>
               <linearGradient id="revGrad" x1="0" x2="0" y1="0" y2="1">
@@ -362,6 +388,34 @@ onBeforeUnmount(() => {
               </linearGradient>
             </defs>
           </svg>
+
+            <!-- Tooltip nổi phía TRÊN điểm -->
+            <transition
+              enter-active-class="transition duration-100 ease-out" enter-from-class="opacity-0 translate-y-1"
+              leave-active-class="transition duration-75 ease-in" leave-to-class="opacity-0">
+              <div v-if="hoverTip" class="absolute z-20 pointer-events-none"
+                :style="{ left: hoverTip.leftPct + '%', top: hoverTip.topPx + 'px', transform: tipTransform, marginTop: '-14px' }">
+                <div
+                  class="rounded-lg border border-outline-variant/20 bg-surface-container-high/95 backdrop-blur px-3 py-2 shadow-2xl whitespace-nowrap">
+                  <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">
+                    {{ hoverTip.label }}
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-primary shrink-0"></span>
+                    <span class="text-xs font-black font-headline text-on-surface">{{ hoverTip.revenueLabel }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                    <span class="text-[11px] font-bold text-on-surface-variant">{{ hoverTip.ticketLabel }}</span>
+                  </div>
+                </div>
+                <!-- mũi nhọn chỉ xuống điểm -->
+                <div class="w-2 h-2 rotate-45 -mt-1 mx-auto border-r border-b border-outline-variant/20 bg-surface-container-high/95"
+                  :class="{ 'ml-3 mr-auto': hoverTip.align === 'start', 'mr-3 ml-auto': hoverTip.align === 'end' }"></div>
+              </div>
+            </transition>
+          </div>
+
           <div v-if="!isLoading" class="flex justify-between mt-2 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">
             <span v-for="(l, i) in chartGeo.labels" :key="i" :class="{ 'opacity-0': !l.show }">{{ l.text }}</span>
           </div>
