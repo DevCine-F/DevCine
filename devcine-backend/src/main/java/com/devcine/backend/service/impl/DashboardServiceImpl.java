@@ -145,15 +145,22 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     // ===== Top phim theo doanh thu trong khoảng đã chọn (poster thật) =====
+    // Doanh thu và số vé lấy từ hai query riêng (xem ghi chú ở BookingRepository) rồi ghép theo movieId.
     private List<DashboardStatsResponse.TopMovie> buildTopMovies(Window w) {
+        Map<Integer, Long> ticketsByMovie = new HashMap<>();
+        for (Object[] row : bookingRepository.countTicketsGroupedByMovie(w.start, w.end)) {
+            ticketsByMovie.put((Integer) row[0], ((Number) row[1]).longValue());
+        }
+
         List<Object[]> raw = bookingRepository.findTopMoviesByRevenue(w.start, w.end);
         List<DashboardStatsResponse.TopMovie> list = new ArrayList<>();
         for (int i = 0; i < Math.min(5, raw.size()); i++) {
             Object[] row = raw.get(i);
+            Integer movieId = (Integer) row[0];
             list.add(DashboardStatsResponse.TopMovie.builder()
-                    .title((String) row[0])
-                    .revenue(formatCurrency((BigDecimal) row[1]))
-                    .tickets(row[2].toString())
+                    .title((String) row[1])
+                    .revenue(formatCurrency((BigDecimal) row[2]))
+                    .tickets(String.valueOf(ticketsByMovie.getOrDefault(movieId, 0L)))
                     .posterUrl((String) row[3])
                     .build());
         }
@@ -250,12 +257,5 @@ public class DashboardServiceImpl implements DashboardService {
         if (amount == null) return "0đ";
         DecimalFormat formatter = new DecimalFormat("#,###");
         return formatter.format(amount) + "đ";
-    }
-
-    @Override
-    public Object debug() {
-        return bookingRepository.findAll().stream()
-            .map(b -> b.getId() + " - " + b.getStatus() + " - " + b.getFinalPrice() + " - " + b.getCreatedAt())
-            .toList();
     }
 }

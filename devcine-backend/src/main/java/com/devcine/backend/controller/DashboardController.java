@@ -26,9 +26,4 @@ public class DashboardController {
             @RequestParam(required = false) String month) {
         return ResponseEntity.ok(dashboardService.getDashboardStats(range, month));
     }
-
-    @GetMapping("/debug")
-    public ResponseEntity<?> debug() {
-        return ResponseEntity.ok(dashboardService.debug());
-    }
 }

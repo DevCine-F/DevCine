@@ -48,14 +48,25 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "GROUP BY CAST(b.createdAt AS date)")
     List<Object[]> countTicketsGroupedByDay(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    // Top phim theo doanh thu trong khoảng thời gian đã chọn (dashboard)
-    @Query("SELECT m.title, COALESCE(SUM(b.finalPrice), 0), COUNT(bs), m.posterUrl " +
-           "FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s JOIN s.movie m " +
+    // Top phim theo doanh thu trong khoảng thời gian đã chọn (dashboard).
+    // Gom ở cấp Booking và KHÔNG join BookingSeat: join ghế làm mỗi đơn xuất hiện một lần trên mỗi
+    // ghế, khiến SUM(finalPrice) bị nhân lên đúng bằng số ghế của đơn. Số vé đếm riêng ở query dưới.
+    // (Đừng "sửa" bằng SUM(DISTINCT finalPrice) — hai đơn khác nhau cùng mệnh giá sẽ chỉ được cộng một lần.)
+    @Query("SELECT m.id, m.title, COALESCE(SUM(b.finalPrice), 0), m.posterUrl " +
+           "FROM Booking b JOIN b.showtime s JOIN s.movie m " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
            "GROUP BY m.id, m.title, m.posterUrl " +
            "ORDER BY COALESCE(SUM(b.finalPrice), 0) DESC")
     List<Object[]> findTopMoviesByRevenue(@Param("startDate") LocalDateTime startDate,
                                           @Param("endDate") LocalDateTime endDate);
+
+    // Số vé bán ra theo từng phim (1 ghế = 1 vé) — ghép với query trên theo movieId ở tầng service
+    @Query("SELECT m.id, COUNT(bs) " +
+           "FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s JOIN s.movie m " +
+           "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "GROUP BY m.id")
+    List<Object[]> countTicketsGroupedByMovie(@Param("startDate") LocalDateTime startDate,
+                                              @Param("endDate") LocalDateTime endDate);
 
     // Đơn đặt vé gần nhất trong khoảng đã chọn (JOIN FETCH tránh N+1, phân trang lấy top N)
     @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie m " +
