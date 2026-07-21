@@ -17,11 +17,22 @@ import java.util.Optional;
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Integer> {
 
-    @Query("SELECT COALESCE(SUM(b.finalPrice), 0) FROM Booking b WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate")
-    BigDecimal sumRevenueByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    // ===== Truy vấn phục vụ Dashboard =====
+    // Mọi query dưới đây nhận :cinemaId để lọc theo cơ sở (Booking -> showtime -> room -> cinema).
+    // cinemaId = null nghĩa là KHÔNG lọc (toàn hệ thống) và chỉ ADMIN được phép truyền null —
+    // ràng buộc đó được canh ở DashboardServiceImpl.resolveCinemaScope(), không phải ở đây.
 
-    @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate")
-    long countTicketsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT COALESCE(SUM(b.finalPrice), 0) FROM Booking b WHERE b.status = 'CONFIRMED' "
+           + "AND b.createdAt >= :startDate AND b.createdAt <= :endDate "
+           + "AND (:cinemaId IS NULL OR b.showtime.room.cinema.id = :cinemaId)")
+    BigDecimal sumRevenueByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+                                     @Param("cinemaId") Integer cinemaId);
+
+    @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b WHERE b.status = 'CONFIRMED' "
+           + "AND b.createdAt >= :startDate AND b.createdAt <= :endDate "
+           + "AND (:cinemaId IS NULL OR b.showtime.room.cinema.id = :cinemaId)")
+    long countTicketsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+                                 @Param("cinemaId") Integer cinemaId);
 
     @Query("SELECT COALESCE(SUM(b.finalPrice), 0) FROM Booking b " +
            "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId AND b.paymentMethod = :paymentMethod")
@@ -39,14 +50,18 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     // Gộp doanh thu theo ngày trong 1 query (thay 7 query trong vòng lặp dashboard)
     @Query("SELECT CAST(b.createdAt AS date), COALESCE(SUM(b.finalPrice), 0) FROM Booking b " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "AND (:cinemaId IS NULL OR b.showtime.room.cinema.id = :cinemaId) " +
            "GROUP BY CAST(b.createdAt AS date)")
-    List<Object[]> sumRevenueGroupedByDay(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    List<Object[]> sumRevenueGroupedByDay(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+                                          @Param("cinemaId") Integer cinemaId);
 
     // Gộp số vé theo ngày trong 1 query (thay 7 query trong vòng lặp dashboard)
     @Query("SELECT CAST(b.createdAt AS date), COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "AND (:cinemaId IS NULL OR b.showtime.room.cinema.id = :cinemaId) " +
            "GROUP BY CAST(b.createdAt AS date)")
-    List<Object[]> countTicketsGroupedByDay(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    List<Object[]> countTicketsGroupedByDay(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+                                            @Param("cinemaId") Integer cinemaId);
 
     // Top phim theo doanh thu trong khoảng thời gian đã chọn (dashboard).
     // Gom ở cấp Booking và KHÔNG join BookingSeat: join ghế làm mỗi đơn xuất hiện một lần trên mỗi
@@ -55,33 +70,41 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     @Query("SELECT m.id, m.title, COALESCE(SUM(b.finalPrice), 0), m.posterUrl " +
            "FROM Booking b JOIN b.showtime s JOIN s.movie m " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "AND (:cinemaId IS NULL OR s.room.cinema.id = :cinemaId) " +
            "GROUP BY m.id, m.title, m.posterUrl " +
            "ORDER BY COALESCE(SUM(b.finalPrice), 0) DESC")
     List<Object[]> findTopMoviesByRevenue(@Param("startDate") LocalDateTime startDate,
-                                          @Param("endDate") LocalDateTime endDate);
+                                          @Param("endDate") LocalDateTime endDate,
+                                          @Param("cinemaId") Integer cinemaId);
 
     // Số vé bán ra theo từng phim (1 ghế = 1 vé) — ghép với query trên theo movieId ở tầng service
     @Query("SELECT m.id, COUNT(bs) " +
            "FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s JOIN s.movie m " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "AND (:cinemaId IS NULL OR s.room.cinema.id = :cinemaId) " +
            "GROUP BY m.id")
     List<Object[]> countTicketsGroupedByMovie(@Param("startDate") LocalDateTime startDate,
-                                              @Param("endDate") LocalDateTime endDate);
+                                              @Param("endDate") LocalDateTime endDate,
+                                              @Param("cinemaId") Integer cinemaId);
 
     // Đơn đặt vé gần nhất trong khoảng đã chọn (JOIN FETCH tránh N+1, phân trang lấy top N)
     @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie m " +
            "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user u " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "AND (:cinemaId IS NULL OR s.room.cinema.id = :cinemaId) " +
            "ORDER BY b.createdAt DESC")
     List<Booking> findRecentConfirmed(@Param("startDate") LocalDateTime startDate,
                                       @Param("endDate") LocalDateTime endDate,
+                                      @Param("cinemaId") Integer cinemaId,
                                       Pageable pageable);
 
     // Số vé đã bán theo từng suất trong khoảng (1 query thay vì N truy vấn)
     @Query("SELECT b.showtime.id, COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
            "WHERE b.status = 'CONFIRMED' AND b.showtime.startTime >= :start AND b.showtime.startTime <= :end " +
+           "AND (:cinemaId IS NULL OR b.showtime.room.cinema.id = :cinemaId) " +
            "GROUP BY b.showtime.id")
-    List<Object[]> countSoldSeatsByShowtimeInRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    List<Object[]> countSoldSeatsByShowtimeInRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+                                                   @Param("cinemaId") Integer cinemaId);
 
     @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie " +
            "WHERE b.customer.userId = :customerId ORDER BY b.createdAt DESC")

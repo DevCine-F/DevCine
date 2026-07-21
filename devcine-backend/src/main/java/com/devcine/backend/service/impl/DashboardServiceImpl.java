@@ -7,8 +7,10 @@ import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.service.DashboardService;
+import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,24 +40,25 @@ public class DashboardServiceImpl implements DashboardService {
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats(String range, String month) {
         Window w = resolveWindow(range, month);
+        Integer cinemaId = resolveCinemaScope();
 
         // ===== KPI cho khoảng đã chọn (+ trend so với kỳ liền trước) =====
-        BigDecimal revenue = bookingRepository.sumRevenueByDateRange(w.start, w.end);
-        BigDecimal prevRevenue = bookingRepository.sumRevenueByDateRange(w.prevStart, w.prevEnd);
+        BigDecimal revenue = bookingRepository.sumRevenueByDateRange(w.start, w.end, cinemaId);
+        BigDecimal prevRevenue = bookingRepository.sumRevenueByDateRange(w.prevStart, w.prevEnd, cinemaId);
 
-        long ticketCount = bookingRepository.countTicketsByDateRange(w.start, w.end);
-        long prevTicketCount = bookingRepository.countTicketsByDateRange(w.prevStart, w.prevEnd);
+        long ticketCount = bookingRepository.countTicketsByDateRange(w.start, w.end, cinemaId);
+        long prevTicketCount = bookingRepository.countTicketsByDateRange(w.prevStart, w.prevEnd, cinemaId);
 
         long newUsers = userRepository.countNewUsersByDateRange(w.start, w.end);
         long prevNewUsers = userRepository.countNewUsersByDateRange(w.prevStart, w.prevEnd);
 
-        long totalSeats = showtimeRepository.countTotalSeatsByDateRange(w.start, w.end);
+        long totalSeats = showtimeRepository.countTotalSeatsByDateRange(w.start, w.end, cinemaId);
         double occupancy = totalSeats > 0 ? (double) ticketCount / totalSeats * 100 : 0;
-        long prevTotalSeats = showtimeRepository.countTotalSeatsByDateRange(w.prevStart, w.prevEnd);
+        long prevTotalSeats = showtimeRepository.countTotalSeatsByDateRange(w.prevStart, w.prevEnd, cinemaId);
         double prevOccupancy = prevTotalSeats > 0 ? (double) prevTicketCount / prevTotalSeats * 100 : 0;
 
         // ===== Biểu đồ doanh thu & vé (Tháng: trọn tháng đã chọn, còn lại: 7 ngày gần nhất) =====
-        List<DashboardStatsResponse.ChartData> chart = buildChart(w.chartFrom, w.chartTo);
+        List<DashboardStatsResponse.ChartData> chart = buildChart(w.chartFrom, w.chartTo, cinemaId);
 
         return DashboardStatsResponse.builder()
                 .rangeLabel(w.label)
@@ -64,10 +67,28 @@ public class DashboardServiceImpl implements DashboardService {
                 .newUsers(new DashboardStatsResponse.StatItem(String.valueOf(newUsers), calculateTrend(BigDecimal.valueOf(newUsers), BigDecimal.valueOf(prevNewUsers))))
                 .occupancy(new DashboardStatsResponse.StatItem(String.format("%.1f%%", occupancy), calculateTrend(BigDecimal.valueOf(occupancy), BigDecimal.valueOf(prevOccupancy))))
                 .businessPerformance(chart)
-                .topMovies(buildTopMovies(w))
-                .recentBookings(buildRecentBookings(w))
-                .showtimes(buildShowtimes(w))
+                .topMovies(buildTopMovies(w, cinemaId))
+                .recentBookings(buildRecentBookings(w, cinemaId))
+                .showtimes(buildShowtimes(w, cinemaId))
                 .build();
+    }
+
+    /**
+     * Phạm vi cơ sở của người đang xem dashboard.
+     *
+     * <p>Trả null = toàn hệ thống, và CHỈ ADMIN được như vậy. Với các vai trò khác, thiếu cinemaId
+     * là lỗi dữ liệu (chưa gắn bản ghi Staff / chưa gán cơ sở) — phải chặn lại chứ không được coi
+     * như "xem tất cả", nếu không một lỗi dữ liệu sẽ tự động biến thành leo thang quyền.</p>
+     */
+    private Integer resolveCinemaScope() {
+        if (SecurityUtils.hasRole("ADMIN")) return null;
+
+        Integer cinemaId = SecurityUtils.getCurrentUserCinemaId();
+        if (cinemaId == null) {
+            throw new AccessDeniedException(
+                    "Tài khoản chưa được gán cơ sở nên không xem được báo cáo. Vui lòng liên hệ quản trị viên.");
+        }
+        return cinemaId;
     }
 
     // ===== Khoảng thời gian theo range =====
@@ -115,16 +136,16 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     // ===== Biểu đồ theo khoảng ngày (2 query gộp, không N+1) =====
-    private List<DashboardStatsResponse.ChartData> buildChart(LocalDate from, LocalDate to) {
+    private List<DashboardStatsResponse.ChartData> buildChart(LocalDate from, LocalDate to, Integer cinemaId) {
         LocalDateTime chartStart = from.atStartOfDay();
         LocalDateTime chartEnd = to.atTime(LocalTime.MAX);
 
         Map<LocalDate, BigDecimal> revByDay = new HashMap<>();
-        for (Object[] r : bookingRepository.sumRevenueGroupedByDay(chartStart, chartEnd)) {
+        for (Object[] r : bookingRepository.sumRevenueGroupedByDay(chartStart, chartEnd, cinemaId)) {
             revByDay.put(toLocalDate(r[0]), r[1] != null ? new BigDecimal(r[1].toString()) : BigDecimal.ZERO);
         }
         Map<LocalDate, Long> ticketsByDay = new HashMap<>();
-        for (Object[] r : bookingRepository.countTicketsGroupedByDay(chartStart, chartEnd)) {
+        for (Object[] r : bookingRepository.countTicketsGroupedByDay(chartStart, chartEnd, cinemaId)) {
             ticketsByDay.put(toLocalDate(r[0]), ((Number) r[1]).longValue());
         }
 
@@ -146,13 +167,13 @@ public class DashboardServiceImpl implements DashboardService {
 
     // ===== Top phim theo doanh thu trong khoảng đã chọn (poster thật) =====
     // Doanh thu và số vé lấy từ hai query riêng (xem ghi chú ở BookingRepository) rồi ghép theo movieId.
-    private List<DashboardStatsResponse.TopMovie> buildTopMovies(Window w) {
+    private List<DashboardStatsResponse.TopMovie> buildTopMovies(Window w, Integer cinemaId) {
         Map<Integer, Long> ticketsByMovie = new HashMap<>();
-        for (Object[] row : bookingRepository.countTicketsGroupedByMovie(w.start, w.end)) {
+        for (Object[] row : bookingRepository.countTicketsGroupedByMovie(w.start, w.end, cinemaId)) {
             ticketsByMovie.put((Integer) row[0], ((Number) row[1]).longValue());
         }
 
-        List<Object[]> raw = bookingRepository.findTopMoviesByRevenue(w.start, w.end);
+        List<Object[]> raw = bookingRepository.findTopMoviesByRevenue(w.start, w.end, cinemaId);
         List<DashboardStatsResponse.TopMovie> list = new ArrayList<>();
         for (int i = 0; i < Math.min(5, raw.size()); i++) {
             Object[] row = raw.get(i);
@@ -168,10 +189,10 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     // ===== Giao dịch gần đây trong khoảng đã chọn =====
-    private List<DashboardStatsResponse.RecentBooking> buildRecentBookings(Window w) {
+    private List<DashboardStatsResponse.RecentBooking> buildRecentBookings(Window w, Integer cinemaId) {
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm dd/MM");
         List<DashboardStatsResponse.RecentBooking> list = new ArrayList<>();
-        for (Booking b : bookingRepository.findRecentConfirmed(w.start, w.end, PageRequest.of(0, 6))) {
+        for (Booking b : bookingRepository.findRecentConfirmed(w.start, w.end, cinemaId, PageRequest.of(0, 6))) {
             String customerName = "Khách vãng lai";
             if (b.getCustomer() != null && b.getCustomer().getUser() != null && b.getCustomer().getUser().getFullName() != null) {
                 customerName = b.getCustomer().getUser().getFullName();
@@ -192,15 +213,15 @@ public class DashboardServiceImpl implements DashboardService {
     // Khoảng dài (Tháng) có thể hàng trăm suất → chỉ lấy SHOWTIME_LIMIT suất gần hiện tại nhất
     private static final int SHOWTIME_LIMIT = 50;
 
-    private List<DashboardStatsResponse.ShowtimeItem> buildShowtimes(Window w) {
+    private List<DashboardStatsResponse.ShowtimeItem> buildShowtimes(Window w, Integer cinemaId) {
         Map<Integer, Long> soldByShowtime = new HashMap<>();
-        for (Object[] r : bookingRepository.countSoldSeatsByShowtimeInRange(w.start, w.end)) {
+        for (Object[] r : bookingRepository.countSoldSeatsByShowtimeInRange(w.start, w.end, cinemaId)) {
             soldByShowtime.put(((Number) r[0]).intValue(), ((Number) r[1]).longValue());
         }
 
         // Query trả DESC (mới nhất trước) → đảo lại để hiển thị theo thứ tự thời gian tăng dần
         List<Showtime> showtimes = new ArrayList<>(
-                showtimeRepository.findLatestByRangeWithDetails(w.start, w.end, PageRequest.of(0, SHOWTIME_LIMIT)));
+                showtimeRepository.findLatestByRangeWithDetails(w.start, w.end, cinemaId, PageRequest.of(0, SHOWTIME_LIMIT)));
         Collections.reverse(showtimes);
 
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");

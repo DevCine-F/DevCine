@@ -65,8 +65,12 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     // Phòng có suất chiếu nào không (guard khi sửa kích thước / xoá phòng)
     boolean existsByRoom_Id(Integer roomId);
 
-    @Query("SELECT COALESCE(SUM(r.matrixRow * r.matrixCol), 0) FROM Showtime s JOIN s.room r WHERE s.startTime >= :startDate AND s.startTime <= :endDate")
-    long countTotalSeatsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    // Dashboard: :cinemaId = null -> toàn hệ thống (chỉ ADMIN), khác null -> chỉ cơ sở đó
+    @Query("SELECT COALESCE(SUM(r.matrixRow * r.matrixCol), 0) FROM Showtime s JOIN s.room r "
+           + "WHERE s.startTime >= :startDate AND s.startTime <= :endDate "
+           + "AND (:cinemaId IS NULL OR r.cinema.id = :cinemaId)")
+    long countTotalSeatsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+                                    @Param("cinemaId") Integer cinemaId);
 
     // Suất chiếu trong khoảng [start, end] kèm phòng/rạp/phim (cho dashboard)
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m " +
@@ -75,9 +79,11 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
 
     // Như trên nhưng lấy N suất gần hiện tại nhất (khoảng dài như Tháng có thể hàng trăm suất)
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m " +
-           "WHERE s.startTime >= :start AND s.startTime <= :end ORDER BY s.startTime DESC")
+           "WHERE s.startTime >= :start AND s.startTime <= :end " +
+           "AND (:cinemaId IS NULL OR c.id = :cinemaId) ORDER BY s.startTime DESC")
     List<Showtime> findLatestByRangeWithDetails(@Param("start") LocalDateTime start,
                                                 @Param("end") LocalDateTime end,
+                                                @Param("cinemaId") Integer cinemaId,
                                                 Pageable pageable);
 
     boolean existsByFormat_Id(Integer formatId);
