@@ -123,9 +123,10 @@ public class DataSeeder {
                     -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
             // Seed ma trận phân quyền mặc định.
-            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V2 (seed thường chỉ set khi blank).
-            boolean permissionMatrixV2 = systemSettingRepository.findById("PERMISSION_MATRIX_V2").isPresent();
-            if (!permissionMatrixV2 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V3 (seed thường chỉ set khi blank).
+            // V3: gỡ mọi action KHÔNG có endpoint @perm.can tương ứng ("checkbox chết"), MANAGER thêm settings:view.
+            boolean permissionMatrixV3 = systemSettingRepository.findById("PERMISSION_MATRIX_V3").isPresent();
+            if (!permissionMatrixV3 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
                         + "\"dashboard_stats\":[\"view\",\"export\"],"
                         + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
@@ -142,38 +143,43 @@ public class DataSeeder {
                 roleRepository.save(adminRole);
             }
             // STAFF (trần quyền TĨNH): KHÔNG có báo cáo doanh thu (dashboard_stats) theo spec.
-            // Nghiệp vụ thực tế (bán vé/F&B/kiểm vé) được kích hoạt theo Position khi mở ca — ShiftAccessService.
-            if (!permissionMatrixV2 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+            // Nghiệp vụ thực tế (bán vé/F&B/kiểm vé) được kích hoạt theo Position khi mở ca — ShiftAccessService,
+            // nên trần này chỉ cần rộng vừa đủ. support:edit đã gỡ — CSKH thuộc quản lý; trưởng ca cần thì
+            // cấp lại bằng quyền riêng từng người (UserPermissionOverride).
+            if (!permissionMatrixV3 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
                 staffRole.setPermissionsMatrix("{"
                         + "\"movies\":[\"view\"],"
                         + "\"schedules\":[\"view\"],"
-                        + "\"pos_ticketing\":[\"view\",\"add\",\"edit\"],"
+                        + "\"pos_ticketing\":[\"view\",\"add\"],"
                         + "\"pos_inventory\":[\"view\",\"edit\"],"
-                        + "\"support\":[\"view\",\"edit\"]}");
+                        + "\"support\":[\"view\"]}");
                 roleRepository.save(staffRole);
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho STAFF.");
             }
-            // MANAGER = "admin thu nhỏ theo 1 cơ sở": vận hành đầy đủ cụm rạp (lịch chiếu, giá vé/F&B,
-            // khuyến mãi, kho, nhân sự & ca, toàn bộ báo cáo). Phạm vi cơ sở do scoping cinemaId (SecurityUtils).
-            if (!permissionMatrixV2 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
+            // MANAGER = "admin thu nhỏ theo 1 cơ sở": mạnh về VẬN HÀNH (lịch chiếu, giá, khuyến mãi, banner,
+            // nhân sự & ca, kho, báo cáo) nhưng không đụng CẤU TRÚC hệ thống — cụm rạp/phòng/phân quyền/FAQ là
+            // ADMIN-cứng (hasRole), settings chỉ cho xem. Phạm vi cơ sở do scoping cinemaId (SecurityUtils).
+            // support:delete đã gỡ vì xoá đánh giá là ADMIN-cứng (ReviewController) → nút sẽ 403.
+            if (!permissionMatrixV3 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
                 managerRole.setPermissionsMatrix("{"
-                        + "\"dashboard_stats\":[\"view\",\"export\"],"
+                        + "\"dashboard_stats\":[\"view\"],"
                         + "\"movies\":[\"view\"],"
-                        + "\"schedules\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"schedules\":[\"view\",\"add\",\"edit\"],"
                         + "\"banners\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"promotions\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"pricing\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pricing\":[\"view\",\"edit\"],"
                         + "\"cinemas\":[\"view\"],"
-                        + "\"staff_management\":[\"view\",\"add\",\"edit\",\"delete\",\"export\"],"
-                        + "\"pos_ticketing\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"staff_management\":[\"view\",\"add\",\"edit\"],"
+                        + "\"pos_ticketing\":[\"view\",\"add\"],"
                         + "\"pos_inventory\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"support\":[\"view\",\"edit\",\"delete\"]}");
+                        + "\"support\":[\"view\",\"edit\"],"
+                        + "\"settings\":[\"view\"]}");
                 roleRepository.save(managerRole);
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho MANAGER.");
             }
-            if (!permissionMatrixV2) {
+            if (!permissionMatrixV3) {
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("PERMISSION_MATRIX_V2").settingValue("true").build());
+                        .settingKey("PERMISSION_MATRIX_V3").settingValue("true").build());
             }
 
             // Seed / đảm bảo tài khoản admin (admin / 123) — tạo mới nếu chưa có, reset mật khẩu nếu đã tồn tại
