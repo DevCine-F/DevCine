@@ -51,9 +51,11 @@ Dùng `tools.jackson.*` — KHÔNG phải `com.fasterxml.jackson.*`
 - Postgres null param: `lower(bytea)` lỗi khi truyền null vào `lower()` trong JPQL
 - `@MapsId`: dùng `persist` không phải `merge` khi lưu entity có @MapsId
 
-## Tiến độ hiện tại (~94%)
+## Tiến độ hiện tại (~95%)
 
 Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
+
+**Đã GỠ HOÀN TOÀN — Kho / Định mức BOM (11/07/2026):** không còn `InventoryService`/`BomRecipe`/`BomController`/`/api/bom`/`InventoryController`/`/api/inventory`/màn `InventoryManagement.vue`. Tồn kho VÔ HẠN, không định mức. Chỉ giữ hiển thị + bán F&B/combo (`FnbController`, `FnbMenuManager`, `ConcessionSale`). Quyền gác màn này là **`fnb_menu`** (đổi tên từ `pos_inventory` ngày 21/07 vì nó gác THỰC ĐƠN chứ không phải kho).
 
 **Đã hoàn thiện — Phân hệ Ca làm việc & Bàn giao ca (13/07/2026):**
 - Chia ca theo Position + duyệt + check-in/out (lưu `actual_check_in_at/out_at` để hiển thị, KHÔNG tính lương/phạt)
@@ -63,10 +65,21 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 - Đã gỡ: endpoint `/handovers/legacy`, `/shifts/{all,template}`, receive/confirm/reject/receivers; `Shift.status`; vị trí `PROJECTION`
 - Phạm vi CỐ Ý bỏ (Quản lý Vận hành, không HRM): tính lương, phạt đi muộn, đơn nghỉ, đổi ca, tồn kho F&B
 
-**Đang dở (chưa commit, 24/06/2026):**
-- Rollout Toast/FriendlyError mới áp 5/43 view (cần toàn bộ view admin + khách còn lại)
-- Admin UI cho BOM (định mức) — chưa có route
-- Chuẩn hóa ApiResponse<T> + @ControllerAdvice toàn BE
+**Đã hoàn thiện — Chuẩn hoá lỗi & response (22/07/2026):**
+- **Toast/FriendlyError:** phủ 44/49 view. KHÔNG còn toast/`notify`/`errMsg` tự chế — mọi nơi dùng `useToastStore` + `friendlyError`. CỐ Ý giữ im lặng ở dữ liệu phụ (banner trang trí, phim gợi ý, voucher đã lưu, thăm dò quyền đánh giá) vì báo lỗi chỉ gây nhiễu.
+- **`ApiResponse<T>`:** mọi controller đã bọc, ngoại lệ DUY NHẤT là `PaymentController` (convention VNPAY `{code,message,data}`, không có cờ `success` nên interceptor bỏ qua). Xem memory `devcine-apiresponse-rollout.md` để biết các bẫy khi migrate.
+- Route/method không khớp trả **404/405** thay vì 500.
+
+**Đã hoàn thiện — Phân quyền & Dashboard theo cơ sở (22/07/2026):**
+- Ma trận MANAGER/STAFF chỉ còn action backend THẬT SỰ enforce (hết "checkbox chết"); cờ seed `PERMISSION_MATRIX_V4`
+- Feature `pos_inventory` đổi tên → **`fnb_menu`** (nó gác THỰC ĐƠN F&B, không phải kho); STAFF không còn quyền này
+- Dashboard scoping theo cơ sở: `resolveCinemaScope()` — chỉ ADMIN được `cinemaId = null`; vai trò khác thiếu cơ sở thì **fail closed** (403), không mở toàn hệ thống
+- "Người dùng mới" → **"Khách mới của cơ sở"** (lần đầu giao dịch tại cơ sở, dùng `NOT EXISTS`)
+- Màn FAQ / Đánh giá phim chuyển sang `adminOnly` cho khớp `hasRole('ADMIN')` ở backend
+
+**Còn lại:**
+- 8 cảnh báo Dependabot (đụng `pom.xml`/`package.json` → báo cáo trước khi sửa)
+- Nhánh fail-closed của dashboard chưa có tình huống thật để test (chưa có tài khoản MANAGER nào thiếu cơ sở)
 
 ## Commit convention
 
