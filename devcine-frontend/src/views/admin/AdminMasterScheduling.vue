@@ -3,8 +3,11 @@ import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useConfirmStore } from '@/stores/confirm';
 import { useAdminPerm } from '@/composables/useAdminPerm';
+import { useToastStore } from '@/stores/toast';
+import { friendlyError } from '@/utils/friendlyError';
 
 const { can } = useAdminPerm();
+const toast = useToastStore();
 
 const confirm = useConfirmStore();
 
@@ -36,7 +39,7 @@ const fetchData = async () => {
     movies.value = mRes.data;
     cinemas.value = cRes.data;
   } catch (error) {
-    console.error("Error fetching data:", error);
+    toast.error(friendlyError(error, 'Không tải được dữ liệu điều phối.'));
   }
 };
 
@@ -55,7 +58,7 @@ const saveQuota = async () => {
     await fetchData();
     isModalOpen.value = false;
   } catch (error) {
-    console.error("Error saving quota:", error);
+    toast.error(friendlyError(error, 'Lưu định mức suất chiếu thất bại.'));
   }
 };
 

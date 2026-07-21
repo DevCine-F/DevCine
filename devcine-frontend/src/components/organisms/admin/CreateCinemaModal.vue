@@ -1,6 +1,10 @@
 <script setup>
 import { reactive, ref, onMounted, watch } from 'vue'
 import api from '@/api/axios'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -21,7 +25,7 @@ onMounted(async () => {
   try {
     const { data } = await api.get('/locations/provinces')
     provinces.value = data || []
-  } catch (e) { console.error('Không tải được danh sách Tỉnh/Thành', e) }
+  } catch (e) { toast.error(friendlyError(e, 'Không tải được danh sách Tỉnh/Thành.')) }
 })
 
 const fetchDistricts = async (province) => {
@@ -31,7 +35,7 @@ const fetchDistricts = async (province) => {
     const { data } = await api.get('/locations/districts', { params: { province } })
     districts.value = data || []
   } catch (e) {
-    console.error('Không tải được danh sách Quận/Huyện', e)
+    toast.error(friendlyError(e, 'Không tải được danh sách Quận/Huyện.'))
     districts.value = []
   } finally {
     loadingDistricts.value = false

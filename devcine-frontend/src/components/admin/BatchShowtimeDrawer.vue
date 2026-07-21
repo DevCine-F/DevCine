@@ -71,7 +71,7 @@ const fetchOptions = async () => {
     movies.value = moviesRes.data;
     formats.value = formatsRes.data;
   } catch (e) {
-    console.error('Error fetching options', e);
+    toast.error(friendlyError(e, 'Không tải được danh sách phim/định dạng.'));
   }
 };
 
@@ -86,7 +86,7 @@ const buildCinemaTree = async () => {
       const res = await api.get(`/rooms/cinema/${c.id}`);
       return { id: c.id, name: c.name, city: c.city, halls: res.data.map(r => ({ id: r.id, name: r.name, type: r.type })) };
     } catch (e) {
-      console.error('Error fetching rooms', e);
+      toast.error(friendlyError(e, 'Không tải được danh sách phòng chiếu.'));
       return { id: c.id, name: c.name, city: c.city, halls: [] };
     }
   }));

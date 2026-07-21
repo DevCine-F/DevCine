@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { auditLogApi } from '@/api/admin/index'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
+const toast = useToastStore()
 const searchQuery = ref('')
 const filterType = ref('all')
 const logs = ref([])
@@ -23,7 +26,8 @@ const fetchLogs = async () => {
       logs.value = Array.isArray(result) ? result : []
     }
   } catch (e) {
-    console.error('Failed to load audit logs', e)
+    logs.value = []
+    toast.error(friendlyError(e, 'Không tải được nhật ký hoạt động.'))
   } finally {
     isLoading.value = false
   }

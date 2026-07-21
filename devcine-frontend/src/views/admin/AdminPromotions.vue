@@ -7,6 +7,7 @@ import CustomSelect from '@/components/common/CustomSelect.vue'
 import { prepareImageForUpload } from '@/utils/imageUpload'
 import { useAdminPerm } from '@/composables/useAdminPerm'
 import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const { can } = useAdminPerm()
 const toastStore = useToastStore()
@@ -122,7 +123,7 @@ const handleArticleImageUpload = async (e) => {
   try {
     prepared = await prepareImageForUpload(file)
   } catch (err) {
-    showToast(err.message, 'error')
+    showToast(friendlyError(err, 'Ảnh không hợp lệ.'), 'error')
     e.target.value = ''
     return
   }
@@ -167,7 +168,7 @@ const handleSaveArticle = async () => {
     isArticleDrawerOpen.value = false
     await fetchArticles()
   } catch (err) {
-    showToast(err.response?.data?.message || 'Lưu tin khuyến mãi thất bại.', 'error')
+    showToast(friendlyError(err, 'Lưu tin khuyến mãi thất bại.'), 'error')
   } finally {
     isSavingArticle.value = false
   }
@@ -193,7 +194,7 @@ const confirmDeleteArticle = async () => {
     articleDeleteTarget.value = null
     await fetchArticles()
   } catch (err) {
-    showToast(err.response?.data?.message || 'Xoá thất bại.', 'error')
+    showToast(friendlyError(err, 'Xoá thất bại.'), 'error')
   } finally {
     isDeletingArticle.value = false
   }
@@ -608,10 +609,10 @@ const handleSaveVoucher = async () => {
   } catch (err) {
     // Trùng mã (409) -> gắn lỗi vào ô code cho rõ
     if (err.response?.status === 409) {
-      voucherErrors.value = { ...voucherErrors.value, code: err.response?.data?.message || 'Mã code đã tồn tại.' }
+      voucherErrors.value = { ...voucherErrors.value, code: friendlyError(err, 'Mã code đã tồn tại.') }
       focusFirstVoucherError()
     }
-    showToast(err.response?.data?.message || 'Lưu voucher thất bại.', 'error')
+    showToast(friendlyError(err, 'Lưu voucher thất bại.'), 'error')
   } finally {
     isSavingVoucher.value = false
   }
@@ -646,7 +647,7 @@ const confirmDeleteVoucher = async () => {
     deleteTarget.value = null
     await fetchMarketingData()
   } catch (err) {
-    showToast(err.response?.data?.message || 'Xoá thất bại.', 'error')
+    showToast(friendlyError(err, 'Xoá thất bại.'), 'error')
   } finally {
     isDeleting.value = false
   }
@@ -681,7 +682,7 @@ const confirmSendCampaign = async () => {
     emailTarget.value = null
     await fetchMarketingData() // cập nhật lịch sử gửi trên card
   } catch (err) {
-    showToast(err.response?.data?.message || 'Gửi email chiến dịch thất bại.', 'error')
+    showToast(friendlyError(err, 'Gửi email chiến dịch thất bại.'), 'error')
   } finally {
     isSendingCampaign.value = false
   }
@@ -727,7 +728,7 @@ const handleIssueVoucher = async (customer) => {
     showToast(`Đã phát voucher ${issueTarget.value.code} cho ${customer.fullName || 'khách'}.`)
     issueTarget.value = null
   } catch (err) {
-    showToast(err.response?.data?.message || 'Phát voucher thất bại.', 'error')
+    showToast(friendlyError(err, 'Phát voucher thất bại.'), 'error')
   } finally {
     isIssuing.value = false
   }

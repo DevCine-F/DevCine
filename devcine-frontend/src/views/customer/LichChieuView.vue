@@ -4,6 +4,10 @@ import { useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { showtimeApi } from '@/api/customer'
 import api from '@/api/axios'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 const router = useRouter()
 const store = useBookingStore()
@@ -165,7 +169,10 @@ const loadShowtimes = async () => {
     ])
     allShowtimes.value = stRes.data || []
     cinemas.value = cinemaRes.data || []
-  } catch (e) { console.error(e); loadError.value = true } finally { loading.value = false }
+  } catch (e) {
+    loadError.value = true
+    toast.error(friendlyError(e, 'Không tải được lịch chiếu.'))
+  } finally { loading.value = false }
 }
 
 onMounted(loadShowtimes)

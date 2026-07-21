@@ -22,7 +22,6 @@ const savedIds = ref(new Set())
 const articles = ref([])
 const isLoadingArticles = ref(false)
 
-const errMsg = (e, fb) => friendlyError(e, fb)
 
 const fetchArticles = async () => {
   isLoadingArticles.value = true
@@ -86,7 +85,7 @@ const fetchPromotions = async () => {
     const { data } = await promotionApi.getActive()
     promotions.value = data.data ?? data
   } catch (e) {
-    console.error('Không tải được khuyến mãi', e)
+    toast.error(friendlyError(e, 'Không tải được danh sách khuyến mãi.'))
   } finally {
     isLoading.value = false
   }
@@ -144,7 +143,7 @@ const redeemPoints = async (p) => {
     savedIds.value.add(p.id)
     showToast('Đã đổi & lưu vào "Ưu đãi của tôi"')
   } catch (e) {
-    showToast(errMsg(e, 'Đổi điểm thất bại (có thể không đủ điểm).'), 'error')
+    showToast(friendlyError(e, 'Đổi điểm thất bại (có thể không đủ điểm).'), 'error')
   } finally {
     savingId.value = null
   }
@@ -159,7 +158,7 @@ const claimCode = async (p) => {
     savedIds.value.add(p.id)
     showToast('Đã lưu mã vào "Ưu đãi của tôi"')
   } catch (e) {
-    showToast(errMsg(e, 'Lưu mã thất bại.'), 'error')
+    showToast(friendlyError(e, 'Lưu mã thất bại.'), 'error')
   } finally {
     savingId.value = null
   }

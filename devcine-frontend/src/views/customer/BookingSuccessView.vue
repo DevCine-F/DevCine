@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useBookingStore } from '@/stores/booking'
 import { paymentApi } from '@/api/customer'
 import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const route = useRoute()
 const store = useBookingStore()
@@ -30,9 +31,8 @@ onMounted(async () => {
         toast.error('Giao dịch chưa thành công. Vui lòng thử lại hoặc liên hệ hỗ trợ.')
       }
     } catch (err) {
-      console.error(err)
       paymentStatus.value = 'failed'
-      toast.error('Giao dịch chưa thành công. Vui lòng thử lại hoặc liên hệ hỗ trợ.')
+      toast.error(friendlyError(err, 'Giao dịch chưa thành công. Vui lòng thử lại hoặc liên hệ hỗ trợ.'))
     } finally {
       isLoading.value = false
     }

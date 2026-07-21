@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import axios from 'axios'
 import SeatMapBuilder from '@/components/admin/SeatMapBuilder.vue'
 import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 import { useAdminPerm } from '@/composables/useAdminPerm'
 
 const { isAdmin } = useAdminPerm()
@@ -31,8 +32,7 @@ const saveLayout = async () => {
     
     toast.success('Đã đồng bộ sơ đồ ghế với Server Java thành công!')
   } catch (error) {
-    console.error('Lỗi khi lưu sơ đồ ghế:', error)
-    toast.warning('Đã lưu cục bộ, nhưng không thể kết nối tới Server Java để đồng bộ.')
+    toast.warning(friendlyError(error, 'Đã lưu cục bộ, nhưng chưa đồng bộ được lên máy chủ.'))
   }
 }
 </script>

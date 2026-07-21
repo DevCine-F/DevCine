@@ -5,6 +5,8 @@ import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
 import { useConfirmStore } from '@/stores/confirm'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const { isAdmin } = useAdminPerm()
 const confirm = useConfirmStore()
@@ -25,14 +27,7 @@ const catDropdownOpen = ref(false)
 const isCustomCat = ref(false)
 
 // Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
-const errMsg = (e, fb) => e?.response?.data?.message || e?.response?.data?.error || fb
+const toast = useToastStore()
 
 const categories = computed(() => [...new Set(faqs.value.map(f => f.category).filter(Boolean))])
 // Danh mục cho dropdown: gộp danh mục mặc định + danh mục đã có trong dữ liệu
@@ -68,8 +63,8 @@ const fetchFaqs = async () => {
     const { data } = await api.get('/faqs/all')
     faqs.value = data
   } catch (e) {
-    console.error(e)
-    loadError.value = errMsg(e, 'Không thể tải danh sách FAQ.')
+    loadError.value = friendlyError(e, 'Không thể tải danh sách FAQ.')
+    toast.error(loadError.value)
   } finally {
     isLoading.value = false
   }
@@ -90,8 +85,8 @@ const openModal = (item = null) => {
 }
 
 const saveItem = async () => {
-  if (!form.value.category.trim()) { showToast('Vui lòng nhập danh mục', 'error'); return }
-  if (!form.value.question.trim()) { showToast('Vui lòng nhập câu hỏi', 'error'); return }
+  if (!form.value.category.trim()) { toast.warning('Vui lòng nhập danh mục'); return }
+  if (!form.value.question.trim()) { toast.warning('Vui lòng nhập câu hỏi'); return }
   isSaving.value = true
   try {
     const payload = {
@@ -103,16 +98,15 @@ const saveItem = async () => {
     }
     if (editingItem.value) {
       await api.put(`/faqs/${editingItem.value.id}`, payload)
-      showToast('Đã cập nhật câu hỏi')
+      toast.success('Đã cập nhật câu hỏi')
     } else {
       await api.post('/faqs', payload)
-      showToast('Đã thêm câu hỏi mới')
+      toast.success('Đã thêm câu hỏi mới')
     }
     await fetchFaqs()
     isModalOpen.value = false
   } catch (e) {
-    console.error(e)
-    showToast(errMsg(e, 'Lưu thất bại.'), 'error')
+    toast.error(friendlyError(e, 'Lưu thất bại.'))
   } finally {
     isSaving.value = false
   }
@@ -122,9 +116,9 @@ const toggleActive = async (item) => {
   try {
     await api.put(`/faqs/${item.id}`, { ...item, isActive: !item.isActive })
     item.isActive = !item.isActive
-    showToast(item.isActive ? 'Đã hiển thị câu hỏi' : 'Đã ẩn câu hỏi')
+    toast.success(item.isActive ? 'Đã hiển thị câu hỏi' : 'Đã ẩn câu hỏi')
   } catch (e) {
-    showToast(errMsg(e, 'Cập nhật thất bại.'), 'error')
+    toast.error(friendlyError(e, 'Cập nhật thất bại.'))
   }
 }
 
@@ -138,15 +132,15 @@ const deleteItem = async (item) => {
   if (!ok) return
   try {
     await api.delete(`/faqs/${item.id}`)
-    showToast('Đã xóa câu hỏi')
+    toast.success('Đã xóa câu hỏi')
     await fetchFaqs()
   } catch (e) {
-    showToast(errMsg(e, 'Xóa thất bại.'), 'error')
+    toast.error(friendlyError(e, 'Xóa thất bại.'))
   }
 }
 
 onMounted(fetchFaqs)
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
+
 </script>
 
 <template>
@@ -318,12 +312,5 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
     </AppModal>
 
     <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
-           class="fixed bottom-8 right-8 z-[200] px-6 py-4 rounded-xl shadow-2xl text-white flex items-center gap-3 max-w-sm">
-        <span class="material-symbols-outlined text-lg">{{ toast.type === 'error' ? 'error' : 'check_circle' }}</span>
-        <span class="text-sm font-bold">{{ toast.message }}</span>
-      </div>
-    </transition>
   </div>
 </template>

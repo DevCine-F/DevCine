@@ -3,6 +3,8 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { pricingApi } from '@/api/admin'
 import { useConfirmStore } from '@/stores/confirm'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const { can } = useAdminPerm()
 const confirm = useConfirmStore()
@@ -25,14 +27,7 @@ const sim = reactive({ dayType: 'WEEKEND', audienceType: 'ADULT', seatTypeId: ''
 const simResult = ref(null)
 const simulating = ref(false)
 
-// Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
-}
+const toast = useToastStore()
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 const audienceEntries = computed(() => Object.entries(config.value?.audiences || {}))
@@ -68,15 +63,15 @@ const loadConfig = async () => {
     if (seatTypes.value.length) sim.seatTypeId = seatTypes.value[0].id
     if (formats.value.length) sim.formatId = formats.value[0].id
   } catch (e) {
-    console.error('Lỗi tải cấu hình giá', e)
     loadError.value = true
+    toast.error(friendlyError(e, 'Không tải được cấu hình giá vé.'))
   } finally {
     loading.value = false
   }
 }
 
 onMounted(loadConfig)
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
+
 
 const saveBase = async () => {
   saving.value = true
@@ -86,9 +81,9 @@ const saveBase = async () => {
       return { dayType, timeSlot: 'ALL', audienceType, value: Number(value || 0) }
     })
     await pricingApi.saveBaseMatrix(rules)
-    showToast('Đã lưu bảng giá nền.')
+    toast.success('Đã lưu bảng giá nền.')
   } catch (e) {
-    showToast(e.response?.data?.message || 'Lưu giá nền thất bại.', 'error')
+    toast.error(friendlyError(e, 'Lưu giá nền thất bại.'))
   } finally { saving.value = false }
 }
 
@@ -96,9 +91,9 @@ const saveSeats = async () => {
   saving.value = true
   try {
     await pricingApi.saveSeatTypes(seatTypes.value.map(s => ({ id: s.id, priceModifier: Number(s.priceModifier || 0) })))
-    showToast('Đã lưu phụ thu loại ghế.')
+    toast.success('Đã lưu phụ thu loại ghế.')
   } catch (e) {
-    showToast(e.response?.data?.message || 'Lưu loại ghế thất bại.', 'error')
+    toast.error(friendlyError(e, 'Lưu loại ghế thất bại.'))
   } finally { saving.value = false }
 }
 
@@ -111,9 +106,9 @@ const saveFormats = async () => {
       weekendSurcharge: f.weekendSurcharge == null || f.weekendSurcharge === '' ? null : Number(f.weekendSurcharge),
       isFixedPrice: !!f.isFixedPrice
     })))
-    showToast('Đã lưu cấu hình định dạng.')
+    toast.success('Đã lưu cấu hình định dạng.')
   } catch (e) {
-    showToast(e.response?.data?.message || 'Lưu định dạng thất bại.', 'error')
+    toast.error(friendlyError(e, 'Lưu định dạng thất bại.'))
   } finally { saving.value = false }
 }
 
@@ -126,23 +121,23 @@ const saveSpecials = async () => {
       if (v != null && Number(v) > 0) items.push({ formatId: f.id, seatTypeId: s.id, price: Number(v) })
     }))
     await pricingApi.saveSpecialPrices(items)
-    showToast('Đã lưu giá phòng đặc biệt.')
+    toast.success('Đã lưu giá phòng đặc biệt.')
   } catch (e) {
-    showToast(e.response?.data?.message || 'Lưu giá đặc biệt thất bại.', 'error')
+    toast.error(friendlyError(e, 'Lưu giá đặc biệt thất bại.'))
   } finally { saving.value = false }
 }
 
 const addHoliday = async () => {
   if (!newHoliday.holidayDate || !newHoliday.name.trim()) {
-    showToast('Nhập đủ ngày và tên ngày lễ.', 'error'); return
+    toast.warning('Nhập đủ ngày và tên ngày lễ.'); return
   }
   try {
     await pricingApi.addHoliday(newHoliday.holidayDate, newHoliday.name.trim())
     newHoliday.holidayDate = ''; newHoliday.name = ''
     await loadConfig()
-    showToast('Đã thêm ngày lễ.')
+    toast.success('Đã thêm ngày lễ.')
   } catch (e) {
-    showToast(e.response?.data?.message || 'Thêm ngày lễ thất bại.', 'error')
+    toast.error(friendlyError(e, 'Thêm ngày lễ thất bại.'))
   }
 }
 
@@ -157,9 +152,9 @@ const removeHoliday = async (h) => {
   try {
     await pricingApi.deleteHoliday(h.id)
     holidays.value = holidays.value.filter(x => x.id !== h.id)
-    showToast('Đã xoá ngày lễ.')
+    toast.success('Đã xoá ngày lễ.')
   } catch (e) {
-    showToast('Xoá ngày lễ thất bại.', 'error')
+    toast.error(friendlyError(e, 'Xoá ngày lễ thất bại.'))
   }
 }
 
@@ -170,7 +165,7 @@ const runSimulate = async () => {
     const { data } = await pricingApi.simulate({ ...sim, timeSlot: 'ALL' })
     simResult.value = data
   } catch (e) {
-    showToast(e.response?.data?.message || 'Tính thử thất bại.', 'error')
+    toast.error(friendlyError(e, 'Tính thử thất bại.'))
   } finally { simulating.value = false }
 }
 
@@ -384,16 +379,6 @@ const TABS = [
         </div>
       </section>
     </template>
-
-    <transition name="fade">
-      <div v-if="toast.show" :class="[
-        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
-      ]">
-        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
-        {{ toast.message }}
-      </div>
-    </transition>
   </div>
 </template>
 

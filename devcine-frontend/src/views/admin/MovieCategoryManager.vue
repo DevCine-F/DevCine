@@ -5,6 +5,8 @@ import AppButton from '../../components/common/AppButton.vue'
 import AppModal from '../../components/common/AppModal.vue'
 import { useConfirmStore } from '@/stores/confirm'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const { can } = useAdminPerm()
 
@@ -25,17 +27,7 @@ const newItem = ref({ name: '', code: '', description: '' })
 // Chỉ tô đỏ ô sau khi admin đã gõ / rời ô — form vừa mở không "quát" lỗi ngay.
 const touched = ref({ name: false, code: false })
 
-// Toast phản hồi thao tác
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
-
-const errMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.response?.data?.error || fallback
+const toast = useToastStore()
 
 // Danh sách đang hiển thị theo tab
 const currentList = computed(() =>
@@ -144,8 +136,8 @@ const fetchData = async () => {
     formats.value = formatsRes.data
     ageRatings.value = ageRatingsRes.data
   } catch (error) {
-    console.error('Lỗi khi tải danh mục:', error)
-    loadError.value = errMessage(error, 'Không thể tải danh mục. Vui lòng thử lại.')
+    loadError.value = friendlyError(error, 'Không thể tải danh mục. Vui lòng thử lại.')
+    toast.error(loadError.value)
   } finally {
     isLoading.value = false
   }
@@ -167,7 +159,7 @@ const saveItem = async () => {
   // Validate phía client trước khi gọi API (chặn cứng theo nameError/codeError/descError).
   touched.value = { name: true, code: true }
   const firstErr = codeError.value || nameError.value || descError.value
-  if (firstErr) { showToast(firstErr, 'error'); return }
+  if (firstErr) { toast.warning(firstErr); return }
 
   const finalName = nameRules.value.capitalize ? capitalizeFirst(newItem.value.name) : newItem.value.name.trim()
   const finalDesc = (newItem.value.description || '').trim() || null
@@ -179,16 +171,15 @@ const saveItem = async () => {
   try {
     if (editingItem.value) {
       await api.put(`/categories/${activeTab.value}/${editingItem.value.id}`, payload)
-      showToast('Đã cập nhật ' + tabLabel.value)
+      toast.success('Đã cập nhật ' + tabLabel.value)
     } else {
       await api.post(`/categories/${activeTab.value}`, payload)
-      showToast('Đã thêm ' + tabLabel.value + ' mới')
+      toast.success('Đã thêm ' + tabLabel.value + ' mới')
     }
     await fetchData()
     isModalOpen.value = false
   } catch (error) {
-    console.error('Lỗi khi lưu danh mục:', error)
-    showToast(errMessage(error, 'Lưu thất bại. Vui lòng thử lại.'), 'error')
+    toast.error(friendlyError(error, 'Lưu thất bại. Vui lòng thử lại.'))
   } finally {
     isSaving.value = false
   }
@@ -204,16 +195,15 @@ const deleteItem = async (item) => {
   if (!ok) return
   try {
     await api.delete(`/categories/${activeTab.value}/${item.id}`)
-    showToast('Đã xóa ' + tabLabel.value)
+    toast.success('Đã xóa ' + tabLabel.value)
     await fetchData()
   } catch (error) {
-    console.error('Lỗi khi xóa danh mục:', error)
-    showToast(errMessage(error, 'Xóa thất bại. Vui lòng thử lại.'), 'error')
+    toast.error(friendlyError(error, 'Xóa thất bại. Vui lòng thử lại.'))
   }
 }
 
 onMounted(fetchData)
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
+
 </script>
 
 <template>
@@ -385,16 +375,5 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
       </div>
     </AppModal>
 
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show"
-           :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
-           class="fixed bottom-8 right-8 z-[1100] px-6 py-4 rounded-xl shadow-2xl text-white flex items-center gap-3 max-w-sm">
-        <span class="material-symbols-outlined text-lg">
-          {{ toast.type === 'error' ? 'error' : 'check_circle' }}
-        </span>
-        <span class="text-sm font-bold">{{ toast.message }}</span>
-      </div>
-    </transition>
   </div>
 </template>

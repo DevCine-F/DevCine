@@ -3,6 +3,10 @@ import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/api/axios'
 import { useShiftStore } from '@/stores/shift'
 import { openInvoice, paymentLabel } from '@/utils/invoiceTemplate'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 // ===== Helpers hiển thị & dựng bản in vé giấy =====
 const seatTypeLabel = (t) =>
@@ -164,7 +168,7 @@ const handleCheckIn = async (code) => {
     }
     playBeep('success')
   } catch (error) {
-    const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Đã xảy ra lỗi khi quét vé.'
+    const errorMsg = friendlyError(error, 'Đã xảy ra lỗi khi quét vé.')
     checkInResult.value = {
       success: false,
       message: errorMsg,
@@ -198,7 +202,7 @@ const doPrint = async () => {
   } catch (error) {
     checkInResult.value = {
       success: false,
-      message: error.response?.data?.error || error.response?.data?.message || 'Không in được vé.',
+      message: friendlyError(error, 'Không in được vé.'),
       data: null,
       printed: false
     }

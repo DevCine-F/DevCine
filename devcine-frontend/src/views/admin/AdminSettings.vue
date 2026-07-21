@@ -2,8 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { settingsApi } from '@/api/admin'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
 
 const { can } = useAdminPerm()
+const toast = useToastStore()
 
 // Danh sách ngân hàng hỗ trợ VietQR (mã = BIN napas247)
 const BANKS = [
@@ -58,14 +62,6 @@ const qrPreviewUrl = computed(() => {
 })
 
 const isLoading = ref(false)
-const notification = ref({ show: false, message: '', type: 'success' })
-
-const showNotification = (message, type = 'success') => {
-  notification.value = { show: true, message, type }
-  setTimeout(() => {
-    notification.value.show = false
-  }, 3000)
-}
 
 const loadSettings = async () => {
   isLoading.value = true
@@ -87,8 +83,7 @@ const loadSettings = async () => {
       else if (item.settingKey === 'PAYMENT_ACCOUNT_NAME') settings.value.accountName = item.settingValue || ''
     })
   } catch (err) {
-    console.error('Failed to load settings', err)
-    showNotification('Lỗi khi tải cài đặt từ hệ thống!', 'error')
+    toast.error(friendlyError(err, 'Không tải được cài đặt hệ thống.'))
   } finally {
     isLoading.value = false
   }
@@ -117,10 +112,9 @@ const saveSettings = async () => {
       settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NO', settingValue: settings.value.accountNo }),
       settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NAME', settingValue: settings.value.accountName })
     ])
-    showNotification('Cấu hình hệ thống đã được lưu thành công!')
+    toast.success('Đã lưu cấu hình hệ thống.')
   } catch (err) {
-    console.error('Failed to save settings', err)
-    showNotification('Lỗi khi lưu cấu hình hệ thống!', 'error')
+    toast.error(friendlyError(err, 'Lưu cấu hình hệ thống thất bại.'))
   } finally {
     isLoading.value = false
   }
@@ -133,12 +127,6 @@ onMounted(() => {
 
 <template>
   <div class="p-10">
-    <!-- Toast Notification -->
-    <div v-if="notification.show" :class="[notification.type === 'success' ? 'bg-green-950/80 border-green-500 text-green-300 shadow-green-500/10' : 'bg-red-950/80 border-red-500 text-red-300 shadow-red-500/10', 'fixed top-24 right-10 z-50 flex items-center gap-3 px-6 py-4 rounded-xl border backdrop-blur-md shadow-2xl transition-all duration-300 animate-slide-in']">
-      <span class="material-symbols-outlined text-xl">{{ notification.type === 'success' ? 'check_circle' : 'error' }}</span>
-      <span class="text-xs font-bold uppercase tracking-wider">{{ notification.message }}</span>
-    </div>
-
     <header class="mb-12 text-on-surface">
       <h1 class="text-3xl font-extrabold tracking-tight font-headline uppercase">Cài đặt Hệ thống</h1>
       <p class="text-on-surface-variant text-sm mt-1">Cấu hình các tham số vận hành của toàn bộ nền tảng DevCine</p>

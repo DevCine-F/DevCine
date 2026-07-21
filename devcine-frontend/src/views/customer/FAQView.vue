@@ -2,6 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 const faqs = ref([])
 const loading = ref(true)
@@ -25,8 +29,8 @@ const fetchFaqs = async () => {
     faqs.value = data
     if (categories.value.length) selectedCategory.value = categories.value[0]
   } catch (e) {
-    console.error('Lỗi tải FAQ', e)
-    loadError.value = 'Không thể tải nội dung. Vui lòng thử lại.'
+    loadError.value = friendlyError(e, 'Không thể tải nội dung. Vui lòng thử lại.')
+    toast.error(loadError.value)
   } finally {
     loading.value = false
   }

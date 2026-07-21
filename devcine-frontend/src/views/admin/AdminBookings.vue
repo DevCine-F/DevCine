@@ -2,6 +2,10 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { bookingAdminApi } from '@/api/admin/index'
 import { openInvoice, paymentLabel } from '@/utils/invoiceTemplate'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
 const ticketTypeLabel = (t) => ({ ADULT: 'Người lớn', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }[t] || '')
@@ -26,15 +30,6 @@ const METHODS = ['CASH', 'CARD', 'TRANSFER', 'VNPAY']
 // Dropdown phương thức (custom — khớp theme tối)
 const methodOpen = ref(false)
 const selectMethod = (m) => { filters.method = m; methodOpen.value = false; page.value = 0; fetchBookings() }
-
-// Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 const fmtDateTime = (iso) => {
@@ -72,8 +67,9 @@ const fetchBookings = async () => {
     totalPages.value = result.totalPages ?? 1
     totalElements.value = result.totalElements ?? rows.value.length
   } catch (err) {
-    error.value = 'Không tải được danh sách hoá đơn. Kiểm tra đăng nhập/quyền hoặc khởi động lại backend.'
+    error.value = friendlyError(err, 'Không tải được danh sách hoá đơn.')
     rows.value = []
+    toast.error(error.value)
   } finally {
     isLoading.value = false
   }
@@ -104,7 +100,7 @@ const openDetail = async (bookingId) => {
     const { data } = await bookingAdminApi.detail(bookingId)
     detail.value = data.data ?? data
   } catch (err) {
-    showToast('Không tải được chi tiết hoá đơn.', 'error')
+    toast.error(friendlyError(err, 'Không tải được chi tiết hoá đơn.'))
     showDetail.value = false
   } finally {
     isLoadingDetail.value = false
@@ -157,16 +153,16 @@ const reprint = async (bookingId) => {
       const { data } = await bookingAdminApi.detail(bookingId)
       d = data.data ?? data
     } catch (err) {
-      showToast('Không tải được dữ liệu để in.', 'error')
+      toast.error(friendlyError(err, 'Không tải được dữ liệu để in.'))
       return
     }
   }
   const ok = openInvoice(buildInv(d))
-  if (!ok) showToast('Trình duyệt đã chặn cửa sổ. Hãy cho phép pop-up để in.', 'error')
+  if (!ok) toast.warning('Trình duyệt đã chặn cửa sổ. Hãy cho phép pop-up để in.')
 }
 
 const exportCsv = () => {
-  if (rows.value.length === 0) { showToast('Không có dữ liệu để xuất.', 'error'); return }
+  if (rows.value.length === 0) { toast.info('Không có dữ liệu để xuất.'); return }
   const header = ['Ma don', 'Thoi gian', 'Khach hang', 'Phim', 'So ghe', 'Phuong thuc', 'Tong tien', 'Trang thai']
   const lines = rows.value.map(r => [
     r.bookingCode, r.createdAt, r.customerName, r.movieTitle, r.seatCount,
@@ -183,7 +179,7 @@ const exportCsv = () => {
 }
 
 onMounted(fetchBookings)
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer); if (searchTimer) clearTimeout(searchTimer) })
+onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 </script>
 
 <template>
@@ -448,16 +444,6 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer); if (searchTimer) c
       </div>
     </transition>
 
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="[
-        'fixed bottom-6 right-6 z-[1300] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
-      ]">
-        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
-        {{ toast.message }}
-      </div>
-    </transition>
   </div>
 </template>
 

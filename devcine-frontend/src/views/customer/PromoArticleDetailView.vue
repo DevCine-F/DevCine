@@ -2,6 +2,10 @@
 import { ref, onMounted, computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { promoArticleApi } from '@/api/customer/index'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 const route = useRoute()
 const article = ref(null)
@@ -15,8 +19,8 @@ const fetchArticle = async () => {
     const { data } = await promoArticleApi.getDetail(route.params.id)
     article.value = data?.data ?? data
   } catch (e) {
-    console.error('Không tải được tin khuyến mãi', e)
     loadError.value = true
+    toast.error(friendlyError(e, 'Không tải được tin khuyến mãi.'))
   } finally {
     isLoading.value = false
   }

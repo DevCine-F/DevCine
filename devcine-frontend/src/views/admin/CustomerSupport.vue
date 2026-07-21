@@ -2,8 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { supportTicketApi } from '@/api/admin/index'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
 
 const { can } = useAdminPerm()
+const toast = useToastStore()
 const tickets = ref([])
 const isLoading = ref(false)
 
@@ -15,7 +19,8 @@ const fetchTickets = async () => {
     const { data } = await supportTicketApi.getAll()
     tickets.value = data.data ?? data
   } catch (e) {
-    console.error('Failed to load support tickets', e)
+    tickets.value = []
+    toast.error(friendlyError(e, 'Không tải được danh sách yêu cầu hỗ trợ.'))
   } finally {
     isLoading.value = false
   }
@@ -26,7 +31,7 @@ const updateStatus = async (ticket, newStatus) => {
     await supportTicketApi.updateStatus(ticket.id, newStatus)
     ticket.status = newStatus
   } catch (e) {
-    console.error('Failed to update ticket status', e)
+    toast.error(friendlyError(e, 'Không cập nhật được trạng thái yêu cầu.'))
   }
 }
 

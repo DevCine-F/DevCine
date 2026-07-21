@@ -2,6 +2,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { authApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 const authStore = useAuthStore()
 
@@ -18,13 +22,6 @@ const isSavingPw = ref(false)
 const showOld = ref(false)
 const showNew = ref(false)
 
-const notification = ref({ show: false, message: '', type: 'success' })
-let notifTimer = null
-const notify = (message, type = 'success') => {
-  notification.value = { show: true, message, type }
-  if (notifTimer) clearTimeout(notifTimer)
-  notifTimer = setTimeout(() => { notification.value.show = false }, 3000)
-}
 
 const roleLabel = computed(() => {
   const r = (profile.value?.role || authStore.role || '').toUpperCase()
@@ -53,14 +50,14 @@ const loadProfile = async () => {
     infoForm.email = profile.value.email || ''
     infoForm.phone = profile.value.phone || ''
   } catch (err) {
-    notify('Không tải được thông tin tài khoản.', 'error')
+    toast.error(friendlyError(err, 'Không tải được thông tin tài khoản.'))
   } finally {
     isLoading.value = false
   }
 }
 
 const handleSaveInfo = async () => {
-  if (!infoForm.fullName.trim()) { notify('Họ tên không được để trống.', 'error'); return }
+  if (!infoForm.fullName.trim()) { toast.warning('Họ tên không được để trống.'); return }
   isSavingInfo.value = true
   try {
     const { data } = await authApi.updateProfile({
@@ -74,25 +71,25 @@ const handleSaveInfo = async () => {
     const u = { ...authStore.user, fullName: profile.value.fullName, email: profile.value.email }
     authStore.user = u
     localStorage.setItem('user', JSON.stringify(u))
-    notify('Cập nhật thông tin thành công!')
+    toast.success('Cập nhật thông tin thành công!')
   } catch (err) {
-    notify(err.response?.data?.message || 'Cập nhật thất bại.', 'error')
+    toast.error(friendlyError(err, 'Cập nhật thất bại.'))
   } finally {
     isSavingInfo.value = false
   }
 }
 
 const handleChangePassword = async () => {
-  if (!pwForm.oldPassword || !pwForm.newPassword) { notify('Vui lòng nhập đủ mật khẩu.', 'error'); return }
-  if (pwForm.newPassword.length < 3) { notify('Mật khẩu mới quá ngắn.', 'error'); return }
-  if (pwForm.newPassword !== pwForm.confirmPassword) { notify('Xác nhận mật khẩu không khớp.', 'error'); return }
+  if (!pwForm.oldPassword || !pwForm.newPassword) { toast.warning('Vui lòng nhập đủ mật khẩu.'); return }
+  if (pwForm.newPassword.length < 3) { toast.warning('Mật khẩu mới quá ngắn.'); return }
+  if (pwForm.newPassword !== pwForm.confirmPassword) { toast.warning('Xác nhận mật khẩu không khớp.'); return }
   isSavingPw.value = true
   try {
     await authApi.changePassword(authStore.user.id, pwForm.oldPassword, pwForm.newPassword)
     pwForm.oldPassword = ''; pwForm.newPassword = ''; pwForm.confirmPassword = ''
-    notify('Đổi mật khẩu thành công!')
+    toast.success('Đổi mật khẩu thành công!')
   } catch (err) {
-    notify(err.response?.data?.message || 'Đổi mật khẩu thất bại.', 'error')
+    toast.error(friendlyError(err, 'Đổi mật khẩu thất bại.'))
   } finally {
     isSavingPw.value = false
   }
@@ -103,12 +100,6 @@ onMounted(loadProfile)
 
 <template>
   <div class="p-10">
-    <!-- Toast -->
-    <div v-if="notification.show" :class="[notification.type === 'success' ? 'bg-green-950/80 border-green-500 text-green-300' : 'bg-red-950/80 border-red-500 text-red-300', 'fixed top-24 right-10 z-50 flex items-center gap-3 px-6 py-4 rounded-xl border backdrop-blur-md shadow-2xl animate-slide-in']">
-      <span class="material-symbols-outlined text-xl">{{ notification.type === 'success' ? 'check_circle' : 'error' }}</span>
-      <span class="text-xs font-bold uppercase tracking-wider">{{ notification.message }}</span>
-    </div>
-
     <header class="mb-12 text-on-surface">
       <h1 class="text-3xl font-extrabold tracking-tight font-headline uppercase">Tài khoản của tôi</h1>
       <p class="text-on-surface-variant text-sm mt-1">Quản lý thông tin cá nhân và bảo mật tài khoản quản trị</p>

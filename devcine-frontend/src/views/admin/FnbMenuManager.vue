@@ -4,6 +4,8 @@ import api from '@/api/axios'
 import { fnbApi } from '@/api/admin/index'
 import { prepareImageForUpload } from '@/utils/imageUpload'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const { can } = useAdminPerm()
 const items = ref([])
@@ -25,13 +27,7 @@ const typeOptions = [
 const typeLabel = (t) => (typeOptions.find(o => o.value === t)?.label) || t || '—'
 
 // Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
+const toast = useToastStore()
 
 const fetchItems = async () => {
   isLoading.value = true
@@ -40,7 +36,8 @@ const fetchItems = async () => {
     const { data } = await fnbApi.getAll()
     items.value = data.data ?? data
   } catch (err) {
-    error.value = 'Không thể tải thực đơn F&B.'
+    error.value = friendlyError(err, 'Không thể tải thực đơn F&B.')
+    toast.error(error.value)
   } finally {
     isLoading.value = false
   }
@@ -72,7 +69,7 @@ const handleUpload = async (event) => {
   try {
     prepared = await prepareImageForUpload(file)
   } catch (err) {
-    showToast(err.message, 'error')
+    toast.error(friendlyError(err, 'Ảnh không hợp lệ.'))
     event.target.value = ''
     return
   }
@@ -83,7 +80,7 @@ const handleUpload = async (event) => {
     const { data } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     form.value.imageUrl = data.url
   } catch (err) {
-    showToast('Tải ảnh thất bại.', 'error')
+    toast.error(friendlyError(err, 'Tải ảnh thất bại.'))
   } finally {
     isUploading.value = false
   }
@@ -91,7 +88,7 @@ const handleUpload = async (event) => {
 
 const handleSave = async () => {
   if (!form.value.name?.trim() || form.value.price == null) {
-    showToast('Vui lòng nhập tên và giá.', 'error')
+    toast.warning('Vui lòng nhập tên và giá.')
     return
   }
   isSaving.value = true
@@ -106,15 +103,15 @@ const handleSave = async () => {
     }
     if (editingId.value) {
       await fnbApi.update(editingId.value, payload)
-      showToast('Cập nhật món thành công.')
+      toast.success('Cập nhật món thành công.')
     } else {
       await fnbApi.create(payload)
-      showToast('Thêm món thành công.')
+      toast.success('Thêm món thành công.')
     }
     isDrawerOpen.value = false
     await fetchItems()
   } catch (err) {
-    showToast(err.response?.data?.message || 'Lưu thất bại.', 'error')
+    toast.error(friendlyError(err, 'Lưu thất bại.'))
   } finally {
     isSaving.value = false
   }
@@ -125,7 +122,7 @@ const toggleActive = async (item) => {
     await fnbApi.update(item.id, { isActive: !(item.isActive !== false) })
     await fetchItems()
   } catch (err) {
-    showToast('Đổi trạng thái thất bại.', 'error')
+    toast.error(friendlyError(err, 'Đổi trạng thái thất bại.'))
   }
 }
 
@@ -136,11 +133,11 @@ const confirmDelete = async () => {
   isDeleting.value = true
   try {
     await fnbApi.delete(deleteTarget.value.id)
-    showToast('Đã xoá món.')
+    toast.success('Đã xoá món.')
     deleteTarget.value = null
     await fetchItems()
   } catch (err) {
-    showToast('Không thể xoá (món có thể đang được dùng trong đơn/kho). Hãy ẩn món thay vì xoá.', 'error')
+    toast.error(friendlyError(err, 'Không thể xoá (món có thể đang nằm trong đơn). Hãy ẩn món thay vì xoá.'))
     deleteTarget.value = null
   } finally {
     isDeleting.value = false
@@ -150,7 +147,7 @@ const confirmDelete = async () => {
 const formatPrice = (n) => (n != null ? Number(n).toLocaleString('vi-VN') + 'đ' : '')
 
 onMounted(fetchItems)
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
+
 </script>
 
 <template>
@@ -293,15 +290,6 @@ onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
     </div>
 
     <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="[
-        'fixed bottom-6 right-6 z-[1100] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-300' : 'bg-red-500/15 border-red-500/30 text-red-300'
-      ]">
-        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
-        {{ toast.message }}
-      </div>
-    </transition>
   </div>
 </template>
 

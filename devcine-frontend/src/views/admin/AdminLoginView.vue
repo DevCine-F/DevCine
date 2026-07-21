@@ -9,6 +9,7 @@ import AppToast from '@/components/common/AppToast.vue'
 import { authApi } from '@/api/customer/index'
 import adminRoutes from '@/routers/admin'
 import { resolveFirstAccessibleAdminPath } from '@/utils/adminAccess'
+import { friendlyError } from '@/utils/friendlyError'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -117,7 +118,7 @@ const loginAsAdmin = async (e) => {
     toast.success('Đăng nhập thành công! Chào mừng bạn đã trở lại.')
     router.push(resolveFirstAccessibleAdminPath(adminRoutes, authStore))
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Số điện thoại/email hoặc mật khẩu không đúng.')
+    toast.error(friendlyError(err, 'Tên đăng nhập hoặc mật khẩu không đúng.'))
   } finally {
     isLoading.value = false
   }

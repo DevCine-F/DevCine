@@ -2,8 +2,11 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import axios from "@/api/axios";
 import { useAdminPerm } from "@/composables/useAdminPerm";
+import { useToastStore } from "@/stores/toast";
+import { friendlyError } from "@/utils/friendlyError";
 
 const { can } = useAdminPerm();
+const toast = useToastStore();
 const range = ref("today");
 const isLoading = ref(true);
 const loadError = ref(false);
@@ -169,8 +172,8 @@ const fetchStats = async () => {
     const res = await axios.get("/dashboard/stats", { params });
     data.value = res.data;
   } catch (error) {
-    console.error("Failed to fetch dashboard stats", error);
     loadError.value = true;
+    toast.error(friendlyError(error, "Không tải được số liệu tổng quan."));
   } finally {
     isLoading.value = false;
   }

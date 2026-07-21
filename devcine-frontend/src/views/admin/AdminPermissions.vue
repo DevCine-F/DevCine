@@ -1,6 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { rolePermissionApi } from '@/api/admin/index'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 // --- DỮ LIỆU CẤU TRÚC ---
 // Vai trò được nạp động từ backend (id là số, kèm ma trận quyền hiện tại)
@@ -118,7 +122,7 @@ const fetchRoles = async () => {
       activeRole.value = roles.value[0].id
     }
   } catch (err) {
-    console.error('Không tải được danh sách vai trò', err)
+    toast.error(friendlyError(err, 'Không tải được danh sách vai trò.'))
   } finally {
     isLoading.value = false
   }
@@ -133,7 +137,7 @@ const fetchStaffUsers = async () => {
       activeUserId.value = staffUsers.value[0].id
     }
   } catch (err) {
-    console.error('Không tải được danh sách nhân viên', err)
+    toast.error(friendlyError(err, 'Không tải được danh sách nhân viên.'))
   }
 }
 
@@ -151,7 +155,7 @@ const fetchUserPermissionConfig = async () => {
       effectivePermissions: payload.effectivePermissions || {}
     }
   } catch (err) {
-    console.error('Không tải được quyền riêng của nhân viên', err)
+    toast.error(friendlyError(err, 'Không tải được quyền riêng của nhân viên.'))
   } finally {
     isLoading.value = false
   }
@@ -399,7 +403,8 @@ const saveChanges = async () => {
       saveMessage.value = `Đã lưu quyền riêng cho ${activeUserData.value?.fullName || 'nhân viên'}`
       setTimeout(() => { saveMessage.value = '' }, 3000)
     } catch (err) {
-      saveMessage.value = err.response?.data?.message || 'Lưu quyền riêng thất bại.'
+      saveMessage.value = friendlyError(err, 'Lưu quyền riêng thất bại.')
+      toast.error(saveMessage.value)
     } finally {
       isSaving.value = false
     }
@@ -423,7 +428,8 @@ const saveChanges = async () => {
     saveMessage.value = `Đã lưu phân quyền cho vai trò ${roleName}`
     setTimeout(() => { saveMessage.value = '' }, 3000)
   } catch (err) {
-    saveMessage.value = err.response?.data?.message || 'Lưu phân quyền thất bại.'
+    saveMessage.value = friendlyError(err, 'Lưu phân quyền thất bại.')
+    toast.error(saveMessage.value)
   } finally {
     isSaving.value = false
   }

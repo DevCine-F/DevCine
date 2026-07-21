@@ -137,7 +137,7 @@ const fetchReviews = async (movieId) => {
     const { data } = await reviewApi.getForMovie(movieId)
     reviewsData.value = data.data ?? data
   } catch (e) {
-    console.error('Không tải được đánh giá', e)
+    toast.error(friendlyError(e, 'Không tải được đánh giá phim.'))
   }
 }
 

@@ -59,7 +59,7 @@ const fetchPointHistory = async () => {
     const { data } = await customerApi.pointHistory(authStore.user.id)
     pointHistory.value = Array.isArray(data) ? data : (data?.data ?? [])
   } catch (err) {
-    console.error('Failed to fetch point history', err)
+    toast.error(friendlyError(err, 'Không tải được lịch sử điểm thưởng.'))
   } finally {
     isLoadingHistory.value = false
   }

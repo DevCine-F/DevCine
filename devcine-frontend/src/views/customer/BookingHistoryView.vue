@@ -3,6 +3,10 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { bookingApi } from '@/api/customer/index'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
+
+const toast = useToastStore()
 
 // preview: chế độ nhúng (vd. trang Thông tin cá nhân) — chỉ hiện 3 lượt gần nhất,
 // ẩn tab lọc và hiển thị CTA chuyển sang trang Lịch sử đặt vé đầy đủ.
@@ -76,7 +80,8 @@ const fetchHistory = async () => {
     const { data } = await bookingApi.getHistory(authStore.user.id)
     bookings.value = data
   } catch (err) {
-    error.value = 'Không thể tải lịch sử đặt vé. Vui lòng thử lại.'
+    error.value = friendlyError(err, 'Không thể tải lịch sử đặt vé. Vui lòng thử lại.')
+    toast.error(error.value)
   } finally {
     isLoading.value = false
   }

@@ -4,6 +4,8 @@ import { ticketingApi, settingsApi, approvalApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useShiftStore } from '@/stores/shift'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
 const shiftStore = useShiftStore()
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
@@ -52,14 +54,9 @@ const canUseFnb = computed(() => shiftStore.canUse(['FNB']))
 const isLocked = computed(() => !canUseTicketing.value && !canUseFnb.value)
 const lockedMessage = computed(() => shiftStore.lockedMessage('bán vé POS hoặc quầy F&B'))
 
-// Toast
-const toast = ref({ show: false, type: 'success', message: '' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, type, message }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
+const toastStore = useToastStore()
+// Giữ tên showToast để không phải sửa ~40 lời gọi rải khắp file
+const showToast = (message, type = 'success') => toastStore.push(message, type)
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
 
@@ -266,7 +263,7 @@ const holdCurrentOrder = async () => {
       })
       bookingId = data.bookingId
     } catch (err) {
-      showToast(err.response?.data?.message || 'Không giữ được ghế (có thể vừa bị đặt).', 'error')
+      showToast(friendlyError(err, 'Không giữ được ghế (có thể vừa bị đặt).'), 'error')
       return
     } finally {
       isHolding.value = false
@@ -473,7 +470,7 @@ const handleRequestVoid = async () => {
     showVoidForm.value = false
     showToast('Đã gửi yêu cầu hủy — chờ Trưởng ca duyệt.', 'success')
   } catch (e) {
-    showToast(e?.response?.data?.message || 'Gửi yêu cầu hủy thất bại.', 'error')
+    showToast(friendlyError(e, 'Gửi yêu cầu hủy thất bại.'), 'error')
   } finally {
     isRequestingVoid.value = false
   }
@@ -531,7 +528,7 @@ const processConcessionPayment = async (method) => {
     showQrModal.value = false
     fnbStep.value = 3
   } catch (err) {
-    showToast(err.response?.data?.message || 'Thanh toán thất bại.', 'error')
+    showToast(friendlyError(err, 'Thanh toán thất bại.'), 'error')
   } finally {
     isPaying.value = false
   }
@@ -942,7 +939,7 @@ const applyVoucher = async () => {
     loadOwnedVouchers()
   } catch (e) {
     appliedVoucher.value = null
-    voucherError.value = e.response?.data?.message || 'Mã không hợp lệ hoặc không áp dụng được.'
+    voucherError.value = friendlyError(e, 'Mã không hợp lệ hoặc không áp dụng được.')
   } finally {
     isApplyingVoucher.value = false
   }
@@ -984,7 +981,7 @@ const processPayment = async (method) => {
     showQrModal.value = false
     currentStep.value = 6
   } catch (err) {
-    showToast(err.response?.data?.message || 'Thanh toán thất bại (ghế có thể đã bán).', 'error')
+    showToast(friendlyError(err, 'Thanh toán thất bại (ghế có thể đã bán).'), 'error')
   } finally {
     isPaying.value = false
   }
@@ -1314,7 +1311,6 @@ onMounted(() => {
   nowTimer = setInterval(() => { nowTs.value = Date.now(); sweepExpiredHolds() }, 1000)
 })
 onUnmounted(() => {
-  if (toastTimer) clearTimeout(toastTimer)
   stopHoldTimer()
   stopSeatPolling()
   if (nowTimer) clearInterval(nowTimer)
@@ -2221,17 +2217,6 @@ onUnmounted(() => {
             <AppButton variant="primary" class="flex-1 !bg-red-500 !border-red-500" @click="confirmDeleteHeldOrder">Huỷ đơn</AppButton>
           </div>
         </div>
-      </div>
-    </transition>
-
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast.show" :class="[
-        'fixed top-20 right-6 z-[1300] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 border',
-        toast.type === 'success' ? 'bg-green-600 border-green-400 text-white' : 'bg-red-600 border-red-400 text-white'
-      ]">
-        <span class="material-symbols-outlined text-base">{{ toast.type === 'success' ? 'check_circle' : 'error' }}</span>
-        {{ toast.message }}
       </div>
     </transition>
   </div>

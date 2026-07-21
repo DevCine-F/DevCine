@@ -1,7 +1,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { customerApi } from '@/api/admin/index'
+import { useToastStore } from '@/stores/toast'
+import { friendlyError } from '@/utils/friendlyError'
 
+const toast = useToastStore()
 const customers = ref([])
 const isLoading = ref(false)
 const error = ref('')
@@ -31,7 +34,9 @@ const fetchCustomers = async () => {
     const { data } = await customerApi.list(searchQuery.value)
     customers.value = data.data ?? data
   } catch (err) {
-    error.value = 'Không thể tải danh sách khách hàng.'
+    error.value = friendlyError(err, 'Không thể tải danh sách khách hàng.')
+    customers.value = []
+    toast.error(error.value)
   } finally {
     isLoading.value = false
   }
