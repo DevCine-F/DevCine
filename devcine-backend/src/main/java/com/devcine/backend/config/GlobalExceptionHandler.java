@@ -5,9 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,6 +46,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleConflict(IllegalStateException ex) {
         String message = ex.getMessage() != null ? ex.getMessage() : "Không thể thực hiện thao tác do xung đột trạng thái.";
         return new ResponseEntity<>(ApiResponse.fail(message), HttpStatus.CONFLICT);
+    }
+
+    /**
+     * URL không khớp handler nào → 404. Không có handler riêng thì nó rơi vào
+     * {@link #handleAllExceptions} và thành 500 "Lỗi hệ thống nội bộ" — gõ nhầm địa chỉ
+     * mà báo sập hệ thống là sai và gây hoang mang.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(NoResourceFoundException ex) {
+        return new ResponseEntity<>(ApiResponse.fail("Không tìm thấy đường dẫn yêu cầu."), HttpStatus.NOT_FOUND);
+    }
+
+    /** Đúng đường dẫn nhưng sai phương thức (vd: GET vào endpoint chỉ nhận POST) → 405. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        return new ResponseEntity<>(ApiResponse.fail("Phương thức " + ex.getMethod() + " không được hỗ trợ cho đường dẫn này."),
+                HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     @ExceptionHandler(Exception.class)
