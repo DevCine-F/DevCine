@@ -103,7 +103,8 @@ const revenueLabel = computed(() =>
 const kpiCards = computed(() => [
   { id: "revenue", label: revenueLabel.value, item: data.value.revenue, icon: "payments", color: "primary" },
   { id: "tickets", label: "Vé đã bán", item: data.value.tickets, icon: "confirmation_number", color: "blue" },
-  { id: "users", label: "Người dùng mới", item: data.value.newUsers, icon: "person_add", color: "purple" },
+  // Khách lần đầu giao dịch tại cơ sở — không phải số tài khoản mới đăng ký
+  { id: "users", label: "Khách mới của cơ sở", item: data.value.newUsers, icon: "person_add", color: "purple" },
   { id: "occupancy", label: "Tỷ lệ lấp đầy", item: data.value.occupancy, icon: "chair", color: "orange" },
 ]);
 

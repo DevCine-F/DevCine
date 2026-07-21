@@ -5,7 +5,6 @@ import com.devcine.backend.entity.Booking;
 import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
-import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.service.DashboardService;
 import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ import java.util.Map;
 public class DashboardServiceImpl implements DashboardService {
 
     private final BookingRepository bookingRepository;
-    private final UserRepository userRepository;
     private final ShowtimeRepository showtimeRepository;
 
     @Override
@@ -49,8 +47,10 @@ public class DashboardServiceImpl implements DashboardService {
         long ticketCount = bookingRepository.countTicketsByDateRange(w.start, w.end, cinemaId);
         long prevTicketCount = bookingRepository.countTicketsByDateRange(w.prevStart, w.prevEnd, cinemaId);
 
-        long newUsers = userRepository.countNewUsersByDateRange(w.start, w.end);
-        long prevNewUsers = userRepository.countNewUsersByDateRange(w.prevStart, w.prevEnd);
+        // "Khách mới của cơ sở" = lần đầu giao dịch tại đây, KHÔNG phải số tài khoản mới đăng ký:
+        // khách đăng ký tài khoản cho cả hệ thống nên con số đó vô nghĩa với một quản lý cơ sở.
+        long newUsers = bookingRepository.countNewCustomersByDateRange(w.start, w.end, cinemaId);
+        long prevNewUsers = bookingRepository.countNewCustomersByDateRange(w.prevStart, w.prevEnd, cinemaId);
 
         long totalSeats = showtimeRepository.countTotalSeatsByDateRange(w.start, w.end, cinemaId);
         double occupancy = totalSeats > 0 ? (double) ticketCount / totalSeats * 100 : 0;

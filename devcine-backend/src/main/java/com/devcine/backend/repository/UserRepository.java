@@ -38,6 +38,4 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     List<User> findByEmailIgnoreCase(@Param("email") String email);
 
-    @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt >= :startDate AND u.createdAt <= :endDate AND u.role.id = 3")
-    long countNewUsersByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

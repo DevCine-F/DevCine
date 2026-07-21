@@ -47,6 +47,25 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId")
     long countTicketsByStaffSchedule(@Param("staffScheduleId") Integer staffScheduleId);
 
+    /**
+     * Khách LẦN ĐẦU giao dịch tại cơ sở trong khoảng đã chọn.
+     *
+     * <p>Không phải "số khách khác nhau có đơn trong khoảng" — điều kiện NOT EXISTS loại bỏ những
+     * khách đã từng mua ở chính cơ sở đó TRƯỚC mốc bắt đầu. Đơn khách vãng lai tại quầy không có
+     * customer nên bị loại: không định danh được thì không đếm là khách mới.</p>
+     */
+    @Query("SELECT COUNT(DISTINCT b.customer.userId) FROM Booking b "
+           + "WHERE b.status = 'CONFIRMED' AND b.customer IS NOT NULL "
+           + "AND b.createdAt >= :startDate AND b.createdAt <= :endDate "
+           + "AND (:cinemaId IS NULL OR b.showtime.room.cinema.id = :cinemaId) "
+           + "AND NOT EXISTS (SELECT 1 FROM Booking pb "
+           + "                WHERE pb.status = 'CONFIRMED' "
+           + "                  AND pb.customer.userId = b.customer.userId "
+           + "                  AND pb.createdAt < :startDate "
+           + "                  AND (:cinemaId IS NULL OR pb.showtime.room.cinema.id = :cinemaId))")
+    long countNewCustomersByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+                                      @Param("cinemaId") Integer cinemaId);
+
     // Gộp doanh thu theo ngày trong 1 query (thay 7 query trong vòng lặp dashboard)
     @Query("SELECT CAST(b.createdAt AS date), COALESCE(SUM(b.finalPrice), 0) FROM Booking b " +
            "WHERE b.status = 'CONFIRMED' AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
