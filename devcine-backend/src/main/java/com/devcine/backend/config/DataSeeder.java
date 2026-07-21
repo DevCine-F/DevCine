@@ -854,14 +854,23 @@ public class DataSeeder {
                 }
             }
 
-            // Seed 1 tài khoản Quản lý (MANAGER) demo cho cơ sở 1 (idempotent theo username)
-            if (!userRepository.existsByUsername("ql_minh") && !userRepository.existsByEmail("quanly.minh@devcine.com")) {
-                Cinema managerCinema = cinemaRepository.findById(1).orElse(null);
+            // Seed tài khoản Quản lý (MANAGER) demo — MỖI cơ sở một người, để panel "Đăng nhập nhanh"
+            // ở màn login có đủ cặp vai trò × cơ sở. Idempotent theo username + email.
+            // {username, fullName, email, phone, staffCode, cinemaId}
+            Object[][] managerSeeds = {
+                    {"ql_minh", "Đỗ Hoàng Minh", "quanly.minh@devcine.com", "0906123456", "QL001", 1},
+                    {"ql_ngan", "Bùi Thị Kim Ngân", "quanly.ngan@devcine.com", "0906234567", "QL002", 2}
+            };
+            for (Object[] md : managerSeeds) {
+                String mgrUsername = (String) md[0];
+                String mgrEmail = (String) md[2];
+                if (userRepository.existsByUsername(mgrUsername) || userRepository.existsByEmail(mgrEmail)) continue;
+                Integer cinemaId = (Integer) md[5];
                 User mgrUser = User.builder()
-                        .username("ql_minh")
-                        .email("quanly.minh@devcine.com")
-                        .fullName("Đỗ Hoàng Minh")
-                        .phone("0906123456")
+                        .username(mgrUsername)
+                        .email(mgrEmail)
+                        .fullName((String) md[1])
+                        .phone((String) md[3])
                         .passwordHash(passwordEncoder.encode("Manager@123"))
                         .role(managerRole)
                         .isActive(true)
@@ -870,10 +879,11 @@ public class DataSeeder {
                 userRepository.save(mgrUser);
                 staffRepository.save(Staff.builder()
                         .user(mgrUser)
-                        .staffCode("QL001")
-                        .cinema(managerCinema)
+                        .staffCode((String) md[4])
+                        .cinema(cinemaRepository.findById(cinemaId).orElse(null))
                         .build());
-                System.out.println("Đã seed tài khoản Quản lý demo (ql_minh / Manager@123) cho cơ sở 1.");
+                System.out.println("Đã seed tài khoản Quản lý demo (" + mgrUsername
+                        + " / Manager@123) cho cơ sở " + cinemaId + ".");
             }
 
             // ===== Seed CA LÀM demo (idempotent, cuốn chiếu) — từ hôm nay tới Thứ Ba tuần sau =====

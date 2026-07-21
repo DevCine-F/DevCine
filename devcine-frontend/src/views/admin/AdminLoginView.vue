@@ -55,12 +55,16 @@ const showPassword = ref(false)
 const isLoading = ref(false)
 const rememberMe = ref(false)
 
-// Dev Mode: đăng nhập nhanh theo 3 vai trò (chỉ dùng khi phát triển)
+// Dev Mode: đăng nhập nhanh theo vai trò × cơ sở (chỉ dùng khi phát triển).
+// Tài khoản khớp DataSeeder — sửa ở đây thì phải sửa cả seeder, nếu không nút sẽ đăng nhập hỏng.
+// Nhân viên chọn người giữ vị trí SHIFT_LEAD để demo được cả quyền phê duyệt trong ca.
 const showQuickMenu = ref(false)
 const quickAccounts = [
-  { label: 'Quản trị', role: 'ADMIN', user: 'admin', pass: '123' },
-  { label: 'Quản lý', role: 'MANAGER', user: 'manager', pass: '123' },
-  { label: 'Nhân viên', role: 'STAFF', user: 'staff', pass: '123' },
+  { label: 'Quản trị', scope: 'Toàn hệ thống', user: 'admin', pass: '123' },
+  { label: 'Quản lý', scope: 'Landmark 81', user: 'ql_minh', pass: 'Manager@123' },
+  { label: 'Quản lý', scope: 'Bitexco', user: 'ql_ngan', pass: 'Manager@123' },
+  { label: 'Nhân viên', scope: 'Landmark 81', user: 'nv_minh', pass: 'Staff@123' },
+  { label: 'Nhân viên', scope: 'Bitexco', user: 'nv_dat', pass: 'Staff@123' },
 ]
 const quickLogin = (acc) => {
   username.value = acc.user
@@ -181,12 +185,15 @@ const loginAsAdmin = async (e) => {
     <!-- Quick Access (Dev Only) -->
     <div class="absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2">
       <!-- Menu chọn vai trò đăng nhập nhanh -->
-      <div v-if="showQuickMenu" class="w-44 bg-neutral-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black">
+      <div v-if="showQuickMenu" class="w-60 bg-neutral-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black">
         <p class="px-3 pt-2.5 pb-1 text-[10px] uppercase tracking-widest text-white/40 font-bold">Đăng nhập nhanh</p>
-        <button v-for="acc in quickAccounts" :key="acc.role" type="button" @click="quickLogin(acc)"
-                class="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-white/5 transition-colors text-left">
-          <span class="text-xs font-bold text-white">{{ acc.label }}</span>
-          <span class="text-[10px] text-white/40 font-mono">{{ acc.user }}</span>
+        <button v-for="acc in quickAccounts" :key="acc.user" type="button" @click="quickLogin(acc)"
+                class="w-full flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left">
+          <span class="min-w-0">
+            <span class="block text-xs font-bold text-white">{{ acc.label }}</span>
+            <span class="block text-[10px] text-white/40 truncate">{{ acc.scope }}</span>
+          </span>
+          <span class="text-[10px] text-white/40 font-mono shrink-0">{{ acc.user }}</span>
         </button>
       </div>
       <button type="button" @click="showQuickMenu = !showQuickMenu"
