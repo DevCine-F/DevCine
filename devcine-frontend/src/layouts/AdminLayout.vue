@@ -23,6 +23,9 @@ const accountRole = computed(() => {
   return 'Nhân viên'
 })
 
+// Topbar hiện cơ sở của tài khoản; ADMIN không thuộc cơ sở nào nên giữ nhãn hệ thống
+const workplaceLabel = computed(() => authStore.cinemaName || 'Quản lý DevCine V2.1')
+
 const firstAccessiblePath = computed(() => resolveFirstAccessibleAdminPath(adminRoutes, authStore))
 
 const canShow = (feature, action = 'view') => canUseAdminPermission(authStore, { feature, action })
@@ -213,7 +216,10 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
       
       <!-- Enterprise Topbar -->
       <header class="h-16 border-b border-outline-variant/10 bg-surface/95 backdrop-blur flex-shrink-0 sticky top-0 z-[100] flex justify-between items-center px-8">
-        <div class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant italic">Quản lý DevCine V2.1</div>
+        <div class="flex items-center gap-2 min-w-0">
+          <span v-if="authStore.cinemaName" class="material-symbols-outlined text-primary text-base shrink-0">store</span>
+          <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant italic truncate">{{ workplaceLabel }}</span>
+        </div>
         
         <div class="flex items-center gap-6">
           <!-- Theme Toggle -->

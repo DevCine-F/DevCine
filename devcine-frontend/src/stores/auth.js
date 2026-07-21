@@ -16,6 +16,8 @@ export const useAuthStore = defineStore('auth', {
     isAdmin: (state) => state.role === 'admin',
     isManager: (state) => state.role === 'manager',
     isStaff: (state) => state.role === 'staff',
+    // Cơ sở của tài khoản đang đăng nhập. ADMIN không thuộc cơ sở nào -> null.
+    cinemaName: (state) => state.user?.cinemaName || null,
     hasPermission: (state) => (feature, action = 'view') => {
       if (state.role === 'admin') return true
       const actions = state.permissions?.[feature]

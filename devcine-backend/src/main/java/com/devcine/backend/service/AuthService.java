@@ -96,11 +96,14 @@ public class AuthService {
 
         String role = user.getRole().getName();
         Integer cinemaId = null;
-        // STAFF và MANAGER đều gắn với một cơ sở (bản ghi Staff) -> nạp cinemaId để scoping theo cơ sở
+        String cinemaName = null;
+        // STAFF và MANAGER đều gắn với một cơ sở (bản ghi Staff) -> nạp cinemaId để scoping theo cơ sở.
+        // Tên cơ sở trả kèm cho FE hiển thị trên topbar (ADMIN không thuộc cơ sở nào -> null).
         if ("STAFF".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role)) {
             Staff staff = staffRepository.findById(user.getId()).orElse(null);
             if (staff != null && staff.getCinema() != null) {
                 cinemaId = staff.getCinema().getId();
+                cinemaName = staff.getCinema().getName();
             }
         }
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), role, cinemaId);
@@ -118,6 +121,8 @@ public class AuthService {
         userMap.put("fullName", user.getFullName());
         userMap.put("role", role);
         userMap.put("mustChangePassword", Boolean.TRUE.equals(user.getMustChangePassword()));
+        userMap.put("cinemaId", cinemaId);
+        userMap.put("cinemaName", cinemaName);
         return Map.of("token", token, "user", userMap);
     }
 
