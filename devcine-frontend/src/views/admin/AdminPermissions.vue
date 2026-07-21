@@ -33,8 +33,10 @@ const features = ref([
   // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng Trưởng ca duyệt)
   { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add'],
     labels: { view: 'Vào quầy & xem suất chiếu', add: 'Tạo đơn / bán vé & F&B' } },
-  { id: 'pos_inventory', moduleId: 'pos', name: 'Kiểm kê & Kho F&B', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem tồn kho', add: 'Nhập kho', edit: 'Kiểm kê / điều chỉnh', delete: 'Xoá phiếu kho' } },
+  // KHÔNG phải kho: tồn kho vô hạn, module Kho/BOM đã gỡ. Đây là quản trị THỰC ĐƠN (món & combo).
+  { id: 'fnb_menu', moduleId: 'pos', name: 'Thực đơn F&B (món & combo)', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem toàn bộ thực đơn (kể cả món ẩn)', add: 'Thêm món / combo',
+      edit: 'Sửa món — tên, GIÁ, ảnh, ẩn/hiện', delete: 'Xoá món khỏi thực đơn' } },
 
   { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'],
     labels: { view: 'Xem danh sách phim', add: 'Thêm phim', edit: 'Sửa thông tin phim', delete: 'Xoá / ẩn phim' } },

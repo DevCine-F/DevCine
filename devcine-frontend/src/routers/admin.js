@@ -87,7 +87,7 @@ export default [
       {
         path: 'fnb',
         name: 'admin-fnb',
-        meta: { permission: { feature: 'pos_inventory', action: 'view' } },
+        meta: { permission: { feature: 'fnb_menu', action: 'view' } },
         component: () => import('../views/admin/FnbMenuManager.vue')
       },
       {

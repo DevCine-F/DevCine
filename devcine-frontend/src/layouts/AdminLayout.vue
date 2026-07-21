@@ -109,7 +109,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
         </router-link>
 
         <!-- ===== RẠP & HẠ TẦNG ===== -->
-        <div v-if="canShowAny(['cinemas', 'pos_inventory'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Rạp & Hạ tầng</div>
+        <div v-if="canShowAny(['cinemas', 'fnb_menu'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Rạp & Hạ tầng</div>
 
         <router-link v-if="canShow('cinemas')" to="/admin/cinemas" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">theater_comedy</span>
@@ -121,7 +121,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Sơ đồ ghế</span>
         </router-link>
 
-        <router-link v-if="canShow('pos_inventory')" to="/admin/fnb" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('fnb_menu')" to="/admin/fnb" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">fastfood</span>
           <span class="font-semibold text-sm">Thực đơn F&B / Combo</span>
         </router-link>

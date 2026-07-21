@@ -101,7 +101,7 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 
 ### 4.2.1 Hoàn thiện đợt 19/06/2026 (FE↔BE↔DB thật)
 - **POS Bán vé (TicketingPOS):** rewrite hoàn chỉnh — dùng `ticketingApi` (axios có token), ghế thật từ `/api/seats/showtime/{id}`, combo thật từ `/api/fnbs`, tra cứu thành viên để tích điểm, CASH/CARD, tái dùng `BookingService.holdSeats`+`completePayment` (tạo booking CONFIRMED, trừ kho BOM). Đã verify 1 đơn thật.
-- **Thực đơn F&B/Combo:** `FnbItem` thêm `imageUrl/description/isActive`; `FnbController` CRUD đầy đủ (`/api/fnbs` công khai active, ghi bảo vệ bằng method security `pos_inventory`). Admin UI mới `FnbMenuManager.vue` (`/admin/fnb`). Booking thêm bước chọn combo có ảnh/mô tả.
+- **Thực đơn F&B/Combo:** `FnbItem` thêm `imageUrl/description/isActive`; `FnbController` CRUD đầy đủ (`/api/fnbs` công khai active, ghi bảo vệ bằng method security `fnb_menu`, tên cũ `pos_inventory` đổi 21/07/2026). Admin UI mới `FnbMenuManager.vue` (`/admin/fnb`). Booking thêm bước chọn combo có ảnh/mô tả.
 - **Voucher & Loyalty:** "Voucher của tôi" (`VouchersView`) nối API thật + tab "Đổi điểm lấy ưu đãi" (`VoucherService.redeemWithPoints`); nhập/tra cứu mã (`/api/vouchers/lookup` + `/claim`); áp voucher ở checkout (`/api/vouchers/apply`); sửa bug giảm-giá-2-lần ở VNPAY (tách `finalPrice` khỏi `totalPrice`). Phân tách voucher công khai (đổi điểm) vs mã bí mật (tự nhập).
 - **Admin Khuyến mãi (`AdminPromotions`):** nối API thật tab Voucher (CRUD Promotion + phát voucher cho khách). Thêm cột `Promotion.allowPointRedemption`.
 - **Quản lý khách hàng (mới):** `AdminCustomers.vue` (`/admin/customers`) + `GET /api/customers` (JOIN FETCH, hiển thị hạng/điểm).

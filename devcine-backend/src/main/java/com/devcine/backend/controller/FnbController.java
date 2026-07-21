@@ -12,6 +12,12 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Quản trị THỰC ĐƠN F&B (món & combo) — tên, giá, ảnh, ẩn/hiện. Không phải kho:
+ * tồn kho là VÔ HẠN, {@link FnbItem} không có trường số lượng và module Kho/BOM đã gỡ.
+ * Quyền gác ở đây là {@code fnb_menu} (trước 21/07/2026 mang tên cũ {@code pos_inventory}).
+ * Bán F&B tại quầy KHÔNG đi qua đây — xem TicketingController + Position FNB.
+ */
 @RestController
 @RequestMapping("/api/fnbs")
 @RequiredArgsConstructor
@@ -27,13 +33,13 @@ public class FnbController {
 
     /** Toàn bộ thực đơn (kể cả đang ẩn) cho khu vực quản trị. */
     @GetMapping("/all")
-    @PreAuthorize("@perm.can('pos_inventory','view')")
+    @PreAuthorize("@perm.can('fnb_menu','view')")
     public ResponseEntity<ApiResponse<List<FnbItem>>> getAllFnbs() {
         return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findAll()));
     }
 
     @PostMapping
-    @PreAuthorize("@perm.can('pos_inventory','add')")
+    @PreAuthorize("@perm.can('fnb_menu','add')")
     public ResponseEntity<?> createFnb(@RequestBody Map<String, Object> body) {
         try {
             FnbItem item = FnbItem.builder()
@@ -52,7 +58,7 @@ public class FnbController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("@perm.can('pos_inventory','edit')")
+    @PreAuthorize("@perm.can('fnb_menu','edit')")
     public ResponseEntity<?> updateFnb(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
         try {
             FnbItem item = fnbItemRepository.findById(id)
@@ -71,7 +77,7 @@ public class FnbController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("@perm.can('pos_inventory','delete')")
+    @PreAuthorize("@perm.can('fnb_menu','delete')")
     public ResponseEntity<?> deleteFnb(@PathVariable Integer id) {
         try {
             fnbItemRepository.deleteById(id);
