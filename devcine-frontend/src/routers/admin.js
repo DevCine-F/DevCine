@@ -144,7 +144,9 @@ export default [
       {
         path: 'faqs',
         name: 'admin-faqs',
-        meta: { permission: { feature: 'support', action: 'view' } },
+        // Mọi endpoint /api/faqs quản trị đều hasRole('ADMIN') → gác bằng support:view sẽ
+        // cho MANAGER vào rồi ăn 403 ngay lần tải đầu
+        meta: { adminOnly: true },
         component: () => import('../views/admin/FaqManager.vue')
       },
       {
@@ -168,7 +170,8 @@ export default [
       {
         path: 'reviews',
         name: 'admin-reviews',
-        meta: { permission: { feature: 'support', action: 'view' } },
+        // Như trên: /api/reviews/admin/list, /visibility, DELETE đều hasRole('ADMIN')
+        meta: { adminOnly: true },
         component: () => import('../views/admin/AdminReviews.vue')
       }
     ]
