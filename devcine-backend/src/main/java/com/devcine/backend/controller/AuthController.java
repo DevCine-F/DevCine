@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.service.AuthService;
 import com.devcine.backend.service.PasswordResetService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,9 +27,9 @@ public class AuthController {
                     body.getOrDefault("fullName", body.get("full_name")),
                     body.get("phone")
             );
-            return ResponseEntity.status(201).body(Map.of("success", true, "data", result));
+            return ResponseEntity.status(201).body(ApiResponse.ok(result));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -38,18 +39,18 @@ public class AuthController {
             // Nhận 'identifier' (SĐT/email); fallback 'username' để tương thích trang admin & client cũ
             String identifier = body.getOrDefault("identifier", body.get("username"));
             var result = authService.login(identifier, body.get("password"), extractIp(request));
-            return ResponseEntity.ok(Map.of("success", true, "data", result));
+            return ResponseEntity.ok(ApiResponse.ok(result));
         } catch (Exception e) {
-            return ResponseEntity.status(401).body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.status(401).body(ApiResponse.fail(e.getMessage()));
         }
     }
 
     @GetMapping("/profile/{userId}")
     public ResponseEntity<?> getProfile(@PathVariable Integer userId) {
         try {
-            return ResponseEntity.ok(Map.of("success", true, "data", authService.getProfile(userId)));
+            return ResponseEntity.ok(ApiResponse.ok(authService.getProfile(userId)));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -58,9 +59,9 @@ public class AuthController {
         try {
             Integer userId = Integer.valueOf(body.get("userId"));
             var data = authService.updateProfile(userId, body.get("fullName"), body.get("email"), body.get("phone"));
-            return ResponseEntity.ok(Map.of("success", true, "data", data));
+            return ResponseEntity.ok(ApiResponse.ok(data));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -69,9 +70,9 @@ public class AuthController {
         try {
             Integer userId = Integer.valueOf(body.get("userId"));
             authService.changePassword(userId, body.get("oldPassword"), body.get("newPassword"));
-            return ResponseEntity.ok(Map.of("success", true, "message", "Đổi mật khẩu thành công"));
+            return ResponseEntity.ok(ApiResponse.success("Đổi mật khẩu thành công"));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -81,9 +82,9 @@ public class AuthController {
     public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
         try {
             passwordResetService.requestReset(body.get("email"));
-            return ResponseEntity.ok(Map.of("success", true, "message", "Đã gửi mã xác minh tới email của bạn."));
+            return ResponseEntity.ok(ApiResponse.success("Đã gửi mã xác minh tới email của bạn."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -91,9 +92,9 @@ public class AuthController {
     public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> body) {
         try {
             passwordResetService.verifyOtp(body.get("email"), body.get("otp"));
-            return ResponseEntity.ok(Map.of("success", true, "message", "Mã hợp lệ"));
+            return ResponseEntity.ok(ApiResponse.success("Mã hợp lệ"));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -101,9 +102,9 @@ public class AuthController {
     public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
         try {
             passwordResetService.resetPassword(body.get("email"), body.get("otp"), body.get("newPassword"));
-            return ResponseEntity.ok(Map.of("success", true, "message", "Đặt lại mật khẩu thành công"));
+            return ResponseEntity.ok(ApiResponse.success("Đặt lại mật khẩu thành công"));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 

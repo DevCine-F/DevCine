@@ -43,8 +43,7 @@ const handleSubmit = async () => {
   if (!userId) { toast.error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.'); return }
   isSaving.value = true
   try {
-    const { data } = await authApi.changePassword(userId, currentPassword.value, newPassword.value)
-    if (data?.success === false) throw new Error(data.message || 'Đổi mật khẩu thất bại.')
+    await authApi.changePassword(userId, currentPassword.value, newPassword.value)
     authStore.clearMustChangePassword()
     toast.success('Đổi mật khẩu thành công! Tài khoản đã được kích hoạt.')
     try { await authStore.fetchPermissions(true) } catch { /* vẫn cho vào, guard sẽ xử lý */ }
