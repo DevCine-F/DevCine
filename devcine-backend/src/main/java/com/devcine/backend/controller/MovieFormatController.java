@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.MovieFormat;
 import com.devcine.backend.repository.MovieFormatRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,7 @@ public class MovieFormatController {
     private final MovieFormatRepository movieFormatRepository;
 
     @GetMapping
-    public ResponseEntity<List<MovieFormat>> getAllFormats() {
-        return ResponseEntity.ok(movieFormatRepository.findAll());
+    public ResponseEntity<ApiResponse<List<MovieFormat>>> getAllFormats() {
+        return ResponseEntity.ok(ApiResponse.ok(movieFormatRepository.findAll()));
     }
 }

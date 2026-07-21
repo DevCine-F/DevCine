@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.response.PriceBreakdown;
 import com.devcine.backend.entity.Holiday;
 import com.devcine.backend.entity.MovieFormat;
@@ -104,7 +105,7 @@ public class PricingController {
         }
         res.put("holidays", holidays);
 
-        return ResponseEntity.ok(res);
+        return ResponseEntity.ok(ApiResponse.ok(res));
     }
 
     // ============ Lưu ma trận giá nền (thay toàn bộ rule BASE_PRICE) ============
@@ -131,9 +132,9 @@ public class PricingController {
                     pricingRuleRepository.save(rule);
                 }
             }
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã lưu bảng giá nền."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -162,9 +163,9 @@ public class PricingController {
                     seatTypeRepository.save(s);
                 }
             }
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã lưu phụ thu loại ghế."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -190,9 +191,9 @@ public class PricingController {
                     movieFormatRepository.save(f);
                 }
             }
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã lưu cấu hình định dạng."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -217,9 +218,9 @@ public class PricingController {
                             .build());
                 }
             }
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã lưu giá phòng đặc biệt."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -238,7 +239,7 @@ public class PricingController {
                     .build());
             return ResponseEntity.status(201).body(Map.of("success", true, "id", h.getId()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -246,7 +247,7 @@ public class PricingController {
     @PreAuthorize("@perm.can('pricing','edit')")
     public ResponseEntity<?> deleteHoliday(@PathVariable Integer id) {
         holidayRepository.deleteById(id);
-        return ResponseEntity.ok(Map.of("success", true));
+        return ResponseEntity.ok(ApiResponse.success("Đã xoá ngày lễ."));
     }
 
     // ============ Bộ tính thử (Simulator) ============
@@ -264,9 +265,9 @@ public class PricingController {
                     (String) body.get("timeSlot"),
                     (String) body.get("audienceType"),
                     seatType, fmt);
-            return ResponseEntity.ok(bd);
+            return ResponseEntity.ok(ApiResponse.ok(bd));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

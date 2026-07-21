@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Ticket;
 import com.devcine.backend.service.TicketService;
 import lombok.RequiredArgsConstructor;
@@ -22,11 +23,11 @@ public class TicketController {
     public ResponseEntity<?> getTicketsByBooking(@PathVariable Integer bookingId) {
         try {
             List<Ticket> tickets = ticketService.getTicketsByBooking(bookingId);
-            return ResponseEntity.ok(tickets);
+            return ResponseEntity.ok(ApiResponse.ok(tickets));
         } catch (AccessDeniedException ex) {
             throw ex;
         } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 
@@ -38,11 +39,11 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> lookupBooking(@RequestParam("code") String code) {
         try {
-            return ResponseEntity.ok(ticketService.lookupByBookingCode(code));
+            return ResponseEntity.ok(ApiResponse.ok(ticketService.lookupByBookingCode(code)));
         } catch (AccessDeniedException ex) {
             throw ex;
         } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 
@@ -54,11 +55,11 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> printTickets(@RequestParam("code") String code) {
         try {
-            return ResponseEntity.ok(ticketService.printByBookingCode(code));
+            return ResponseEntity.ok(ApiResponse.ok(ticketService.printByBookingCode(code)));
         } catch (AccessDeniedException ex) {
             throw ex;
         } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.response.DashboardStatsResponse;
 import com.devcine.backend.service.DashboardService;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +22,9 @@ public class DashboardController {
 
     @GetMapping("/stats")
     @PreAuthorize("@perm.can('dashboard_stats', 'view')")
-    public ResponseEntity<DashboardStatsResponse> getDashboardStats(
+    public ResponseEntity<ApiResponse<DashboardStatsResponse>> getDashboardStats(
             @RequestParam(defaultValue = "today") String range,
             @RequestParam(required = false) String month) {
-        return ResponseEntity.ok(dashboardService.getDashboardStats(range, month));
+        return ResponseEntity.ok(ApiResponse.ok(dashboardService.getDashboardStats(range, month)));
     }
 }

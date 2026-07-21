@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Banner;
 import com.devcine.backend.entity.Movie;
 import com.devcine.backend.repository.BannerRepository;
@@ -29,13 +30,13 @@ public class BannerController {
 
     @GetMapping
     public ResponseEntity<?> getAllBanners() {
-        return ResponseEntity.ok(bannerRepository.findAllByOrderByIdDesc());
+        return ResponseEntity.ok(ApiResponse.ok(bannerRepository.findAllByOrderByIdDesc()));
     }
 
     // Công khai: banner đang hiển thị cho khách (đang bật + còn hạn), dùng cho trang chủ.
     @GetMapping("/active")
     public ResponseEntity<?> getActiveBanners(@RequestParam(defaultValue = "HOME") String placement) {
-        return ResponseEntity.ok(bannerRepository.findActiveBanners(placement, LocalDateTime.now()));
+        return ResponseEntity.ok(ApiResponse.ok(bannerRepository.findActiveBanners(placement, LocalDateTime.now())));
     }
 
     @PostMapping
@@ -96,7 +97,7 @@ public class BannerController {
             bannerRepository.save(banner);
             // Banner theo phim -> bật cờ showOnBanner của phim tương ứng.
             bannerSyncService.syncMovieFlag(banner.getMovieId());
-            return ResponseEntity.status(201).body(Map.of("success", true, "data", banner));
+            return ResponseEntity.status(201).body(ApiResponse.ok(banner));
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
         } catch (Exception e) {
@@ -163,7 +164,7 @@ public class BannerController {
             if (banner.getMovieId() != null && !banner.getMovieId().equals(oldMovieId)) {
                 bannerSyncService.syncMovieFlag(banner.getMovieId());
             }
-            return ResponseEntity.ok(Map.of("success", true, "data", banner));
+            return ResponseEntity.ok(ApiResponse.ok(banner));
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
         } catch (Exception e) {
@@ -174,7 +175,7 @@ public class BannerController {
     // ===== Helper: validate & làm sạch dữ liệu banner (chặn các trường hợp ngoại lệ) =====
 
     private ResponseEntity<?> badRequest(String message) {
-        return ResponseEntity.badRequest().body(Map.of("success", false, "message", message));
+        return ResponseEntity.badRequest().body(ApiResponse.fail(message));
     }
 
     private Integer parseMovieId(Object raw) {
@@ -263,9 +264,9 @@ public class BannerController {
             Integer movieId = bannerRepository.findById(id).map(Banner::getMovieId).orElse(null);
             bannerRepository.deleteById(id);
             bannerSyncService.syncMovieFlag(movieId);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá banner."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

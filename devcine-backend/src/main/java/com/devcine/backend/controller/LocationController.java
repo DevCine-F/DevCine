@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.service.LocationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,12 +19,12 @@ public class LocationController {
     private final LocationService locationService;
 
     @GetMapping("/provinces")
-    public ResponseEntity<List<String>> getProvinces() {
-        return ResponseEntity.ok(locationService.getProvinces());
+    public ResponseEntity<ApiResponse<List<String>>> getProvinces() {
+        return ResponseEntity.ok(ApiResponse.ok(locationService.getProvinces()));
     }
 
     @GetMapping("/districts")
-    public ResponseEntity<List<String>> getDistricts(@RequestParam String province) {
-        return ResponseEntity.ok(locationService.getDistricts(province));
+    public ResponseEntity<ApiResponse<List<String>>> getDistricts(@RequestParam String province) {
+        return ResponseEntity.ok(ApiResponse.ok(locationService.getDistricts(province)));
     }
 }

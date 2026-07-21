@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.response.SeatDTO;
 import com.devcine.backend.dto.response.ShowtimeSeatResponse;
 import com.devcine.backend.service.SeatService;
@@ -21,23 +22,23 @@ public class SeatController {
     private final SeatTypeRepository seatTypeRepository;
 
     @GetMapping("/types")
-    public ResponseEntity<List<SeatType>> getAllSeatTypes() {
-        return ResponseEntity.ok(seatTypeRepository.findAll());
+    public ResponseEntity<ApiResponse<List<SeatType>>> getAllSeatTypes() {
+        return ResponseEntity.ok(ApiResponse.ok(seatTypeRepository.findAll()));
     }
 
     @GetMapping("/showtime/{showtimeId}")
-    public ResponseEntity<ShowtimeSeatResponse> getSeatsForShowtime(@PathVariable Integer showtimeId) {
-        return ResponseEntity.ok(seatService.getSeatsForShowtime(showtimeId));
+    public ResponseEntity<ApiResponse<ShowtimeSeatResponse>> getSeatsForShowtime(@PathVariable Integer showtimeId) {
+        return ResponseEntity.ok(ApiResponse.ok(seatService.getSeatsForShowtime(showtimeId)));
     }
 
     @GetMapping("/room/{roomId}")
-    public ResponseEntity<ShowtimeSeatResponse> getSeatsForRoom(@PathVariable Integer roomId) {
-        return ResponseEntity.ok(seatService.getSeatsForRoom(roomId));
+    public ResponseEntity<ApiResponse<ShowtimeSeatResponse>> getSeatsForRoom(@PathVariable Integer roomId) {
+        return ResponseEntity.ok(ApiResponse.ok(seatService.getSeatsForRoom(roomId)));
     }
 
     @PostMapping("/layout/{roomId}")
-    public ResponseEntity<Void> saveSeatLayout(@PathVariable Integer roomId, @RequestBody SeatLayoutRequest request) {
+    public ResponseEntity<ApiResponse<Void>> saveSeatLayout(@PathVariable Integer roomId, @RequestBody SeatLayoutRequest request) {
         seatService.saveSeatLayout(roomId, request);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(ApiResponse.success("Đã lưu sơ đồ ghế."));
     }
 }

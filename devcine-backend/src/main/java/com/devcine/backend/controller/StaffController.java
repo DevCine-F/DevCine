@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.ShiftHandoverRequest;
 import com.devcine.backend.dto.request.StaffShiftRequest;
 import com.devcine.backend.entity.Cinema;
@@ -208,7 +209,7 @@ public class StaffController {
                 })
                 .map(this::toStaffMap)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/cinema-roster/{cinemaId}")
@@ -265,7 +266,7 @@ public class StaffController {
             return m;
         }).collect(Collectors.toList());
 
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PostMapping
@@ -356,7 +357,7 @@ public class StaffController {
             resp.put("emailSent", emailSent);
             return ResponseEntity.status(201).body(resp);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không tạo được nhân viên: " + e.getMessage()));
         }
@@ -435,9 +436,9 @@ public class StaffController {
             }
             staffRepository.save(staff);
 
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã cập nhật nhân viên."));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không cập nhật được nhân viên: " + e.getMessage()));
         }
@@ -463,7 +464,7 @@ public class StaffController {
         userRepository.save(u);
         staff.setUpdatedAt(LocalDateTime.now());
         staffRepository.save(staff);
-        return ResponseEntity.ok(Map.of("success", true, "isActive", u.getIsActive()));
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("success", true, "isActive", u.getIsActive())));
     }
 
     private Cinema resolveCinema(Object cinemaId) {
@@ -478,12 +479,12 @@ public class StaffController {
             @RequestParam(required = false) Integer cinemaId,
             @RequestParam(required = false) String status) {
         LocalDate workDate = date != null && !date.isBlank() ? LocalDate.parse(date) : LocalDate.now();
-        return ResponseEntity.ok(staffScheduleService.getShifts(workDate, cinemaId, status));
+        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.getShifts(workDate, cinemaId, status)));
     }
 
     @GetMapping("/shifts/current")
     public ResponseEntity<?> getCurrentShift() {
-        return ResponseEntity.ok(staffScheduleService.getCurrentShift().orElse(null));
+        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.getCurrentShift().orElse(null)));
     }
 
     @GetMapping("/shifts/my")
@@ -493,7 +494,7 @@ public class StaffController {
             @RequestParam(required = false) String to) {
         LocalDate fromDate = from != null && !from.isBlank() ? LocalDate.parse(from) : null;
         LocalDate toDate = to != null && !to.isBlank() ? LocalDate.parse(to) : null;
-        return ResponseEntity.ok(staffScheduleService.getMyShifts(fromDate, toDate));
+        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.getMyShifts(fromDate, toDate)));
     }
 
     @PostMapping("/shifts")
@@ -505,26 +506,26 @@ public class StaffController {
     @PutMapping("/shifts/{id}/approve")
     @PreAuthorize("@perm.can('staff_management','edit')")
     public ResponseEntity<?> approveShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(staffScheduleService.approveShift(id));
+        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.approveShift(id)));
     }
 
     @PutMapping("/shifts/{id}/reject")
     @PreAuthorize("@perm.can('staff_management','edit')")
     public ResponseEntity<?> rejectShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(staffScheduleService.rejectShift(id));
+        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.rejectShift(id)));
     }
 
     // Vào ca / Kết ca (nhân viên tự thao tác trên ca của chính mình để bật/tắt quyền theo Position)
     @PutMapping("/shifts/{id}/check-in")
     @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<?> checkInShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(staffScheduleService.checkIn(id));
+        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.checkIn(id)));
     }
 
     @PutMapping("/shifts/{id}/check-out")
     @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<?> checkOutShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(staffScheduleService.checkOut(id));
+        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.checkOut(id)));
     }
 
     // ===== Bàn giao ca (Shift Handover) =====
@@ -532,25 +533,25 @@ public class StaffController {
     @GetMapping("/handovers")
     @PreAuthorize("@perm.can('staff_management','view')")
     public ResponseEntity<?> getShiftHandovers() {
-        return ResponseEntity.ok(shiftHandoverService.list());
+        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.list()));
     }
 
     @GetMapping("/handovers/my")
     @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<?> getMyShiftHandovers() {
-        return ResponseEntity.ok(shiftHandoverService.myList());
+        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.myList()));
     }
 
     @GetMapping("/shifts/current/handover-summary")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> getCurrentHandoverSummary() {
-        return ResponseEntity.ok(shiftHandoverService.currentSummary());
+        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.currentSummary()));
     }
 
     @GetMapping("/handovers/summary")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> getHandoverSummary(@RequestParam Integer staffScheduleId) {
-        return ResponseEntity.ok(shiftHandoverService.summary(staffScheduleId));
+        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.summary(staffScheduleId)));
     }
 
     @PostMapping("/handovers")
@@ -560,7 +561,7 @@ public class StaffController {
     }
 
     @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})
-    public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
-        return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleBadRequest(RuntimeException ex) {
+        return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
     }
 }

@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.Voucher;
 import com.devcine.backend.repository.PromotionRepository;
@@ -30,7 +31,7 @@ public class MarketingController {
 
     @GetMapping("/promotions")
     public ResponseEntity<?> getAllPromotions() {
-        return ResponseEntity.ok(promotionRepository.findAll());
+        return ResponseEntity.ok(ApiResponse.ok(promotionRepository.findAll()));
     }
 
     /**
@@ -59,7 +60,7 @@ public class MarketingController {
                         "allowPointRedemption", Boolean.TRUE.equals(p.getAllowPointRedemption())
                 ))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     /** Các ưu đãi cho phép khách tự đổi bằng điểm — phục vụ trang "Ưu đãi của tôi". */
@@ -85,7 +86,7 @@ public class MarketingController {
                                 && voucherRepository.existsByCustomerAndPromotion(currentUserId, p.getId())
                 ))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PostMapping("/promotions")
@@ -129,7 +130,7 @@ public class MarketingController {
                     .maxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO)
                     .build();
             promotionRepository.save(promo);
-            return ResponseEntity.status(201).body(Map.of("success", true, "data", promo));
+            return ResponseEntity.status(201).body(ApiResponse.ok(promo));
         } catch (Exception e) {
             log.error("Lỗi tạo promotion", e);
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể tạo voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
@@ -190,7 +191,7 @@ public class MarketingController {
             if (body.containsKey("maxTicketQuantity")) promo.setMaxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0);
             if (body.containsKey("maxDiscountAmount")) promo.setMaxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO);
             promotionRepository.save(promo);
-            return ResponseEntity.ok(Map.of("success", true, "data", promo));
+            return ResponseEntity.ok(ApiResponse.ok(promo));
         } catch (Exception e) {
             log.error("Lỗi cập nhật promotion {}", id, e);
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể cập nhật voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
@@ -202,9 +203,9 @@ public class MarketingController {
     public ResponseEntity<?> deletePromotion(@PathVariable Integer id) {
         try {
             promotionRepository.deleteById(id);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá khuyến mãi."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -214,7 +215,7 @@ public class MarketingController {
         List<Voucher> vouchers = voucherRepository.findAll().stream()
                 .filter(v -> !Boolean.TRUE.equals(v.getIsUsed()))
                 .toList();
-        return ResponseEntity.ok(vouchers);
+        return ResponseEntity.ok(ApiResponse.ok(vouchers));
     }
 
     // Gửi email chiến dịch mã ưu đãi tới toàn bộ khách thuộc đối tượng áp dụng
@@ -226,9 +227,9 @@ public class MarketingController {
             String message = sent > 0
                     ? "Đã gửi email chiến dịch tới " + sent + " khách hàng."
                     : "Tất cả khách thuộc đối tượng đã nhận email mã này rồi.";
-            return ResponseEntity.ok(Map.of("success", true, "sent", sent, "message", message));
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("sent", sent, "message", message), message));
         } catch (RuntimeException ex) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", ex.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
 
@@ -252,9 +253,9 @@ public class MarketingController {
                     .validUntil(promo.getEndDate() != null ? promo.getEndDate() : LocalDateTime.now().plusMonths(1))
                     .build();
             voucherRepository.save(voucher);
-            return ResponseEntity.status(201).body(Map.of("success", true, "data", voucher));
+            return ResponseEntity.status(201).body(ApiResponse.ok(voucher));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }

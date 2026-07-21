@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -33,25 +34,25 @@ public class NotificationController {
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<?> getNotifications(@PathVariable Integer customerId) {
         assertOwner(customerId);
-        return ResponseEntity.ok(notificationService.getForCustomer(customerId));
+        return ResponseEntity.ok(ApiResponse.ok(notificationService.getForCustomer(customerId)));
     }
 
     @GetMapping("/customer/{customerId}/unread-count")
     public ResponseEntity<?> getUnreadCount(@PathVariable Integer customerId) {
         assertOwner(customerId);
-        return ResponseEntity.ok(Map.of("count", notificationService.getUnreadCount(customerId)));
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("count", notificationService.getUnreadCount(customerId))));
     }
 
     @PutMapping("/{id}/read")
     public ResponseEntity<?> markAsRead(@PathVariable Integer id) {
         notificationService.markAsRead(id, currentUserId());
-        return ResponseEntity.ok(Map.of("success", true));
+        return ResponseEntity.ok(ApiResponse.success("Đã đánh dấu đã đọc."));
     }
 
     @PutMapping("/customer/{customerId}/read-all")
     public ResponseEntity<?> markAllAsRead(@PathVariable Integer customerId) {
         assertOwner(customerId);
         notificationService.markAllAsRead(customerId);
-        return ResponseEntity.ok(Map.of("success", true));
+        return ResponseEntity.ok(ApiResponse.success("Đã đánh dấu tất cả là đã đọc."));
     }
 }

@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.RoomRequest;
 import com.devcine.backend.dto.response.RoomResponse;
 import com.devcine.backend.service.RoomService;
@@ -21,34 +22,34 @@ public class RoomController {
     private final RoomService roomService;
 
     @GetMapping("/cinema/{cinemaId}")
-    public ResponseEntity<List<RoomResponse>> getRoomsByCinema(@PathVariable Integer cinemaId) {
-        return ResponseEntity.ok(roomService.getRoomsByCinema(cinemaId));
+    public ResponseEntity<?> getRoomsByCinema(@PathVariable Integer cinemaId) {
+        return ResponseEntity.ok(ApiResponse.ok(roomService.getRoomsByCinema(cinemaId)));
     }
 
     @PostMapping("/cinema/{cinemaId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<RoomResponse> createRoom(@PathVariable Integer cinemaId,
+    public ResponseEntity<?> createRoom(@PathVariable Integer cinemaId,
                                                    @Valid @RequestBody RoomRequest request) {
         return new ResponseEntity<>(roomService.createRoom(cinemaId, request), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<RoomResponse> updateRoom(@PathVariable Integer id,
+    public ResponseEntity<?> updateRoom(@PathVariable Integer id,
                                                    @Valid @RequestBody RoomRequest request) {
-        return ResponseEntity.ok(roomService.updateRoom(id, request));
+        return ResponseEntity.ok(ApiResponse.ok(roomService.updateRoom(id, request)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteRoom(@PathVariable Integer id) {
+    public ResponseEntity<?> deleteRoom(@PathVariable Integer id) {
         roomService.deleteRoom(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Đã xoá."));
     }
 
     // Lỗi nghiệp vụ (trùng tên, có suất chiếu, enum sai) -> 400 kèm message tiếng Việt
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    public ResponseEntity<?> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
     }
 }

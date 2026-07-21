@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.CinemaRequest;
 import com.devcine.backend.dto.response.CinemaResponse;
 import com.devcine.backend.service.CinemaService;
@@ -21,37 +22,37 @@ public class CinemaController {
     private final CinemaService cinemaService;
 
     @GetMapping
-    public ResponseEntity<List<CinemaResponse>> getAllCinemas() {
-        return ResponseEntity.ok(cinemaService.getAllCinemas());
+    public ResponseEntity<ApiResponse<List<CinemaResponse>>> getAllCinemas() {
+        return ResponseEntity.ok(ApiResponse.ok(cinemaService.getAllCinemas()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CinemaResponse> getCinemaById(@PathVariable Integer id) {
-        return ResponseEntity.ok(cinemaService.getCinemaById(id));
+    public ResponseEntity<ApiResponse<CinemaResponse>> getCinemaById(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(cinemaService.getCinemaById(id)));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CinemaResponse> createCinema(@Valid @RequestBody CinemaRequest request) {
+    public ResponseEntity<ApiResponse<CinemaResponse>> createCinema(@Valid @RequestBody CinemaRequest request) {
         return new ResponseEntity<>(cinemaService.createCinema(request), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CinemaResponse> updateCinema(@PathVariable Integer id, @Valid @RequestBody CinemaRequest request) {
-        return ResponseEntity.ok(cinemaService.updateCinema(id, request));
+    public ResponseEntity<ApiResponse<CinemaResponse>> updateCinema(@PathVariable Integer id, @Valid @RequestBody CinemaRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(cinemaService.updateCinema(id, request)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteCinema(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<Void>> deleteCinema(@PathVariable Integer id) {
         cinemaService.deleteCinema(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Đã xoá cụm rạp."));
     }
 
     // Lỗi nghiệp vụ (trùng tên, enum không hợp lệ) -> 400 kèm message tiếng Việt cho FE
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
     }
 }

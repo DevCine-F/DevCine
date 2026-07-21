@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.entity.UserPermissionOverride;
@@ -50,7 +51,7 @@ public class RolePermissionController {
             m.put("permissions", parseMatrix(r.getPermissionsMatrix()));
             return m;
         }).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/staff-users")
@@ -68,7 +69,7 @@ public class RolePermissionController {
                     return m;
                 })
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/users/{userId}/permission-overrides")
@@ -113,7 +114,7 @@ public class RolePermissionController {
         response.put("role", roleName);
         response.put("admin", "ADMIN".equalsIgnoreCase(roleName));
         response.put("permissions", toListMatrix(permissionService.effectivePermissions(currentUserId(authentication), roleName)));
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @PutMapping("/{id}/permissions")
@@ -126,9 +127,9 @@ public class RolePermissionController {
             role.setPermissionsMatrix(objectMapper.writeValueAsString(matrix));
             roleRepository.save(role);
             permissionService.invalidate();
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã lưu phân quyền vai trò."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 
@@ -168,9 +169,9 @@ public class RolePermissionController {
                     .collect(Collectors.toList());
             userPermissionOverrideRepository.saveAll(overrides);
             permissionService.invalidateUser(userId);
-            return ResponseEntity.ok(Map.of("success", true));
+            return ResponseEntity.ok(ApiResponse.success("Đã lưu quyền riêng của nhân viên."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 

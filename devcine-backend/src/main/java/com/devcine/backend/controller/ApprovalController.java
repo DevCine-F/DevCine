@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.response.ApprovalResponse;
 import com.devcine.backend.service.ApprovalService;
 import lombok.RequiredArgsConstructor;
@@ -25,50 +26,50 @@ public class ApprovalController {
     private final ApprovalService approvalService;
 
     @PostMapping("/fnb-void")
-    public ResponseEntity<ApprovalResponse> requestFnbVoid(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<ApprovalResponse>> requestFnbVoid(@RequestBody Map<String, Object> body) {
         Integer saleId = asInt(body.get("saleId"));
         String reason = asString(body.get("reason"));
-        return ResponseEntity.ok(ApprovalResponse.from(approvalService.requestFnbVoid(saleId, reason)));
+        return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.requestFnbVoid(saleId, reason))));
     }
 
     @PostMapping("/seat-move")
-    public ResponseEntity<ApprovalResponse> requestSeatMove(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<ApprovalResponse>> requestSeatMove(@RequestBody Map<String, Object> body) {
         Integer bookingSeatId = asInt(body.get("bookingSeatId"));
         Integer toSeatId = asInt(body.get("toSeatId"));
         String reason = asString(body.get("reason"));
-        return ResponseEntity.ok(ApprovalResponse.from(approvalService.requestSeatMove(bookingSeatId, toSeatId, reason)));
+        return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.requestSeatMove(bookingSeatId, toSeatId, reason))));
     }
 
     @GetMapping("/pending")
-    public ResponseEntity<List<ApprovalResponse>> listPending() {
-        return ResponseEntity.ok(approvalService.listPending().stream().map(ApprovalResponse::from).toList());
+    public ResponseEntity<ApiResponse<List<ApprovalResponse>>> listPending() {
+        return ResponseEntity.ok(ApiResponse.ok(approvalService.listPending().stream().map(ApprovalResponse::from).toList()));
     }
 
     @GetMapping("/mine")
-    public ResponseEntity<List<ApprovalResponse>> listMine() {
-        return ResponseEntity.ok(approvalService.listMine().stream().map(ApprovalResponse::from).toList());
+    public ResponseEntity<ApiResponse<List<ApprovalResponse>>> listMine() {
+        return ResponseEntity.ok(ApiResponse.ok(approvalService.listMine().stream().map(ApprovalResponse::from).toList()));
     }
 
     @GetMapping("/seat-move/options")
     public ResponseEntity<List<Map<String, Object>>> seatMoveOptions(@RequestParam Integer showtimeId) {
-        return ResponseEntity.ok(approvalService.seatMoveOptions(showtimeId));
+        return ResponseEntity.ok(ApiResponse.ok(approvalService.seatMoveOptions(showtimeId)));
     }
 
     @PutMapping("/{id}/approve")
-    public ResponseEntity<ApprovalResponse> approve(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApprovalResponse.from(approvalService.approve(id)));
+    public ResponseEntity<ApiResponse<ApprovalResponse>> approve(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.approve(id))));
     }
 
     @PutMapping("/{id}/reject")
-    public ResponseEntity<ApprovalResponse> reject(@PathVariable Integer id, @RequestBody(required = false) Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<ApprovalResponse>> reject(@PathVariable Integer id, @RequestBody(required = false) Map<String, Object> body) {
         String note = body != null ? asString(body.get("note")) : null;
-        return ResponseEntity.ok(ApprovalResponse.from(approvalService.reject(id, note)));
+        return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.reject(id, note))));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleBadRequest(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("success", false, "message", ex.getMessage() != null ? ex.getMessage() : "Yêu cầu không hợp lệ."));
+                .body(ApiResponse.fail(ex.getMessage() != null ? ex.getMessage() : "Yêu cầu không hợp lệ."));
     }
 
     private Integer asInt(Object value) {

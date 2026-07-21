@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.FaqRequest;
 import com.devcine.backend.entity.Faq;
 import com.devcine.backend.service.FaqService;
@@ -23,33 +24,33 @@ public class FaqController {
 
     /** Công khai — chỉ FAQ đang bật. */
     @GetMapping
-    public List<Faq> getPublic() {
-        return faqService.getPublicFaqs();
+    public ApiResponse<List<Faq>> getPublic() {
+        return ApiResponse.ok(faqService.getPublicFaqs());
     }
 
     /** Quản trị — toàn bộ FAQ (kể cả đang ẩn). */
     @GetMapping("/all")
     @PreAuthorize("hasRole('ADMIN')")
-    public List<Faq> getAll() {
-        return faqService.getAllFaqs();
+    public ApiResponse<List<Faq>> getAll() {
+        return ApiResponse.ok(faqService.getAllFaqs());
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> create(@Valid @RequestBody FaqRequest body) {
-        return ResponseEntity.ok(faqService.create(body));
+        return ResponseEntity.ok(ApiResponse.ok(faqService.create(body)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> update(@PathVariable Integer id, @Valid @RequestBody FaqRequest body) {
-        return ResponseEntity.ok(faqService.update(id, body));
+        return ResponseEntity.ok(ApiResponse.ok(faqService.update(id, body)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> delete(@PathVariable Integer id) {
         faqService.delete(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Đã xoá câu hỏi."));
     }
 }

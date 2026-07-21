@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.SystemSettingRequestDTO;
 import com.devcine.backend.dto.response.SystemSettingResponseDTO;
 import com.devcine.backend.service.SystemSettingService;
@@ -18,22 +19,22 @@ public class SystemSettingController {
     private final SystemSettingService systemSettingService;
 
     @GetMapping
-    public ResponseEntity<List<SystemSettingResponseDTO>> getAllSettings() {
-        return ResponseEntity.ok(systemSettingService.getAllSettings());
+    public ResponseEntity<ApiResponse<List<SystemSettingResponseDTO>>> getAllSettings() {
+        return ResponseEntity.ok(ApiResponse.ok(systemSettingService.getAllSettings()));
     }
 
     @GetMapping("/{key}")
-    public ResponseEntity<SystemSettingResponseDTO> getSettingByKey(@PathVariable String key) {
+    public ResponseEntity<?> getSettingByKey(@PathVariable String key) {
         SystemSettingResponseDTO dto = systemSettingService.getSettingByKey(key);
         if (dto == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(ApiResponse.fail("Không tìm thấy cài đặt."));
         }
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(ApiResponse.ok(dto));
     }
 
     @PostMapping
     @PreAuthorize("@perm.can('settings', 'edit')")
-    public ResponseEntity<SystemSettingResponseDTO> saveOrUpdateSetting(@RequestBody SystemSettingRequestDTO dto) {
-        return ResponseEntity.ok(systemSettingService.saveOrUpdateSetting(dto));
+    public ResponseEntity<ApiResponse<SystemSettingResponseDTO>> saveOrUpdateSetting(@RequestBody SystemSettingRequestDTO dto) {
+        return ResponseEntity.ok(ApiResponse.ok(systemSettingService.saveOrUpdateSetting(dto)));
     }
 }

@@ -1,5 +1,6 @@
 package com.devcine.backend.controller;
 
+import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Booking;
 import com.devcine.backend.entity.Seat;
 import com.devcine.backend.repository.BookingFnbRepository;
@@ -85,13 +86,13 @@ public class AdminBookingController {
             return m;
         }).collect(Collectors.toList());
 
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "content", content,
                 "page", result.getNumber(),
                 "size", result.getSize(),
                 "totalElements", result.getTotalElements(),
                 "totalPages", result.getTotalPages()
-        ));
+        )));
     }
 
     @GetMapping("/{id}")
@@ -99,7 +100,7 @@ public class AdminBookingController {
     @Transactional(readOnly = true)
     public ResponseEntity<?> detail(@PathVariable Integer id) {
         Booking b = bookingRepository.findDetailById(id).orElse(null);
-        if (b == null) return ResponseEntity.notFound().build();
+        if (b == null) return ResponseEntity.status(404).body(ApiResponse.fail("Không tìm thấy hoá đơn."));
 
         List<Map<String, Object>> seats = bookingSeatRepository.findAllByBookingIdWithSeat(id).stream().map(bs -> {
             Seat seat = bs.getSeat();
@@ -150,7 +151,7 @@ public class AdminBookingController {
         dto.put("seats", seats);
         dto.put("fnbs", fnbs);
         dto.put("tickets", tickets);
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(ApiResponse.ok(dto));
     }
 
     // ---- helpers ----
