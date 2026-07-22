@@ -38,16 +38,15 @@ defineProps({
         <thead>
           <tr class="bg-surface-container-high border-b border-outline-variant/10 text-[10px] font-black uppercase tracking-widest text-primary">
             <th class="py-4 px-6">Nhân viên</th>
-            <th class="py-4 px-6">Vị trí</th>
-            <th class="py-4 px-6">Ca trực</th>
-            <th class="py-4 px-6 text-center">Doanh số (Vé/Đơn)</th>
+            <th class="py-4 px-6">Vai trò</th>
+            <th class="py-4 px-6 text-center">Vé bán hôm nay</th>
             <th class="py-4 px-6">Trạng thái</th>
             <th class="py-4 px-6 text-right">Thao tác</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-white/5">
           <tr v-if="staff.length === 0">
-            <td colspan="6" class="py-12 text-center text-sm text-on-surface-variant italic">
+            <td colspan="5" class="py-12 text-center text-sm text-on-surface-variant italic">
               Không có dữ liệu nhân sự.
             </td>
           </tr>
@@ -72,21 +71,14 @@ defineProps({
               </div>
             </td>
             
-            <!-- Vị trí -->
+            <!-- Vai trò -->
             <td class="py-4 px-6">
               <span class="px-2 py-1 bg-surface-container-highest text-on-surface-variant text-[10px] font-bold rounded uppercase tracking-widest border border-white/5">
                 {{ member.role }}
               </span>
             </td>
 
-            <!-- Ca trực -->
-            <td class="py-4 px-6">
-              <span class="text-[11px] font-bold text-on-surface uppercase tracking-widest">
-                {{ member.shift }}
-              </span>
-            </td>
-
-            <!-- Doanh số -->
+            <!-- Vé bán hôm nay -->
             <td class="py-4 px-6 text-center">
               <span class="text-lg font-black text-on-surface">
                 {{ member.sales }}
@@ -98,11 +90,11 @@ defineProps({
               <div class="flex items-center gap-2">
                 <span
                   class="w-2 h-2 rounded-full"
-                  :class="member.status === 'On Duty' ? 'bg-green-500' : 'bg-on-surface-variant/40'"
+                  :class="member.status === 'Đang làm việc' ? 'bg-green-500' : 'bg-on-surface-variant/40'"
                 ></span>
                 <span
                   class="text-[10px] font-black uppercase tracking-widest"
-                  :class="member.status === 'On Duty' ? 'text-green-500' : 'text-on-surface-variant'"
+                  :class="member.status === 'Đang làm việc' ? 'text-green-500' : 'text-on-surface-variant'"
                 >
                   {{ member.status }}
                 </span>

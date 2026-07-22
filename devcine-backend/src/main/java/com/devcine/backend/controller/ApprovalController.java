@@ -13,9 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Luồng phê duyệt "sửa sai" nội bộ của Trưởng ca (Shift Leader):
- * nhân viên quầy tạo yêu cầu → Trưởng ca/Manager/Admin duyệt hoặc từ chối.
- * Gate chi tiết theo Position (SHIFT_LEAD) nằm trong {@link ApprovalService}.
+ * Luồng phê duyệt "sửa sai" nội bộ: nhân viên quầy tạo yêu cầu →
+ * Quản lý (MANAGER/ADMIN) duyệt hoặc từ chối. Gate duyệt nằm trong {@link ApprovalService}.
  */
 @RestController
 @RequestMapping("/api/staff/approvals")

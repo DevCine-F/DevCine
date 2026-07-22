@@ -6,7 +6,6 @@ import com.devcine.backend.entity.ConcessionSaleItem;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.FnbItem;
 import com.devcine.backend.entity.Staff;
-import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.repository.ConcessionSaleItemRepository;
 import com.devcine.backend.repository.ConcessionSaleRepository;
 import com.devcine.backend.repository.CustomerRepository;

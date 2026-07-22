@@ -27,9 +27,7 @@ import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.Room;
 import com.devcine.backend.entity.SeatType;
-import com.devcine.backend.entity.Shift;
 import com.devcine.backend.entity.Showtime;
-import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.entity.SystemSetting;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.repository.CinemaRepository;
@@ -44,8 +42,6 @@ import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.RoomRepository;
 import com.devcine.backend.repository.StaffRepository;
-import com.devcine.backend.repository.StaffScheduleRepository;
-import com.devcine.backend.repository.ShiftRepository;
 import com.devcine.backend.repository.SeatTypeRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.SystemSettingRepository;
@@ -71,8 +67,6 @@ public class DataSeeder {
             RoleRepository roleRepository,
             UserRepository userRepository,
             StaffRepository staffRepository,
-            ShiftRepository shiftRepository,
-            StaffScheduleRepository staffScheduleRepository,
             CustomerRepository customerRepository,
             FnbItemRepository fnbItemRepository,
             ShowtimeRepository showtimeRepository,
@@ -123,13 +117,13 @@ public class DataSeeder {
                     -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
             // Seed ma trận phân quyền mặc định.
-            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V4 (seed thường chỉ set khi blank).
+            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V5 (seed thường chỉ set khi blank).
             // V3: gỡ mọi action KHÔNG có endpoint @perm.can tương ứng ("checkbox chết"), MANAGER thêm settings:view.
             // V4: đổi tên feature pos_inventory -> fnb_menu (nó gác THỰC ĐƠN F&B, không phải kho — kho đã gỡ),
             //     và gỡ hẳn khỏi STAFF: bán F&B tại quầy đi qua pos_ticketing + Position FNB, nên quyền này
             //     với STAFF chỉ có tác dụng cho sửa GIÁ món — không cần thiết.
-            boolean permissionMatrixV4 = systemSettingRepository.findById("PERMISSION_MATRIX_V4").isPresent();
-            if (!permissionMatrixV4 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+            boolean permissionMatrixV5 = systemSettingRepository.findById("PERMISSION_MATRIX_V5").isPresent();
+            if (!permissionMatrixV5 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
                         + "\"dashboard_stats\":[\"view\",\"export\"],"
                         + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
@@ -145,12 +139,12 @@ public class DataSeeder {
                         + "\"settings\":[\"view\",\"edit\"]}");
                 roleRepository.save(adminRole);
             }
-            // STAFF (trần quyền TĨNH): KHÔNG có báo cáo doanh thu (dashboard_stats) theo spec.
-            // Nghiệp vụ thực tế (bán vé/F&B/kiểm vé) được kích hoạt theo Position khi mở ca — ShiftAccessService,
-            // nên trần này chỉ cần rộng vừa đủ. support:edit đã gỡ — CSKH thuộc quản lý; trưởng ca cần thì
-            // cấp lại bằng quyền riêng từng người (UserPermissionOverride). fnb_menu cũng đã gỡ — quản trị
-            // thực đơn (sửa giá món) là việc của quản lý, không phải nhân viên đứng quầy.
-            if (!permissionMatrixV4 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+            // STAFF: KHÔNG có báo cáo doanh thu (dashboard_stats) theo spec. Từ khi gỡ phân ca, đây là
+            // tầng quyền DUY NHẤT cho nghiệp vụ quầy (bán vé/F&B/kiểm vé) — không còn kích hoạt theo
+            // Position khi mở ca nữa, nên pos_ticketing phải đủ để làm việc cả ca. support:edit đã gỡ —
+            // CSKH thuộc quản lý; ai cần thì cấp riêng từng người (UserPermissionOverride). fnb_menu cũng
+            // đã gỡ — quản trị thực đơn (sửa giá món) là việc của quản lý, không phải nhân viên đứng quầy.
+            if (!permissionMatrixV5 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
                 staffRole.setPermissionsMatrix("{"
                         + "\"movies\":[\"view\"],"
                         + "\"schedules\":[\"view\"],"
@@ -163,7 +157,7 @@ public class DataSeeder {
             // nhân sự & ca, kho, báo cáo) nhưng không đụng CẤU TRÚC hệ thống — cụm rạp/phòng/phân quyền/FAQ là
             // ADMIN-cứng (hasRole), settings chỉ cho xem. Phạm vi cơ sở do scoping cinemaId (SecurityUtils).
             // support:delete đã gỡ vì xoá đánh giá là ADMIN-cứng (ReviewController) → nút sẽ 403.
-            if (!permissionMatrixV4 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
+            if (!permissionMatrixV5 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
                 managerRole.setPermissionsMatrix("{"
                         + "\"dashboard_stats\":[\"view\"],"
                         + "\"movies\":[\"view\"],"
@@ -180,9 +174,9 @@ public class DataSeeder {
                 roleRepository.save(managerRole);
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho MANAGER.");
             }
-            if (!permissionMatrixV4) {
+            if (!permissionMatrixV5) {
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("PERMISSION_MATRIX_V4").settingValue("true").build());
+                        .settingKey("PERMISSION_MATRIX_V5").settingValue("true").build());
             }
 
             // Seed / đảm bảo tài khoản admin (admin / 123) — tạo mới nếu chưa có, reset mật khẩu nếu đã tồn tại
@@ -886,72 +880,6 @@ public class DataSeeder {
                         + " / Manager@123) cho cơ sở " + cinemaId + ".");
             }
 
-            // ===== Seed CA LÀM demo (idempotent, cuốn chiếu) — từ hôm nay tới Thứ Ba tuần sau =====
-            // Mục đích: thử nhanh luồng ca/check-in/POS/in vé ở MỌI cơ sở. Ca tạo sẵn ở trạng thái
-            // ĐÃ DUYỆT (APPROVED) + khung giờ rộng (08:00–23:30) để nhân viên có thể "Vào ca" ngay.
-            // Chạy mỗi lần khởi động nhưng bỏ qua staff+ngày đã có ca (không đè lịch thật đã tạo).
-            {
-                LocalDate today = LocalDate.now();
-                // Thứ Ba của TUẦN SAU (bất kể hôm nay là thứ mấy)
-                LocalDate endDate = today.with(TemporalAdjusters.next(DayOfWeek.MONDAY)).plusDays(1);
-
-                List<Staff> shiftStaffs = staffRepository.findAllWithDetails().stream()
-                        .filter(s -> s.getUser() != null && s.getUser().getRole() != null
-                                && "STAFF".equalsIgnoreCase(s.getUser().getRole().getName())
-                                && s.getCinema() != null)
-                        .toList();
-
-                // Vị trí gợi ý theo username (đảm bảo mỗi cơ sở có Trưởng ca); fallback xoay vòng
-                java.util.Map<String, String> posByUser = java.util.Map.of(
-                        "nv_huy", "POS_TICKETING",
-                        "nv_lan", "FNB",
-                        "nv_minh", "SHIFT_LEAD",
-                        "nv_thao", "POS_TICKETING",
-                        "nv_dat", "SHIFT_LEAD");
-                String[] rotate = {"POS_TICKETING", "FNB", "CHECK_IN", "SHIFT_LEAD"};
-
-                // Idempotent: tập (staffId|ngày) đã có ca để không tạo trùng
-                Set<String> existingKeys = new HashSet<>();
-                for (StaffSchedule sc : staffScheduleRepository.findAll()) {
-                    if (sc.getStaff() != null && sc.getWorkDate() != null) {
-                        existingKeys.add(sc.getStaff().getUserId() + "|" + sc.getWorkDate());
-                    }
-                }
-
-                int createdShifts = 0;
-                int rotIdx = 0;
-                for (Staff st : shiftStaffs) {
-                    String pos = posByUser.getOrDefault(st.getUser().getUsername(), rotate[rotIdx % rotate.length]);
-                    rotIdx++;
-                    // Gán vị trí thường trực gợi ý cho staff nếu chưa có (tiện pre-fill UI xếp ca)
-                    if (st.getDefaultPosition() == null || st.getDefaultPosition().isBlank()) {
-                        st.setDefaultPosition(pos);
-                        staffRepository.save(st);
-                    }
-                    for (LocalDate d = today; !d.isAfter(endDate); d = d.plusDays(1)) {
-                        if (existingKeys.contains(st.getUserId() + "|" + d)) continue;
-                        Shift shift = shiftRepository.save(Shift.builder()
-                                .startTime(d.atTime(8, 0))
-                                .endTime(d.atTime(23, 30))
-                                .build());
-                        staffScheduleRepository.save(StaffSchedule.builder()
-                                .staff(st)
-                                .shift(shift)
-                                .cinema(st.getCinema())
-                                .workDate(d)
-                                .workPosition(pos)
-                                .location(st.getCinema().getName())
-                                .note("Ca demo (seed) — sẵn sàng vào ca")
-                                .status("APPROVED")
-                                .build());
-                        createdShifts++;
-                    }
-                }
-                if (createdShifts > 0) {
-                    System.out.println("Đã seed " + createdShifts + " ca làm DEMO (APPROVED) tới "
-                            + endDate + " cho " + shiftStaffs.size() + " nhân viên (mọi cơ sở).");
-                }
-            }
         };
     }
 

@@ -31,10 +31,6 @@ public class ConcessionSale {
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "staff_schedule_id")
-    private StaffSchedule staffSchedule;
-
     /** Nhân viên đã bán đơn tại quầy. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sold_by")

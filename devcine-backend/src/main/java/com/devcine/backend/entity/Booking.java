@@ -31,10 +31,6 @@ public class Booking {
     @JoinColumn(name = "voucher_id")
     private Voucher voucher;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "staff_schedule_id")
-    private StaffSchedule staffSchedule;
-
     /** Nhân viên đã bán đơn tại quầy. Null với đơn ONLINE (khách tự đặt). */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sold_by")
@@ -56,8 +52,7 @@ public class Booking {
     private String bookingCode;
 
     /** Kênh tạo đơn: "ONLINE" (khách tự đặt) | "POS" (bán tại quầy). Nguồn tin cậy để tách
-     *  email (đơn Online kèm QR, đơn POS chỉ hoá đơn) — KHÔNG dựa vào staffSchedule vì
-     *  admin/manager bán POS được bỏ qua ca (staffSchedule = null). */
+     *  email: đơn Online kèm QR, đơn POS chỉ hoá đơn. */
     @Column(length = 20)
     private String channel;
 

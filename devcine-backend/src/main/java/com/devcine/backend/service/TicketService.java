@@ -128,7 +128,7 @@ public class TicketService {
         try {
             // Chỉ gửi cho ĐƠN ONLINE GỐC (channel = ONLINE). Đơn POS đã nhận mail hoá đơn
             // lúc thanh toán → khi quét in lại KHÔNG gửi thêm, tránh làm phiền hộp thư khách.
-            // Dùng channel (tin cậy) thay staffSchedule vì admin/manager bán POS có schedule = null.
+            // Dùng channel làm nguồn tin cậy để phân biệt, không suy ra từ người bán.
             if (!"ONLINE".equalsIgnoreCase(booking.getChannel())) {
                 return;
             }

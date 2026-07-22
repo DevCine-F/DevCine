@@ -26,13 +26,6 @@ public class Staff {
     @Column(name = "staff_code", length = 20, unique = true)
     private String staffCode;
 
-    /**
-     * Vị trí thường trực GỢI Ý (POS_TICKETING/FNB/CHECK_IN/SHIFT_LEAD) — không phải quyền đăng nhập.
-     * Dùng làm mặc định khi Manager xếp ca; quyền thực tế vẫn theo Position của ca (StaffSchedule.workPosition).
-     */
-    @Column(name = "default_position", length = 30)
-    private String defaultPosition;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cinema_id")
     private Cinema cinema;
