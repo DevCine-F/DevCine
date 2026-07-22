@@ -10,6 +10,7 @@ import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.repository.TicketRepository;
 import com.devcine.backend.service.BookingService;
 import com.devcine.backend.service.PosHoldService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +31,7 @@ public class BookingController {
     private final TicketRepository ticketRepository;
 
     @PostMapping("/hold")
-    public ResponseEntity<?> holdSeats(@RequestBody BookingRequestDTO request) {
+    public ResponseEntity<?> holdSeats(@Valid @RequestBody BookingRequestDTO request) {
         try {
             Booking booking = bookingService.holdSeats(request);
             return ResponseEntity.ok(ApiResponse.ok(booking));

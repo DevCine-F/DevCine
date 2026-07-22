@@ -1,5 +1,6 @@
 package com.devcine.backend.dto.request;
 
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,6 +19,7 @@ public class BookingRequestDTO {
     private List<Integer> seatIds;
     /** Cách mới: ghế kèm loại vé/đối tượng. Nếu có sẽ ưu tiên dùng thay cho seatIds. */
     private List<SeatSelectionDTO> seatSelections;
+    @Valid
     private List<FnbSelectionDTO> fnbs;
     private Integer voucherId;
     private String paymentMethod; // VNPAY, MOMO, TRANSFER
