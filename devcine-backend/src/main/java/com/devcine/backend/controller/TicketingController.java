@@ -167,7 +167,7 @@ public class TicketingController {
                             .paymentMethod(paymentMethod)
                             .build();
 
-            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule, currentStaff());
+            Booking booking = bookingService.holdSeatsForPos(req, currentStaff());
 
             // Số liệu tiền để POS hiển thị đúng giảm giá (voucher đánh dấu USED trong completePayment)
             BigDecimal totalAmount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
@@ -247,7 +247,7 @@ public class TicketingController {
                             .build())
                     .collect(Collectors.toList());
 
-            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, schedule, currentStaff());
+            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, currentStaff());
 
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "saleId", sale.getId(),
@@ -285,7 +285,7 @@ public class TicketingController {
                             .paymentMethod("POS_HOLD")
                             .build();
 
-            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule, currentStaff());
+            Booking booking = bookingService.holdSeatsForPos(req, currentStaff());
 
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "bookingId", booking.getId(),

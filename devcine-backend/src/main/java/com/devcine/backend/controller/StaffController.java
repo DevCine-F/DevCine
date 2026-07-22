@@ -1,7 +1,6 @@
 package com.devcine.backend.controller;
 
 import com.devcine.backend.dto.ApiResponse;
-import com.devcine.backend.dto.request.ShiftHandoverRequest;
 import com.devcine.backend.dto.request.StaffShiftRequest;
 import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Role;
@@ -14,7 +13,6 @@ import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.StaffScheduleRepository;
 import com.devcine.backend.repository.UserRepository;
-import com.devcine.backend.service.ShiftHandoverService;
 import com.devcine.backend.service.StaffScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +44,6 @@ public class StaffController {
     private final BookingRepository bookingRepository;
     private final PasswordEncoder passwordEncoder;
     private final StaffScheduleService staffScheduleService;
-    private final ShiftHandoverService shiftHandoverService;
     private final com.devcine.backend.service.MailService mailService;
 
     @org.springframework.beans.factory.annotation.Value("${staff.default-password:DevCine@2026}")
@@ -222,6 +220,11 @@ public class StaffController {
         LocalDate today = LocalDate.now();
         List<StaffSchedule> todaySchedules = staffScheduleRepository.findByWorkDateWithDetails(today, cinemaId, "APPROVED");
 
+        // Số vé bán hôm nay theo từng nhân viên — gom 1 query, tra cứu trong vòng lặp (tránh N+1)
+        Map<Integer, Long> salesByStaff = new HashMap<>();
+        bookingRepository.countTicketsGroupedBySeller(today.atStartOfDay(), today.atTime(LocalTime.MAX))
+                .forEach(row -> salesByStaff.put((Integer) row[0], (Long) row[1]));
+
         List<Map<String, Object>> result = staffList.stream().map(staff -> {
             StaffSchedule schedule = todaySchedules.stream()
                     .filter(ss -> ss.getStaff().getUserId().equals(staff.getUserId()))
@@ -262,7 +265,7 @@ public class StaffController {
                 }
             }
             m.put("status", status);
-            m.put("sales", schedule != null ? bookingRepository.countTicketsByStaffSchedule(schedule.getId()) : 0);
+            m.put("sales", salesByStaff.getOrDefault(staff.getUserId(), 0L));
             return m;
         }).collect(Collectors.toList());
 
@@ -528,40 +531,8 @@ public class StaffController {
         return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.checkOut(id)));
     }
 
-    // ===== Bàn giao ca (Shift Handover) =====
-
-    @GetMapping("/handovers")
-    @PreAuthorize("@perm.can('staff_management','view')")
-    public ResponseEntity<?> getShiftHandovers() {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.list()));
-    }
-
-    @GetMapping("/handovers/my")
-    @PreAuthorize("hasRole('STAFF')")
-    public ResponseEntity<?> getMyShiftHandovers() {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.myList()));
-    }
-
-    @GetMapping("/shifts/current/handover-summary")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> getCurrentHandoverSummary() {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.currentSummary()));
-    }
-
-    @GetMapping("/handovers/summary")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> getHandoverSummary(@RequestParam Integer staffScheduleId) {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.summary(staffScheduleId)));
-    }
-
-    @PostMapping("/handovers")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> submitShiftHandover(@Valid @RequestBody ShiftHandoverRequest request) {
-        return ResponseEntity.status(201).body(shiftHandoverService.submit(request));
-    }
-
     @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})
-    public ResponseEntity<ApiResponse<Map<String, Object>>> handleBadRequest(RuntimeException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(RuntimeException ex) {
         return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
     }
 }

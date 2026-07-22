@@ -34,18 +34,14 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     long countTicketsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
                                  @Param("cinemaId") Integer cinemaId);
 
-    @Query("SELECT COALESCE(SUM(b.finalPrice), 0) FROM Booking b " +
-           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId AND b.paymentMethod = :paymentMethod")
-    BigDecimal sumConfirmedRevenueByStaffScheduleAndPaymentMethod(@Param("staffScheduleId") Integer staffScheduleId,
-                                                                  @Param("paymentMethod") String paymentMethod);
-
-    @Query("SELECT COALESCE(SUM(bs.priceSnapshot), 0) FROM BookingSeat bs JOIN bs.booking b " +
-           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId")
-    BigDecimal sumTicketRevenueByStaffSchedule(@Param("staffScheduleId") Integer staffScheduleId);
-
-    @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
-           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId")
-    long countTicketsByStaffSchedule(@Param("staffScheduleId") Integer staffScheduleId);
+    // Số vé mỗi nhân viên bán được trong khoảng (1 ghế = 1 vé), gom 1 query cho cả danh sách
+    // nhân viên — KHÔNG gọi trong vòng lặp (N+1).
+    @Query("SELECT b.soldBy.userId, COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
+           "WHERE b.status = 'CONFIRMED' AND b.soldBy IS NOT NULL " +
+           "AND b.createdAt >= :startDate AND b.createdAt <= :endDate " +
+           "GROUP BY b.soldBy.userId")
+    List<Object[]> countTicketsGroupedBySeller(@Param("startDate") LocalDateTime startDate,
+                                               @Param("endDate") LocalDateTime endDate);
 
     /**
      * Khách LẦN ĐẦU giao dịch tại cơ sở trong khoảng đã chọn.
