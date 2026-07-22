@@ -1,9 +1,10 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { bookingAdminApi } from '@/api/admin/index'
 import { openInvoice, paymentLabel } from '@/utils/invoiceTemplate'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import QrCode from '@/components/common/QrCode.vue'
 
 const toast = useToastStore()
 
@@ -92,10 +93,17 @@ const showDetail = ref(false)
 const isLoadingDetail = ref(false)
 const detail = ref(null)
 
+const showQr = ref(false)          // Lưới QR mặc định thu gọn — soát vé đã có màn riêng
+const modalEl = ref(null)
+const copiedCode = ref(false)
+let copyTimer = null
+
 const openDetail = async (bookingId) => {
   showDetail.value = true
   isLoadingDetail.value = true
+  showQr.value = false
   detail.value = null
+  nextTick(() => modalEl.value?.focus())
   try {
     const { data } = await bookingAdminApi.detail(bookingId)
     detail.value = data.data ?? data
@@ -107,11 +115,60 @@ const openDetail = async (bookingId) => {
   }
 }
 
+const closeDetail = () => { showDetail.value = false }
+
+// Esc để đóng + giữ Tab quẩn trong modal (nhân viên quầy thao tác bằng bàn phím)
+const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
+const onModalKeydown = (e) => {
+  if (e.key === 'Escape') { closeDetail(); return }
+  if (e.key !== 'Tab' || !modalEl.value) return
+  const items = [...modalEl.value.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null)
+  if (!items.length) return
+  const first = items[0]
+  const last = items[items.length - 1]
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+}
+
+const copyCode = async () => {
+  const code = detail.value?.bookingCode
+  if (!code) return
+  try {
+    await navigator.clipboard.writeText(code)
+    copiedCode.value = true
+    if (copyTimer) clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => { copiedCode.value = false }, 1600)
+  } catch {
+    toast.error('Trình duyệt chặn sao chép. Hãy bôi đen mã và copy thủ công.')
+  }
+}
+
 const detailSeatTotal = computed(() => (detail.value?.seats || []).reduce((a, s) => a + Number(s.price || 0), 0))
 const detailComboTotal = computed(() => (detail.value?.fnbs || []).reduce((a, f) => a + Number(f.price || 0) * f.quantity, 0))
 const detailDiscount = computed(() => Math.max(0, Number(detail.value?.totalPrice || 0) - Number(detail.value?.finalPrice || 0)))
 const detailCheckedIn = computed(() => (detail.value?.tickets || []).filter(t => t.isCheckedIn).length)
 const detailTicketCount = computed(() => (detail.value?.tickets || []).length)
+
+// Gộp ghế cùng (loại ghế + loại vé + đơn giá) để không lặp 7 dòng giống hệt nhau.
+// Đơn giá nằm trong khoá gộp nên con số hiển thị là giá THẬT, không phải trung bình.
+const detailSeatGroups = computed(() => {
+  const groups = new Map()
+  for (const s of detail.value?.seats || []) {
+    const unit = Number(s.price || 0)
+    const key = `${s.seatType || ''}|${s.ticketType || ''}|${unit}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: [seatTypeLabel(s.seatType), ticketTypeLabel(s.ticketType)].filter(Boolean).join(' · '),
+        unit, labels: [], count: 0
+      })
+    }
+    const g = groups.get(key)
+    g.labels.push(s.label)
+    g.count++
+  }
+  return [...groups.values()].map(g => ({ ...g, subtotal: g.unit * g.count }))
+})
 
 const buildInv = (d) => {
   const groups = {}
@@ -179,7 +236,10 @@ const exportCsv = () => {
 }
 
 onMounted(fetchBookings)
-onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
+onUnmounted(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+  if (copyTimer) clearTimeout(copyTimer)
+})
 </script>
 
 <template>
@@ -332,33 +392,58 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 
     <!-- Detail modal -->
     <transition name="fade">
-      <div v-if="showDetail" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showDetail = false">
-        <div class="w-full max-w-2xl max-h-[88vh] bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-          <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center justify-between">
+      <div v-if="showDetail" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="closeDetail">
+        <div
+          ref="modalEl"
+          tabindex="-1"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chi tiết hoá đơn"
+          @keydown="onModalKeydown"
+          class="w-full max-w-4xl max-h-[88vh] bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden flex flex-col outline-none"
+        >
+          <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0">
             <div class="flex items-center gap-3">
               <span class="material-symbols-outlined text-primary">receipt_long</span>
               <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Chi tiết hoá đơn</h3>
             </div>
-            <button @click="showDetail = false" class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined">close</span></button>
+            <button @click="closeDetail" aria-label="Đóng" class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined">close</span></button>
           </div>
 
           <div v-if="isLoadingDetail" class="p-10 flex items-center justify-center">
             <span class="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
           </div>
 
-          <div v-else-if="detail" class="p-7 space-y-6 overflow-y-auto">
+          <!-- 2 cột từ lg: trái cuộn nội dung, phải là bảng kê luôn nhìn thấy -->
+          <div v-else-if="detail" class="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden lg:flex">
+            <div class="flex-1 min-w-0 p-7 space-y-6 lg:overflow-y-auto">
             <!-- Header info -->
             <div class="flex justify-between items-start gap-4">
-              <div>
+              <div class="min-w-0">
                 <p class="text-[10px] font-black text-primary uppercase tracking-widest">Mã đơn</p>
-                <p class="text-xl font-black text-on-surface font-mono">{{ detail.bookingCode }}</p>
-                <p class="text-xs text-on-surface-variant mt-1">{{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }} · {{ detail.channel }}</p>
+                <div class="flex items-center gap-2">
+                  <p class="text-xl font-black text-on-surface font-mono truncate">{{ detail.bookingCode }}</p>
+                  <button
+                    @click="copyCode"
+                    :aria-label="copiedCode ? 'Đã sao chép mã đơn' : 'Sao chép mã đơn'"
+                    :title="copiedCode ? 'Đã sao chép' : 'Sao chép mã đơn'"
+                    class="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                    :class="copiedCode ? 'text-green-400 bg-green-400/10' : 'text-on-surface-variant hover:text-primary hover:bg-primary/10'"
+                  >
+                    <span class="material-symbols-outlined text-base">{{ copiedCode ? 'check' : 'content_copy' }}</span>
+                  </button>
+                </div>
+                <p class="text-xs text-on-surface-variant mt-1">
+                  {{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }}
+                  · {{ detail.channel }}
+                  · <span class="text-on-surface font-bold">{{ paymentLabel(detail.paymentMethod) }}</span>
+                </p>
               </div>
-              <span :class="statusBadge(detail.status).cls" class="inline-flex px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border">{{ statusBadge(detail.status).label }}</span>
+              <span :class="statusBadge(detail.status).cls" class="shrink-0 inline-flex px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border">{{ statusBadge(detail.status).label }}</span>
             </div>
 
             <!-- Movie + customer -->
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
                 <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Suất chiếu</p>
                 <p class="text-sm font-black text-on-surface">{{ detail.movieTitle }}</p>
@@ -373,41 +458,56 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               </div>
             </div>
 
-            <!-- Seats -->
+            <!-- Seats — gộp theo loại ghế/vé/đơn giá, ngoại lệ giá nổi bật ngay -->
             <div>
               <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Ghế ({{ detail.seats.length }})</p>
-              <div class="flex flex-wrap gap-2">
-                <span v-for="(s, i) in detail.seats" :key="i" class="px-3 py-1.5 rounded-lg bg-surface-container-high border border-outline-variant/10 text-xs font-bold text-on-surface">
-                  {{ s.label }} <span class="text-on-surface-variant">· {{ seatTypeLabel(s.seatType) }}<template v-if="ticketTypeLabel(s.ticketType)"> · {{ ticketTypeLabel(s.ticketType) }}</template> · {{ fmt(s.price) }}đ</span>
-                </span>
-              </div>
-            </div>
-
-            <!-- F&B -->
-            <div v-if="detail.fnbs && detail.fnbs.length">
-              <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Bắp nước &amp; Combo</p>
-              <div class="space-y-1.5">
-                <div v-for="(f, i) in detail.fnbs" :key="i" class="flex justify-between text-sm">
-                  <span class="text-on-surface">{{ f.name }} <span class="text-on-surface-variant">x{{ f.quantity }}</span></span>
-                  <span class="text-on-surface font-bold tabular-nums">{{ fmt(Number(f.price) * f.quantity) }}đ</span>
+              <div class="space-y-2">
+                <div v-for="g in detailSeatGroups" :key="g.key" class="p-3 rounded-xl bg-surface-container-high border border-outline-variant/10">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <p class="text-xs font-black text-on-surface">
+                      {{ g.label }}
+                      <span class="text-on-surface-variant font-bold">· {{ fmt(g.unit) }}đ × {{ g.count }}</span>
+                    </p>
+                    <p class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(g.subtotal) }}đ</p>
+                  </div>
+                  <p class="text-xs text-on-surface-variant font-mono mt-1 break-words">{{ g.labels.join('  ') }}</p>
                 </div>
               </div>
             </div>
 
-            <!-- Tickets QR -->
-            <div v-if="detail.tickets && detail.tickets.length">
-              <div class="flex items-center justify-between mb-2">
-                <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Vé QR ({{ detail.tickets.length }})</p>
-                <span
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border"
-                  :class="detailCheckedIn === detailTicketCount
-                    ? 'text-green-400 bg-green-400/10 border-green-400/20'
-                    : 'text-on-surface-variant bg-surface-container-high border-outline-variant/15'"
-                >Đã soát {{ detailCheckedIn }}/{{ detailTicketCount }}</span>
+            <!-- F&B — có đơn giá để tự kiểm chứng thành tiền -->
+            <div v-if="detail.fnbs && detail.fnbs.length">
+              <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Bắp nước &amp; Combo</p>
+              <div class="space-y-1.5">
+                <div v-for="(f, i) in detail.fnbs" :key="i" class="flex items-baseline justify-between gap-3 text-sm">
+                  <span class="text-on-surface min-w-0 truncate">{{ f.name }}</span>
+                  <span class="text-on-surface-variant tabular-nums text-xs shrink-0">{{ fmt(f.price) }}đ × {{ f.quantity }}</span>
+                  <span class="text-on-surface font-bold tabular-nums shrink-0 w-28 text-right">{{ fmt(Number(f.price) * f.quantity) }}đ</span>
+                </div>
               </div>
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            </div>
+
+            <!-- Vé QR — thu gọn mặc định, bung khi cần đối chiếu -->
+            <div v-if="detail.tickets && detail.tickets.length">
+              <button
+                @click="showQr = !showQr"
+                :aria-expanded="showQr"
+                class="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 transition-colors"
+              >
+                <span class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Vé QR ({{ detail.tickets.length }})</span>
+                <span class="flex items-center gap-2">
+                  <span
+                    class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border"
+                    :class="detailCheckedIn === detailTicketCount
+                      ? 'text-green-400 bg-green-400/10 border-green-400/20'
+                      : 'text-on-surface-variant bg-surface-container-highest border-outline-variant/15'"
+                  >Đã soát {{ detailCheckedIn }}/{{ detailTicketCount }}</span>
+                  <span class="material-symbols-outlined text-base text-on-surface-variant transition-transform" :class="showQr ? 'rotate-180' : ''">expand_more</span>
+                </span>
+              </button>
+              <div v-if="showQr" class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
                 <div v-for="(t, i) in detail.tickets" :key="i" class="bg-surface-container-high rounded-xl border border-outline-variant/10 p-3 flex items-center gap-3">
-                  <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=0&data=${encodeURIComponent(t.qrCode)}`" alt="QR" class="w-14 h-14 bg-white rounded p-0.5" />
+                  <QrCode :value="t.qrCode" :size="120" class="w-14 h-14 shrink-0" />
                   <div class="min-w-0">
                     <p class="text-sm font-black text-on-surface">Ghế {{ t.seatLabel }}</p>
                     <p class="text-[9px] font-bold uppercase" :class="t.isCheckedIn ? 'text-green-400' : 'text-on-surface-variant'">
@@ -417,28 +517,44 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 </div>
               </div>
             </div>
-
-            <!-- Summary -->
-            <div class="pt-4 border-t border-outline-variant/10 space-y-2">
-              <div class="flex justify-between text-sm text-on-surface-variant"><span>Tiền vé</span><span class="tabular-nums">{{ fmt(detailSeatTotal) }}đ</span></div>
-              <div v-if="detailComboTotal > 0" class="flex justify-between text-sm text-on-surface-variant"><span>Bắp nước &amp; combo</span><span class="tabular-nums">{{ fmt(detailComboTotal) }}đ</span></div>
-              <div v-if="detailDiscount > 0" class="flex justify-between text-sm text-green-400">
-                <span>Giảm giá <span v-if="detail.voucherCode" class="text-on-surface-variant">({{ detail.voucherCode }})</span></span>
-                <span class="tabular-nums">−{{ fmt(detailDiscount) }}đ</span>
-              </div>
-              <div class="flex justify-between items-baseline pt-2 border-t border-outline-variant/10">
-                <span class="text-xs font-black text-on-surface uppercase tracking-widest">Tổng thanh toán</span>
-                <span class="text-2xl font-black text-primary italic tabular-nums">{{ fmt(detail.finalPrice) }}đ</span>
-              </div>
-              <p class="text-xs text-on-surface-variant text-right">Phương thức: <b class="text-on-surface">{{ paymentLabel(detail.paymentMethod) }}</b></p>
             </div>
+
+            <!-- Bảng kê: cột phải trên desktop, xuống dưới trên mobile -->
+            <aside class="lg:w-80 lg:shrink-0 border-t lg:border-t-0 lg:border-l border-outline-variant/10 bg-surface-container-low p-6 space-y-4 lg:overflow-y-auto">
+              <div>
+                <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Tổng thanh toán</p>
+                <p class="text-3xl font-black text-primary italic tabular-nums leading-tight">{{ fmt(detail.finalPrice) }}đ</p>
+              </div>
+
+              <div class="space-y-2 pt-3 border-t border-outline-variant/10">
+                <div class="flex justify-between text-sm text-on-surface-variant"><span>Tiền vé</span><span class="tabular-nums">{{ fmt(detailSeatTotal) }}đ</span></div>
+                <div v-if="detailComboTotal > 0" class="flex justify-between text-sm text-on-surface-variant"><span>Bắp nước &amp; combo</span><span class="tabular-nums">{{ fmt(detailComboTotal) }}đ</span></div>
+                <div v-if="detailDiscount > 0" class="flex justify-between text-sm text-green-400">
+                  <span>Giảm giá <span v-if="detail.voucherCode" class="text-on-surface-variant">({{ detail.voucherCode }})</span></span>
+                  <span class="tabular-nums">−{{ fmt(detailDiscount) }}đ</span>
+                </div>
+              </div>
+
+              <div class="space-y-2 pt-3 border-t border-outline-variant/10 text-sm">
+                <div class="flex justify-between"><span class="text-on-surface-variant">Phương thức</span><b class="text-on-surface">{{ paymentLabel(detail.paymentMethod) }}</b></div>
+                <div class="flex justify-between"><span class="text-on-surface-variant">Kênh bán</span><b class="text-on-surface">{{ detail.channel }}</b></div>
+                <div v-if="detailTicketCount" class="flex justify-between">
+                  <span class="text-on-surface-variant">Soát vé</span>
+                  <b :class="detailCheckedIn === detailTicketCount ? 'text-green-400' : 'text-on-surface'">{{ detailCheckedIn }}/{{ detailTicketCount }}</b>
+                </div>
+              </div>
+            </aside>
           </div>
 
-          <div class="px-7 py-4 border-t border-outline-variant/10 flex justify-end gap-3 flex-shrink-0">
-            <button @click="showDetail = false" class="px-6 py-3 text-on-surface-variant hover:text-on-surface font-bold text-xs uppercase tracking-widest transition-colors">Đóng</button>
-            <button v-if="detail" @click="reprint(detail.bookingId)" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm">print</span> In lại hoá đơn
-            </button>
+          <div class="px-7 py-4 border-t border-outline-variant/10 flex items-center justify-between gap-3 flex-shrink-0">
+            <!-- Mobile: bảng kê nằm dưới nên nhắc lại tổng ở đây cho luôn thấy -->
+            <p v-if="detail" class="lg:hidden text-lg font-black text-primary italic tabular-nums">{{ fmt(detail.finalPrice) }}đ</p>
+            <div class="flex justify-end gap-3 ml-auto">
+              <button @click="closeDetail" class="px-6 py-3 text-on-surface-variant hover:text-on-surface font-bold text-xs uppercase tracking-widest transition-colors">Đóng</button>
+              <button v-if="detail" @click="reprint(detail.bookingId)" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">print</span> In lại hoá đơn
+              </button>
+            </div>
           </div>
         </div>
       </div>

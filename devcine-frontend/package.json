@@ -16,6 +16,7 @@
     "axios": "^1.16.0",
     "fast-average-color": "^9.5.2",
     "pinia": "^3.0.4",
+    "qrcode": "^1.5.4",
     "vue": "^3.5.32",
     "vue-router": "^4.6.4"
   },
