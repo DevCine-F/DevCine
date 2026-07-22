@@ -6,10 +6,9 @@ import com.devcine.backend.repository.*;
 import com.devcine.backend.service.BookingService;
 import com.devcine.backend.service.ConcessionService;
 import com.devcine.backend.service.PosHoldService;
-import com.devcine.backend.service.ShiftAccessService;
+import com.devcine.backend.service.CurrentStaffService;
 import com.devcine.backend.service.VoucherService;
 import com.devcine.backend.dto.request.SeatSelectionDTO;
-import com.devcine.backend.util.SecurityUtils;
 
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
@@ -41,25 +40,13 @@ public class TicketingController {
     private final PosHoldService posHoldService;
     private final BookingRepository bookingRepository;
     private final TicketRepository ticketRepository;
-    private final ShiftAccessService shiftAccessService;
     private final VoucherService voucherService;
-    private final StaffRepository staffRepository;
-
-    /**
-     * Nhân viên đang đăng nhập — nguồn quy kết doanh thu POS.
-     * Thay cho việc suy ra từ ca làm việc: ADMIN/MANAGER bán quầy không có ca nhưng vẫn
-     * phải được ghi nhận là người bán.
-     */
-    private Staff currentStaff() {
-        Integer userId = SecurityUtils.getCurrentUserId();
-        return userId != null ? staffRepository.findById(userId).orElse(null) : null;
-    }
+    private final CurrentStaffService currentStaffService;
 
     // Suất chiếu cho POS: từ đầu ngày hôm nay trở đi (chưa diễn ra hoặc đang trong ngày), sắp xếp tăng dần
     @GetMapping("/showtimes")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getTodayShowtimes() {
-        shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
         List<Showtime> showtimes = showtimeRepository.findAll().stream()
                 .filter(s -> s.getStartTime() != null && !s.getStartTime().isBefore(startOfToday))
@@ -82,7 +69,6 @@ public class TicketingController {
     @GetMapping("/combos")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getFnbCombos() {
-        shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quay F&B");
         List<FnbItem> items = fnbItemRepository.findAll();
         return ResponseEntity.ok(ApiResponse.ok(items));
     }
@@ -91,7 +77,6 @@ public class TicketingController {
     @GetMapping("/member-card/{phone}")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> lookupMemberCard(@PathVariable String phone) {
-        shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "FNB", "SHIFT_LEAD"), "nghiep vu tai quay");
         try {
             String p = phone == null ? "" : phone.trim().replaceAll("\\s+", "").replaceFirst("^\\+84", "0");
             if (p.isEmpty()) {
@@ -119,7 +104,6 @@ public class TicketingController {
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> posCheckout(@RequestBody Map<String, Object> body) {
         try {
-            StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             // POS tạo booking CONFIRMED trực tiếp (không qua hold)
             Integer showtimeId = Integer.parseInt(body.get("showtimeId").toString());
             @SuppressWarnings("unchecked")
@@ -167,7 +151,7 @@ public class TicketingController {
                             .paymentMethod(paymentMethod)
                             .build();
 
-            Booking booking = bookingService.holdSeatsForPos(req, currentStaff());
+            Booking booking = bookingService.holdSeatsForPos(req, currentStaffService.current());
 
             // Số liệu tiền để POS hiển thị đúng giảm giá (voucher đánh dấu USED trong completePayment)
             BigDecimal totalAmount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
@@ -233,7 +217,6 @@ public class TicketingController {
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> concessionCheckout(@RequestBody Map<String, Object> body) {
         try {
-            StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("FNB", "SHIFT_LEAD"), "quay F&B");
             String paymentMethod = (String) body.getOrDefault("paymentMethod", "CASH");
             Integer customerId = body.get("customerId") != null
                     ? Integer.parseInt(body.get("customerId").toString()) : null;
@@ -247,7 +230,7 @@ public class TicketingController {
                             .build())
                     .collect(Collectors.toList());
 
-            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, currentStaff());
+            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, currentStaffService.current());
 
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "saleId", sale.getId(),
@@ -270,7 +253,6 @@ public class TicketingController {
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> createHold(@RequestBody Map<String, Object> body) {
         try {
-            StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             Integer showtimeId = Integer.parseInt(body.get("showtimeId").toString());
             @SuppressWarnings("unchecked")
             List<Integer> seatIds = (List<Integer>) body.get("seatIds");
@@ -285,7 +267,7 @@ public class TicketingController {
                             .paymentMethod("POS_HOLD")
                             .build();
 
-            Booking booking = bookingService.holdSeatsForPos(req, currentStaff());
+            Booking booking = bookingService.holdSeatsForPos(req, currentStaffService.current());
 
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "bookingId", booking.getId(),
@@ -303,7 +285,6 @@ public class TicketingController {
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> releaseHold(@PathVariable Integer bookingId) {
         try {
-            shiftAccessService.requireCurrentShiftForStaff(List.of("POS_TICKETING", "SHIFT_LEAD"), "ban ve POS");
             String status = posHoldService.releaseHold(bookingId);
             return ResponseEntity.ok(ApiResponse.ok(Map.of("status", status)));
         } catch (AccessDeniedException e) {

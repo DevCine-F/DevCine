@@ -36,7 +36,7 @@ public class TicketController {
      * Không đánh dấu đã in — việc in do endpoint /print thực hiện khi nhân viên bấm nút.
      */
     @PostMapping("/lookup")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> lookupBooking(@RequestParam("code") String code) {
         try {
             return ResponseEntity.ok(ApiResponse.ok(ticketService.lookupByBookingCode(code)));
@@ -52,7 +52,7 @@ public class TicketController {
      * Nhận mã đặt vé (booking_code) — 1 mã QR đại diện cả đơn, không phải từng ghế.
      */
     @PostMapping("/print")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    @PreAuthorize("@perm.can('pos_ticketing', 'add')")
     public ResponseEntity<?> printTickets(@RequestParam("code") String code) {
         try {
             return ResponseEntity.ok(ApiResponse.ok(ticketService.printByBookingCode(code)));

@@ -7,8 +7,6 @@ import com.devcine.backend.entity.ConcessionSale;
 import com.devcine.backend.entity.ConcessionSaleItem;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.Seat;
-import com.devcine.backend.entity.StaffSchedule;
-import com.devcine.backend.enums.WorkPosition;
 import com.devcine.backend.repository.ApprovalRequestRepository;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
@@ -20,6 +18,7 @@ import com.devcine.backend.repository.UserRepository;
 import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -31,11 +30,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Luồng phê duyệt "sửa sai" nội bộ của Trưởng ca (Shift Leader):
+ * Luồng phê duyệt "sửa sai" nội bộ:
  *  - FNB_VOID: hủy hóa đơn bắp nước bấm nhầm (hoàn kho + thu hồi điểm).
  *  - SEAT_MOVE: đổi ghế cho khách do sự cố vật lý (giữ nguyên giá/booking gốc).
  *
- * Nhân viên quầy KHÔNG tự thực hiện — chỉ tạo yêu cầu; Trưởng ca (hoặc Manager/Admin) duyệt.
+ * Nhân viên quầy KHÔNG tự thực hiện — chỉ tạo yêu cầu; Quản lý (MANAGER/ADMIN) duyệt.
+ * Trước đây quyền duyệt thuộc Trưởng ca đang trong ca, nhưng phân hệ Phân ca đã được gỡ.
  */
 @Slf4j
 @Service
@@ -55,7 +55,6 @@ public class ApprovalService {
     private final BookingSeatRepository bookingSeatRepository;
     private final SeatRepository seatRepository;
     private final UserRepository userRepository;
-    private final ShiftAccessService shiftAccessService;
     private final LoyaltyService loyaltyService;
     private final ObjectMapper objectMapper;
 
@@ -63,12 +62,9 @@ public class ApprovalService {
     // TẠO YÊU CẦU (nhân viên quầy)
     // ----------------------------------------------------------------------------------
 
-    /** Nhân viên F&B (hoặc Trưởng ca) yêu cầu hủy một hóa đơn bắp nước bấm nhầm. */
+    /** Nhân viên quầy yêu cầu hủy một hóa đơn bắp nước bấm nhầm. */
     @Transactional
     public ApprovalRequest requestFnbVoid(Integer saleId, String reason) {
-        StaffSchedule schedule = shiftAccessService
-                .requireCurrentShiftForStaff(WorkPosition.withLeader(WorkPosition.FNB), "yeu cau huy hoa don F&B");
-
         ConcessionSale sale = concessionSaleRepository.findById(saleId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hóa đơn F&B."));
         if (!"CONFIRMED".equalsIgnoreCase(sale.getStatus())) {
@@ -78,7 +74,7 @@ public class ApprovalService {
             throw new IllegalArgumentException("Hóa đơn này đã có yêu cầu hủy đang chờ duyệt.");
         }
 
-        ApprovalRequest request = baseRequest(schedule);
+        ApprovalRequest request = baseRequest();
         request.setType(TYPE_FNB_VOID);
         request.setRefId(saleId);
         request.setRefCode(sale.getSaleCode());
@@ -88,12 +84,9 @@ public class ApprovalService {
         return approvalRepository.save(request);
     }
 
-    /** Nhân viên quầy vé (hoặc Trưởng ca) yêu cầu đổi ghế cho khách do sự cố vật lý. */
+    /** Nhân viên quầy vé yêu cầu đổi ghế cho khách do sự cố vật lý. */
     @Transactional
     public ApprovalRequest requestSeatMove(Integer bookingSeatId, Integer toSeatId, String reason) {
-        StaffSchedule schedule = shiftAccessService.requireCurrentShiftForStaff(
-                WorkPosition.withLeader(WorkPosition.POS_TICKETING), "yeu cau doi ghe");
-
         BookingSeat bookingSeat = bookingSeatRepository.findById(bookingSeatId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ghế trong booking."));
         Seat target = seatRepository.findById(toSeatId)
@@ -105,7 +98,7 @@ public class ApprovalService {
         String fromLabel = seatLabel(from);
         String toLabel = seatLabel(target);
 
-        ApprovalRequest request = baseRequest(schedule);
+        ApprovalRequest request = baseRequest();
         request.setType(TYPE_SEAT_MOVE);
         request.setRefId(booking.getId());
         request.setRefCode(booking.getBookingCode());
@@ -122,18 +115,16 @@ public class ApprovalService {
     }
 
     // ----------------------------------------------------------------------------------
-    // DUYỆT / TỪ CHỐI (Trưởng ca hoặc Manager/Admin)
+    // DUYỆT / TỪ CHỐI (Manager/Admin)
     // ----------------------------------------------------------------------------------
 
     @Transactional
     public ApprovalRequest approve(Integer requestId) {
-        // Gate: chỉ Trưởng ca đang trong ca (hoặc Manager/Admin theo tier) mới được duyệt.
-        StaffSchedule approverSchedule =
-                shiftAccessService.requireCurrentShiftForStaff(WorkPosition.APPROVERS, "phe duyet sua sai");
+        requireApprover();
 
         ApprovalRequest request = loadPending(requestId);
         switch (request.getType()) {
-            case TYPE_FNB_VOID -> executeFnbVoid(request, approverSchedule);
+            case TYPE_FNB_VOID -> executeFnbVoid(request);
             case TYPE_SEAT_MOVE -> executeSeatMove(request);
             default -> throw new IllegalArgumentException("Loại yêu cầu không hỗ trợ: " + request.getType());
         }
@@ -143,7 +134,7 @@ public class ApprovalService {
 
     @Transactional
     public ApprovalRequest reject(Integer requestId, String note) {
-        shiftAccessService.requireCurrentShiftForStaff(WorkPosition.APPROVERS, "phe duyet sua sai");
+        requireApprover();
         ApprovalRequest request = loadPending(requestId);
         stampDecision(request, STATUS_REJECTED, note);
         return approvalRepository.save(request);
@@ -187,7 +178,7 @@ public class ApprovalService {
     // Thực thi hành động khi duyệt
     // ----------------------------------------------------------------------------------
 
-    private void executeFnbVoid(ApprovalRequest request, StaffSchedule approverSchedule) {
+    private void executeFnbVoid(ApprovalRequest request) {
         ConcessionSale sale = concessionSaleRepository.findById(request.getRefId())
                 .orElseThrow(() -> new IllegalArgumentException("Hóa đơn F&B không còn tồn tại."));
         if (!"CONFIRMED".equalsIgnoreCase(sale.getStatus())) {
@@ -255,16 +246,23 @@ public class ApprovalService {
     // Helpers
     // ----------------------------------------------------------------------------------
 
-    private ApprovalRequest baseRequest(StaffSchedule schedule) {
+    /**
+     * Quyền duyệt "sửa sai" (void F&B / đổi ghế) thuộc về Quản lý cơ sở.
+     * Trước đây là Trưởng ca đang trong ca; phân hệ Phân ca đã gỡ nên chuyển về tier Role.
+     */
+    private void requireApprover() {
+        if (!SecurityUtils.isAdmin() && !SecurityUtils.isManager()) {
+            throw new AccessDeniedException("Chỉ Quản lý mới được duyệt yêu cầu sửa sai.");
+        }
+    }
+
+    private ApprovalRequest baseRequest() {
         Integer userId = SecurityUtils.getCurrentUserId();
-        Integer cinemaId = schedule != null && schedule.getCinema() != null
-                ? schedule.getCinema().getId()
-                : SecurityUtils.getCurrentUserCinemaId();
         return ApprovalRequest.builder()
                 .status(STATUS_PENDING)
-                .cinemaId(cinemaId)
+                .cinemaId(SecurityUtils.getCurrentUserCinemaId())
                 .requestedByUserId(userId)
-                .requestedByName(resolveUserName(schedule, userId))
+                .requestedByName(resolveUserName(userId))
                 .createdAt(LocalDateTime.now())
                 .build();
     }
@@ -282,14 +280,11 @@ public class ApprovalService {
         request.setStatus(status);
         request.setDecisionNote(note);
         request.setApprovedByUserId(SecurityUtils.getCurrentUserId());
-        request.setApprovedByName(resolveUserName(null, SecurityUtils.getCurrentUserId()));
+        request.setApprovedByName(resolveUserName(SecurityUtils.getCurrentUserId()));
         request.setDecidedAt(LocalDateTime.now());
     }
 
-    private String resolveUserName(StaffSchedule schedule, Integer userId) {
-        if (schedule != null && schedule.getStaff() != null && schedule.getStaff().getUser() != null) {
-            return schedule.getStaff().getUser().getFullName();
-        }
+    private String resolveUserName(Integer userId) {
         if (userId == null) return null;
         return userRepository.findById(userId).map(u -> u.getFullName()).orElse(null);
     }

@@ -10,6 +10,7 @@ import com.devcine.backend.entity.Movie;
 import com.devcine.backend.entity.Room;
 import com.devcine.backend.entity.Seat;
 import com.devcine.backend.entity.Showtime;
+import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.Ticket;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.repository.BookingFnbRepository;
@@ -38,7 +39,7 @@ public class TicketService {
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final BookingFnbRepository bookingFnbRepository;
-    private final ShiftAccessService shiftAccessService;
+    private final CurrentStaffService currentStaffService;
     private final MailService mailService;
 
     @Transactional(readOnly = true)
@@ -52,8 +53,6 @@ public class TicketService {
      */
     @Transactional(readOnly = true)
     public BookingPrintResponse lookupByBookingCode(String bookingCode) {
-        shiftAccessService.requireCurrentShiftForStaff(List.of("CHECK_IN", "SHIFT_LEAD"), "kiem tra ve");
-
         if (bookingCode == null || bookingCode.isBlank()) {
             throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
         }
@@ -79,7 +78,7 @@ public class TicketService {
      */
     @Transactional
     public BookingPrintResponse printByBookingCode(String bookingCode) {
-        var schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("CHECK_IN", "SHIFT_LEAD"), "in ve tai quay");
+        Staff handledBy = currentStaffService.current();
 
         if (bookingCode == null || bookingCode.isBlank()) {
             throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
@@ -97,8 +96,8 @@ public class TicketService {
 
         LocalDateTime now = LocalDateTime.now();
         booking.setPrintedAt(now);
-        if (schedule != null) {
-            booking.setPrintedBy(schedule.getStaff());
+        if (handledBy != null) {
+            booking.setPrintedBy(handledBy);
         }
         bookingRepository.save(booking);
 
@@ -108,8 +107,8 @@ public class TicketService {
             if (!Boolean.TRUE.equals(t.getIsCheckedIn())) {
                 t.setIsCheckedIn(true);
                 t.setCheckInTime(now);
-                if (schedule != null) {
-                    t.setCheckedInBy(schedule.getStaff());
+                if (handledBy != null) {
+                    t.setCheckedInBy(handledBy);
                 }
             }
         }
