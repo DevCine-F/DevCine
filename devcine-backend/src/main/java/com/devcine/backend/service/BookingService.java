@@ -43,15 +43,16 @@ public class BookingService {
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
-        return holdSeats(request, null, "ONLINE");
+        return holdSeats(request, null, null, "ONLINE");
     }
 
+    /** Bán tại quầy: {@code soldBy} là nhân viên thực hiện — nguồn quy kết doanh thu POS. */
     @Transactional
-    public Booking holdSeatsForStaffSchedule(BookingRequestDTO request, StaffSchedule staffSchedule) {
-        return holdSeats(request, staffSchedule, "POS");
+    public Booking holdSeatsForStaffSchedule(BookingRequestDTO request, StaffSchedule staffSchedule, Staff soldBy) {
+        return holdSeats(request, staffSchedule, soldBy, "POS");
     }
 
-    private Booking holdSeats(BookingRequestDTO request, StaffSchedule staffSchedule, String channel) {
+    private Booking holdSeats(BookingRequestDTO request, StaffSchedule staffSchedule, Staff soldBy, String channel) {
         // Khóa ghi bi quan trên suất → tuần tự hóa mọi lệnh giữ ghế cùng suất, chống bán trùng (race)
         Showtime showtime = showtimeRepository.findByIdForUpdate(request.getShowtimeId())
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
@@ -131,6 +132,7 @@ public class BookingService {
                 .customer(customer)
                 .showtime(showtime)
                 .staffSchedule(staffSchedule)
+                .soldBy(soldBy)
                 .channel(channel) // ONLINE (khách đặt) | POS (bán quầy) — nguồn tin cậy tách email
                 .bookingCode(UUID.randomUUID().toString().substring(0, 10).toUpperCase())
                 .status("HOLD") // Initial status

@@ -5,6 +5,7 @@ import com.devcine.backend.entity.ConcessionSale;
 import com.devcine.backend.entity.ConcessionSaleItem;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.FnbItem;
+import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.repository.ConcessionSaleItemRepository;
 import com.devcine.backend.repository.ConcessionSaleRepository;
@@ -39,12 +40,13 @@ public class ConcessionService {
 
     @Transactional
     public ConcessionSale createSale(List<FnbSelectionDTO> items, Integer customerId, String paymentMethod) {
-        return createSale(items, customerId, paymentMethod, null);
+        return createSale(items, customerId, paymentMethod, null, null);
     }
 
+    /** {@code soldBy} là nhân viên thực hiện — nguồn quy kết doanh thu quầy F&B. */
     @Transactional
     public ConcessionSale createSale(List<FnbSelectionDTO> items, Integer customerId,
-                                     String paymentMethod, StaffSchedule staffSchedule) {
+                                     String paymentMethod, StaffSchedule staffSchedule, Staff soldBy) {
         if (items == null || items.isEmpty()) {
             throw new RuntimeException("Vui long chon it nhat 1 mon.");
         }
@@ -60,6 +62,7 @@ public class ConcessionService {
         ConcessionSale sale = ConcessionSale.builder()
                 .customer(customer)
                 .staffSchedule(staffSchedule)
+                .soldBy(soldBy)
                 .saleCode("CCS-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .paymentMethod(paymentMethod != null ? paymentMethod : "CASH")
                 .status("CONFIRMED")

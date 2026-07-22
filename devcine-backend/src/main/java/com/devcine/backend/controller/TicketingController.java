@@ -9,6 +9,7 @@ import com.devcine.backend.service.PosHoldService;
 import com.devcine.backend.service.ShiftAccessService;
 import com.devcine.backend.service.VoucherService;
 import com.devcine.backend.dto.request.SeatSelectionDTO;
+import com.devcine.backend.util.SecurityUtils;
 
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,17 @@ public class TicketingController {
     private final TicketRepository ticketRepository;
     private final ShiftAccessService shiftAccessService;
     private final VoucherService voucherService;
+    private final StaffRepository staffRepository;
+
+    /**
+     * Nhân viên đang đăng nhập — nguồn quy kết doanh thu POS.
+     * Thay cho việc suy ra từ ca làm việc: ADMIN/MANAGER bán quầy không có ca nhưng vẫn
+     * phải được ghi nhận là người bán.
+     */
+    private Staff currentStaff() {
+        Integer userId = SecurityUtils.getCurrentUserId();
+        return userId != null ? staffRepository.findById(userId).orElse(null) : null;
+    }
 
     // Suất chiếu cho POS: từ đầu ngày hôm nay trở đi (chưa diễn ra hoặc đang trong ngày), sắp xếp tăng dần
     @GetMapping("/showtimes")
@@ -155,7 +167,7 @@ public class TicketingController {
                             .paymentMethod(paymentMethod)
                             .build();
 
-            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule);
+            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule, currentStaff());
 
             // Số liệu tiền để POS hiển thị đúng giảm giá (voucher đánh dấu USED trong completePayment)
             BigDecimal totalAmount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
@@ -235,7 +247,7 @@ public class TicketingController {
                             .build())
                     .collect(Collectors.toList());
 
-            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, schedule);
+            ConcessionSale sale = concessionService.createSale(fnbs, customerId, paymentMethod, schedule, currentStaff());
 
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "saleId", sale.getId(),
@@ -273,7 +285,7 @@ public class TicketingController {
                             .paymentMethod("POS_HOLD")
                             .build();
 
-            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule);
+            Booking booking = bookingService.holdSeatsForStaffSchedule(req, schedule, currentStaff());
 
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "bookingId", booking.getId(),
