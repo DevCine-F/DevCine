@@ -3,7 +3,6 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../stores/auth'
-import { useShiftStore } from '../stores/shift'
 import adminRoutes from '../routers/admin'
 import { canUseAdminPermission, resolveFirstAccessibleAdminPath } from '../utils/adminAccess'
 import AppToast from '../components/common/AppToast.vue'
@@ -13,7 +12,6 @@ import logo from '../assets/images/Logo_DevCine_Ngang_XoaNen.png'
 const { isLightMode, toggleTheme } = useTheme()
 const router = useRouter()
 const authStore = useAuthStore()
-const shiftStore = useShiftStore()
 
 const isAccountOpen = ref(false)
 const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Quản trị viên')
@@ -44,7 +42,6 @@ const onClickOutsideAccount = (e) => {
 }
 
 onMounted(() => {
-  shiftStore.fetchCurrent(true)
   // Nạp lại quyền mỗi khi vào layout (F5) để phản ánh ngay thay đổi ma trận quyền do admin cập nhật;
   // ADMIN toàn quyền nên fetchPermissions tự bỏ qua gọi API.
   authStore.fetchPermissions(true).catch(() => {})
@@ -165,24 +162,9 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
         <!-- ===== NHÂN SỰ ===== -->
         <div v-if="canShow('staff_management') || authStore.isStaff" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
 
-        <router-link v-if="authStore.isStaff" to="/admin/my-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_clock</span>
-          <span class="font-semibold text-sm">Ca của tôi</span>
-        </router-link>
-
         <router-link v-if="canShow('staff_management')" to="/admin/staff" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">group</span>
           <span class="font-semibold text-sm">Nhân viên</span>
-        </router-link>
-
-        <router-link v-if="canShow('staff_management')" to="/admin/staff-shifts" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">event_available</span>
-          <span class="font-semibold text-sm">Phân ca làm việc</span>
-        </router-link>
-
-        <router-link v-if="authStore.isStaff || canShow('staff_management')" to="/admin/shift-handover" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">point_of_sale</span>
-          <span class="font-semibold text-sm">Bàn giao ca</span>
         </router-link>
 
         <router-link v-if="authStore.isStaff || canShow('staff_management')" to="/admin/approvals" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">

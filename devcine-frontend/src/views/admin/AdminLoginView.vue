@@ -58,7 +58,7 @@ const rememberMe = ref(false)
 
 // Dev Mode: đăng nhập nhanh theo vai trò × cơ sở (chỉ dùng khi phát triển).
 // Tài khoản khớp DataSeeder — sửa ở đây thì phải sửa cả seeder, nếu không nút sẽ đăng nhập hỏng.
-// Nhân viên chọn người giữ vị trí SHIFT_LEAD để demo được cả quyền phê duyệt trong ca.
+// Quyền phê duyệt sửa sai thuộc Quản lý — dùng tài khoản Quản lý để demo luồng đó.
 const showQuickMenu = ref(false)
 const quickAccounts = [
   { label: 'Quản trị', scope: 'Toàn hệ thống', user: 'admin', pass: '123' },

@@ -106,31 +106,14 @@ export const staffApi = {
   toggle: (id) => api.put(`/staff/${id}/toggle`),
 };
 
-export const staffShiftApi = {
-  list: (params) => api.get('/staff/shifts', { params }),
-  current: () => api.get('/staff/shifts/current'),
-  my: (params) => api.get('/staff/shifts/my', { params }),
-  create: (data) => api.post('/staff/shifts', data),
-  approve: (id) => api.put(`/staff/shifts/${id}/approve`),
-  reject: (id) => api.put(`/staff/shifts/${id}/reject`),
-  checkIn: (id) => api.put(`/staff/shifts/${id}/check-in`),
-  checkOut: (id) => api.put(`/staff/shifts/${id}/check-out`),
-};
 
-export const shiftHandoverApi = {
-  list: () => api.get('/staff/handovers'),
-  mine: () => api.get('/staff/handovers/my'),
-  summary: (staffScheduleId) => api.get('/staff/handovers/summary', { params: { staffScheduleId } }),
-  currentSummary: () => api.get('/staff/shifts/current/handover-summary'),
-  submit: (data) => api.post('/staff/handovers', data),
-};
 
 // Danh sách cơ sở (cụm rạp) cho dropdown lọc/gán nhân viên — endpoint công khai GET
 export const cinemaListApi = {
   getAll: () => api.get('/v1/cinemas'),
 };
 
-// Luồng phê duyệt "sửa sai" của Trưởng ca (void hóa đơn F&B / đổi ghế sự cố)
+// Luồng phê duyệt "sửa sai" của Quản lý (void hóa đơn F&B / đổi ghế sự cố)
 export const approvalApi = {
   pending: () => api.get('/staff/approvals/pending'),
   mine: () => api.get('/staff/approvals/mine'),

@@ -34,7 +34,7 @@ const features = ref([
   { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view'],
     labels: { view: 'Xem báo cáo doanh thu' } },
 
-  // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng Trưởng ca duyệt)
+  // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng Quản lý duyệt)
   { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add'],
     labels: { view: 'Vào quầy & xem suất chiếu', add: 'Tạo đơn / bán vé & F&B' } },
   // KHÔNG phải kho: tồn kho vô hạn, module Kho/BOM đã gỡ. Đây là quản trị THỰC ĐƠN (món & combo).

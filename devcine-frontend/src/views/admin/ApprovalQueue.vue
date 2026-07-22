@@ -5,13 +5,11 @@ import AppModal from '@/components/common/AppModal.vue'
 import { approvalApi, ticketingApi } from '@/api/admin/index'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirmStore } from '@/stores/confirm'
-import { useShiftStore } from '@/stores/shift'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
 const auth = useAuthStore()
 const confirm = useConfirmStore()
-const shiftStore = useShiftStore()
 const toast = useToastStore()
 
 const activeTab = ref('pending') // 'pending' | 'mine'
@@ -81,7 +79,7 @@ const submitSeatMove = async () => {
   smSubmitting.value = true
   try {
     await approvalApi.requestSeatMove(Number(smBrokenId.value), Number(smTargetId.value), smReason.value?.trim() || null)
-    toast.success('Đã gửi yêu cầu đổi ghế — chờ Trưởng ca duyệt.')
+    toast.success('Đã gửi yêu cầu đổi ghế — chờ Quản lý duyệt.')
     showSeatMove.value = false
     smShowtimeId.value = ''; smBrokenId.value = ''; smTargetId.value = ''; smReason.value = ''
     smOccupied.value = []; smFreeSeats.value = []
@@ -101,10 +99,8 @@ const openSeatMove = () => {
 
 const seatLabelOf = (s) => (s.rowChar || '') + (s.colNum ?? '')
 
-// Trưởng ca (đang mở ca vị trí SHIFT_LEAD) hoặc Manager/Admin mới được phê duyệt.
-const canApprove = computed(() =>
-  auth.isAdmin || auth.isManager || shiftStore.current?.workPosition === 'SHIFT_LEAD'
-)
+// Chỉ Quản lý/Admin mới được phê duyệt — khớp requireApprover() ở ApprovalService.
+const canApprove = computed(() => auth.isAdmin || auth.isManager)
 
 const typeLabel = (t) => ({ FNB_VOID: 'Hủy hóa đơn F&B', SEAT_MOVE: 'Đổi ghế' }[t] || t)
 const typeClass = (t) => ({
@@ -190,7 +186,6 @@ const handleReject = async () => {
 }
 
 onMounted(() => {
-  shiftStore.fetchCurrent()
   loadData()
 })
 </script>
@@ -201,7 +196,7 @@ onMounted(() => {
       <div>
         <h1 class="text-2xl font-black text-on-surface">Phê duyệt sửa sai</h1>
         <p class="text-sm text-on-surface-variant mt-1">
-          Trưởng ca duyệt hủy hóa đơn F&B bấm nhầm và đổi ghế cho khách do sự cố vật lý.
+          Quản lý duyệt hủy hóa đơn F&B bấm nhầm và đổi ghế cho khách do sự cố vật lý.
         </p>
       </div>
       <div class="flex gap-2 bg-surface-container rounded-xl p-1">
@@ -325,7 +320,7 @@ onMounted(() => {
           <AppButton variant="outline" :disabled="busyId === item.id" @click="openReject(item)">Từ chối</AppButton>
         </div>
         <div v-else-if="activeTab === 'pending' && item.status === 'PENDING' && !canApprove" class="text-xs text-on-surface-variant italic shrink-0">
-          Cần Trưởng ca duyệt
+          Cần Quản lý duyệt
         </div>
       </article>
     </div>

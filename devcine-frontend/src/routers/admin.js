@@ -91,23 +91,6 @@ export default [
         component: () => import('../views/admin/FnbMenuManager.vue')
       },
       {
-        path: 'staff-shifts',
-        name: 'admin-staff-shifts',
-        meta: { permission: { feature: 'staff_management', action: 'view' } },
-        component: () => import('../views/admin/StaffShiftManagement.vue')
-      },
-      {
-        path: 'my-shifts',
-        name: 'staff-my-shifts',
-        meta: { staffOnly: true },
-        component: () => import('../views/admin/MyShifts.vue')
-      },
-      {
-        path: 'shift-handover',
-        name: 'admin-shift-handover',
-        component: () => import('../views/admin/ShiftHandover.vue')
-      },
-      {
         path: 'approvals',
         name: 'admin-approvals',
         component: () => import('../views/admin/ApprovalQueue.vue')
