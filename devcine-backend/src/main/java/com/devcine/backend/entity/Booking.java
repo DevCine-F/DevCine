@@ -35,6 +35,11 @@ public class Booking {
     @JoinColumn(name = "staff_schedule_id")
     private StaffSchedule staffSchedule;
 
+    /** Nhân viên đã bán đơn tại quầy. Null với đơn ONLINE (khách tự đặt). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sold_by")
+    private Staff soldBy;
+
     @Column(name = "total_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalPrice;
 

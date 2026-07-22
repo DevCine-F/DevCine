@@ -1,17 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {
-      "name": "backend",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd /d E:\\DATN\\DevCine\\devcine-backend && .\\mvnw.cmd spring-boot:run"],
-      "port": 8080
-    },
-    {
-      "name": "frontend",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd devcine-frontend && npm run dev"],
-      "port": 5173
-    }
+    { "name": "devcine-frontend", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 5173, "cwd": "devcine-frontend" },
+    { "name": "devcine-backend", "runtimeExecutable": ".\\mvnw.cmd", "runtimeArgs": ["spring-boot:run", "-Dspring-boot.run.arguments=--server.port=8091"], "port": 8091, "cwd": "devcine-backend" }
   ]
 }
