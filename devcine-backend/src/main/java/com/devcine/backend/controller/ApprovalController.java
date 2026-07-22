@@ -51,7 +51,7 @@ public class ApprovalController {
     }
 
     @GetMapping("/seat-move/options")
-    public ResponseEntity<List<Map<String, Object>>> seatMoveOptions(@RequestParam Integer showtimeId) {
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> seatMoveOptions(@RequestParam Integer showtimeId) {
         return ResponseEntity.ok(ApiResponse.ok(approvalService.seatMoveOptions(showtimeId)));
     }
 
@@ -67,7 +67,7 @@ public class ApprovalController {
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<Map<String, Object>>> handleBadRequest(IllegalArgumentException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(ex.getMessage() != null ? ex.getMessage() : "Yêu cầu không hợp lệ."));
     }
