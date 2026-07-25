@@ -76,7 +76,7 @@ onMounted(fetchArticle)
           <span class="inline-flex items-center gap-1.5 bg-primary-container/10 border border-primary-container/30 text-primary-container text-[11px] font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-sm mb-6">
             <span class="material-symbols-outlined text-sm">local_activity</span> Ưu đãi đang áp dụng
           </span>
-          <h1 class="text-3xl md:text-5xl font-headline font-extrabold tracking-tight text-on-surface uppercase italic leading-tight mb-5">
+          <h1 class="text-3xl md:text-5xl font-headline font-extrabold tracking-tight text-on-surface italic leading-tight mb-5">
             {{ article.title }}
           </h1>
           <div class="flex items-center gap-2 text-on-surface-variant text-sm font-bold uppercase tracking-widest">

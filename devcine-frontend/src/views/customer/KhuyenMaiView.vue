@@ -213,7 +213,7 @@ onMounted(async () => {
 
           <!-- Nội dung -->
           <div class="p-6 flex flex-col flex-grow">
-            <h3 class="text-lg font-headline font-bold text-on-surface uppercase italic leading-snug mb-2 line-clamp-2">{{ article.title }}</h3>
+            <h3 class="text-lg font-headline font-bold text-on-surface italic leading-snug mb-2 line-clamp-2">{{ article.title }}</h3>
             <p class="text-on-surface-variant text-sm leading-relaxed mb-4 flex-grow line-clamp-3">{{ article.description }}</p>
             <div class="flex items-center justify-between gap-3">
               <span v-if="article.endDate" class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">

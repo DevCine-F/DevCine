@@ -165,6 +165,7 @@ const getGenreNames = (movie) => {
   // danh sách đầy đủ xem ở trang Chi tiết phim.
   return movie.genres.slice(0, 2).map(g => g.name).join(', ').toUpperCase()
 }
+
 </script>
 
 <template>
@@ -325,13 +326,13 @@ const getGenreNames = (movie) => {
                   <div class="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/60 to-transparent pointer-events-none"></div>
                 </div>
                 <div class="p-4">
-                  <span class="inline-flex items-center gap-1 text-primary-container text-[10px] font-bold uppercase tracking-[0.18em] mb-2">
+                  <span class="inline-flex items-center gap-1 text-primary-container text-[11px] font-semibold tracking-wide mb-2">
                     <span class="material-symbols-outlined text-sm leading-none">local_activity</span>
                     Ưu đãi
                   </span>
-                  <h4 class="font-headline font-bold text-white text-sm leading-snug uppercase tracking-tight line-clamp-1 mb-1.5 group-hover:text-primary-container transition-colors">{{ promo.title }}</h4>
+                  <h4 class="font-headline font-bold text-white text-sm leading-snug tracking-tight line-clamp-2 mb-1.5 group-hover:text-primary-container transition-colors">{{ promo.title }}</h4>
                   <p class="text-on-surface-variant text-xs leading-relaxed line-clamp-2 mb-3">{{ promo.description }}</p>
-                  <span class="inline-flex items-center gap-1.5 text-[#f5c518] font-bold text-[11px] uppercase tracking-widest">
+                  <span class="inline-flex items-center gap-1.5 text-[#f5c518] font-semibold text-[11px] tracking-wide">
                     Xem chi tiết
                     <span class="material-symbols-outlined text-sm transition-transform duration-300 group-hover:translate-x-1">arrow_forward</span>
                   </span>
