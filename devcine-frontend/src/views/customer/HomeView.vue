@@ -302,23 +302,42 @@ const getGenreNames = (movie) => {
         </div>
 
         <!-- Right Column: Sidebar -->
-        <aside class="lg:w-[300px] lg:shrink-0 space-y-8">
-          <div v-if="promoArticles.length">
-            <h2 class="font-headline text-xl font-bold tracking-tight mb-6 border-l-4 border-primary-container pl-4 uppercase">KHUYẾN MẠI</h2>
+        <aside class="lg:w-[300px] lg:shrink-0">
+          <div v-if="promoArticles.length" class="lg:sticky lg:top-28">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="font-headline text-xl font-bold tracking-tight border-l-4 border-primary-container pl-4 uppercase">KHUYẾN MẠI</h2>
+              <RouterLink to="/khuyen-mai" class="text-primary-container text-[11px] font-bold uppercase tracking-widest hover:underline shrink-0">Tất cả</RouterLink>
+            </div>
             <div class="space-y-5">
-              <RouterLink v-for="promo in promoArticles.slice(0, 3)" :key="promo.id" to="/khuyen-mai" class="block group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
-                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" :src="promo.imageUrl || '/images/Hopper.webp'"/>
-                <div class="p-3.5">
-                  <h4 class="font-headline font-bold text-white uppercase mb-1.5 text-sm leading-snug line-clamp-2">{{ promo.title }}</h4>
-                  <p class="text-on-surface-variant text-xs leading-snug line-clamp-2">{{ promo.description }}</p>
+              <RouterLink
+                v-for="promo in promoArticles.slice(0, 4)"
+                :key="promo.id"
+                :to="`/khuyen-mai/${promo.id}`"
+                class="group block glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/40"
+              >
+                <div class="relative aspect-video overflow-hidden">
+                  <img
+                    alt="Ảnh khuyến mãi"
+                    class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    :src="promo.imageUrl || '/images/Hopper.webp'"
+                  />
+                  <!-- Scrim để ảnh banner hòa vào thân thẻ tối, bớt gắt -->
+                  <div class="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/60 to-transparent pointer-events-none"></div>
+                </div>
+                <div class="p-4">
+                  <span class="inline-flex items-center gap-1 text-primary-container text-[10px] font-bold uppercase tracking-[0.18em] mb-2">
+                    <span class="material-symbols-outlined text-sm leading-none">local_activity</span>
+                    Ưu đãi
+                  </span>
+                  <h4 class="font-headline font-bold text-white text-sm leading-snug uppercase tracking-tight line-clamp-1 mb-1.5 group-hover:text-primary-container transition-colors">{{ promo.title }}</h4>
+                  <p class="text-on-surface-variant text-xs leading-relaxed line-clamp-2 mb-3">{{ promo.description }}</p>
+                  <span class="inline-flex items-center gap-1.5 text-[#f5c518] font-bold text-[11px] uppercase tracking-widest">
+                    Xem chi tiết
+                    <span class="material-symbols-outlined text-sm transition-transform duration-300 group-hover:translate-x-1">arrow_forward</span>
+                  </span>
                 </div>
               </RouterLink>
             </div>
-          </div>
-          <div v-if="promoArticles[3]" class="glass-card rounded-xl p-4">
-            <h3 class="font-headline font-bold text-[#f5c518] mb-2 uppercase text-sm line-clamp-2">{{ promoArticles[3].title }}</h3>
-            <p class="text-on-surface-variant leading-relaxed mb-4 text-xs line-clamp-3">{{ promoArticles[3].description }}</p>
-            <router-link :to="`/khuyen-mai/${promoArticles[3].id}`" class="w-full border border-primary-container text-primary-container font-headline text-xs font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-2.5 inline-block text-center">XEM CHI TIẾT</router-link>
           </div>
         </aside>
       </div>
