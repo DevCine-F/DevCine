@@ -262,7 +262,7 @@ const getGenreNames = (movie) => {
     <main class="max-w-[1440px] mx-auto px-10 py-20">
       <div class="flex flex-col lg:flex-row gap-12">
         <!-- Left Column: Movies -->
-        <div class="lg:w-[82%] space-y-20">
+        <div class="lg:flex-1 lg:min-w-0 space-y-20">
           <!-- PHIM ĐANG CHIẾU Section -->
           <section class="mt-[5px]">
             <div class="flex justify-between items-end mb-10">
@@ -302,23 +302,23 @@ const getGenreNames = (movie) => {
         </div>
 
         <!-- Right Column: Sidebar -->
-        <aside class="lg:w-[18%] space-y-12">
+        <aside class="lg:w-[300px] lg:shrink-0 space-y-8">
           <div v-if="promoArticles.length">
-            <h2 class="font-headline text-lg font-bold tracking-tight mb-8 border-l-4 border-primary-container pl-4 uppercase">KHUYẾN MẠI</h2>
-            <div class="space-y-6">
-              <RouterLink v-for="promo in promoArticles.slice(0, 2)" :key="promo.id" to="/khuyen-mai" class="block group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
+            <h2 class="font-headline text-xl font-bold tracking-tight mb-6 border-l-4 border-primary-container pl-4 uppercase">KHUYẾN MẠI</h2>
+            <div class="space-y-5">
+              <RouterLink v-for="promo in promoArticles.slice(0, 3)" :key="promo.id" to="/khuyen-mai" class="block group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
                 <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" :src="promo.imageUrl || '/images/Hopper.webp'"/>
-                <div class="p-2.5">
-                  <h4 class="font-headline font-bold text-white uppercase mb-1 text-[9px] leading-tight line-clamp-1">{{ promo.title }}</h4>
-                  <p class="text-on-surface-variant text-[8px] leading-snug line-clamp-2">{{ promo.description }}</p>
+                <div class="p-3.5">
+                  <h4 class="font-headline font-bold text-white uppercase mb-1.5 text-sm leading-snug line-clamp-2">{{ promo.title }}</h4>
+                  <p class="text-on-surface-variant text-xs leading-snug line-clamp-2">{{ promo.description }}</p>
                 </div>
               </RouterLink>
             </div>
           </div>
-          <div v-if="promoArticles[2]" class="glass-card rounded-xl p-4">
-            <h3 class="font-headline font-bold text-[#f5c518] mb-3 uppercase text-[10px] line-clamp-1">{{ promoArticles[2].title }}</h3>
-            <p class="text-on-surface-variant leading-relaxed mb-4 text-[8px] line-clamp-3">{{ promoArticles[2].description }}</p>
-            <router-link :to="`/khuyen-mai/${promoArticles[2].id}`" class="w-full border border-primary-container text-primary-container font-headline text-[8px] font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-1.5 inline-block text-center">XEM CHI TIẾT</router-link>
+          <div v-if="promoArticles[3]" class="glass-card rounded-xl p-4">
+            <h3 class="font-headline font-bold text-[#f5c518] mb-2 uppercase text-sm line-clamp-2">{{ promoArticles[3].title }}</h3>
+            <p class="text-on-surface-variant leading-relaxed mb-4 text-xs line-clamp-3">{{ promoArticles[3].description }}</p>
+            <router-link :to="`/khuyen-mai/${promoArticles[3].id}`" class="w-full border border-primary-container text-primary-container font-headline text-xs font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-2.5 inline-block text-center">XEM CHI TIẾT</router-link>
           </div>
         </aside>
       </div>
