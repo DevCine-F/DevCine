@@ -116,23 +116,23 @@ onMounted(fetchTickets)
 
         <div v-else v-for="ticket in tickets" :key="ticket.id"
              class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-5 hover:border-primary/30 transition-all cursor-pointer group shadow-lg shadow-black/10">
-          <div class="flex justify-between items-start mb-4">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase tracking-tighter">
+          <div class="flex justify-between items-start gap-3 mb-4">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase tracking-tighter">
                 {{ (ticket.customerName || ticket.customer?.fullName || 'KH').split(' ').slice(-1)[0]?.slice(0,2) }}
               </div>
-              <div>
-                <p class="text-xs font-black text-on-surface tracking-tight">{{ ticket.customerName || ticket.customer?.fullName || 'Khách hàng' }}</p>
-                <p class="text-[10px] text-on-surface-variant uppercase font-bold italic tracking-wider">#{{ ticket.id }} • {{ ticket.subject || ticket.type }}</p>
+              <div class="min-w-0">
+                <p class="text-xs font-black text-on-surface tracking-tight truncate">{{ ticket.customerName || ticket.customer?.fullName || 'Khách hàng' }}</p>
+                <p class="text-[10px] text-on-surface-variant uppercase font-bold italic tracking-wider truncate">#{{ ticket.id }} • {{ ticket.subject || ticket.type }}</p>
               </div>
             </div>
             <span :class="getStatusClass(ticket.status)"
-                  class="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border">
+                  class="shrink-0 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border">
               {{ getStatusLabel(ticket.status) }}
             </span>
           </div>
 
-          <p class="text-xs text-on-surface-variant leading-relaxed mb-4 group-hover:text-on-surface transition-colors">{{ ticket.message || ticket.description }}</p>
+          <p class="text-xs text-on-surface-variant leading-relaxed mb-4 break-words group-hover:text-on-surface transition-colors">{{ ticket.message || ticket.description }}</p>
 
           <div class="flex justify-between items-center pt-4 border-t border-outline-variant/5">
             <div class="flex items-center gap-2">
