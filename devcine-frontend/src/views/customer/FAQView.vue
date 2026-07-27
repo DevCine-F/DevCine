@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
-import SupportRequestModal from '@/components/customer/SupportRequestModal.vue'
+import SupportRequestForm from '@/components/customer/SupportRequestForm.vue'
 
 const toast = useToastStore()
 
@@ -12,7 +12,35 @@ const loading = ref(true)
 const loadError = ref('')
 const selectedCategory = ref('')
 const searchQuery = ref('')
-const showSupportModal = ref(false)
+
+// Form hỗ trợ mở rộng tại chỗ (inline expand) ở cuối trang.
+const showSupportForm = ref(false)
+const supportBox = ref(null)
+const supportInner = ref(null)
+// Chiều cao đích để animate max-height (đo scrollHeight khi mở → mượt, không overshoot).
+const supportHeight = ref('0px')
+
+const openSupportForm = () => {
+  showSupportForm.value = true
+  nextTick(() => { supportHeight.value = `${supportInner.value?.scrollHeight ?? 0}px` })
+}
+
+const toggleSupport = () => {
+  if (showSupportForm.value) {
+    showSupportForm.value = false
+    supportHeight.value = '0px'
+  } else {
+    openSupportForm()
+  }
+}
+
+const openSupport = () => {
+  openSupportForm()
+  nextTick(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    supportBox.value?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+  })
+}
 
 const ICONS = {
   'Đặt vé & Thanh toán': 'payments',
@@ -102,7 +130,7 @@ onMounted(fetchFaqs)
           </nav>
           <div class="mt-12 p-6 rounded-2xl glass-card glass-shine-edge">
             <p class="text-sm text-neutral-400 mb-4 font-body leading-relaxed">Không tìm thấy điều bạn cần?</p>
-            <button type="button" @click="showSupportModal = true" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
+            <button type="button" @click="openSupport" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
               GỬI YÊU CẦU HỖ TRỢ
               <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
             </button>
@@ -149,23 +177,46 @@ onMounted(fetchFaqs)
         </div>
 
         <!-- CTA -->
-        <div class="mt-20 p-12 glass-card glass-shine-edge rounded-3xl relative overflow-hidden text-center">
+        <div ref="supportBox" class="mt-20 p-12 glass-card glass-shine-edge rounded-3xl relative overflow-hidden text-center scroll-mt-32">
           <div class="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
           <div class="relative z-10">
             <h3 class="font-headline font-bold text-3xl mb-4">Vẫn còn thắc mắc?</h3>
             <p class="text-on-surface-variant mb-8 max-w-lg mx-auto">Nếu chưa tìm được câu trả lời phù hợp, hãy gửi yêu cầu để bộ phận CSKH hỗ trợ bạn trực tiếp.</p>
-            <button type="button" @click="showSupportModal = true" class="inline-block bg-primary-container text-on-primary font-headline font-bold uppercase py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)] transition-all">
-              Gửi yêu cầu hỗ trợ
+            <button type="button" @click="toggleSupport"
+                    class="inline-flex items-center gap-2 bg-primary-container text-on-primary font-headline font-bold uppercase py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)] transition-all">
+              {{ showSupportForm ? 'Thu gọn' : 'Gửi yêu cầu hỗ trợ' }}
+              <span class="material-symbols-outlined transition-transform duration-300" :class="showSupportForm ? 'rotate-180' : ''">expand_more</span>
             </button>
+
+            <!-- Inline expand: đẩy nội dung xuống, không overlay -->
+            <div class="support-expand overflow-hidden" :class="showSupportForm ? 'opacity-100' : 'opacity-0'"
+                 :style="{ maxHeight: supportHeight }" :inert="!showSupportForm">
+              <div ref="supportInner" class="pt-10 text-left">
+                <div class="p-[1.5px] rounded-2xl bg-gradient-to-br from-primary-container/60 via-primary-container/10 to-transparent shadow-[0_0_40px_rgba(245,197,24,0.12)]">
+                  <div class="bg-surface rounded-2xl p-6 md:p-8">
+                    <SupportRequestForm @submitted="toggleSupport" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </section>
-
-    <SupportRequestModal :show="showSupportModal" @close="showSupportModal = false" />
   </main>
 </template>
 
 <style scoped>
 details > summary::-webkit-details-marker { display: none; }
+
+/* Inline expand: animate max-height (đo scrollHeight) + fade — mượt, không overlay */
+.support-expand {
+  transition: max-height 0.5s ease, opacity 0.5s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .support-expand {
+    transition: none;
+  }
+}
 </style>
