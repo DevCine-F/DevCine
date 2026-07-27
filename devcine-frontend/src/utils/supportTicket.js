@@ -24,13 +24,20 @@ export const statusClass = (status) =>
 
 // SĐT có thể nằm ở cột phone (ticket mới) hoặc bị nhét vào description dạng
 // "[SĐT: ...] nội dung" (ticket cũ). Trả về { phone, message } đã tách sạch.
+// Chỉ coi là SĐT khi nội dung trong ngoặc trông giống số điện thoại thật (ngắn,
+// toàn ký tự số/dấu) — tránh nuốt nhầm cả đoạn text dài vào badge gây tràn layout.
 const PHONE_PREFIX = /^\s*\[SĐT:\s*([^\]]*)\]\s*/
+const PHONE_SHAPE = /^[0-9+()\s.\-]{4,20}$/
 
 export const parseSupportContent = (ticket) => {
   const raw = ticket?.description || ''
+  let message = raw
+  let phoneFromDesc = ''
   const match = raw.match(PHONE_PREFIX)
-  const phoneFromDesc = match ? match[1].trim() : ''
-  const message = match ? raw.replace(PHONE_PREFIX, '') : raw
+  if (match && PHONE_SHAPE.test(match[1].trim())) {
+    phoneFromDesc = match[1].trim()
+    message = raw.replace(PHONE_PREFIX, '')
+  }
   return {
     phone: (ticket?.phone || phoneFromDesc || '').trim(),
     message: message.trim()

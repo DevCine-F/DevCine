@@ -34,8 +34,8 @@ const handleSendReply = () => {
     <div v-if="ticket" class="max-h-[70vh] overflow-y-auto -m-1 p-1 space-y-6">
       <!-- Header: chủ đề + trạng thái -->
       <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-lg font-black text-on-surface tracking-tight">{{ issueTypeLabel(ticket.issueType) }}</p>
+        <div class="min-w-0">
+          <p class="font-headline text-lg font-black text-on-surface tracking-tight break-words">{{ issueTypeLabel(ticket.issueType) }}</p>
           <p class="text-[11px] text-on-surface-variant uppercase font-bold tracking-wider mt-1">
             {{ ticket.customerName }} • {{ formatTime(ticket.createdAt) }}
           </p>
@@ -47,14 +47,14 @@ const handleSendReply = () => {
       </div>
 
       <!-- Liên hệ -->
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-2 min-w-0">
         <span v-if="ticket.customerEmail"
-              class="inline-flex items-center gap-1.5 bg-surface-container-high border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface">
-          <span class="material-symbols-outlined text-sm text-primary">mail</span>{{ ticket.customerEmail }}
+              class="inline-flex items-center gap-1.5 max-w-full min-w-0 bg-surface-container-high border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface">
+          <span class="material-symbols-outlined text-sm text-primary flex-shrink-0">mail</span><span class="truncate">{{ ticket.customerEmail }}</span>
         </span>
         <span v-if="content.phone"
-              class="inline-flex items-center gap-1.5 bg-surface-container-high border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface">
-          <span class="material-symbols-outlined text-sm text-primary">call</span>{{ content.phone }}
+              class="inline-flex items-center gap-1.5 max-w-full min-w-0 bg-surface-container-high border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface">
+          <span class="material-symbols-outlined text-sm text-primary flex-shrink-0">call</span><span class="truncate">{{ content.phone }}</span>
         </span>
       </div>
 

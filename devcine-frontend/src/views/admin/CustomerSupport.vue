@@ -186,7 +186,7 @@ onMounted(fetchTickets)
                 {{ (ticket.customerName || 'KH').split(' ').slice(-1)[0]?.slice(0, 2) }}
               </div>
               <div class="min-w-0">
-                <p class="text-sm font-black text-on-surface tracking-tight truncate">{{ issueTypeLabel(ticket.issueType) }}</p>
+                <p class="font-headline text-sm font-black text-on-surface tracking-tight truncate">{{ issueTypeLabel(ticket.issueType) }}</p>
                 <p class="text-[10px] text-on-surface-variant uppercase font-bold italic tracking-wider truncate">
                   #{{ ticket.id }} • {{ ticket.customerName || 'Khách hàng' }}
                 </p>
@@ -199,12 +199,12 @@ onMounted(fetchTickets)
           </div>
 
           <!-- Badge liên hệ -->
-          <div class="flex flex-wrap gap-2 mb-3">
-            <span v-if="ticket.customerEmail" class="inline-flex items-center gap-1 text-[10px] text-on-surface-variant bg-surface-container-high border border-outline-variant/10 rounded px-2 py-0.5">
-              <span class="material-symbols-outlined text-xs text-primary">mail</span>{{ ticket.customerEmail }}
+          <div class="flex flex-wrap gap-2 mb-3 min-w-0">
+            <span v-if="ticket.customerEmail" class="inline-flex items-center gap-1 max-w-full min-w-0 text-[10px] text-on-surface-variant bg-surface-container-high border border-outline-variant/10 rounded px-2 py-0.5">
+              <span class="material-symbols-outlined text-xs text-primary flex-shrink-0">mail</span><span class="truncate">{{ ticket.customerEmail }}</span>
             </span>
-            <span v-if="parseSupportContent(ticket).phone" class="inline-flex items-center gap-1 text-[10px] text-on-surface-variant bg-surface-container-high border border-outline-variant/10 rounded px-2 py-0.5">
-              <span class="material-symbols-outlined text-xs text-primary">call</span>{{ parseSupportContent(ticket).phone }}
+            <span v-if="parseSupportContent(ticket).phone" class="inline-flex items-center gap-1 max-w-full min-w-0 text-[10px] text-on-surface-variant bg-surface-container-high border border-outline-variant/10 rounded px-2 py-0.5">
+              <span class="material-symbols-outlined text-xs text-primary flex-shrink-0">call</span><span class="truncate">{{ parseSupportContent(ticket).phone }}</span>
             </span>
           </div>
 
@@ -231,7 +231,7 @@ onMounted(fetchTickets)
         <div class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-2xl">
           <h3 class="text-xs font-black uppercase tracking-widest text-primary mb-6">Thống kê xử lý</h3>
           <div class="flex items-end gap-2 mb-2">
-            <span class="text-5xl font-black italic tracking-tighter text-white">{{ resolutionRate }}%</span>
+            <span class="font-headline text-5xl font-black italic tracking-tighter text-white">{{ resolutionRate }}%</span>
           </div>
           <p class="text-[10px] text-on-surface-variant leading-relaxed uppercase font-bold tracking-widest mb-6">Tỉ lệ ticket đã đóng</p>
 
