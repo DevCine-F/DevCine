@@ -101,10 +101,12 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Danh mục phim</span>
         </router-link>
 
+        <!-- Tạm ẩn tab "Lịch chiếu & Điều phối" (route/chức năng vẫn giữ nguyên)
         <router-link v-if="canShow('schedules')" to="/admin/master-scheduling" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_month</span>
           <span class="font-semibold text-sm">Lịch chiếu & Điều phối</span>
         </router-link>
+        -->
 
         <router-link v-if="canShow('banners')" to="/admin/banners" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">view_carousel</span>
@@ -119,10 +121,12 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Cụm rạp</span>
         </router-link>
 
+        <!-- Tạm ẩn tab "Sơ đồ ghế" (route/chức năng vẫn giữ nguyên)
         <router-link v-if="canShow('cinemas')" to="/admin/seat-map" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">grid_view</span>
           <span class="font-semibold text-sm">Sơ đồ ghế</span>
         </router-link>
+        -->
 
         <router-link v-if="canShow('fnb_menu')" to="/admin/fnb" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">fastfood</span>
