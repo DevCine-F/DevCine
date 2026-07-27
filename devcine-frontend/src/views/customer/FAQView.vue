@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import SupportRequestModal from '@/components/customer/SupportRequestModal.vue'
 
 const toast = useToastStore()
 
@@ -12,6 +12,7 @@ const loading = ref(true)
 const loadError = ref('')
 const selectedCategory = ref('')
 const searchQuery = ref('')
+const showSupportModal = ref(false)
 
 const ICONS = {
   'Đặt vé & Thanh toán': 'payments',
@@ -101,10 +102,10 @@ onMounted(fetchFaqs)
           </nav>
           <div class="mt-12 p-6 rounded-2xl glass-card glass-shine-edge">
             <p class="text-sm text-neutral-400 mb-4 font-body leading-relaxed">Không tìm thấy điều bạn cần?</p>
-            <RouterLink to="/contact" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
-              LIÊN HỆ CHÚNG TÔI
+            <button type="button" @click="showSupportModal = true" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
+              GỬI YÊU CẦU HỖ TRỢ
               <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
-            </RouterLink>
+            </button>
           </div>
         </div>
       </aside>
@@ -152,14 +153,16 @@ onMounted(fetchFaqs)
           <div class="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
           <div class="relative z-10">
             <h3 class="font-headline font-bold text-3xl mb-4">Vẫn còn thắc mắc?</h3>
-            <p class="text-on-surface-variant mb-8 max-w-lg mx-auto">Đội ngũ hỗ trợ của chúng tôi luôn sẵn sàng giải đáp mọi câu hỏi của bạn qua hotline hoặc liên hệ trực tuyến.</p>
-            <RouterLink to="/contact" class="inline-block bg-primary-container text-on-primary font-headline font-bold uppercase py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)] transition-all">
-              Liên hệ hỗ trợ
-            </RouterLink>
+            <p class="text-on-surface-variant mb-8 max-w-lg mx-auto">Nếu chưa tìm được câu trả lời phù hợp, hãy gửi yêu cầu để bộ phận CSKH hỗ trợ bạn trực tiếp.</p>
+            <button type="button" @click="showSupportModal = true" class="inline-block bg-primary-container text-on-primary font-headline font-bold uppercase py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)] transition-all">
+              Gửi yêu cầu hỗ trợ
+            </button>
           </div>
         </div>
       </div>
     </section>
+
+    <SupportRequestModal :show="showSupportModal" @close="showSupportModal = false" />
   </main>
 </template>
 
