@@ -182,21 +182,21 @@ onMounted(fetchFaqs)
           <div class="relative z-10">
             <h3 class="font-headline font-bold text-3xl mb-4">Vẫn còn thắc mắc?</h3>
             <p class="text-on-surface-variant mb-8 max-w-lg mx-auto">Nếu chưa tìm được câu trả lời phù hợp, hãy gửi yêu cầu để bộ phận CSKH hỗ trợ bạn trực tiếp.</p>
+            <!-- Nút đổi vai theo trạng thái: đóng = CTA vàng đậm; mở = ghost "Thu gọn" -->
             <button type="button" @click="toggleSupport"
-                    class="inline-flex items-center gap-2 bg-primary-container text-on-primary font-headline font-bold uppercase py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)] transition-all">
+                    class="inline-flex items-center gap-2 font-headline font-bold uppercase transition-all"
+                    :class="showSupportForm
+                      ? 'text-on-surface-variant hover:text-primary-container text-sm py-2'
+                      : 'bg-primary-container text-on-primary py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)]'">
               {{ showSupportForm ? 'Thu gọn' : 'Gửi yêu cầu hỗ trợ' }}
               <span class="material-symbols-outlined transition-transform duration-300" :class="showSupportForm ? 'rotate-180' : ''">expand_more</span>
             </button>
 
-            <!-- Inline expand: đẩy nội dung xuống, không overlay -->
+            <!-- Inline expand: input nằm trực tiếp trên nền box, tách bằng divider mảnh -->
             <div class="support-expand overflow-hidden" :class="showSupportForm ? 'opacity-100' : 'opacity-0'"
                  :style="{ maxHeight: supportHeight }" :inert="!showSupportForm">
-              <div ref="supportInner" class="pt-10 text-left">
-                <div class="p-[1.5px] rounded-2xl bg-gradient-to-br from-primary-container/60 via-primary-container/10 to-transparent shadow-[0_0_40px_rgba(245,197,24,0.12)]">
-                  <div class="bg-surface rounded-2xl p-6 md:p-8">
-                    <SupportRequestForm @submitted="toggleSupport" />
-                  </div>
-                </div>
+              <div ref="supportInner" class="mt-8 pt-8 border-t border-white/10 text-left">
+                <SupportRequestForm :full-width-submit="true" @submitted="toggleSupport" />
               </div>
             </div>
           </div>

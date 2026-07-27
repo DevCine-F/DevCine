@@ -8,6 +8,11 @@ import { friendlyError } from '@/utils/friendlyError'
 
 const emit = defineEmits(['submitted'])
 
+// Nút submit trải full chiều rộng (dùng khi form nằm trong cột hẹp / căn giữa, vd FAQ inline).
+defineProps({
+  fullWidthSubmit: { type: Boolean, default: false }
+})
+
 const authStore = useAuthStore()
 const toast = useToastStore()
 
@@ -101,7 +106,7 @@ const handleSubmit = async () => {
         <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Nội dung tin nhắn</label>
         <textarea v-model="form.message" class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all" placeholder="Vui lòng mô tả chi tiết yêu cầu của bạn..." rows="5"></textarea>
       </div>
-      <button :disabled="submitting" class="w-full md:w-auto px-12 py-4 bg-primary-container text-on-primary font-headline font-extrabold uppercase tracking-widest rounded-sm hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2" type="submit">
+      <button :disabled="submitting" :class="fullWidthSubmit ? 'w-full' : 'w-full md:w-auto'" class="px-12 py-4 bg-primary-container text-on-primary font-headline font-extrabold uppercase tracking-widest rounded-sm hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2" type="submit">
         <span v-if="submitting" class="material-symbols-outlined animate-spin text-xl">progress_activity</span>
         {{ submitting ? 'Đang gửi...' : 'Gửi yêu cầu' }}
       </button>
