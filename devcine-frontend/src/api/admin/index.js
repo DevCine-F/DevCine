@@ -30,6 +30,7 @@ export const supportTicketApi = {
   getAll: () => api.get('/support-tickets'),
   create: (data) => api.post('/support-tickets', data),
   updateStatus: (id, status) => api.put(`/support-tickets/${id}/status`, null, { params: { status } }),
+  reply: (id, data) => api.post(`/support-tickets/${id}/reply`, data),
   delete: (id) => api.delete(`/support-tickets/${id}`),
 };
 

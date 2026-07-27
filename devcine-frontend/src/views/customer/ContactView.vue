@@ -53,14 +53,12 @@ const handleSubmit = async () => {
 
   submitting.value = true
   try {
-    // Backend lấy tên/email từ tài khoản; đính kèm SĐT người gửi vào nội dung cho CSKH
-    const description = form.phone.trim()
-      ? `[SĐT: ${form.phone.trim()}] ${form.message.trim()}`
-      : form.message.trim()
+    // Backend lấy tên/email từ tài khoản; SĐT gửi thành field riêng cho CSKH
     await supportApi.createTicket({
       customerId: authStore.user.id,
       issueType: form.issueType,
-      description
+      phone: form.phone.trim(),
+      description: form.message.trim()
     })
     showToast('Đã gửi yêu cầu! Bộ phận CSKH sẽ phản hồi sớm.', 'success')
     form.message = ''

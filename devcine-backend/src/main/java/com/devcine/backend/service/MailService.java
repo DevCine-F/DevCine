@@ -124,6 +124,73 @@ public class MailService {
         }
     }
 
+    /**
+     * Gửi email phản hồi yêu cầu hỗ trợ (CSKH) tới khách. Best-effort & @Async:
+     * lỗi gửi mail KHÔNG chặn việc lưu phản hồi. Trả về true nếu đã gửi.
+     *
+     * @param toEmail       email khách
+     * @param fullName      tên khách
+     * @param ticketId      mã ticket (đưa vào tiêu đề để khách tra cứu)
+     * @param subjectLabel  nhãn chủ đề đã dịch (vd "Vấn đề về vé")
+     * @param originalMessage nội dung khách đã gửi (trích lại cho khách nhớ ngữ cảnh)
+     * @param replyMessage  nội dung phản hồi của CSKH
+     */
+    public boolean sendSupportReply(String toEmail, String fullName, Integer ticketId,
+                                    String subjectLabel, String originalMessage, String replyMessage) {
+        if (!enabled) {
+            log.info("mail.enabled=false → bỏ qua gửi phản hồi ticket #{}", ticketId);
+            return false;
+        }
+        if (toEmail == null || toEmail.isBlank()) {
+            log.warn("Bỏ qua gửi phản hồi ticket #{}: khách chưa có email", ticketId);
+            return false;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(toEmail);
+            helper.setSubject("DevCine • Phản hồi yêu cầu hỗ trợ #" + ticketId);
+            helper.setText(buildSupportReplyHtml(fullName, subjectLabel, originalMessage, replyMessage), true);
+            mailSender.send(message);
+            log.info("Đã gửi phản hồi ticket #{} tới {}", ticketId, toEmail);
+            return true;
+        } catch (Exception e) {
+            log.error("Gửi phản hồi ticket #{} tới {} thất bại: {}", ticketId, toEmail, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private String buildSupportReplyHtml(String fullName, String subjectLabel,
+                                         String originalMessage, String replyMessage) {
+        String origBlock = (originalMessage == null || originalMessage.isBlank()) ? "" : """
+                <div style="background:#fafafa;border:1px solid #eee;border-left:3px solid #e0b400;border-radius:8px;padding:12px 14px;margin:0 0 18px;">
+                  <div style="font-size:12px;color:#888;margin-bottom:6px;">Yêu cầu của bạn%s</div>
+                  <div style="font-size:14px;color:#555;white-space:pre-wrap;">%s</div>
+                </div>
+                """.formatted(
+                        (subjectLabel == null || subjectLabel.isBlank()) ? "" : " • " + escape(subjectLabel),
+                        escape(originalMessage));
+        return """
+                <div style="max-width:520px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
+                  <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
+                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
+                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">Phản hồi từ bộ phận Chăm sóc khách hàng</div>
+                  </div>
+                  <div style="padding:28px 24px;">
+                    <p style="font-size:15px;color:#111;margin:0 0 14px;">Xin chào <b>%s</b>,</p>
+                    <p style="font-size:14px;color:#555;margin:0 0 18px;">Cảm ơn bạn đã liên hệ DevCine. Dưới đây là phản hồi cho yêu cầu của bạn:</p>
+                    %s
+                    <div style="background:#faf6e6;border:1px solid #f0e4b8;border-radius:10px;padding:16px 18px;margin:0 0 18px;">
+                      <div style="font-size:14px;color:#111;white-space:pre-wrap;">%s</div>
+                    </div>
+                    <p style="font-size:13px;color:#888;margin:0;">Nếu cần hỗ trợ thêm, bạn có thể phản hồi lại email này hoặc gọi hotline 1900 1234.</p>
+                    <p style="font-size:12px;color:#999;margin-top:22px;line-height:1.6;">Trân trọng — DevCine Cinema</p>
+                  </div>
+                </div>
+                """.formatted(escape(fullName), origBlock, escape(replyMessage));
+    }
+
     private String buildPromotionHtml(String fullName, com.devcine.backend.entity.Promotion promo) {
         boolean percent = "PERCENTAGE".equalsIgnoreCase(promo.getDiscountType());
         String discountText = percent

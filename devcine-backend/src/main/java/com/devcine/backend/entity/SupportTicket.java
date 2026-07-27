@@ -33,7 +33,16 @@ public class SupportTicket {
     private String description;
 
     @Column(length = 20)
+    private String phone;
+
+    @Column(length = 20)
     private String status;
+
+    @Column(name = "admin_reply", columnDefinition = "TEXT")
+    private String adminReply;
+
+    @Column(name = "replied_at")
+    private LocalDateTime repliedAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
