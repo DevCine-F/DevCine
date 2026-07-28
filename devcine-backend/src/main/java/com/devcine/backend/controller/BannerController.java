@@ -30,7 +30,7 @@ public class BannerController {
 
     @GetMapping
     public ResponseEntity<?> getAllBanners() {
-        return ResponseEntity.ok(ApiResponse.ok(bannerRepository.findAllByOrderByIdDesc()));
+        return ResponseEntity.ok(ApiResponse.ok(bannerRepository.findAllOrderByDisplayOrder()));
     }
 
     // Công khai: banner đang hiển thị cho khách (đang bật + còn hạn), dùng cho trang chủ.
