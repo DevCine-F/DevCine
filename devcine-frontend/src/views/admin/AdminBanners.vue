@@ -326,16 +326,16 @@ const moveCard = (from, to) => {
   persistOrder()
 }
 
-// Đánh số lại 1..n theo vị trí mới, chỉ PUT các banner thực sự đổi thứ tự
+// Đánh số lại 1..n theo vị trí mới, gửi 1 request bulk chứa các banner thực sự đổi thứ tự
 const persistOrder = async () => {
   const changed = []
   banners.value.forEach((b, idx) => {
     const newOrder = idx + 1
-    if (b.order !== newOrder) { b.order = newOrder; changed.push(b) }
+    if (b.order !== newOrder) { b.order = newOrder; changed.push({ id: b.id, order: newOrder }) }
   })
   if (!changed.length) return
   try {
-    await Promise.all(changed.map(b => bannerApi.update(b.id, { order: b.order })))
+    await bannerApi.reorder(changed)
     toast.success('Đã cập nhật thứ tự banner.')
   } catch (e) {
     console.error('Failed to reorder banners', e)

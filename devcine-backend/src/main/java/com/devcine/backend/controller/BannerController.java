@@ -9,10 +9,12 @@ import com.devcine.backend.service.BannerSyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -165,6 +167,28 @@ public class BannerController {
                 bannerSyncService.syncMovieFlag(banner.getMovieId());
             }
             return ResponseEntity.ok(ApiResponse.ok(banner));
+        } catch (IllegalArgumentException e) {
+            return badRequest(e.getMessage());
+        } catch (Exception e) {
+            return badRequest(e.getMessage());
+        }
+    }
+
+    // Cập nhật thứ tự hàng loạt sau khi kéo-thả: nhận [{id, order}, ...] và lưu 1 lần trong 1 transaction,
+    // thay vì gọi PUT /{id} cho từng banner. Bỏ qua id không tồn tại (đã bị xoá ở tab khác).
+    @PutMapping("/reorder")
+    @PreAuthorize("@perm.can('banners','edit')")
+    @Transactional
+    public ResponseEntity<?> reorderBanners(@RequestBody List<Map<String, Object>> items) {
+        try {
+            if (items == null || items.isEmpty()) return badRequest("Danh sách thứ tự trống.");
+            for (Map<String, Object> item : items) {
+                Integer id = item.get("id") instanceof Number n ? n.intValue() : null;
+                Integer order = parsePriority(item.get("order"));
+                if (id == null || order == null) return badRequest("Dữ liệu thứ tự không hợp lệ.");
+                bannerRepository.findById(id).ifPresent(b -> b.setDisplayOrder(order));
+            }
+            return ResponseEntity.ok(ApiResponse.success("Đã cập nhật thứ tự banner."));
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
         } catch (Exception e) {
