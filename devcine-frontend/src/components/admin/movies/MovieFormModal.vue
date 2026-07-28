@@ -476,7 +476,10 @@ const handleSave = () => {
                 <p v-if="errors.formats" class="text-[10px] text-red-400 font-bold">{{ errors.formats }}</p>
               </div>
               <div class="space-y-4">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Định dạng chiếu chính (Chọn một) <span class="normal-case font-normal text-on-surface-variant/50">— chỉ trong định dạng hỗ trợ</span></label>
+                <label class="flex flex-col text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">
+                  <span>Định dạng chiếu chính (Chọn một)</span>
+                  <span class="normal-case font-normal text-on-surface-variant/50 mt-0.5">Chỉ trong định dạng hỗ trợ</span>
+                </label>
                 <div class="flex flex-wrap gap-2">
                   <button v-for="fmt in availableFormats" :key="fmt" type="button"
                     @click="selectMainFormat(fmt)"
