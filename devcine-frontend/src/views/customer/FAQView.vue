@@ -177,19 +177,19 @@ onMounted(fetchFaqs)
         </div>
 
         <!-- CTA -->
-        <div ref="supportBox" class="mt-20 p-12 glass-card glass-shine-edge rounded-3xl relative overflow-hidden text-center scroll-mt-32">
-          <div class="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+        <div ref="supportBox" class="support-cta mt-16 glass-card glass-shine-edge rounded-2xl relative overflow-hidden text-center scroll-mt-32"
+             :class="showSupportForm ? 'p-10' : 'px-6 py-7'">
           <div class="relative z-10">
-            <h3 class="font-headline font-bold text-3xl mb-4">Vẫn còn thắc mắc?</h3>
-            <p class="text-on-surface-variant mb-8 max-w-lg mx-auto">Nếu chưa tìm được câu trả lời phù hợp, hãy gửi yêu cầu để bộ phận CSKH hỗ trợ bạn trực tiếp.</p>
-            <!-- Nút đổi vai theo trạng thái: đóng = CTA vàng đậm; mở = ghost "Thu gọn" -->
+            <h3 class="font-headline font-bold text-xl transition-all" :class="showSupportForm ? 'mb-3' : 'mb-2'">Vẫn còn thắc mắc?</h3>
+            <p class="text-on-surface-variant text-sm max-w-md mx-auto transition-all" :class="showSupportForm ? 'mb-7' : 'mb-5'">Nếu chưa tìm được câu trả lời phù hợp, hãy gửi yêu cầu để bộ phận CSKH hỗ trợ bạn trực tiếp.</p>
+            <!-- Nút đổi vai theo trạng thái: đóng = CTA vàng; mở = ghost "Thu gọn" -->
             <button type="button" @click="toggleSupport"
-                    class="inline-flex items-center gap-2 font-headline font-bold uppercase transition-all"
+                    class="inline-flex items-center gap-2 font-headline font-bold uppercase text-sm transition-all"
                     :class="showSupportForm
-                      ? 'text-on-surface-variant hover:text-primary-container text-sm py-2'
-                      : 'bg-primary-container text-on-primary py-4 px-10 rounded-sm hover:shadow-[0_0_30px_rgba(245,197,24,0.3)]'">
+                      ? 'text-on-surface-variant hover:text-primary-container py-2'
+                      : 'bg-primary-container text-on-primary py-2.5 px-7 rounded-sm hover:shadow-[0_0_24px_rgba(245,197,24,0.25)]'">
               {{ showSupportForm ? 'Thu gọn' : 'Gửi yêu cầu hỗ trợ' }}
-              <span class="material-symbols-outlined transition-transform duration-300" :class="showSupportForm ? 'rotate-180' : ''">expand_more</span>
+              <span class="material-symbols-outlined text-lg transition-transform duration-300" :class="showSupportForm ? 'rotate-180' : ''">expand_more</span>
             </button>
 
             <!-- Inline expand: input nằm trực tiếp trên nền box, tách bằng divider mảnh -->
@@ -214,8 +214,14 @@ details > summary::-webkit-details-marker { display: none; }
   transition: max-height 0.5s ease, opacity 0.5s ease;
 }
 
+/* Card CTA nới/co padding theo trạng thái — đồng bộ nhịp với form mở ra */
+.support-cta {
+  transition: padding 0.5s ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .support-expand {
+  .support-expand,
+  .support-cta {
     transition: none;
   }
 }
