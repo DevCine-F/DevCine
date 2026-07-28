@@ -34,6 +34,60 @@ const form = reactive({
 
 const submitting = ref(false)
 
+// ===== CAPTCHA tự sinh bằng canvas (không gọi API) =====
+// Bỏ ký tự dễ nhầm (0/O, 1/I/L) cho dễ đọc.
+const CAPTCHA_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const captchaCanvas = ref(null)
+const captchaCode = ref('')        // mã gốc
+const userInputCaptcha = ref('')   // mã khách nhập
+
+const drawCaptcha = () => {
+  const canvas = captchaCanvas.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  const { width, height } = canvas
+  ctx.clearRect(0, 0, width, height)
+
+  // Sinh mã 5 ký tự
+  let code = ''
+  for (let i = 0; i < 5; i++) code += CAPTCHA_CHARS[Math.floor(Math.random() * CAPTCHA_CHARS.length)]
+  captchaCode.value = code
+
+  // Noise: vài đường mảnh vàng nhạt
+  for (let i = 0; i < 4; i++) {
+    ctx.strokeStyle = `rgba(245,197,24,${0.1 + Math.random() * 0.12})`
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(Math.random() * width, Math.random() * height)
+    ctx.lineTo(Math.random() * width, Math.random() * height)
+    ctx.stroke()
+  }
+  // Noise: chấm mờ
+  for (let i = 0; i < 28; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.1})`
+    ctx.beginPath()
+    ctx.arc(Math.random() * width, Math.random() * height, Math.random() * 1.1, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  // Vẽ từng ký tự: màu vàng primary-container, xoay/xê dịch nhẹ
+  ctx.textBaseline = 'middle'
+  const step = (width - 24) / code.length
+  for (let i = 0; i < code.length; i++) {
+    ctx.save()
+    ctx.translate(16 + i * step, height / 2 + (Math.random() * 6 - 3))
+    ctx.rotate(Math.random() * 0.5 - 0.25)
+    ctx.font = `bold ${21 + Math.floor(Math.random() * 5)}px "Poppins", system-ui, sans-serif`
+    ctx.fillStyle = '#f5c518'
+    ctx.fillText(code[i], 0, 0)
+    ctx.restore()
+  }
+}
+
+const refreshCaptcha = () => {
+  userInputCaptcha.value = ''
+  drawCaptcha()
+}
+
 onMounted(() => {
   // Điền sẵn thông tin nếu đã đăng nhập
   if (authStore.user) {
@@ -41,6 +95,7 @@ onMounted(() => {
     form.email = authStore.user.email || ''
     form.phone = authStore.user.phone || ''
   }
+  drawCaptcha()
 })
 
 const handleSubmit = async () => {
@@ -50,6 +105,12 @@ const handleSubmit = async () => {
   }
   if (!form.message.trim()) {
     toast.push('Vui lòng nhập nội dung tin nhắn.', 'error')
+    return
+  }
+  // Kiểm tra CAPTCHA (không phân biệt hoa/thường)
+  if (userInputCaptcha.value.trim().toLowerCase() !== captchaCode.value.toLowerCase()) {
+    toast.push('Mã xác nhận không chính xác', 'error')
+    refreshCaptcha()
     return
   }
 
@@ -63,6 +124,7 @@ const handleSubmit = async () => {
     })
     toast.push('Đã gửi yêu cầu! Bộ phận CSKH sẽ phản hồi sớm.', 'success')
     form.message = ''
+    refreshCaptcha()
     emit('submitted')
   } catch (err) {
     toast.push(friendlyError(err, 'Gửi yêu cầu thất bại. Vui lòng thử lại.'), 'error')
@@ -106,6 +168,26 @@ const handleSubmit = async () => {
         <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Nội dung tin nhắn</label>
         <textarea v-model="form.message" class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all" placeholder="Vui lòng mô tả chi tiết yêu cầu của bạn..." rows="5"></textarea>
       </div>
+
+      <!-- CAPTCHA tự sinh: ảnh canvas + nút refresh | ô nhập -->
+      <div class="space-y-2">
+        <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Mã xác nhận</label>
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2 shrink-0">
+            <canvas ref="captchaCanvas" width="120" height="46" class="bg-white/5 rounded-lg h-[46px] w-[120px] select-none"></canvas>
+            <button type="button" @click="refreshCaptcha" title="Đổi mã khác" aria-label="Đổi mã khác"
+                    class="p-2 text-on-surface-variant hover:text-primary-container transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m10.032-4.665a8.25 8.25 0 00-13.803-3.7L2.985 9.348m0 0V4.356m0 4.992h4.992M2.985 14.652a8.25 8.25 0 0013.803 3.7l3.181-3.182m0 0h-4.991m4.991 0v4.992"/>
+              </svg>
+            </button>
+          </div>
+          <input v-model="userInputCaptcha" type="text" maxlength="5" autocomplete="off"
+                 class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all tracking-[0.3em] uppercase"
+                 placeholder="Nhập mã bên cạnh"/>
+        </div>
+      </div>
+
       <button :disabled="submitting" :class="fullWidthSubmit ? 'w-full' : 'w-full md:w-auto'" class="px-12 py-4 bg-primary-container text-on-primary font-headline font-extrabold uppercase tracking-widest rounded-sm hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2" type="submit">
         <span v-if="submitting" class="material-symbols-outlined animate-spin text-xl">progress_activity</span>
         {{ submitting ? 'Đang gửi...' : 'Gửi yêu cầu' }}
