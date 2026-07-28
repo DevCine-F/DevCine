@@ -456,7 +456,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
     <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <div v-for="i in 4" :key="i" class="bg-surface-container-low border border-outline-variant/10 rounded-xl h-64 animate-pulse"></div>
     </div>
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 items-start flex-1 overflow-y-auto pr-2 pb-10">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 items-stretch content-start flex-1 overflow-y-auto pr-2 pb-10">
       <div v-for="(banner, i) in banners" :key="banner.id"
            draggable="true"
            @dragstart="onCardDragStart($event, i)"
@@ -534,9 +534,10 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             </p>
           </div>
 
-          <div v-if="banner.startDate || banner.endDate" class="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
-            <span class="material-symbols-outlined text-sm">date_range</span>
-            {{ toDateInput(banner.startDate) || '...' }} → {{ toDateInput(banner.endDate) || 'Vô thời hạn' }}
+          <!-- Luôn render (kể cả khi trống) để mọi card cao bằng nhau; truncate chống rớt dòng -->
+          <div class="flex items-center gap-1.5 text-[11px] text-on-surface-variant min-w-0">
+            <span class="material-symbols-outlined text-sm shrink-0">date_range</span>
+            <span class="truncate">{{ toDateInput(banner.startDate) || 'Bắt đầu ngay' }} → {{ toDateInput(banner.endDate) || 'Vô thời hạn' }}</span>
           </div>
 
           <div class="flex items-center justify-between mt-auto pt-3 border-t border-outline-variant/10">
