@@ -97,6 +97,7 @@ const toDateInput = (dt) => {
 
 const fetchBanners = async () => {
   isLoading.value = true
+  now.value = new Date() // làm mới mốc thời gian để tính lại banner còn hạn hay không
   try {
     const { data } = await bannerApi.getAll()
     const list = data.data ?? data
@@ -372,6 +373,55 @@ const bannerLink = (banner) =>
     ? (banner.movieId ? `/movie/${banner.movieId}` : null)
     : (banner.link || null)
 
+// ===== Trạng thái hiển thị THỰC TẾ trên trang chủ =====
+// Số thứ tự (#N) chỉ là vị trí ưu tiên trong toàn bộ danh sách; nó KHÔNG cho biết banner có
+// đang xuất hiện với khách hay không. Ở đây tính lại đúng điều kiện findActiveBanners của backend
+// (đang bật + trong khoảng ngày + nếu MOVIE thì phim phải đang chiếu) để làm mờ + gắn nhãn lý do,
+// giúp admin phân biệt banner nào khách thực sự thấy.
+const now = ref(new Date())
+
+// Backend trả LocalDateTime dạng chuỗi ISO hoặc mảng [y,m,d,H,M,S] -> Date (đủ giờ để so mốc)
+const toDateTime = (dt) => {
+  if (!dt) return null
+  if (Array.isArray(dt)) {
+    const [y, mo = 1, d = 1, h = 0, mi = 0, s = 0] = dt
+    return new Date(y, mo - 1, d, h, mi, s)
+  }
+  const t = new Date(dt)
+  return isNaN(t.getTime()) ? null : t
+}
+
+const bannerVisibility = (b) => {
+  if (!b.isActive) return { live: false, label: 'Đang tắt', tone: 'off' }
+  const start = toDateTime(b.startDate)
+  const end = toDateTime(b.endDate)
+  const t = now.value
+  if (start && start > t) return { live: false, label: 'Chưa tới hạn', tone: 'scheduled' }
+  if (end && end < t) return { live: false, label: 'Đã hết hạn', tone: 'expired' }
+  if (b.mode === 'MOVIE') {
+    // Khớp backend: banner theo phim hiện với phim đang chiếu VÀ sắp chiếu (quảng cáo trước);
+    // chỉ ẩn khi phim ngừng chiếu (archived) hoặc đã bị xoá khỏi hệ thống.
+    const m = movies.value.find(x => x.id === b.movieId)
+    if (!m || String(m.status).toLowerCase() === 'archived') return { live: false, label: 'Phim ngừng chiếu', tone: 'movie' }
+  }
+  return { live: true, label: 'Đang hiển thị', tone: 'live' }
+}
+
+// Tính 1 lần cho cả danh sách (reactive theo banners/movies/now), tránh gọi lặp trong template
+const visibilityMap = computed(() => {
+  const map = {}
+  banners.value.forEach(b => { map[b.id] = bannerVisibility(b) })
+  return map
+})
+
+const visToneClass = {
+  expired: 'bg-red-500/20 text-red-400 border-red-500/30',
+  scheduled: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  off: 'bg-white/10 text-on-surface-variant border-white/20',
+  movie: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+}
+const visIcon = { expired: 'event_busy', scheduled: 'schedule', off: 'visibility_off', movie: 'movie' }
+
 onMounted(() => { fetchBanners(); fetchMovies() })
 </script>
 
@@ -403,11 +453,13 @@ onMounted(() => { fetchBanners(); fetchMovies() })
            class="bg-surface-container-low border rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all group"
            :class="[
              dragIndex === i ? 'opacity-40 scale-95' : '',
-             dragOverIndex === i && dragIndex !== i ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant/10'
+             dragOverIndex === i && dragIndex !== i ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant/10',
+             visibilityMap[banner.id] && !visibilityMap[banner.id].live && dragIndex !== i ? 'opacity-70' : ''
            ]">
 
         <!-- Image Preview — giữ tỉ lệ 16:9 khớp khung banner thật (hero full màn hình) ở trang chủ -->
-        <div class="relative aspect-video w-full bg-surface-container-highest overflow-hidden">
+        <div class="relative aspect-video w-full bg-surface-container-highest overflow-hidden"
+             :class="visibilityMap[banner.id] && !visibilityMap[banner.id].live ? 'grayscale' : ''">
           <img v-if="banner.mode !== 'MOVIE' && banner.imageUrl" :src="banner.imageUrl" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Banner preview" />
           <template v-else-if="banner.mode === 'MOVIE'">
             <!-- Có ảnh phim: hiện ảnh + phủ tên phim ở đáy -->
@@ -437,6 +489,15 @@ onMounted(() => { fetchBanners(); fetchMovies() })
           <div class="absolute top-3 right-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border"
                :class="banner.isActive ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'">
             {{ banner.isActive ? 'Đang bật' : 'Đang tắt' }}
+          </div>
+
+          <!-- Nhãn lý do KHÔNG hiển thị trên trang chủ (dù đang bật) — hết hạn / chưa tới hạn / phim ngừng chiếu.
+               Bỏ qua khi lý do là 'off' vì badge "Đang tắt" bên trên đã nói rõ. -->
+          <div v-if="visibilityMap[banner.id] && !visibilityMap[banner.id].live && visibilityMap[banner.id].tone !== 'off'"
+               class="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border flex items-center gap-1 z-10 whitespace-nowrap"
+               :class="visToneClass[visibilityMap[banner.id].tone]">
+            <span class="material-symbols-outlined text-xs">{{ visIcon[visibilityMap[banner.id].tone] }}</span>
+            {{ visibilityMap[banner.id].label }}
           </div>
         </div>
 
