@@ -14,28 +14,46 @@ const selectedCategory = ref('')
 const searchQuery = ref('')
 
 // Form hỗ trợ mở rộng tại chỗ (inline expand) ở cuối trang.
+// Animate max-height của WRAPPER (.support-expand, overflow:hidden = BFC nên scrollHeight
+// gồm cả margin của con → không thiếu 32px → không cắt nút). Mở xong đặt max-height:none
+// để form tự cao nếu nở thêm (lỗi validate).
 const showSupportForm = ref(false)
 const supportBox = ref(null)
-const supportInner = ref(null)
-// Chiều cao đích để animate max-height (đo scrollHeight khi mở → mượt, không overshoot).
-const supportHeight = ref('0px')
+const supportExpand = ref(null)
 
-const openSupportForm = () => {
-  showSupportForm.value = true
-  nextTick(() => { supportHeight.value = `${supportInner.value?.scrollHeight ?? 0}px` })
-}
-
-const toggleSupport = () => {
-  if (showSupportForm.value) {
-    showSupportForm.value = false
-    supportHeight.value = '0px'
+const setExpanded = (open) => {
+  const el = supportExpand.value
+  if (!el) return
+  if (open) {
+    // Không hoạt ảnh → mở thẳng sang 'none' (transitionend sẽ không bắn)
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el.style.maxHeight = 'none'
+      return
+    }
+    el.style.maxHeight = `${el.scrollHeight}px`
+    const done = (e) => {
+      if (e.propertyName !== 'max-height') return
+      el.style.maxHeight = 'none'
+      el.removeEventListener('transitionend', done)
+    }
+    el.addEventListener('transitionend', done)
   } else {
-    openSupportForm()
+    el.style.maxHeight = `${el.scrollHeight}px` // từ 'none' về px cụ thể để có điểm bắt đầu
+    void el.offsetHeight                         // ép reflow
+    el.style.maxHeight = '0px'
   }
 }
 
+const toggleSupport = () => {
+  showSupportForm.value = !showSupportForm.value
+  nextTick(() => setExpanded(showSupportForm.value))
+}
+
 const openSupport = () => {
-  openSupportForm()
+  if (!showSupportForm.value) {
+    showSupportForm.value = true
+    nextTick(() => setExpanded(true))
+  }
   nextTick(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     supportBox.value?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
@@ -193,9 +211,8 @@ onMounted(fetchFaqs)
             </button>
 
             <!-- Inline expand: input nằm trực tiếp trên nền box, tách bằng divider mảnh -->
-            <div class="support-expand overflow-hidden" :class="showSupportForm ? 'opacity-100' : 'opacity-0'"
-                 :style="{ maxHeight: supportHeight }" :inert="!showSupportForm">
-              <div ref="supportInner" class="mt-8 pt-8 border-t border-white/10 text-left">
+            <div ref="supportExpand" class="support-expand" :class="showSupportForm ? 'opacity-100' : 'opacity-0'" :inert="!showSupportForm">
+              <div class="mt-8 pt-8 border-t border-white/10 text-left">
                 <SupportRequestForm :full-width-submit="true" @submitted="toggleSupport" />
               </div>
             </div>
@@ -209,8 +226,10 @@ onMounted(fetchFaqs)
 <style scoped>
 details > summary::-webkit-details-marker { display: none; }
 
-/* Inline expand: animate max-height (đo scrollHeight) + fade — mượt, không overlay */
+/* Inline expand: animate max-height của wrapper (overflow:hidden để scrollHeight gồm margin con) + fade */
 .support-expand {
+  max-height: 0;
+  overflow: hidden;
   transition: max-height 0.5s ease, opacity 0.5s ease;
 }
 
