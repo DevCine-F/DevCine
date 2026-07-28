@@ -8,8 +8,13 @@ export function canUseAdminPermission(authStore, permission) {
 export function canUseAdminRoute(authStore, route) {
   const meta = route?.meta || {}
   if (meta.adminOnly) return authStore.isAdmin
-  if (meta.staffOnly) return authStore.isStaff
-  return canUseAdminPermission(authStore, meta.permission)
+  // Khai đồng thời staffOnly + permission ⇒ hiểu là HOẶC (khớp điều kiện v-if ở sidebar,
+  // vd Bàn giao ca / Phê duyệt: STAFF thấy, hoặc MANAGER có quyền staff_management cũng thấy).
+  const checks = []
+  if (meta.staffOnly) checks.push(authStore.isStaff)
+  if (meta.permission) checks.push(canUseAdminPermission(authStore, meta.permission))
+  if (checks.length) return checks.some(Boolean)
+  return true
 }
 
 export function resolveFirstAccessibleAdminPath(adminRoutes, authStore) {

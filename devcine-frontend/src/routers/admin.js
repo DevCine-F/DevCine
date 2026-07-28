@@ -105,11 +105,15 @@ export default [
       {
         path: 'shift-handover',
         name: 'admin-shift-handover',
+        // Khớp v-if sidebar: STAFF hoặc MANAGER có quyền staff_management (guard hiểu là HOẶC)
+        meta: { staffOnly: true, permission: { feature: 'staff_management', action: 'view' } },
         component: () => import('../views/admin/ShiftHandover.vue')
       },
       {
         path: 'approvals',
         name: 'admin-approvals',
+        // Khớp v-if sidebar: STAFF hoặc MANAGER có quyền staff_management (guard hiểu là HOẶC)
+        meta: { staffOnly: true, permission: { feature: 'staff_management', action: 'view' } },
         component: () => import('../views/admin/ApprovalQueue.vue')
       },
       {
