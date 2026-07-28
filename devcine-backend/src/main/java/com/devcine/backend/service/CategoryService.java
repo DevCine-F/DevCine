@@ -239,12 +239,15 @@ public class CategoryService {
     }
 
     // Mã kiểm duyệt: 1-10 ký tự, chỉ chữ in hoa + số (P, T13, C18...) — đồng bộ với Frontend.
-    private static final java.util.regex.Pattern AGE_RATING_CODE =
-            java.util.regex.Pattern.compile("^[A-Z0-9]{1,10}$");
+    // Mã kiểm duyệt phải thuộc BỘ CHUẨN phân loại phim Việt Nam (Thông tư 05/2023) — đồng bộ với Frontend.
+    // P: mọi lứa tuổi · K: dưới 13 tuổi (có người bảo hộ) · T13/T16/T18: từ 13/16/18 tuổi · C: cấm phổ biến.
+    // Chặn các mã sai chuẩn kiểu "C13/C16/C18" (nhầm T thành C).
+    private static final java.util.Set<String> STANDARD_AGE_CODES =
+            java.util.Set.of("P", "K", "T13", "T16", "T18", "C");
 
     private void checkAgeRatingCode(String code) {
-        if (!AGE_RATING_CODE.matcher(code).matches()) {
-            throw new IllegalArgumentException("Mã kiểm duyệt chỉ gồm chữ in hoa và số, tối đa 10 ký tự");
+        if (!STANDARD_AGE_CODES.contains(code)) {
+            throw new IllegalArgumentException("Mã kiểm duyệt phải thuộc bộ chuẩn: P, K, T13, T16, T18, C");
         }
     }
 

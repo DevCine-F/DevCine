@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.devcine.backend.entity.Cinema;
+import com.devcine.backend.entity.AgeRating;
 import com.devcine.backend.entity.Staff;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.Faq;
@@ -32,6 +33,7 @@ import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.entity.SystemSetting;
 import com.devcine.backend.entity.User;
+import com.devcine.backend.repository.AgeRatingRepository;
 import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.CustomerRepository;
 import com.devcine.backend.repository.FaqRepository;
@@ -78,7 +80,8 @@ public class DataSeeder {
             ShowtimeRepository showtimeRepository,
             FaqRepository faqRepository,
             PromoArticleRepository promoArticleRepository,
-            PromotionRepository promotionRepository) {
+            PromotionRepository promotionRepository,
+            AgeRatingRepository ageRatingRepository) {
         return args -> {
             if (systemSettingRepository.findById("LOYALTY_POINT_RATE").isEmpty()) {
                 systemSettingRepository.save(SystemSetting.builder()
@@ -183,6 +186,53 @@ public class DataSeeder {
             if (!permissionMatrixV4) {
                 systemSettingRepository.save(SystemSetting.builder()
                         .settingKey("PERMISSION_MATRIX_V4").settingValue("true").build());
+            }
+
+            // Chuẩn hoá mã kiểm duyệt tuổi về đúng bộ VN (P/K/T13/T16/T18/C): dữ liệu cũ lỡ nhập
+            // "C13/C16/C18" (sai chuẩn — nhầm T thành C) được đổi về T13/T16/T18 MỘT LẦN qua cờ.
+            boolean ageRatingStandardized = systemSettingRepository.findById("AGE_RATING_STANDARDIZED_V1").isPresent();
+            if (!ageRatingStandardized) {
+                // 1) Sửa chuỗi ageRating lưu trực tiếp trên từng phim: C<số> -> T<số>
+                java.util.List<Movie> fixedMovies = new java.util.ArrayList<>();
+                for (Movie mv : movieRepository.findAll()) {
+                    String ar = mv.getAgeRating();
+                    if (ar != null && ar.matches("(?i)C\\d+")) {
+                        mv.setAgeRating("T" + ar.substring(1));
+                        fixedMovies.add(mv);
+                    }
+                }
+                if (!fixedMovies.isEmpty()) movieRepository.saveAll(fixedMovies);
+
+                // 2) Sửa danh mục mã tuổi: C<số> -> T<số>; nếu T tương ứng đã tồn tại thì xoá bản C thừa
+                for (AgeRating r : ageRatingRepository.findAll()) {
+                    String c = r.getCode();
+                    if (c != null && c.matches("(?i)C\\d+")) {
+                        String target = "T" + c.substring(1);
+                        if (ageRatingRepository.existsByCodeIgnoreCase(target)) {
+                            ageRatingRepository.delete(r);
+                        } else {
+                            r.setCode(target);
+                            ageRatingRepository.save(r);
+                        }
+                    }
+                }
+
+                // 3) Đảm bảo bộ chuẩn luôn hiện trong danh mục (dropdown) dù DB cũ thiếu
+                java.util.Map<String, String> standard = new java.util.LinkedHashMap<>();
+                standard.put("P", "Mọi đối tượng");
+                standard.put("K", "Dưới 13 tuổi (có người lớn đi kèm)");
+                standard.put("T13", "Từ 13 tuổi");
+                standard.put("T16", "Từ 16 tuổi");
+                standard.put("T18", "Từ 18 tuổi");
+                standard.forEach((code, name) -> {
+                    if (!ageRatingRepository.existsByCodeIgnoreCase(code)) {
+                        ageRatingRepository.save(AgeRating.builder().code(code).name(name).build());
+                    }
+                });
+
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("AGE_RATING_STANDARDIZED_V1").settingValue("true").build());
+                System.out.println("Đã chuẩn hoá mã kiểm duyệt tuổi (C13/C16/C18 -> T13/T16/T18). Số phim sửa: " + fixedMovies.size());
             }
 
             // Seed / đảm bảo tài khoản admin (admin / 123) — tạo mới nếu chưa có, reset mật khẩu nếu đã tồn tại

@@ -86,6 +86,8 @@ const nameError = computed(() => {
 // Mã kiểm duyệt: chỉ chữ HOA + số, 1-10 ký tự. Chặn cứng khi gõ để admin không thể
 // nhập dấu cách / ký tự đặc biệt / chữ thường ("t13 " -> "T13").
 const CODE_MAX = 10
+// Bộ mã kiểm duyệt CHUẨN VN (Thông tư 05/2023) — đồng bộ backend CategoryService.STANDARD_AGE_CODES
+const STANDARD_AGE_CODES = ['P', 'K', 'T13', 'T16', 'T18', 'C']
 const onCodeInput = (e) => {
   const v = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, CODE_MAX)
   newItem.value.code = v
@@ -99,6 +101,7 @@ const codeError = computed(() => {
   if (!c) return 'Vui lòng nhập mã kiểm duyệt.'
   if (c.length > CODE_MAX) return `Mã kiểm duyệt tối đa ${CODE_MAX} ký tự.`
   if (!/^[A-Z0-9]+$/.test(c)) return 'Mã kiểm duyệt chỉ gồm chữ in hoa và số.'
+  if (!STANDARD_AGE_CODES.includes(c)) return 'Mã kiểm duyệt phải thuộc bộ chuẩn: P, K, T13, T16, T18, C.'
   const dup = ageRatings.value.some((it) =>
     it.code && it.code.trim().toLowerCase() === c.toLowerCase()
     && (!editingItem.value || it.id !== editingItem.value.id))
