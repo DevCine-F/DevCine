@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
@@ -13,52 +13,21 @@ const loadError = ref('')
 const selectedCategory = ref('')
 const searchQuery = ref('')
 
-// Form hỗ trợ mở rộng tại chỗ (inline expand) ở cuối trang.
-// Animate max-height của WRAPPER (.support-expand, overflow:hidden = BFC nên scrollHeight
-// gồm cả margin của con → không thiếu 32px → không cắt nút). Mở xong đặt max-height:none
-// để form tự cao nếu nở thêm (lỗi validate).
-const showSupportForm = ref(false)
+// Khu vực hỗ trợ luôn hiển thị ở cuối trang; nút ở sidebar chỉ cuộn mượt tới đây.
 const supportBox = ref(null)
-const supportExpand = ref(null)
 
-const setExpanded = (open) => {
-  const el = supportExpand.value
-  if (!el) return
-  if (open) {
-    // Không hoạt ảnh → mở thẳng sang 'none' (transitionend sẽ không bắn)
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      el.style.maxHeight = 'none'
-      return
-    }
-    el.style.maxHeight = `${el.scrollHeight}px`
-    const done = (e) => {
-      if (e.propertyName !== 'max-height') return
-      el.style.maxHeight = 'none'
-      el.removeEventListener('transitionend', done)
-    }
-    el.addEventListener('transitionend', done)
-  } else {
-    el.style.maxHeight = `${el.scrollHeight}px` // từ 'none' về px cụ thể để có điểm bắt đầu
-    void el.offsetHeight                         // ép reflow
-    el.style.maxHeight = '0px'
-  }
+const scrollToSupport = () => {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  supportBox.value?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
 }
 
-const toggleSupport = () => {
-  showSupportForm.value = !showSupportForm.value
-  nextTick(() => setExpanded(showSupportForm.value))
-}
-
-const openSupport = () => {
-  if (!showSupportForm.value) {
-    showSupportForm.value = true
-    nextTick(() => setExpanded(true))
-  }
-  nextTick(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    supportBox.value?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
-  })
-}
+// 4 chủ đề khách có thể liên hệ — khớp SUBJECTS ở SupportRequestForm.vue
+const SUPPORT_TOPICS = [
+  { icon: 'confirmation_number', label: 'Vấn đề về vé' },
+  { icon: 'stars', label: 'Thành viên' },
+  { icon: 'reviews', label: 'Góp ý dịch vụ' },
+  { icon: 'handshake', label: 'Hợp tác quảng cáo' }
+]
 
 const ICONS = {
   'Đặt vé & Thanh toán': 'payments',
@@ -148,7 +117,7 @@ onMounted(fetchFaqs)
           </nav>
           <div class="mt-12 p-6 rounded-2xl glass-card glass-shine-edge">
             <p class="text-sm text-neutral-400 mb-4 font-body leading-relaxed">Không tìm thấy điều bạn cần?</p>
-            <button type="button" @click="openSupport" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
+            <button type="button" @click="scrollToSupport" class="text-primary-container font-headline font-bold text-sm flex items-center gap-2 group">
               GỬI YÊU CẦU HỖ TRỢ
               <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
             </button>
@@ -194,27 +163,24 @@ onMounted(fetchFaqs)
           </details>
         </div>
 
-        <!-- CTA -->
-        <div ref="supportBox" class="support-cta mt-16 glass-card glass-shine-edge rounded-2xl relative overflow-hidden text-center scroll-mt-32"
-             :class="showSupportForm ? 'p-10' : 'px-6 py-7'">
-          <div class="relative z-10">
-            <h3 class="font-headline font-bold text-xl transition-all" :class="showSupportForm ? 'mb-3' : 'mb-2'">Vẫn còn thắc mắc?</h3>
-            <p class="text-on-surface-variant text-sm max-w-md mx-auto transition-all" :class="showSupportForm ? 'mb-7' : 'mb-5'">Nếu chưa tìm được câu trả lời phù hợp, hãy gửi yêu cầu để bộ phận CSKH hỗ trợ bạn trực tiếp.</p>
-            <!-- Nút đổi vai theo trạng thái: đóng = CTA vàng; mở = ghost "Thu gọn" -->
-            <button type="button" @click="toggleSupport"
-                    class="inline-flex items-center gap-2 font-headline font-bold uppercase text-sm transition-all"
-                    :class="showSupportForm
-                      ? 'text-on-surface-variant hover:text-primary-container py-2'
-                      : 'bg-primary-container text-on-primary py-2.5 px-7 rounded-sm hover:shadow-[0_0_24px_rgba(245,197,24,0.25)]'">
-              {{ showSupportForm ? 'Thu gọn' : 'Gửi yêu cầu hỗ trợ' }}
-              <span class="material-symbols-outlined text-lg transition-transform duration-300" :class="showSupportForm ? 'rotate-180' : ''">expand_more</span>
-            </button>
-
-            <!-- Inline expand: input nằm trực tiếp trên nền box, tách bằng divider mảnh -->
-            <div ref="supportExpand" class="support-expand" :class="showSupportForm ? 'opacity-100' : 'opacity-0'" :inert="!showSupportForm">
-              <div class="mt-8 pt-8 border-t border-white/10 text-left">
-                <SupportRequestForm :full-width-submit="true" @submitted="toggleSupport" />
-              </div>
+        <!-- Hỗ trợ trực tiếp — form luôn hiển thị ở cuối trang, bố cục 2 cột -->
+        <div ref="supportBox" class="mt-16 glass-card glass-shine-edge rounded-2xl p-8 md:p-10 scroll-mt-32">
+          <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12">
+            <!-- Cột trái: dẫn dắt + 4 chủ đề thật -->
+            <div class="lg:col-span-2">
+              <h3 class="font-headline font-bold text-2xl mb-3">Vẫn còn thắc mắc?</h3>
+              <p class="text-on-surface-variant text-sm leading-relaxed mb-8">Nếu chưa tìm được câu trả lời phù hợp, hãy gửi yêu cầu để bộ phận CSKH hỗ trợ bạn trực tiếp.</p>
+              <p class="text-xs font-label uppercase tracking-widest text-neutral-500 mb-4">Bạn có thể liên hệ về</p>
+              <ul class="space-y-3">
+                <li v-for="t in SUPPORT_TOPICS" :key="t.label" class="flex items-center gap-3 text-sm text-on-surface-variant">
+                  <span class="material-symbols-outlined text-primary-container text-xl shrink-0">{{ t.icon }}</span>
+                  <span>{{ t.label }}</span>
+                </li>
+              </ul>
+            </div>
+            <!-- Cột phải: form luôn hiện (mobile: divider trên; desktop: divider trái) -->
+            <div class="lg:col-span-3 border-t border-white/10 pt-8 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-12">
+              <SupportRequestForm :full-width-submit="true" />
             </div>
           </div>
         </div>
@@ -225,23 +191,4 @@ onMounted(fetchFaqs)
 
 <style scoped>
 details > summary::-webkit-details-marker { display: none; }
-
-/* Inline expand: animate max-height của wrapper (overflow:hidden để scrollHeight gồm margin con) + fade */
-.support-expand {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.5s ease, opacity 0.5s ease;
-}
-
-/* Card CTA nới/co padding theo trạng thái — đồng bộ nhịp với form mở ra */
-.support-cta {
-  transition: padding 0.5s ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .support-expand,
-  .support-cta {
-    transition: none;
-  }
-}
 </style>
