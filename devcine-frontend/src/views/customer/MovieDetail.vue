@@ -24,6 +24,7 @@ const activeDateStr = ref('')
 const descExpanded = ref(false)
 const showTrailer = ref(false)
 const selectedCinemaId = ref('')
+const allCinemas = ref([]) // toàn bộ rạp (để liệt kê theo thành phố, kể cả rạp chưa có suất)
 
 // --- Đánh giá phim ---
 const reviewsData = ref({ averageRating: 0, totalReviews: 0, reviews: [], distribution: {} })
@@ -202,11 +203,17 @@ onMounted(async () => {
       loadError.value = true
     })
 
+  // Endpoint công khai (khác /cinemas cần đăng nhập): trả rạp kèm city để lọc theo thành phố
+  const fetchCinemas = api.get('/showtimes/cinemas')
+    .then(r => { const l = r.data?.data ?? r.data; allCinemas.value = Array.isArray(l) ? l : [] })
+    .catch(() => { allCinemas.value = [] })
+
   await Promise.all([
     fetchMovieData,
     store.fetchCities(),
     store.fetchShowtimes(movieId, store.selectedCity),
-    fetchReviews(movieId)
+    fetchReviews(movieId),
+    fetchCinemas
   ])
   
   if (uniqueDates.value.length > 0) {
@@ -239,10 +246,14 @@ const genreText = computed(() => {
   return g.map(x => x.name).filter(Boolean).join(', ')
 })
 
-// Danh sách rạp để đổ vào bộ lọc "cụm rạp" (theo thành phố đang chọn)
-const cinemaOptions = computed(() =>
-  store.cinemaShowtimes.map(c => ({ id: c.cinemaId, name: c.cinemaName }))
-)
+// Danh sách rạp để đổ vào bộ lọc "cụm rạp": TẤT CẢ rạp của thành phố đang chọn
+// (kể cả rạp chưa có suất chiếu phim này). Toàn quốc (city rỗng) -> mọi rạp.
+const cinemaOptions = computed(() => {
+  const city = store.selectedCity
+  return allCinemas.value
+    .filter(c => !city || c.city === city)
+    .map(c => ({ id: c.id, name: c.name }))
+})
 
 // Rạp hiển thị: có suất ở ngày đang chọn + khớp bộ lọc rạp
 const visibleCinemas = computed(() =>
@@ -451,12 +462,10 @@ const groupShowtimesByFormat = (showtimes) => {
           </div>
         </div>
 
-        <div v-if="store.cinemaShowtimes.length === 0" class="text-center text-gray-500 py-10">
-          Chưa có lịch chiếu cho phim này.
-        </div>
-
-        <div v-else-if="visibleCinemas.length === 0" class="text-center text-gray-500 py-10">
-          Không có suất chiếu phù hợp với lựa chọn của bạn.
+        <div v-if="visibleCinemas.length === 0" class="text-center text-gray-500 py-10">
+          <template v-if="selectedCinemaId">Chưa có lịch chiếu của phim tại rạp này.</template>
+          <template v-else-if="store.cinemaShowtimes.length === 0">Chưa có lịch chiếu cho phim này.</template>
+          <template v-else>Không có suất chiếu phù hợp với lựa chọn của bạn.</template>
         </div>
 
         <div class="space-y-0" v-else>
