@@ -524,7 +524,8 @@ onMounted(() => { fetchBanners(); fetchMovies() })
                  class="flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none text-on-surface-variant hover:text-on-surface transition-colors"
                  title="Kéo để sắp xếp thứ tự">
               <span class="material-symbols-outlined text-lg">drag_indicator</span>
-              <span class="text-xs font-bold tracking-wide tabular-nums">#{{ i + 1 }}</span>
+              <!-- Hiện đúng thứ tự ưu tiên (displayOrder) đang lưu, không phải vị trí trong mảng -->
+              <span class="text-xs font-bold tracking-wide tabular-nums">#{{ banner.order }}</span>
             </div>
 
             <div class="flex items-center gap-2">
