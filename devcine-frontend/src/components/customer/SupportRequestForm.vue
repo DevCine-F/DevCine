@@ -98,42 +98,51 @@ onMounted(() => {
   drawCaptcha()
 })
 
-// ===== Chặn ký tự ngay khi gõ (@input) — kèm khoá độ dài dự phòng =====
+// Lỗi validate hiển thị inline dưới từng trường
+const errors = reactive({ fullName: '', email: '', phone: '', issueType: '', message: '', captcha: '' })
+
+// ===== Chặn ký tự ngay khi gõ (@input) — kèm khoá độ dài dự phòng; gõ lại thì xoá lỗi cũ =====
 const onFullNameInput = (e) => {
   // chỉ chữ cái (kể cả tiếng Việt có dấu) + dấu cách; tối đa 30
   form.fullName = e.target.value.replace(/[^a-zA-ZÀ-ỹ\s]/g, '').slice(0, 30)
+  errors.fullName = ''
 }
 const onEmailInput = (e) => {
   // bỏ khoảng trắng + dấu tiếng Việt + ký tự lạ (chỉ giữ ký tự hợp lệ của email), về chữ thường; tối đa 30
   form.email = e.target.value.replace(/[^a-zA-Z0-9@._%+\-]/g, '').toLowerCase().slice(0, 30)
+  errors.email = ''
 }
 const onPhoneInput = (e) => {
   // chỉ số 0-9; tối đa 10
   form.phone = e.target.value.replace(/\D/g, '').slice(0, 10)
+  errors.phone = ''
 }
 const onCaptchaInput = (e) => {
   // chỉ chữ và số, viết hoa cho khớp mã trên ảnh; tối đa 5
   userInputCaptcha.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 5)
+  errors.captcha = ''
 }
 
-// ===== Validate lúc Submit =====
+// ===== Validate lúc Submit — gán lỗi inline cho từng trường (gom hết 1 lượt) =====
 const validateForm = () => {
+  errors.fullName = errors.email = errors.phone = errors.issueType = errors.message = ''
+
   const name = form.fullName.trim()
-  if (name.length < 2) { toast.push('Họ và tên phải có ít nhất 2 ký tự.', 'error'); return false }
+  if (name.length < 2) errors.fullName = 'Họ và tên phải có ít nhất 2 ký tự.'
 
   const email = form.email.trim()
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.push('Email không hợp lệ.', 'error'); return false }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Email không hợp lệ.'
 
   const phone = form.phone.trim()
-  if (!/^0\d{9}$/.test(phone)) { toast.push('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.', 'error'); return false }
+  if (!/^0\d{9}$/.test(phone)) errors.phone = 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.'
 
-  if (!SUBJECTS.some(s => s.value === form.issueType)) { toast.push('Vui lòng chọn chủ đề.', 'error'); return false }
+  if (!SUBJECTS.some(s => s.value === form.issueType)) errors.issueType = 'Vui lòng chọn chủ đề.'
 
   const msg = form.message.trim()
-  if (msg.length < 10) { toast.push('Nội dung tin nhắn phải có ít nhất 10 ký tự.', 'error'); return false }
-  if (msg.length > 1000) { toast.push('Nội dung tin nhắn tối đa 1000 ký tự.', 'error'); return false }
+  if (msg.length < 10) errors.message = 'Nội dung tin nhắn phải có ít nhất 10 ký tự.'
+  else if (msg.length > 1000) errors.message = 'Nội dung tin nhắn tối đa 1000 ký tự.'
 
-  return true
+  return !errors.fullName && !errors.email && !errors.phone && !errors.issueType && !errors.message
 }
 
 const handleSubmit = async () => {
@@ -143,8 +152,9 @@ const handleSubmit = async () => {
   }
   if (!validateForm()) return
   // Kiểm tra CAPTCHA (không phân biệt hoa/thường)
+  errors.captcha = ''
   if (userInputCaptcha.value.trim().toLowerCase() !== captchaCode.value.toLowerCase()) {
-    toast.push('Mã xác nhận không chính xác', 'error')
+    errors.captcha = 'Mã xác nhận không chính xác.'
     refreshCaptcha()
     return
   }
@@ -180,28 +190,44 @@ const handleSubmit = async () => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
           <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Họ và tên</label>
-          <input v-model="form.fullName" @input="onFullNameInput" maxlength="30" class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all" placeholder="Nguyễn Văn A" type="text"/>
+          <input v-model="form.fullName" @input="onFullNameInput" maxlength="30" type="text" placeholder="Nguyễn Văn A"
+                 class="w-full bg-black/40 border text-white px-4 py-3 rounded-xl outline-none transition-all"
+                 :class="errors.fullName ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-primary-container'"/>
+          <p v-if="errors.fullName" class="text-xs text-red-400">{{ errors.fullName }}</p>
         </div>
         <div class="space-y-2">
           <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Email</label>
-          <input v-model="form.email" @input="onEmailInput" maxlength="30" class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all" placeholder="email@example.com" type="email"/>
+          <input v-model="form.email" @input="onEmailInput" maxlength="30" type="email" placeholder="email@example.com"
+                 class="w-full bg-black/40 border text-white px-4 py-3 rounded-xl outline-none transition-all"
+                 :class="errors.email ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-primary-container'"/>
+          <p v-if="errors.email" class="text-xs text-red-400">{{ errors.email }}</p>
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
           <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Số điện thoại</label>
-          <input v-model="form.phone" @input="onPhoneInput" maxlength="10" inputmode="numeric" class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all" placeholder="0901234567" type="tel"/>
+          <input v-model="form.phone" @input="onPhoneInput" maxlength="10" inputmode="numeric" type="tel" placeholder="0901234567"
+                 class="w-full bg-black/40 border text-white px-4 py-3 rounded-xl outline-none transition-all"
+                 :class="errors.phone ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-primary-container'"/>
+          <p v-if="errors.phone" class="text-xs text-red-400">{{ errors.phone }}</p>
         </div>
         <div class="space-y-2">
           <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Chủ đề</label>
-          <select v-model="form.issueType" class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all">
+          <select v-model="form.issueType" @change="errors.issueType = ''"
+                  class="w-full bg-black/40 border text-white px-4 py-3 rounded-xl outline-none transition-all"
+                  :class="errors.issueType ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-primary-container'">
             <option v-for="s in SUBJECTS" :key="s.value" :value="s.value">{{ s.label }}</option>
           </select>
+          <p v-if="errors.issueType" class="text-xs text-red-400">{{ errors.issueType }}</p>
         </div>
       </div>
       <div class="space-y-2">
         <label class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Nội dung tin nhắn</label>
-        <textarea v-model="form.message" maxlength="1000" class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all" placeholder="Vui lòng mô tả chi tiết yêu cầu của bạn... (tối thiểu 10 ký tự)" rows="5"></textarea>
+        <textarea v-model="form.message" @input="errors.message = ''" maxlength="1000" rows="5"
+                  placeholder="Vui lòng mô tả chi tiết yêu cầu của bạn... (tối thiểu 10 ký tự)"
+                  class="w-full bg-black/40 border text-white px-4 py-3 rounded-xl outline-none transition-all"
+                  :class="errors.message ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-primary-container'"></textarea>
+        <p v-if="errors.message" class="text-xs text-red-400">{{ errors.message }}</p>
       </div>
 
       <!-- CAPTCHA tự sinh: ảnh canvas + nút refresh | ô nhập -->
@@ -218,9 +244,11 @@ const handleSubmit = async () => {
             </button>
           </div>
           <input v-model="userInputCaptcha" @input="onCaptchaInput" type="text" maxlength="5" autocomplete="off"
-                 class="w-full bg-black/40 border border-white/10 focus:border-primary-container text-white px-4 py-3 rounded-xl outline-none transition-all tracking-[0.3em] uppercase"
+                 class="w-full bg-black/40 border text-white px-4 py-3 rounded-xl outline-none transition-all tracking-[0.3em] uppercase"
+                 :class="errors.captcha ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-primary-container'"
                  placeholder="Nhập mã bên cạnh"/>
         </div>
+        <p v-if="errors.captcha" class="text-xs text-red-400">{{ errors.captcha }}</p>
       </div>
 
       <button :disabled="submitting" :class="fullWidthSubmit ? 'w-full' : 'w-full md:w-auto'" class="px-12 py-4 bg-primary-container text-on-primary font-headline font-extrabold uppercase tracking-widest rounded-sm hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2" type="submit">
