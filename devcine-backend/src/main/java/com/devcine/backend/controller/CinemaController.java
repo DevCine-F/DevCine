@@ -12,7 +12,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/cinemas")
@@ -34,7 +33,7 @@ public class CinemaController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CinemaResponse>> createCinema(@Valid @RequestBody CinemaRequest request) {
-        return new ResponseEntity<>(cinemaService.createCinema(request), HttpStatus.CREATED);
+        return new ResponseEntity<>(ApiResponse.ok(cinemaService.createCinema(request)), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
@@ -52,7 +51,7 @@ public class CinemaController {
 
     // Lỗi nghiệp vụ (trùng tên, enum không hợp lệ) -> 400 kèm message tiếng Việt cho FE
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleIllegalArgument(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
     }
 }

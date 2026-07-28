@@ -561,7 +561,7 @@ public class StaffController {
     }
 
     @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})
-    public ResponseEntity<ApiResponse<Map<String, Object>>> handleBadRequest(RuntimeException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(RuntimeException ex) {
         return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
     }
 }

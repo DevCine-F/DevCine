@@ -18,7 +18,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Danh mục phim: Thể loại / Định dạng / Kiểm duyệt độ tuổi.
@@ -115,13 +114,13 @@ public class CategoryController {
 
     /** Dữ liệu sai / trùng / không tìm thấy → 400 kèm thông điệp thân thiện. */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleBadRequest(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
     }
 
     /** Vi phạm ràng buộc nghiệp vụ (vd thể loại đang được dùng) → 409. */
     @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleConflict(IllegalStateException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", ex.getMessage()));
+    public ResponseEntity<ApiResponse<Void>> handleConflict(IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.fail(ex.getMessage()));
     }
 }
