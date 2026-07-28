@@ -231,13 +231,13 @@ public class PricingController {
         try {
             LocalDate date = LocalDate.parse(body.get("holidayDate").toString());
             if (holidayRepository.existsByHolidayDate(date)) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày lễ đã tồn tại"));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Ngày lễ đã tồn tại"));
             }
             Holiday h = holidayRepository.save(Holiday.builder()
                     .holidayDate(date)
                     .name(body.getOrDefault("name", "Ngày lễ").toString())
                     .build());
-            return ResponseEntity.status(201).body(Map.of("success", true, "id", h.getId()));
+            return ResponseEntity.status(201).body(ApiResponse.ok(Map.of("id", h.getId())));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }

@@ -76,7 +76,7 @@ public class RolePermissionController {
     @PreAuthorize("hasRole('ADMIN') or @perm.can('roles', 'manage')")
     public ResponseEntity<?> getUserPermissionOverrides(@PathVariable Integer userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("KhÃ´ng tÃ¬m tháº¥y nhÃ¢n viÃªn"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên"));
         String roleName = user.getRole() != null ? user.getRole().getName() : "";
         Map<String, List<String>> allow = new HashMap<>();
         Map<String, List<String>> deny = new HashMap<>();
@@ -85,7 +85,7 @@ public class RolePermissionController {
             target.computeIfAbsent(override.getFeature(), key -> new ArrayList<>()).add(override.getAction());
         }
 
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "userId", userId,
                 "role", roleName,
                 "basePermissions", roleRepository.findByName(roleName.toUpperCase())
@@ -94,7 +94,7 @@ public class RolePermissionController {
                 "allow", allow,
                 "deny", deny,
                 "effectivePermissions", toListMatrix(permissionService.effectivePermissions(userId, roleName))
-        ));
+        )));
     }
 
     @GetMapping("/me/permissions")
@@ -102,12 +102,12 @@ public class RolePermissionController {
         String roleName = currentRole(authentication);
         if (roleName == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", "Chưa xác thực"));
+                    .body(ApiResponse.fail("Chưa xác thực"));
         }
         if (!"ADMIN".equalsIgnoreCase(roleName) && !"MANAGER".equalsIgnoreCase(roleName)
                 && !"STAFF".equalsIgnoreCase(roleName)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("message", "Tài khoản không có quyền truy cập khu nội bộ"));
+                    .body(ApiResponse.fail("Tài khoản không có quyền truy cập khu nội bộ"));
         }
 
         Map<String, Object> response = new HashMap<>();
@@ -140,13 +140,10 @@ public class RolePermissionController {
                                                            @RequestBody Map<String, Object> body) {
         try {
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("KhÃ´ng tÃ¬m tháº¥y nhÃ¢n viÃªn"));
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên"));
             String roleName = user.getRole() != null ? user.getRole().getName() : "";
             if (!"STAFF".equalsIgnoreCase(roleName)) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "Chá»‰ cáº¥u hÃ¬nh riÃªng cho nhÃ¢n viÃªn STAFF"
-                ));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Chỉ cấu hình riêng cho nhân viên STAFF"));
             }
 
             Map<String, List<String>> allow = normalizeMatrix(body.get("allow"));

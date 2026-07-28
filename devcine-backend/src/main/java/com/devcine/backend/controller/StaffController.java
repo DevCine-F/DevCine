@@ -359,7 +359,7 @@ public class StaffController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không tạo được nhân viên: " + e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không tạo được nhân viên: " + e.getMessage()));
         }
     }
 
@@ -440,7 +440,7 @@ public class StaffController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không cập nhật được nhân viên: " + e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không cập nhật được nhân viên: " + e.getMessage()));
         }
     }
 
@@ -450,12 +450,12 @@ public class StaffController {
     public ResponseEntity<?> toggleStaff(@PathVariable Integer id) {
         Staff staff = staffRepository.findById(id).orElse(null);
         if (staff == null || staff.getUser() == null)
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không tìm thấy nhân viên."));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không tìm thấy nhân viên."));
 
         if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
             Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
             if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Bạn chỉ có thể đổi trạng thái nhân viên của cơ sở mình."));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn chỉ có thể đổi trạng thái nhân viên của cơ sở mình."));
             }
         }
 

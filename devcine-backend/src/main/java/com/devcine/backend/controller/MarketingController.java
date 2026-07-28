@@ -95,20 +95,20 @@ public class MarketingController {
         try {
             String code = body.get("code") != null ? ((String) body.get("code")).trim() : "";
             if (code.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Vui lòng nhập mã code."));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập mã code."));
             }
             if (promotionRepository.existsByCodeIgnoreCase(code)) {
-                return ResponseEntity.status(409).body(Map.of("success", false, "message", "Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
+                return ResponseEntity.status(409).body(ApiResponse.fail("Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
             }
             // Validate ngày: bắt đầu >= hôm nay; hết hạn > bắt đầu (mặc định bắt đầu = hôm nay nếu để trống)
             java.time.LocalDateTime startDt = body.get("startDate") != null ? LocalDateTime.parse((String) body.get("startDate")) : null;
             java.time.LocalDateTime endDt = body.get("endDate") != null ? LocalDateTime.parse((String) body.get("endDate")) : null;
             java.time.LocalDate today = java.time.LocalDate.now();
             if (startDt != null && startDt.toLocalDate().isBefore(today)) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày bắt đầu không được ở quá khứ."));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Ngày bắt đầu không được ở quá khứ."));
             }
             if (endDt != null && !endDt.toLocalDate().isAfter(startDt != null ? startDt.toLocalDate() : today)) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày hết hạn phải sau ngày bắt đầu."));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Ngày hết hạn phải sau ngày bắt đầu."));
             }
             Promotion promo = Promotion.builder()
                     .code(code)
@@ -133,7 +133,7 @@ public class MarketingController {
             return ResponseEntity.status(201).body(ApiResponse.ok(promo));
         } catch (Exception e) {
             log.error("Lỗi tạo promotion", e);
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể tạo voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không thể tạo voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
         }
     }
 
@@ -147,10 +147,10 @@ public class MarketingController {
             if (body.containsKey("code")) {
                 String code = body.get("code") != null ? ((String) body.get("code")).trim() : "";
                 if (code.isBlank()) {
-                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Vui lòng nhập mã code."));
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập mã code."));
                 }
                 if (promotionRepository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
-                    return ResponseEntity.status(409).body(Map.of("success", false, "message", "Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
+                    return ResponseEntity.status(409).body(ApiResponse.fail("Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
                 }
                 promo.setCode(code);
             }
@@ -166,10 +166,10 @@ public class MarketingController {
             if (newStart != null) {
                 boolean changed = existingStart == null || !newStart.toLocalDate().isEqual(existingStart.toLocalDate());
                 if (running && changed) {
-                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Voucher đang chạy, không thể sửa ngày bắt đầu."));
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Voucher đang chạy, không thể sửa ngày bắt đầu."));
                 }
                 if (!running && newStart.toLocalDate().isBefore(today)) {
-                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày bắt đầu không được ở quá khứ."));
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Ngày bắt đầu không được ở quá khứ."));
                 }
                 promo.setStartDate(newStart);
             }
@@ -177,7 +177,7 @@ public class MarketingController {
             java.time.LocalDateTime effStart = newStart != null ? newStart : existingStart;
             java.time.LocalDate effStartDate = effStart != null ? effStart.toLocalDate() : today;
             if (newEnd != null && !newEnd.toLocalDate().isAfter(effStartDate)) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Ngày hết hạn phải sau ngày bắt đầu."));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Ngày hết hạn phải sau ngày bắt đầu."));
             }
             if (body.get("endDate") != null) promo.setEndDate(newEnd);
             if (body.containsKey("isStackable")) promo.setIsStackable(Boolean.parseBoolean(body.get("isStackable").toString()));
@@ -194,7 +194,7 @@ public class MarketingController {
             return ResponseEntity.ok(ApiResponse.ok(promo));
         } catch (Exception e) {
             log.error("Lỗi cập nhật promotion {}", id, e);
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Không thể cập nhật voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không thể cập nhật voucher. Vui lòng kiểm tra lại dữ liệu nhập."));
         }
     }
 
