@@ -7,6 +7,7 @@ import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 import { prepareImageForUpload } from '@/utils/imageUpload'
 import { useAdminPerm } from '@/composables/useAdminPerm'
+import TrailerModal from '@/components/common/TrailerModal.vue'
 
 const { can } = useAdminPerm()
 const toast = useToastStore()
@@ -81,6 +82,7 @@ const fetchMovies = async () => {
     const { data } = await api.get('/movies')
     movies.value = (Array.isArray(data) ? data : (data.data ?? [])).map(m => ({
       id: m.id, title: m.title, status: m.status, posterUrl: m.posterUrl || null,
+      trailerUrl: m.trailerUrl || null,
     }))
   } catch (e) {
     console.error('Failed to load movies', e)
@@ -361,6 +363,17 @@ const deleteBanner = async (id) => {
 }
 
 const movieTitleById = (id) => movies.value.find(m => m.id === id)?.title || `Phim #${id}`
+const movieTrailerById = (id) => movies.value.find(m => m.id === id)?.trailerUrl || null
+
+// Xem trước trailer ngay trong màn quản trị (không autoplay trong grid — chỉ mở khi bấm nút Play)
+const previewUrl = ref('')
+const isPreviewOpen = ref(false)
+const openTrailerPreview = (banner) => {
+  const url = movieTrailerById(banner.movieId)
+  if (!url) return
+  previewUrl.value = url
+  isPreviewOpen.value = true
+}
 // Ảnh đại diện phim cho card banner "Theo phim": ưu tiên bannerUrl (từ /movies/{id}, khớp trang chủ),
 // tạm thời dùng posterUrl từ list trong lúc chờ chi tiết tải xong.
 const movieImageById = (id) => movieImages.value[id] || movies.value.find(m => m.id === id)?.posterUrl || null
@@ -499,6 +512,14 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             <span class="material-symbols-outlined text-xs">{{ visIcon[visibilityMap[banner.id].tone] }}</span>
             {{ visibilityMap[banner.id].label }}
           </div>
+
+          <!-- Nút Play: chỉ hiện cho banner theo phim có trailer; bấm để xem trước (không autoplay trong grid) -->
+          <button v-if="banner.mode === 'MOVIE' && movieTrailerById(banner.movieId)"
+                  type="button" @click.stop="openTrailerPreview(banner)" draggable="false"
+                  class="absolute inset-0 m-auto w-12 h-12 rounded-full bg-black/50 hover:bg-primary text-white hover:text-on-primary backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all opacity-80 hover:opacity-100 hover:scale-110 z-10"
+                  title="Xem trước trailer">
+            <span class="material-symbols-outlined text-2xl">play_arrow</span>
+          </button>
         </div>
 
         <!-- Banner Info -->
@@ -690,5 +711,8 @@ onMounted(() => { fetchBanners(); fetchMovies() })
         </div>
       </div>
     </div>
+
+    <!-- Modal xem trước trailer (tái dùng của trang khách) -->
+    <TrailerModal :show="isPreviewOpen" :url="previewUrl" @close="isPreviewOpen = false" />
   </div>
 </template>
