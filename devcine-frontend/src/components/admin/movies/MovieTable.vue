@@ -213,7 +213,7 @@ const statusBadgeClass = (status) =>
               <span
                 v-for="g in movie.genres.slice(0, 3)"
                 :key="g.id"
-                class="px-2 py-0.5 bg-surface-container-highest/60 border border-outline-variant/10 text-[9px] font-bold uppercase tracking-wider rounded text-on-surface-variant"
+                class="px-2 py-0.5 min-w-0 break-words bg-surface-container-highest/60 border border-outline-variant/10 text-[9px] font-bold uppercase tracking-wider rounded text-on-surface-variant"
               >{{ g.name }}</span>
               <span
                 v-if="movie.genres.length > 3"

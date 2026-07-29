@@ -226,19 +226,19 @@ const durationText = (m) => (m?.durationMins ? m.durationMins + " Phút" : "N/A"
                 <div>
                   <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Thể loại & Phân loại</p>
                   <div class="flex flex-wrap gap-2">
-                    <span v-for="g in movie.genres" :key="g.id" class="px-3 py-1.5 bg-primary/10 border border-primary/20 text-[9px] font-bold text-primary uppercase tracking-widest rounded-lg">{{ g.name }}</span>
+                    <span v-for="g in movie.genres" :key="g.id" class="px-3 py-1.5 max-w-full whitespace-normal break-words bg-primary/10 border border-primary/20 text-[9px] font-bold text-primary uppercase tracking-widest rounded-lg">{{ g.name }}</span>
                   </div>
                 </div>
                 <div v-if="movie.format">
                   <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Định dạng chiếu chính</p>
                   <div class="flex flex-wrap gap-2">
-                    <span v-for="f in movie.format?.split(', ')" :key="f" class="px-3 py-1.5 bg-primary/10 border border-primary text-[9px] font-black text-primary uppercase tracking-widest rounded-lg">{{ f }}</span>
+                    <span v-for="f in movie.format?.split(', ')" :key="f" class="px-3 py-1.5 max-w-full whitespace-normal break-words bg-primary/10 border border-primary text-[9px] font-black text-primary uppercase tracking-widest rounded-lg">{{ f }}</span>
                   </div>
                 </div>
                 <div v-if="movie.supportedFormats">
                   <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">Định dạng hỗ trợ</p>
                   <div class="flex flex-wrap gap-2">
-                    <span v-for="f in movie.supportedFormats?.split(', ')" :key="f" class="px-3 py-1.5 bg-white/10 border border-white/20 text-[9px] font-black text-white uppercase tracking-widest rounded-lg">{{ f }}</span>
+                    <span v-for="f in movie.supportedFormats?.split(', ')" :key="f" class="px-3 py-1.5 max-w-full whitespace-normal break-words bg-white/10 border border-white/20 text-[9px] font-black text-white uppercase tracking-widest rounded-lg">{{ f }}</span>
                   </div>
                 </div>
               </section>

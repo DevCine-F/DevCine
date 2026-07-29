@@ -136,7 +136,7 @@ const formatMeta = (m) => {
             :key="g.id"
             @click="searchByGenre(g.name)"
             :class="query === g.name ? 'bg-primary-container text-on-primary border-primary-container' : 'bg-surface-container-high/60 text-on-surface-variant border-outline-variant/15 hover:border-primary-container/50 hover:text-on-surface'"
-            class="px-4 py-1.5 rounded-full border text-xs font-bold transition-all"
+            class="px-4 py-1.5 max-w-full break-words rounded-full border text-xs font-bold transition-all"
           >
             {{ g.name }}
           </button>
