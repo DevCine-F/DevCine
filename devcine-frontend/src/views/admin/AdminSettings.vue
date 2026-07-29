@@ -36,7 +36,6 @@ const BANKS = [
 const settings = ref({
   siteName: 'DevCine Editorial Cinema',
   contactEmail: 'contact@devcine.com',
-  baseTicketPrice: '110.000',
   pointConversionRate: 1000,
   seatHoldMinutes: 10,
   maxTicketsPerBooking: 8,
@@ -70,7 +69,6 @@ const loadSettings = async () => {
     data.forEach(item => {
       if (item.settingKey === 'SITE_NAME') settings.value.siteName = item.settingValue
       else if (item.settingKey === 'CONTACT_EMAIL') settings.value.contactEmail = item.settingValue
-      else if (item.settingKey === 'BASE_TICKET_PRICE') settings.value.baseTicketPrice = item.settingValue
       else if (item.settingKey === 'LOYALTY_POINT_RATE') settings.value.pointConversionRate = parseInt(item.settingValue) || 1000
       else if (item.settingKey === 'SEAT_HOLD_MINUTES') settings.value.seatHoldMinutes = parseInt(item.settingValue) || 10
       else if (item.settingKey === 'MAX_TICKETS_PER_BOOKING') settings.value.maxTicketsPerBooking = parseInt(item.settingValue) || 8
@@ -100,7 +98,6 @@ const saveSettings = async () => {
     await Promise.all([
       settingsApi.save({ settingKey: 'SITE_NAME', settingValue: settings.value.siteName }),
       settingsApi.save({ settingKey: 'CONTACT_EMAIL', settingValue: settings.value.contactEmail }),
-      settingsApi.save({ settingKey: 'BASE_TICKET_PRICE', settingValue: settings.value.baseTicketPrice }),
       settingsApi.save({ settingKey: 'LOYALTY_POINT_RATE', settingValue: settings.value.pointConversionRate.toString() }),
       settingsApi.save({ settingKey: 'SEAT_HOLD_MINUTES', settingValue: settings.value.seatHoldMinutes.toString() }),
       settingsApi.save({ settingKey: 'MAX_TICKETS_PER_BOOKING', settingValue: settings.value.maxTicketsPerBooking.toString() }),
@@ -169,10 +166,6 @@ onMounted(() => {
           Cấu hình nghiệp vụ
         </h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá vé cơ bản (VNĐ)</label>
-            <input v-model="settings.baseTicketPrice" :disabled="isLoading" type="text" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
-          </div>
           <div class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiền tệ</label>
             <select :disabled="isLoading" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">

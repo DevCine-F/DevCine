@@ -32,7 +32,6 @@ const blankMovie = () => ({
   releaseDate: "",
   startDate: "",
   endDate: "",
-  basePrice: 85000,
   description: "",
   posterUrl: "",
   bannerUrl: "",
@@ -184,15 +183,6 @@ const handleWheel = (e) => {
 };
 
 // ===== Format tự động khi gõ (đồng bộ phân hệ Voucher) =====
-const fmtThousand = (n) => (n === null || n === undefined || n === "" ? "" : Number(n).toLocaleString("vi-VN"));
-
-// Giá vé gốc: chỉ giữ số, cắt tối đa 6 chữ số (500.000đ), model lưu số nguyên thô.
-const onPriceInput = (e) => {
-  const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
-  newMovie.value.basePrice = digits ? Number(digits) : null;
-  e.target.value = digits ? Number(digits).toLocaleString("vi-VN") : "";
-  clearErr("basePrice");
-};
 // Thời lượng: số nguyên, tối đa 3 chữ số (≤ 400).
 const onDurationInput = (e) => {
   const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
@@ -235,13 +225,6 @@ const trailerError = computed(() => {
   if (!YOUTUBE_RE.test(t)) return "Đường dẫn Trailer không hợp lệ. Vui lòng nhập link từ Youtube.";
   return "";
 });
-const priceError = computed(() => {
-  const p = newMovie.value.basePrice;
-  if (p === "" || p == null) return "";
-  const n = Number(p);
-  if (!Number.isInteger(n) || n < 10000 || n > 500000) return "Giá vé gốc phải từ 10.000đ đến 500.000đ.";
-  return "";
-});
 // Tóm tắt nội dung: bắt buộc 50–1000 ký tự (áp dụng cả thêm mới lẫn sửa).
 const synopsisError = computed(() => {
   const d = (newMovie.value.description || "").trim();
@@ -272,7 +255,6 @@ const isFormInvalid = computed(() => {
   // Bắt buộc điền — áp cho cả tạo mới & sửa.
   if (!m.duration) return true;
   if (!m.productionYear) return true;
-  if (m.basePrice == null || m.basePrice === "") return true;
   if (selectedGenres.value.length === 0) return true;
   if (selectedFormats.value.length === 0) return true;
   if (!selectedFormats.value.includes(m.format)) return true; // định dạng chính phải nằm trong hỗ trợ
@@ -312,9 +294,6 @@ const handleSave = () => {
 
   if ((m.trailerUrl || "").trim()) { if (trailerError.value) e.trailerUrl = trailerError.value; }
   else e.trailerUrl = "Vui lòng nhập đường dẫn Trailer.";
-
-  if (m.basePrice != null && m.basePrice !== "") { if (priceError.value) e.basePrice = priceError.value; }
-  else e.basePrice = "Vui lòng nhập giá vé gốc.";
 
   if (selectedGenres.value.length === 0) e.genres = "Vui lòng chọn ít nhất 1 thể loại phim.";
   if (selectedFormats.value.length === 0) e.formats = "Vui lòng chọn ít nhất 1 định dạng hỗ trợ.";
@@ -498,17 +477,12 @@ const handleSave = () => {
             <div class="flex items-center gap-2 text-primary border-l-2 border-primary pl-3">
               <span class="text-[10px] font-black uppercase tracking-[0.2em]">03. Vận hành & Kiểm soát</span>
             </div>
-            <div class="grid grid-cols-3 gap-6">
+            <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Phân loại độ tuổi</label>
                 <select v-model="newMovie.ageRating" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3.5 px-6 text-on-surface transition-all outline-none rounded-t-lg appearance-none">
                   <option v-for="rating in availableAgeRatings" :key="rating.code" :value="rating.code">{{ rating.code }} ({{ rating.name }})</option>
                 </select>
-              </div>
-              <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Giá vé gốc (VNĐ) <span class="text-red-500">*</span></label>
-                <input :value="fmtThousand(newMovie.basePrice)" @input="onPriceInput" type="text" inputmode="numeric" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.basePrice || priceError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: 85.000" />
-                <p v-if="errors.basePrice || priceError" class="text-[10px] text-red-400 font-bold">{{ errors.basePrice || priceError }}</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trạng thái</label>

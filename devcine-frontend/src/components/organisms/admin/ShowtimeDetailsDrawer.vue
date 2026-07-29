@@ -132,17 +132,8 @@ const getSoldTickets = (movieTitle) => {
             </div>
           </div>
           
-          <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex items-center gap-4">
-            <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <span class="material-symbols-outlined text-primary">payments</span>
-            </div>
-            <div>
-              <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Giá vé cơ bản</p>
-              <p class="text-sm font-bold text-primary mt-0.5">{{ showtime.price.toLocaleString() }}đ</p>
-            </div>
-          </div>
         </div>
-        
+
         <!-- Thống kê suất chiếu -->
         <h4 class="text-[11px] font-bold text-white/50 uppercase tracking-widest mt-8 mb-4">Thống kê suất chiếu (Tạm tính)</h4>
         <div class="grid grid-cols-2 gap-4">

@@ -24,7 +24,6 @@ public class MovieDTO {
     private String titleVietnamese;
     private Integer productionYear;
     private String language;
-    private Double basePrice;
     private String description;
     private String originalLanguage;
     private String versionType;

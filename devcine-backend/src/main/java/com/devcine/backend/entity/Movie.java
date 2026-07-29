@@ -72,9 +72,6 @@ public class Movie {
     @Column(length = 100)
     private String language;
 
-    @Column(name = "base_price")
-    private Double basePrice;
-
     @Column(columnDefinition = "TEXT")
     private String description;
 

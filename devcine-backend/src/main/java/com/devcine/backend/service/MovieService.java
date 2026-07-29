@@ -92,7 +92,6 @@ public class MovieService {
                 .releaseDate(movie.getReleaseDate())
                 .endDate(movie.getEndDate())
                 .ageRating(movie.getAgeRating())
-                .basePrice(movie.getBasePrice())
                 .ratingCount(movie.getRatingCount())
                 .genres(movie.getGenres() == null ? null : movie.getGenres().stream()
                         .map(g -> CategorySummaryDTO.builder()
@@ -123,8 +122,6 @@ public class MovieService {
             throw new IllegalStateException("Thời lượng phim phải từ 30 đến 300 phút.");
         if (m.getProductionYear() != null && (m.getProductionYear() < 2020 || m.getProductionYear() > 2035))
             throw new IllegalStateException("Năm sản xuất phải từ 2020 đến 2035.");
-        if (m.getBasePrice() != null && m.getBasePrice() < 10000)
-            throw new IllegalStateException("Giá vé gốc phải từ 10.000đ trở lên.");
         if (m.getTrailerUrl() != null && !m.getTrailerUrl().isBlank()
                 && !YOUTUBE_PATTERN.matcher(m.getTrailerUrl().trim()).matches())
             throw new IllegalStateException("Đường dẫn Trailer phải là link Youtube hợp lệ.");
@@ -186,7 +183,6 @@ public class MovieService {
         movie.setTitleVietnamese(r.getTitleVietnamese());
         movie.setProductionYear(r.getProductionYear());
         movie.setLanguage(r.getLanguage());
-        movie.setBasePrice(r.getBasePrice());
         movie.setDescription(r.getDescription());
         movie.setOriginalLanguage(r.getOriginalLanguage());
         movie.setVersionType(r.getVersionType());

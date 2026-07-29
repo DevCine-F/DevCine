@@ -36,7 +36,6 @@ const SORTABLE = {
   title: "Bộ phim",
   releaseDate: "Khởi chiếu",
   rating: "Đánh giá",
-  basePrice: "Giá vé",
 };
 
 // Menu đổi trạng thái nhanh — lưu id dòng đang mở
@@ -100,7 +99,7 @@ const statusBadgeClass = (status) =>
             v-for="(label, key) in SORTABLE"
             :key="key"
             @click="emit('sort', key)"
-            :class="key === 'basePrice' || key === 'rating' ? 'text-right' : ''"
+            :class="key === 'rating' ? 'text-right' : ''"
             class="px-5 py-5 cursor-pointer select-none hover:text-primary transition-colors whitespace-nowrap"
           >
             <span class="inline-flex items-center gap-1">
@@ -206,11 +205,6 @@ const statusBadgeClass = (status) =>
                 class="text-[10px] text-on-surface-variant/60 font-bold"
               >({{ movie.ratingCount.toLocaleString("vi-VN") }})</span>
             </div>
-          </td>
-
-          <!-- Giá vé -->
-          <td class="px-5 py-4 text-right">
-            <span class="text-xs font-bold text-on-surface">{{ formatPrice(movie.basePrice) }}</span>
           </td>
 
           <!-- Phân loại -->

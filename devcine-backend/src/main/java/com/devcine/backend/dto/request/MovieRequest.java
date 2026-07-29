@@ -1,6 +1,5 @@
 package com.devcine.backend.dto.request;
 
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -55,9 +54,6 @@ public class MovieRequest {
     private Integer productionYear;
 
     private String language;
-
-    @DecimalMin(value = "10000", message = "Giá vé gốc phải từ 10.000đ trở lên.")
-    private Double basePrice;
 
     @Size(max = 1000, message = "Tóm tắt nội dung tối đa 1000 ký tự.")
     private String description;

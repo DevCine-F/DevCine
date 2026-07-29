@@ -30,7 +30,7 @@ export function useMovieManagement() {
   const filterFormat = ref("Tất cả định dạng");
 
   // ===== Sắp xếp =====
-  const sortKey = ref("id"); // id | title | releaseDate | rating | basePrice
+  const sortKey = ref("id"); // id | title | releaseDate | rating
   const sortDir = ref("desc"); // asc | desc
 
   // ===== Phân trang =====
@@ -182,7 +182,7 @@ export function useMovieManagement() {
       if (key === "releaseDate") {
         av = av ? new Date(av).getTime() : 0;
         bv = bv ? new Date(bv).getTime() : 0;
-      } else if (key === "rating" || key === "basePrice" || key === "id") {
+      } else if (key === "rating" || key === "id") {
         av = parseFloat(av) || 0;
         bv = parseFloat(bv) || 0;
       } else {
