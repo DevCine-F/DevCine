@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 import java.util.ArrayList;
@@ -275,6 +276,35 @@ public class MovieService {
         Map<String, Object> result = new HashMap<>();
         result.put("updated", updated);
         result.put("blocked", blocked);
+        return result;
+    }
+
+    /**
+     * Tự đồng bộ trạng thái phim theo lịch phát hành + suất chiếu (gọi bởi Cron Job hằng ngày).
+     * KHÔNG thay thế thao tác thủ công của admin — chỉ bù các phim admin quên chuyển.
+     *
+     * <p>Đọc CẢ HAI danh sách ứng viên trước rồi mới cập nhật (snapshot theo trạng thái đầu lượt):
+     * nhờ vậy phim vừa được kích hoạt trong cùng lượt sẽ KHÔNG bị ngừng chiếu ngay dù chưa có
+     * suất tương lai — nó được sống trọn 1 ngày, tới lượt hôm sau mới xét ngừng.</p>
+     *
+     * <p>Ngừng chiếu tự động còn tôn trọng guard "vé đang giữ" (xem {@code findActiveIdsToArchive}):
+     * phim còn Booking HOLD sẽ KHÔNG bị archive, tránh phá luồng thanh toán dang dở của khách.</p>
+     *
+     * @param today thời điểm "hôm nay" (theo múi giờ VN, do scheduler truyền vào để dễ test)
+     * @param now   mốc hiện tại để xác định "suất chiếu tương lai"
+     * @return {@code {activated, archived}} — số phim đã lật mỗi chiều
+     */
+    @Transactional
+    public Map<String, Integer> autoSyncStatuses(LocalDate today, LocalDateTime now) {
+        List<Integer> toActivate = movieRepository.findUpcomingIdsToActivate(today);
+        List<Integer> toArchive = movieRepository.findActiveIdsToArchive(today, now);
+
+        int activated = toActivate.isEmpty() ? 0 : movieRepository.bulkUpdateStatus(toActivate, "active");
+        int archived = toArchive.isEmpty() ? 0 : movieRepository.bulkUpdateStatus(toArchive, "archived");
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("activated", activated);
+        result.put("archived", archived);
         return result;
     }
 
