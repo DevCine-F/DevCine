@@ -38,6 +38,11 @@ public class SeatService {
     private final JdbcTemplate jdbcTemplate;
 
     public ShowtimeSeatResponse getSeatsForShowtime(Integer showtimeId) {
+        return getSeatsForShowtime(showtimeId, "ONLINE");
+    }
+
+    public ShowtimeSeatResponse getSeatsForShowtime(Integer showtimeId, String channel) {
+        boolean online = !"POS".equalsIgnoreCase(channel);
         Showtime showtime = showtimeRepository.findById(showtimeId)
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
 
@@ -73,7 +78,7 @@ public class SeatService {
                     .rowChar(seat.getRowChar())
                     .colNum(seat.getColNum())
                     .seatType(seat.getSeatType().getName())
-                    .price(pricingService.priceFor(priceCtx, seat.getSeatType(), "ADULT"))
+                    .price(pricingService.priceFor(priceCtx, "ADULT"))
                     .status(status)
                     .gridRow(seat.getGridRow())
                     .gridCol(seat.getGridCol())
@@ -84,8 +89,9 @@ public class SeatService {
                 .matrixRow(showtime.getRoom().getMatrixRow() != null ? showtime.getRoom().getMatrixRow() : 9)
                 .matrixCol(showtime.getRoom().getMatrixCol() != null ? showtime.getRoom().getMatrixCol() : 10)
                 .seats(seatDTOs)
-                .audienceLabels(PricingService.audienceLabels())
-                .priceTable(pricingService.buildPriceTable(priceCtx, seatTypeRepository.findAll()))
+                .audienceLabels(PricingService.audienceLabels(online))
+                .priceTable(pricingService.buildPriceTable(priceCtx, seatTypeRepository.findAll(),
+                        online ? PricingService.ONLINE_AUDIENCE_TYPES : PricingService.AUDIENCE_TYPES))
                 .build();
     }
 
@@ -100,7 +106,7 @@ public class SeatService {
                 .rowChar(seat.getRowChar())
                 .colNum(seat.getColNum())
                 .seatType(seat.getSeatType().getName())
-                .price(seat.getSeatType().getPriceModifier())
+                .price(null) // preview phòng (không gắn suất) → không có giá; giá tính khi có Showtime
                 .status("AVAILABLE")
                 .gridRow(seat.getGridRow())
                 .gridCol(seat.getGridCol())

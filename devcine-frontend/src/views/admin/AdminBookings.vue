@@ -8,7 +8,7 @@ import { friendlyError } from '@/utils/friendlyError'
 const toast = useToastStore()
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
-const ticketTypeLabel = (t) => ({ ADULT: 'Người lớn', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }[t] || '')
+const ticketTypeLabel = (t) => ({ ADULT: 'Người lớn', U22: 'U22 / HSSV', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }[t] || '')
 
 const isLoading = ref(false)
 const error = ref('')

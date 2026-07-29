@@ -73,6 +73,17 @@ public class BookingService {
         if (selectedSeatIds.isEmpty()) {
             throw new RuntimeException("Vui lòng chọn ít nhất 1 ghế.");
         }
+
+        // Anti-fraud theo KÊNH: vé CHILD/SENIOR bắt buộc xác minh giấy tờ/chiều cao tại quầy →
+        // cấm bán online (kẻ gian có thể gọi thẳng API dù UI đã ẩn). U22/ADULT cho qua bình thường.
+        if ("ONLINE".equalsIgnoreCase(channel)) {
+            boolean hasRestricted = ticketTypeBySeat.values().stream()
+                    .anyMatch(t -> "CHILD".equals(t) || "SENIOR".equals(t));
+            if (hasRestricted) {
+                throw new IllegalArgumentException(
+                        "Vé Trẻ em / Người cao tuổi chỉ bán tại quầy (cần xác minh giấy tờ). Vui lòng đến rạp để mua.");
+            }
+        }
         int maxTickets = systemSettingService.getMaxTicketsPerBooking();
         if (selectedSeatIds.size() > maxTickets) {
             throw new RuntimeException("Mỗi lần đặt tối đa " + maxTickets + " vé.");
@@ -154,7 +165,7 @@ public class BookingService {
             Seat seat = seatMap.get(entry.getKey());
             if (seat == null) throw new RuntimeException("Seat not found");
             String ticketType = entry.getValue();
-            BigDecimal seatPrice = pricingService.priceFor(priceCtx, seat.getSeatType(), ticketType);
+            BigDecimal seatPrice = pricingService.priceFor(priceCtx, ticketType);
             bookingSeats.add(BookingSeat.builder()
                     .booking(booking)
                     .seat(seat)

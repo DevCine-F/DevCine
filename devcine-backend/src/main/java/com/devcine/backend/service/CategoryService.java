@@ -96,9 +96,9 @@ public class CategoryService {
     public List<MovieFormat> getFormats() {
         if (movieFormatRepository.count() == 0) {
             movieFormatRepository.saveAll(List.of(
-                    MovieFormat.builder().name("2D").description("Định dạng tiêu chuẩn").surcharge(BigDecimal.ZERO).isFixedPrice(false).build(),
-                    MovieFormat.builder().name("3D").description("Định dạng 3 chiều").surcharge(BigDecimal.ZERO).isFixedPrice(false).build(),
-                    MovieFormat.builder().name("IMAX").description("Màn hình IMAX").surcharge(BigDecimal.ZERO).isFixedPrice(false).build()
+                    MovieFormat.builder().name("2D").description("Định dạng tiêu chuẩn").surcharge(BigDecimal.ZERO).build(),
+                    MovieFormat.builder().name("3D").description("Định dạng 3 chiều").surcharge(BigDecimal.ZERO).build(),
+                    MovieFormat.builder().name("IMAX").description("Màn hình IMAX").surcharge(BigDecimal.ZERO).build()
             ));
         }
         return movieFormatRepository.findAll();
@@ -115,7 +115,6 @@ public class CategoryService {
                 .name(name)
                 .description(cleanDescription(input.getDescription()))
                 .surcharge(BigDecimal.ZERO)
-                .isFixedPrice(false)
                 .build());
     }
 

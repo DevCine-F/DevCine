@@ -60,7 +60,7 @@ const showToast = (message, type = 'success') => toastStore.push(message, type)
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
 
-const DEFAULT_AUDIENCE_LABELS = { ADULT: 'Người lớn', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }
+const DEFAULT_AUDIENCE_LABELS = { ADULT: 'Người lớn', U22: 'U22 / HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }
 // Lưu bảng giá + nhãn đối tượng từ response ghế để đổi loại vé không cần gọi lại server
 const captureSeatMeta = (data) => {
   if (data && data.priceTable) priceTable.value = data.priceTable

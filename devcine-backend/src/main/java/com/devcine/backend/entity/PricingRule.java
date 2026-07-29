@@ -26,15 +26,23 @@ public class PricingRule {
     @Column(name = "rule_type", nullable = false, length = 30)
     private String ruleType;
 
-    /** WEEKDAY | WEDNESDAY | WEEKEND | HOLIDAY | ALL */
+    /** WEEKDAY (T2–T5) | WEEKEND (T6–CN & Lễ) | ALL — mô hình 2 bậc (flat pricing). */
     @Column(name = "day_type", length = 20)
     private String dayType;
 
-    /** EARLY (<10h) | BEFORE_17H | AFTER_17H | ALL */
+    /**
+     * STANDARD | DELUXE | IMAX | ALL — hạng PHÒNG (phần cứng), tách khỏi công nghệ 2D/3D (MovieFormat).
+     * Giá nền map theo (dayType × roomType × audienceType).
+     */
+    @Column(name = "room_type", length = 30)
+    private String roomType;
+
+    /** @deprecated Không còn phân giá theo khung giờ (flat pricing). Giữ cột cho dữ liệu cũ, luôn ghi ALL. */
+    @Deprecated
     @Column(name = "time_slot", length = 20)
     private String timeSlot;
 
-    /** ADULT | STUDENT | CHILD | SENIOR | ALL */
+    /** ADULT | U22 | CHILD | SENIOR | ALL */
     @Column(name = "audience_type", length = 20)
     private String audienceType;
 

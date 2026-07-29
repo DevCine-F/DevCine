@@ -393,105 +393,67 @@ public class DataSeeder {
             }
 
             if (seatTypeRepository.count() == 0) {
-                seatTypeRepository.save(SeatType.builder().name("NORMAL").priceModifier(new BigDecimal("0")).build());
-                seatTypeRepository.save(SeatType.builder().name("VIP").priceModifier(new BigDecimal("20000")).build());
-                seatTypeRepository.save(SeatType.builder().name("SWEETBOX").priceModifier(new BigDecimal("50000")).build());
+                seatTypeRepository.save(SeatType.builder().name("NORMAL").build());
+                seatTypeRepository.save(SeatType.builder().name("VIP").build());
+                seatTypeRepository.save(SeatType.builder().name("SWEETBOX").build());
                 System.out.println("Đã thêm dữ liệu giả lập cho SeatType thành công!");
             }
 
-            // Pricing engine: đổi giá ghế từ TUYỆT ĐỐI sang PHỤ THU + seed ma trận giá nền (CHẠY 1 LẦN).
-            // Sau đổi nghĩa: priceModifier = phụ thu cộng dồn vào giá nền (không còn là giá vé tuyệt đối).
-            boolean demoPricingSeeded = systemSettingRepository.findById("DEMO_PRICING_SEEDED").isPresent();
-            if (!demoPricingSeeded) {
-                for (SeatType t : seatTypeRepository.findAll()) {
-                    if ("NORMAL".equalsIgnoreCase(t.getName())) t.setPriceModifier(BigDecimal.ZERO);
-                    else if ("VIP".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("30000"));
-                    else if ("SWEETBOX".equalsIgnoreCase(t.getName())) t.setPriceModifier(new BigDecimal("100000"));
-                    seatTypeRepository.save(t);
-                }
-
-                if (pricingRuleRepository.findByRuleType("BASE_PRICE").isEmpty()) {
-                    // Giá nền Người lớn theo (loại ngày, khung giờ); các đối tượng khác lệch cố định.
-                    java.util.Map<String, int[]> adultBase = new java.util.LinkedHashMap<>();
-                    adultBase.put("WEEKDAY", new int[]{60000, 70000, 85000});    // EARLY, BEFORE_17H, AFTER_17H
-                    adultBase.put("WEDNESDAY", new int[]{75000, 75000, 75000});  // T4 đồng giá
-                    adultBase.put("WEEKEND", new int[]{80000, 100000, 115000});
-                    String[] slots = {"EARLY", "BEFORE_17H", "AFTER_17H"};
-                    // Lệch giá theo đối tượng so với Người lớn (T4 đồng giá nên không áp lệch)
-                    java.util.Map<String, Integer> audienceOffset = new java.util.LinkedHashMap<>();
-                    audienceOffset.put("ADULT", 0);
-                    audienceOffset.put("STUDENT", -10000);
-                    audienceOffset.put("CHILD", -20000);
-                    audienceOffset.put("SENIOR", -20000);
-
-                    for (var dayEntry : adultBase.entrySet()) {
-                        String dayType = dayEntry.getKey();
-                        int[] base = dayEntry.getValue();
-                        for (int i = 0; i < slots.length; i++) {
-                            for (var audEntry : audienceOffset.entrySet()) {
-                                int value = "WEDNESDAY".equals(dayType)
-                                        ? base[i]
-                                        : Math.max(40000, base[i] + audEntry.getValue());
-                                pricingRuleRepository.save(PricingRule.builder()
-                                        .name("Giá nền")
-                                        .ruleType("BASE_PRICE")
-                                        .dayType(dayType)
-                                        .timeSlot(slots[i])
-                                        .audienceType(audEntry.getKey())
-                                        .value(new BigDecimal(value))
-                                        .priority(0)
-                                        .active(true)
-                                        .build());
-                            }
-                        }
-                    }
-                    System.out.println("Đã seed ma trận giá nền (ngày × khung giờ × đối tượng).");
-                }
-
-                systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("DEMO_PRICING_SEEDED").settingValue("true").build());
-                System.out.println("Đã chuyển giá ghế sang phụ thu (Thường +0 / VIP +30k / Sweetbox +100k).");
-            }
-
-            // Áp dụng BIỂU GIÁ LOTTE (chạy 1 lần, cờ LOTTE_PRICING_SEEDED): giá nền theo đối tượng × ngày
-            // (không theo giờ), phụ thu 3D theo ngày, KHÔNG phụ thu ghế/phòng.
-            boolean lottePricingSeeded = systemSettingRepository.findById("LOTTE_PRICING_SEEDED_V2").isPresent();
-            if (!lottePricingSeeded) {
-                // Bỏ phụ thu loại ghế (Lotte không phân biệt giá ghế)
-                for (SeatType t : seatTypeRepository.findAll()) {
-                    t.setPriceModifier(BigDecimal.ZERO);
-                    seatTypeRepository.save(t);
-                }
-                // Phụ thu định dạng theo ngày: 3D +20k (thường) / +30k (cuối tuần & lễ); 2D = 0; IMAX giữ nguyên
+            // ============ FLAT PRICING V3 (chạy 1 lần, cờ FLAT_PRICING_V3) ============
+            // Mô hình: giá = base(loại_ngày × loại_phòng × đối_tượng) + phụ_thu_định_dạng(2D/3D).
+            // 2 bậc ngày (WEEKDAY / WEEKEND gộp lễ), 3 hạng phòng (STANDARD/DELUXE/IMAX),
+            // 4 đối tượng (ADULT/U22/CHILD/SENIOR). KHÔNG phụ thu theo loại ghế.
+            boolean flatPricingSeeded = systemSettingRepository.findById("FLAT_PRICING_V3").isPresent();
+            if (!flatPricingSeeded) {
+                // Phụ thu ĐỊNH DẠNG (công nghệ): 2D +0 · 3D +30k · IMAX-format +0 (giá IMAX nằm ở hạng phòng).
                 for (MovieFormat f : formatRepository.findAll()) {
                     String n = f.getName() != null ? f.getName().toUpperCase() : "";
                     if (n.contains("3D")) {
-                        f.setSurcharge(new BigDecimal("20000"));
+                        f.setSurcharge(new BigDecimal("30000"));
                         f.setWeekendSurcharge(new BigDecimal("30000"));
-                    } else if (!n.contains("IMAX")) {
+                    } else {
                         f.setSurcharge(BigDecimal.ZERO);
                         f.setWeekendSurcharge(BigDecimal.ZERO);
                     }
                     formatRepository.save(f);
                 }
-                // Re-seed ma trận giá nền theo Lotte (timeSlot=ALL vì không phân biệt giờ)
+
+                // Ma trận giá nền: roomType -> dayType -> [ADULT, U22, CHILD, SENIOR]
+                java.util.Map<String, java.util.Map<String, int[]>> matrix = new java.util.LinkedHashMap<>();
+                java.util.Map<String, int[]> standard = new java.util.LinkedHashMap<>();
+                standard.put("WEEKDAY", new int[]{85000, 65000, 55000, 60000});
+                standard.put("WEEKEND", new int[]{105000, 105000, 55000, 60000});
+                matrix.put("STANDARD", standard);
+                java.util.Map<String, int[]> deluxe = new java.util.LinkedHashMap<>();
+                deluxe.put("WEEKDAY", new int[]{125000, 105000, 95000, 100000});
+                deluxe.put("WEEKEND", new int[]{145000, 145000, 95000, 100000});
+                matrix.put("DELUXE", deluxe);
+                java.util.Map<String, int[]> imax = new java.util.LinkedHashMap<>();
+                imax.put("WEEKDAY", new int[]{135000, 115000, 105000, 110000});
+                imax.put("WEEKEND", new int[]{155000, 155000, 105000, 110000});
+                matrix.put("IMAX", imax);
+
+                String[] auds = {"ADULT", "U22", "CHILD", "SENIOR"};
                 pricingRuleRepository.deleteAll(pricingRuleRepository.findByRuleType("BASE_PRICE"));
-                java.util.Map<String, int[]> baseByDay = new java.util.LinkedHashMap<>(); // [ADULT, STUDENT]
-                baseByDay.put("WEEKDAY", new int[]{45000, 45000});
-                baseByDay.put("WEEKEND", new int[]{75000, 45000});
-                baseByDay.put("HOLIDAY", new int[]{85000, 55000});
-                String[] auds = {"ADULT", "STUDENT"};
-                for (var e : baseByDay.entrySet()) {
-                    for (int i = 0; i < auds.length; i++) {
-                        pricingRuleRepository.save(PricingRule.builder()
-                                .name("Giá nền").ruleType("BASE_PRICE")
-                                .dayType(e.getKey()).timeSlot("ALL").audienceType(auds[i])
-                                .value(new BigDecimal(e.getValue()[i])).priority(0).active(true).build());
+                for (var roomEntry : matrix.entrySet()) {
+                    String roomType = roomEntry.getKey();
+                    for (var dayEntry : roomEntry.getValue().entrySet()) {
+                        String dayType = dayEntry.getKey();
+                        int[] prices = dayEntry.getValue();
+                        for (int i = 0; i < auds.length; i++) {
+                            pricingRuleRepository.save(PricingRule.builder()
+                                    .name("Giá nền").ruleType("BASE_PRICE")
+                                    .dayType(dayType).roomType(roomType).timeSlot("ALL")
+                                    .audienceType(auds[i])
+                                    .value(new BigDecimal(prices[i]))
+                                    .priority(0).active(true).build());
+                        }
                     }
                 }
+
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("LOTTE_PRICING_SEEDED_V2").settingValue("true").build());
-                System.out.println("Đã áp dụng biểu giá Lotte (2 đối tượng NL/HSSV × ngày, 3D +20k/+30k, bỏ phụ thu ghế).");
+                        .settingKey("FLAT_PRICING_V3").settingValue("true").build());
+                System.out.println("Đã áp dụng FLAT PRICING V3 (2 bậc ngày × 3 hạng phòng × 4 đối tượng, 3D +30k).");
             }
 
             // Backfill điểm tích lũy trọn đời (lifetime_points) cho khách hiện có (CHẠY 1 LẦN).

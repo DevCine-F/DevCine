@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { pricingApi } from '@/api/admin'
 import { useConfirmStore } from '@/stores/confirm'
 import { useAdminPerm } from '@/composables/useAdminPerm'
@@ -15,15 +15,13 @@ const saving = ref(false)
 const activeTab = ref('base')
 
 const config = ref(null)
-const baseMatrix = reactive({})       // key `${day}|${aud}` -> value (Lotte: không theo giờ)
-const seatTypes = ref([])
+const baseMatrix = reactive({})       // key `${roomType}|${dayType}|${audience}` -> value (flat: không theo giờ)
 const formats = ref([])
-const specialPrices = reactive({})    // key `${formatId}|${seatTypeId}` -> price
 const holidays = ref([])
 const newHoliday = reactive({ holidayDate: '', name: '' })
 
-// Simulator (Lotte: không có khung giờ)
-const sim = reactive({ dayType: 'WEEKEND', audienceType: 'ADULT', seatTypeId: '', formatId: '' })
+// Simulator (flat pricing: ngày × đối tượng × loại phòng × định dạng)
+const sim = reactive({ dayType: 'WEEKEND', audienceType: 'ADULT', roomType: 'STANDARD', formatId: '' })
 const simResult = ref(null)
 const simulating = ref(false)
 
@@ -31,7 +29,7 @@ const toast = useToastStore()
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 const audienceEntries = computed(() => Object.entries(config.value?.audiences || {}))
-const fixedFormats = computed(() => formats.value.filter(f => f.isFixedPrice))
+const roomTypes = computed(() => config.value?.roomTypes || [])
 
 const loadConfig = async () => {
   loading.value = true
@@ -42,25 +40,20 @@ const loadConfig = async () => {
 
     Object.keys(baseMatrix).forEach(k => delete baseMatrix[k])
     const existing = {}
-    ;(data.baseMatrix || []).forEach(r => { existing[`${r.dayType}|${r.audienceType}`] = r.value })
-    data.dayTypes.forEach(d => Object.keys(data.audiences).forEach(a => {
-      const key = `${d.code}|${a}`
+    ;(data.baseMatrix || []).forEach(r => { existing[`${r.roomType}|${r.dayType}|${r.audienceType}`] = r.value })
+    ;(data.roomTypes || []).forEach(rt => data.dayTypes.forEach(d => Object.keys(data.audiences).forEach(a => {
+      const key = `${rt.code}|${d.code}|${a}`
       baseMatrix[key] = existing[key] ?? 0
-    }))
+    })))
 
-    seatTypes.value = (data.seatTypes || []).map(s => ({ ...s, priceModifier: Number(s.priceModifier || 0) }))
     formats.value = (data.formats || []).map(f => ({
       ...f,
       surcharge: Number(f.surcharge || 0),
       weekendSurcharge: f.weekendSurcharge == null ? null : Number(f.weekendSurcharge),
-      isFixedPrice: !!f.isFixedPrice
     }))
 
-    Object.keys(specialPrices).forEach(k => delete specialPrices[k])
-    ;(data.specialPrices || []).forEach(sp => { specialPrices[`${sp.formatId}|${sp.seatTypeId}`] = Number(sp.price || 0) })
-
     holidays.value = data.holidays || []
-    if (seatTypes.value.length) sim.seatTypeId = seatTypes.value[0].id
+    if (roomTypes.value.length) sim.roomType = roomTypes.value[0].code
     if (formats.value.length) sim.formatId = formats.value[0].id
   } catch (e) {
     loadError.value = true
@@ -72,28 +65,17 @@ const loadConfig = async () => {
 
 onMounted(loadConfig)
 
-
 const saveBase = async () => {
   saving.value = true
   try {
     const rules = Object.entries(baseMatrix).map(([k, value]) => {
-      const [dayType, audienceType] = k.split('|')
-      return { dayType, timeSlot: 'ALL', audienceType, value: Number(value || 0) }
+      const [roomType, dayType, audienceType] = k.split('|')
+      return { dayType, roomType, audienceType, value: Number(value || 0) }
     })
     await pricingApi.saveBaseMatrix(rules)
     toast.success('Đã lưu bảng giá nền.')
   } catch (e) {
     toast.error(friendlyError(e, 'Lưu giá nền thất bại.'))
-  } finally { saving.value = false }
-}
-
-const saveSeats = async () => {
-  saving.value = true
-  try {
-    await pricingApi.saveSeatTypes(seatTypes.value.map(s => ({ id: s.id, priceModifier: Number(s.priceModifier || 0) })))
-    toast.success('Đã lưu phụ thu loại ghế.')
-  } catch (e) {
-    toast.error(friendlyError(e, 'Lưu loại ghế thất bại.'))
   } finally { saving.value = false }
 }
 
@@ -104,26 +86,10 @@ const saveFormats = async () => {
       id: f.id,
       surcharge: Number(f.surcharge || 0),
       weekendSurcharge: f.weekendSurcharge == null || f.weekendSurcharge === '' ? null : Number(f.weekendSurcharge),
-      isFixedPrice: !!f.isFixedPrice
     })))
     toast.success('Đã lưu cấu hình định dạng.')
   } catch (e) {
     toast.error(friendlyError(e, 'Lưu định dạng thất bại.'))
-  } finally { saving.value = false }
-}
-
-const saveSpecials = async () => {
-  saving.value = true
-  try {
-    const items = []
-    fixedFormats.value.forEach(f => seatTypes.value.forEach(s => {
-      const v = specialPrices[`${f.id}|${s.id}`]
-      if (v != null && Number(v) > 0) items.push({ formatId: f.id, seatTypeId: s.id, price: Number(v) })
-    }))
-    await pricingApi.saveSpecialPrices(items)
-    toast.success('Đã lưu giá phòng đặc biệt.')
-  } catch (e) {
-    toast.error(friendlyError(e, 'Lưu giá đặc biệt thất bại.'))
   } finally { saving.value = false }
 }
 
@@ -162,7 +128,12 @@ const runSimulate = async () => {
   simulating.value = true
   simResult.value = null
   try {
-    const { data } = await pricingApi.simulate({ ...sim, timeSlot: 'ALL' })
+    const { data } = await pricingApi.simulate({
+      dayType: sim.dayType,
+      audienceType: sim.audienceType,
+      roomType: sim.roomType,
+      formatId: sim.formatId,
+    })
     simResult.value = data
   } catch (e) {
     toast.error(friendlyError(e, 'Tính thử thất bại.'))
@@ -171,7 +142,6 @@ const runSimulate = async () => {
 
 const TABS = [
   { key: 'base', label: 'Giá nền', icon: 'grid_on' },
-  { key: 'seat', label: 'Loại ghế', icon: 'chair' },
   { key: 'format', label: 'Định dạng', icon: 'movie' },
   { key: 'holiday', label: 'Ngày lễ', icon: 'event' },
   { key: 'sim', label: 'Tính thử', icon: 'calculate' },
@@ -182,7 +152,7 @@ const TABS = [
   <div class="p-6 md:p-10 space-y-6">
     <header>
       <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight font-headline uppercase text-primary">Cấu hình giá vé</h1>
-      <p class="text-on-surface-variant text-sm mt-1">Giá = giá nền (đối tượng × ngày) + phụ thu định dạng (theo ngày). Phòng đặc biệt dùng giá cố định.</p>
+      <p class="text-on-surface-variant text-sm mt-1">Flat pricing: giá = giá nền (loại phòng × loại ngày × đối tượng) + phụ thu định dạng (2D/3D). Mọi ghế trong cùng phòng + định dạng đồng giá.</p>
     </header>
 
     <div v-if="loading" class="space-y-3">
@@ -204,51 +174,41 @@ const TABS = [
         </button>
       </div>
 
-      <!-- TAB: Giá nền (ngày × đối tượng) -->
-      <section v-if="activeTab === 'base'" class="space-y-4">
-        <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5">
-                <th class="p-4 text-left">Loại ngày \ Đối tượng</th>
-                <th v-for="[code, label] in audienceEntries" :key="code" class="p-4 text-center">{{ label }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="d in config.dayTypes" :key="d.code" class="border-t border-outline-variant/5">
-                <td class="p-4 font-bold text-on-surface">{{ d.label }}</td>
-                <td v-for="[code] in audienceEntries" :key="code" class="p-3 text-center">
-                  <input type="number" v-model.number="baseMatrix[`${d.code}|${code}`]"
-                    class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <!-- TAB: Giá nền (loại phòng × loại ngày × đối tượng) -->
+      <section v-if="activeTab === 'base'" class="space-y-6">
+        <div v-for="rt in roomTypes" :key="rt.code" class="space-y-2">
+          <h3 class="font-bold text-on-surface uppercase tracking-widest text-xs flex items-center gap-2">
+            <span class="material-symbols-outlined text-base text-primary">meeting_room</span>{{ rt.label }}
+          </h3>
+          <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5">
+                  <th class="p-4 text-left">Loại ngày \ Đối tượng</th>
+                  <th v-for="[code, label] in audienceEntries" :key="code" class="p-4 text-center">{{ label }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="d in config.dayTypes" :key="d.code" class="border-t border-outline-variant/5">
+                  <td class="p-4 font-bold text-on-surface">{{ d.label }}</td>
+                  <td v-for="[code] in audienceEntries" :key="code" class="p-3 text-center">
+                    <input type="number" v-model.number="baseMatrix[`${rt.code}|${d.code}|${code}`]"
+                      class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <p class="text-xs text-on-surface-variant">* Giá ngày lễ nên đã gồm phụ thu lễ. Suất rơi vào ngày trong tab "Ngày lễ" sẽ dùng cột giá Lễ.</p>
+        <p class="text-xs text-on-surface-variant">* Bậc "Cao điểm" gộp T6, T7, CN và mọi ngày trong tab "Ngày lễ".</p>
         <button v-if="can('pricing', 'edit')" @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
           {{ saving ? 'Đang lưu...' : 'Lưu giá nền' }}
         </button>
       </section>
 
-      <!-- TAB: Loại ghế -->
-      <section v-else-if="activeTab === 'seat'" class="space-y-4 max-w-xl">
-        <p class="text-sm text-on-surface-variant">Phụ thu cộng vào giá nền theo loại ghế. Theo biểu giá Lotte: tất cả = 0 (không phân biệt giá ghế).</p>
-        <div v-for="s in seatTypes" :key="s.id" class="flex items-center justify-between bg-surface-container-low border border-outline-variant/10 rounded-xl p-4">
-          <span class="font-bold text-on-surface">{{ s.name }}</span>
-          <div class="flex items-center gap-2">
-            <span class="text-on-surface-variant text-sm">+</span>
-            <input type="number" v-model.number="s.priceModifier" class="w-36 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
-            <span class="text-on-surface-variant text-sm">đ</span>
-          </div>
-        </div>
-        <button v-if="can('pricing', 'edit')" @click="saveSeats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
-          {{ saving ? 'Đang lưu...' : 'Lưu phụ thu ghế' }}
-        </button>
-      </section>
-
-      <!-- TAB: Định dạng -->
+      <!-- TAB: Định dạng (phụ thu công nghệ 2D/3D) -->
       <section v-else-if="activeTab === 'format'" class="space-y-4">
+        <p class="text-sm text-on-surface-variant">Phụ thu công nghệ định dạng, cộng vào giá nền. Giá theo hạng phòng đã cấu hình ở tab "Giá nền".</p>
         <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
           <table class="w-full text-sm">
             <thead>
@@ -256,20 +216,16 @@ const TABS = [
                 <th class="p-4 text-left">Định dạng</th>
                 <th class="p-4 text-center">Phụ thu ngày thường (T2–T5)</th>
                 <th class="p-4 text-center">Phụ thu cuối tuần & lễ</th>
-                <th class="p-4 text-center">Giá cố định?</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="f in formats" :key="f.id" class="border-t border-outline-variant/5">
                 <td class="p-4 font-bold text-on-surface">{{ f.name }}</td>
-                <td class="p-3 text-center" :class="{ 'opacity-40': f.isFixedPrice }">
-                  <input type="number" v-model.number="f.surcharge" :disabled="f.isFixedPrice" class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
-                </td>
-                <td class="p-3 text-center" :class="{ 'opacity-40': f.isFixedPrice }">
-                  <input type="number" v-model.number="f.weekendSurcharge" :disabled="f.isFixedPrice" placeholder="= ngày thường" class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
+                <td class="p-3 text-center">
+                  <input type="number" v-model.number="f.surcharge" class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
                 </td>
                 <td class="p-3 text-center">
-                  <input type="checkbox" v-model="f.isFixedPrice" class="accent-primary w-4 h-4" />
+                  <input type="number" v-model.number="f.weekendSurcharge" placeholder="= ngày thường" class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
                 </td>
               </tr>
             </tbody>
@@ -278,38 +234,11 @@ const TABS = [
         <button v-if="can('pricing', 'edit')" @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
           {{ saving ? 'Đang lưu...' : 'Lưu định dạng' }}
         </button>
-
-        <!-- Giá cố định phòng đặc biệt -->
-        <div v-if="fixedFormats.length" class="mt-6 space-y-3">
-          <h3 class="font-bold text-on-surface uppercase tracking-widest text-xs">Giá cố định phòng đặc biệt</h3>
-          <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5">
-                  <th class="p-4 text-left">Định dạng \ Loại ghế</th>
-                  <th v-for="s in seatTypes" :key="s.id" class="p-4 text-center">{{ s.name }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="f in fixedFormats" :key="f.id" class="border-t border-outline-variant/5">
-                  <td class="p-4 font-bold text-on-surface">{{ f.name }}</td>
-                  <td v-for="s in seatTypes" :key="s.id" class="p-3 text-center">
-                    <input type="number" v-model.number="specialPrices[`${f.id}|${s.id}`]"
-                      class="w-28 bg-surface-container-high border border-outline-variant/20 p-2 rounded text-right font-bold text-on-surface focus:border-primary outline-none" />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <button v-if="can('pricing', 'edit')" @click="saveSpecials" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
-            {{ saving ? 'Đang lưu...' : 'Lưu giá đặc biệt' }}
-          </button>
-        </div>
       </section>
 
       <!-- TAB: Ngày lễ -->
       <section v-else-if="activeTab === 'holiday'" class="space-y-4 max-w-xl">
-        <p class="text-sm text-on-surface-variant">Suất rơi vào ngày lễ áp cột giá "Ngày lễ" + phụ thu định dạng cuối tuần/lễ.</p>
+        <p class="text-sm text-on-surface-variant">Suất rơi vào ngày lễ áp bậc giá "Cao điểm" + phụ thu định dạng cuối tuần/lễ.</p>
         <div class="flex flex-wrap items-end gap-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-4">
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Ngày</label>
@@ -345,9 +274,9 @@ const TABS = [
             </select>
           </div>
           <div>
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại ghế</label>
-            <select v-model="sim.seatTypeId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
-              <option v-for="s in seatTypes" :key="s.id" :value="s.id">{{ s.name }}</option>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại phòng</label>
+            <select v-model="sim.roomType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+              <option v-for="rt in roomTypes" :key="rt.code" :value="rt.code">{{ rt.label }}</option>
             </select>
           </div>
           <div>
@@ -365,10 +294,8 @@ const TABS = [
           <template v-if="simResult">
             <span class="text-[10px] font-bold uppercase tracking-widest text-primary">Giá vé tính được</span>
             <div class="text-4xl font-black font-headline text-primary mb-4">{{ fmt(simResult.total) }}đ</div>
-            <div v-if="simResult.fixedPrice" class="text-sm text-on-surface-variant">Giá cố định (phòng đặc biệt).</div>
-            <div v-else class="text-sm text-on-surface-variant space-y-1">
+            <div class="text-sm text-on-surface-variant space-y-1">
               <div class="flex justify-between"><span>Giá nền</span><span class="font-bold text-on-surface">{{ fmt(simResult.basePrice) }}đ</span></div>
-              <div class="flex justify-between"><span>Phụ thu ghế</span><span class="font-bold text-on-surface">+{{ fmt(simResult.seatSurcharge) }}đ</span></div>
               <div class="flex justify-between"><span>Phụ thu định dạng</span><span class="font-bold text-on-surface">+{{ fmt(simResult.formatSurcharge) }}đ</span></div>
             </div>
           </template>

@@ -3,8 +3,6 @@ package com.devcine.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
-
 @Entity
 @Table(name = "seat_types")
 @Getter
@@ -23,7 +21,5 @@ public class SeatType {
 
     @Column(name = "color_code", length = 10)
     private String colorCode;
-
-    @Column(name = "price_modifier", precision = 15, scale = 2)
-    private BigDecimal priceModifier;
+    // Flat pricing: KHÔNG còn phụ thu theo loại ghế. Loại ghế chỉ mang ý nghĩa hiển thị (tên + màu).
 }

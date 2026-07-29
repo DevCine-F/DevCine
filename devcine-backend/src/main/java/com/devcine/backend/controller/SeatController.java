@@ -26,9 +26,12 @@ public class SeatController {
         return ResponseEntity.ok(ApiResponse.ok(seatTypeRepository.findAll()));
     }
 
+    // channel=ONLINE (mặc định) → chỉ ADULT/U22; channel=POS → đủ 4 loại vé (bán tại quầy).
     @GetMapping("/showtime/{showtimeId}")
-    public ResponseEntity<ApiResponse<ShowtimeSeatResponse>> getSeatsForShowtime(@PathVariable Integer showtimeId) {
-        return ResponseEntity.ok(ApiResponse.ok(seatService.getSeatsForShowtime(showtimeId)));
+    public ResponseEntity<ApiResponse<ShowtimeSeatResponse>> getSeatsForShowtime(
+            @PathVariable Integer showtimeId,
+            @RequestParam(name = "channel", defaultValue = "ONLINE") String channel) {
+        return ResponseEntity.ok(ApiResponse.ok(seatService.getSeatsForShowtime(showtimeId, channel)));
     }
 
     @GetMapping("/room/{roomId}")

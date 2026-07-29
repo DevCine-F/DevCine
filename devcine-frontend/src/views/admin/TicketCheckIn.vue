@@ -10,7 +10,7 @@ const toast = useToastStore()
 
 // ===== Helpers hiển thị & dựng bản in vé giấy =====
 const seatTypeLabel = (t) =>
-  ({ ADULT: 'Người lớn', STUDENT: 'Học sinh/Sinh viên', CHILD: 'Trẻ em', SENIOR: 'Người cao tuổi' }[t] || 'Người lớn')
+  ({ ADULT: 'Người lớn', U22: 'U22 / HSSV', STUDENT: 'Học sinh/Sinh viên', CHILD: 'Trẻ em', SENIOR: 'Người cao tuổi' }[t] || 'Người lớn')
 
 const formatDateTime = (iso) => {
   if (!iso) return '—'
