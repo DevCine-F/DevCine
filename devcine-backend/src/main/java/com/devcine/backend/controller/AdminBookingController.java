@@ -105,7 +105,7 @@ public class AdminBookingController {
         List<Map<String, Object>> seats = bookingSeatRepository.findAllByBookingIdWithSeat(id).stream().map(bs -> {
             Seat seat = bs.getSeat();
             Map<String, Object> s = new HashMap<>();
-            s.put("label", seat.getRowChar() + seat.getColNum());
+            s.put("label", seat.displayLabel());
             s.put("seatType", seat.getSeatType() != null ? seat.getSeatType().getName() : "");
             s.put("ticketType", nn(bs.getTicketType()));
             s.put("price", bs.getPriceSnapshot());
@@ -123,7 +123,7 @@ public class AdminBookingController {
         List<Map<String, Object>> tickets = ticketRepository.findAllByBookingIdWithSeat(id).stream().map(t -> {
             Seat seat = t.getBookingSeat().getSeat();
             Map<String, Object> tk = new HashMap<>();
-            tk.put("seatLabel", seat.getRowChar() + seat.getColNum());
+            tk.put("seatLabel", seat.displayLabel());
             tk.put("qrCode", t.getQrCode());
             tk.put("isCheckedIn", Boolean.TRUE.equals(t.getIsCheckedIn()));
             return tk;

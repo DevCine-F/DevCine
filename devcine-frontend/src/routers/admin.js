@@ -49,12 +49,6 @@ export default [
         component: () => import('../views/admin/AdminSettings.vue')
       },
       {
-        path: 'seat-map',
-        name: 'admin-seat-map',
-        meta: { permission: { feature: 'cinemas', action: 'view' } },
-        component: () => import('../views/admin/SeatMapEditor.vue')
-      },
-      {
         path: 'promotions',
         name: 'admin-promotions',
         meta: { permission: { feature: 'promotions', action: 'view' } },

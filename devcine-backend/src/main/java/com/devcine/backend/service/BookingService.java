@@ -164,6 +164,11 @@ public class BookingService {
         for (java.util.Map.Entry<Integer, String> entry : ticketTypeBySeat.entrySet()) {
             Seat seat = seatMap.get(entry.getKey());
             if (seat == null) throw new RuntimeException("Seat not found");
+            // Chặn đặt ghế đang khóa vật lý (bảo trì/khóa) — không phụ thuộc trạng thái runtime
+            if (seat.getSeatStatus() != null && !"AVAILABLE".equals(seat.getSeatStatus())) {
+                throw new RuntimeException("Ghế " + (seat.getLabel() != null ? seat.getLabel() : seat.getId())
+                        + " đang bảo trì/khóa, không thể đặt.");
+            }
             String ticketType = entry.getValue();
             BigDecimal seatPrice = pricingService.priceFor(priceCtx, ticketType);
             bookingSeats.add(BookingSeat.builder()
@@ -345,7 +350,7 @@ public class BookingService {
             for (int i = 0; i < seats.size(); i++) {
                 BookingSeat bs = seats.get(i);
                 Seat seat = bs.getSeat();
-                String label = seat.getRowChar() + seat.getColNum();
+                String label = seat.displayLabel();
                 seatLines.add(new TicketEmailData.SeatLine(label, bs.getTicketType(), tickets.get(i).getQrCode()));
             }
 

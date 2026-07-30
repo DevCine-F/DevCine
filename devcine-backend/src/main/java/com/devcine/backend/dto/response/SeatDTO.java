@@ -16,8 +16,10 @@ public class SeatDTO {
     private String rowChar;
     private Integer colNum;
     private String seatType; // e.g., NORMAL, VIP, SWEETBOX
+    private String label;    // nhãn hiển thị (custom hoặc rowChar+colNum)
     private BigDecimal price;
-    private String status; // AVAILABLE, HOLD, SOLD
+    private String status;      // runtime: AVAILABLE, HOLD, SOLD — hoặc MAINTENANCE/LOCKED khi ghế khóa vật lý
+    private String seatStatus;  // trạng thái vật lý gốc: AVAILABLE, MAINTENANCE, LOCKED
     private Integer gridRow;
     private Integer gridCol;
 }

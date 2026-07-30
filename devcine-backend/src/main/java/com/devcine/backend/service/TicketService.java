@@ -177,7 +177,7 @@ public class TicketService {
         List<BookingPrintResponse.SeatLine> seatLines = new ArrayList<>();
         for (BookingSeat bs : bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())) {
             Seat seat = bs.getSeat();
-            String label = seat.getRowChar() + String.valueOf(seat.getColNum());
+            String label = seat.displayLabel();
             seatLines.add(new BookingPrintResponse.SeatLine(label, bs.getTicketType(), bs.getPriceSnapshot()));
         }
 

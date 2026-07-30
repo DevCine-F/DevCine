@@ -185,7 +185,7 @@ public class TicketingController {
                     .map(t -> {
                         Seat seat = t.getBookingSeat().getSeat();
                         return Map.<String, Object>of(
-                                "seatLabel", seat.getRowChar() + seat.getColNum(),
+                                "seatLabel", seat.displayLabel(),
                                 "qrCode", t.getQrCode()
                         );
                     })

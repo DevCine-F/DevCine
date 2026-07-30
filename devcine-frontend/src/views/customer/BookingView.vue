@@ -21,18 +21,23 @@ const seatRealtime = useSeatRealtime({
   onDenied: (seatId) => {
     const seat = store.selectedSeats.find(s => s.seatId === seatId)
     if (seat) store.toggleSeat(seat) // gỡ ghế đã giành hụt khỏi lựa chọn
-    const label = seat ? seat.rowChar + seat.colNum : 'này'
+    const label = seatLabel(seat)
     toast.error(`Ghế ${label} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
   },
   onSold: (seatIds) => {
     const lost = store.selectedSeats.filter(s => seatIds.includes(s.seatId))
     lost.forEach(seat => store.toggleSeat(seat))
     if (lost.length) {
-      toast.error(`Ghế ${lost.map(s => s.rowChar + s.colNum).join(', ')} vừa được bán ở nơi khác — đã gỡ khỏi lựa chọn.`)
+      toast.error(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được bán ở nơi khác — đã gỡ khỏi lựa chọn.`)
     }
   },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
+
+// Nhãn ghế: ưu tiên label lưu ở DB (có thể được Admin sửa tay), fallback rowChar+colNum
+const seatLabel = (seat) => seat ? (seat.label || (seat.rowChar + seat.colNum)) : 'này'
+// Ghế khóa vật lý (bảo trì/khóa) → không cho khách chọn
+const isSeatMaintenance = (seat) => !!seat && (seat.status === 'MAINTENANCE' || seat.status === 'LOCKED' || seat.seatStatus === 'MAINTENANCE' || seat.seatStatus === 'LOCKED')
 
 const paymentMethod = ref('VNPAY')
 
@@ -494,7 +499,7 @@ const handleSeatClick = (seat) => {
   } else {
     // Ghế đang bị POS/khách khác giữ real-time → chặn ngay
     if (isSeatLockedByOthers(seat)) {
-      toast.error(`Ghế ${seat.rowChar + seat.colNum} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
+      toast.error(`Ghế ${seatLabel(seat)} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
       return
     }
     store.toggleSeat(seat)
@@ -530,12 +535,18 @@ const getBookingSeatClass = (seat) => {
   // Ghế bị nơi khác giữ real-time coi như không khả dụng (khóa xám, không click được)
   const isAvailable = seat.status === 'AVAILABLE' && !isSeatLockedByOthers(seat);
   const type = seat.seatType;
-  
+
   const baseClasses = 'flex items-center justify-center text-[10px] font-bold transition-all duration-200';
   const shadowClasses = 'shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]';
   const standardSize = 'aspect-square w-10';
   const doubleSize = 'h-10 w-[5.5rem]'; // w-10 (40px) * 2 + gap-2 (8px) = 88px = 5.5rem
-  
+
+  // Ghế bảo trì/khóa: nền đỏ mờ, gạch chéo, không click được
+  if (isSeatMaintenance(seat)) {
+    const sizeClass = type === 'SWEETBOX' ? `${doubleSize} rounded-xl` : `${standardSize} rounded-lg`;
+    return `${baseClasses} ${sizeClass} bg-red-950/40 border border-dashed border-red-500/40 text-red-400/50 cursor-not-allowed pointer-events-none`;
+  }
+
   if (!isAvailable) {
     const sizeClass = type === 'SWEETBOX' ? `${doubleSize} rounded-xl` : `${standardSize} rounded-lg`;
     return `${baseClasses} ${sizeClass} bg-surface-container-high border border-white/5 text-white/20 cursor-not-allowed pointer-events-none opacity-50`;
@@ -743,8 +754,10 @@ const proceedToPayment = async () => {
                 <template v-for="col in store.matrixCol" :key="col">
                   <template v-if="getSeatAt(row - 1, col - 1)">
                     <div @click="handleSeatClick(getSeatAt(row - 1, col - 1))"
-                         :class="getBookingSeatClass(getSeatAt(row - 1, col - 1))">
-                      {{ getSeatAt(row - 1, col - 1).rowChar + getSeatAt(row - 1, col - 1).colNum }}
+                         :class="getBookingSeatClass(getSeatAt(row - 1, col - 1))"
+                         :title="isSeatMaintenance(getSeatAt(row - 1, col - 1)) ? 'Ghế đang bảo trì' : seatLabel(getSeatAt(row - 1, col - 1))">
+                      <span v-if="isSeatMaintenance(getSeatAt(row - 1, col - 1))" class="material-symbols-outlined text-sm">build</span>
+                      <template v-else>{{ seatLabel(getSeatAt(row - 1, col - 1)) }}</template>
                     </div>
                   </template>
                   <template v-else-if="!isHiddenBecauseSweetbox(row - 1, col - 1)">

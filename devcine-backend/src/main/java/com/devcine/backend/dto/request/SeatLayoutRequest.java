@@ -25,6 +25,7 @@ public class SeatLayoutRequest {
         private Integer gridRow;
         private Integer gridCol;
         private String type; // e.g., "standard", "vip", "double"
-        private String label; // e.g., "A1"
+        private String label; // e.g., "A1" (có thể được Admin sửa tay)
+        private String status; // trạng thái vật lý: AVAILABLE, MAINTENANCE, LOCKED
     }
 }

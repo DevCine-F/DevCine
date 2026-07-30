@@ -65,11 +65,17 @@ public class SeatService {
         PricingService.PricingContext priceCtx = pricingService.buildContext(showtime);
 
         List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> {
-            String status = "AVAILABLE";
-            if (soldSeatIds.contains(seat.getId())) {
+            String seatStatus = seat.getSeatStatus() != null ? seat.getSeatStatus() : "AVAILABLE";
+            String status;
+            if (!"AVAILABLE".equals(seatStatus)) {
+                // Ghế khóa vật lý (MAINTENANCE/LOCKED) → không bán, phủ lên trạng thái runtime để FE disable
+                status = seatStatus;
+            } else if (soldSeatIds.contains(seat.getId())) {
                 status = "SOLD";
             } else if (holdSeatIds.contains(seat.getId())) {
                 status = "HOLD";
+            } else {
+                status = "AVAILABLE";
             }
 
             // Giá mặc định hiển thị trên sơ đồ = giá Người lớn (ADULT); FE đổi theo priceTable khi chọn loại vé
@@ -78,8 +84,10 @@ public class SeatService {
                     .rowChar(seat.getRowChar())
                     .colNum(seat.getColNum())
                     .seatType(seat.getSeatType().getName())
+                    .label(seat.displayLabel())
                     .price(pricingService.priceFor(priceCtx, "ADULT"))
                     .status(status)
+                    .seatStatus(seatStatus)
                     .gridRow(seat.getGridRow())
                     .gridCol(seat.getGridCol())
                     .build();
@@ -101,16 +109,22 @@ public class SeatService {
 
         List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
 
-        List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> SeatDTO.builder()
-                .seatId(seat.getId())
-                .rowChar(seat.getRowChar())
-                .colNum(seat.getColNum())
-                .seatType(seat.getSeatType().getName())
-                .price(null) // preview phòng (không gắn suất) → không có giá; giá tính khi có Showtime
-                .status("AVAILABLE")
-                .gridRow(seat.getGridRow())
-                .gridCol(seat.getGridCol())
-                .build()).collect(Collectors.toList());
+        List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> {
+            String seatStatus = seat.getSeatStatus() != null ? seat.getSeatStatus() : "AVAILABLE";
+            return SeatDTO.builder()
+                    .seatId(seat.getId())
+                    .rowChar(seat.getRowChar())
+                    .colNum(seat.getColNum())
+                    .seatType(seat.getSeatType().getName())
+                    .label(seat.displayLabel())
+                    .price(null) // preview phòng (không gắn suất) → không có giá; giá tính khi có Showtime
+                    // preview phòng: giữ nguyên trạng thái vật lý (AVAILABLE/MAINTENANCE/LOCKED) để builder hiển thị đúng
+                    .status(seatStatus)
+                    .seatStatus(seatStatus)
+                    .gridRow(seat.getGridRow())
+                    .gridCol(seat.getGridCol())
+                    .build();
+        }).collect(Collectors.toList());
 
         return ShowtimeSeatResponse.builder()
                 .matrixRow(room.getMatrixRow() != null ? room.getMatrixRow() : 9)
@@ -135,11 +149,11 @@ public class SeatService {
         for (int r = 0; r < rows; r++) {
             String rowChar = String.valueOf((char) ('A' + r));
             for (int c = 0; c < cols; c++) {
-                cells.add(new Object[]{roomId, rowChar, c + 1, r, c, seatTypeId});
+                cells.add(new Object[]{roomId, rowChar, c + 1, r, c, seatTypeId, rowChar + (c + 1)});
             }
         }
 
-        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, is_active) VALUES (?, ?, ?, ?, ?, ?, true)";
+        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', true)";
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -150,6 +164,7 @@ public class SeatService {
                 ps.setInt(4, (int) d[3]);
                 ps.setInt(5, (int) d[4]);
                 ps.setInt(6, (int) d[5]);
+                ps.setString(7, (String) d[6]);
             }
 
             @Override
@@ -174,8 +189,8 @@ public class SeatService {
                 .collect(Collectors.toMap(SeatType::getName, type -> type));
 
         List<com.devcine.backend.dto.request.SeatLayoutRequest.SeatDefinition> seatDefs = request.getSeats();
-        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        
+        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -190,13 +205,22 @@ public class SeatService {
                     throw new RuntimeException("SeatType not found: " + finalBackendType);
                 }
 
+                String label = (def.getLabel() != null && !def.getLabel().isBlank())
+                        ? def.getLabel()
+                        : (def.getRowChar() + def.getColNum());
+                String seatStatus = (def.getStatus() != null && !def.getStatus().isBlank())
+                        ? def.getStatus().toUpperCase()
+                        : "AVAILABLE";
+
                 ps.setInt(1, roomId);
                 ps.setString(2, def.getRowChar());
                 ps.setInt(3, def.getColNum());
                 ps.setInt(4, def.getGridRow());
                 ps.setInt(5, def.getGridCol());
                 ps.setInt(6, seatType.getId());
-                ps.setBoolean(7, true);
+                ps.setString(7, label);
+                ps.setString(8, seatStatus);
+                ps.setBoolean(9, true);
             }
 
             @Override

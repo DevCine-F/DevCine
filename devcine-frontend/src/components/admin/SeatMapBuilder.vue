@@ -19,9 +19,17 @@ const selectedTool = ref('standard')
 const seatMap = reactive({ ...props.initialSeatMap })
 const isMouseDown = ref(false)
 
+// ===== Sửa label thủ công =====
+const editingKey = ref(null)
+const editingLabel = ref('')
+
 const totalSeats = computed(() => {
-  return Object.values(seatMap).filter(s => s.type !== 'aisle' && s.type !== 'remove' && s).length;
+  return Object.values(seatMap).filter(s => s && s.type !== 'aisle' && s.type !== 'remove').length
 })
+
+const rowLetter = (r) => String.fromCharCode(65 + r)
+
+const isSeatCell = (cell) => !!cell && cell.type && cell.type !== 'aisle' && cell.type !== 'hidden'
 
 // Cập nhật lại khi prop thay đổi
 watch(() => props.initialRows, (val) => { rows.value = val })
@@ -41,19 +49,38 @@ const toggleTool = (id) => {
   }
 }
 
+/**
+ * Đánh số lại 1 hàng theo thứ tự GHẾ THỰC (bỏ qua lối đi / ô đã xóa) → không nhảy cóc.
+ * Ghế có label do Admin sửa tay (custom=true) được coi là "chốt cứng": giữ nguyên label
+ * và KHÔNG chiếm số tự động, để Admin chủ động tạo khoảng nhảy số khi cần.
+ */
+const relabelRow = (r) => {
+  let counter = 0
+  for (let c = 0; c < cols.value; c++) {
+    const cell = seatMap[`${r}-${c}`]
+    if (!isSeatCell(cell)) continue        // lối đi / ô xóa → không chiếm số
+    if (cell.custom) continue              // label thủ công → giữ nguyên, không đếm
+    counter++
+    cell.label = `${rowLetter(r)}${counter}`
+  }
+}
+
 const initializeMap = () => {
   for (let r = 0; r < rows.value; r++) {
     for (let c = 0; c < cols.value; c++) {
       const key = `${r}-${c}`
-      if (!seatMap[key]) seatMap[key] = { type: 'standard', label: `${String.fromCharCode(65 + r)}${c + 1}` }
+      if (!seatMap[key]) {
+        seatMap[key] = { type: 'standard', label: `${rowLetter(r)}${c + 1}`, status: 'AVAILABLE' }
+      }
     }
+    relabelRow(r)
   }
   emitUpdate()
 }
 
 const isOccupiedByDouble = (r, c) => {
   if (c === 0) return false
-  return seatMap[`${r}-${c-1}`]?.type === 'double'
+  return seatMap[`${r}-${c - 1}`]?.type === 'double'
 }
 
 const emitUpdate = () => {
@@ -66,26 +93,82 @@ const emitUpdate = () => {
 
 const applyTool = (r, c) => {
   if (!selectedTool.value) return
-  
+
+  const key = `${r}-${c}`
+
+  // Công cụ Bảo trì/Khóa: KHÔNG xóa ghế, chỉ đảo trạng thái vật lý (giữ nguyên type + label + số)
+  if (selectedTool.value === 'maintenance') {
+    const cell = seatMap[key]
+    if (!isSeatCell(cell)) return // chỉ áp lên ghế thật
+    cell.status = cell.status === 'MAINTENANCE' ? 'AVAILABLE' : 'MAINTENANCE'
+    emitUpdate()
+    return
+  }
+
   // Không cho phép đặt ghế đôi ở cột cuối cùng vì nó cần 2 ô
   if (selectedTool.value === 'double' && c === cols.value - 1) {
     return
   }
-  
-  const key = `${r}-${c}`
+
   if (selectedTool.value === 'remove') {
     delete seatMap[key]
+  } else if (selectedTool.value === 'aisle') {
+    seatMap[key] = { type: 'aisle' }
   } else {
-    seatMap[key] = { 
-      type: selectedTool.value, 
-      label: `${String.fromCharCode(65 + r)}${c + 1}` 
+    seatMap[key] = {
+      type: selectedTool.value,
+      // label sẽ được relabelRow gán tự động ngay bên dưới; giữ status hiện có nếu có
+      label: seatMap[key]?.custom ? seatMap[key].label : '',
+      status: seatMap[key]?.status || 'AVAILABLE',
+      custom: seatMap[key]?.custom || false
     }
     // Nếu là ghế đôi, xóa ghế bên phải nếu có để tránh xung đột layout
     if (selectedTool.value === 'double' && c < cols.value - 1) {
-      delete seatMap[`${r}-${c+1}`]
+      delete seatMap[`${r}-${c + 1}`]
     }
   }
+  relabelRow(r)
   emitUpdate()
+}
+
+// ===== Sửa label thủ công =====
+const openLabelEditor = (r, c) => {
+  if (props.readonly) return
+  const key = `${r}-${c}`
+  const cell = seatMap[key]
+  if (!isSeatCell(cell)) return // chỉ ghế thật mới sửa được tên
+  editingKey.value = key
+  editingLabel.value = cell.label || ''
+}
+
+const closeLabelEditor = () => {
+  editingKey.value = null
+  editingLabel.value = ''
+}
+
+const saveLabel = () => {
+  if (!editingKey.value) return
+  const cell = seatMap[editingKey.value]
+  const val = (editingLabel.value || '').trim().toUpperCase()
+  if (cell && val) {
+    cell.label = val
+    cell.custom = true // chốt cứng, không bị đánh số tự động ghi đè
+    emitUpdate()
+  }
+  closeLabelEditor()
+}
+
+// Trả label về chế độ tự động (bỏ chốt cứng) và đánh số lại cả hàng
+const resetLabelToAuto = () => {
+  if (!editingKey.value) return
+  const cell = seatMap[editingKey.value]
+  if (cell) {
+    cell.custom = false
+    const r = parseInt(editingKey.value.split('-')[0])
+    relabelRow(r)
+    emitUpdate()
+  }
+  closeLabelEditor()
 }
 
 const handleMouseDown = (event, r, c) => {
@@ -104,17 +187,24 @@ const handleMouseUp = () => {
   isMouseDown.value = false
 }
 
-const getSeatClass = (type, r, c) => {
+const getSeatClass = (cell, r, c) => {
+  const type = cell?.type
   const baseClasses = 'shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)] transition-all duration-200'
-  
+
   if (!type) return 'bg-white/[0.02] border border-white/5 text-transparent hover:bg-white/[0.05] hover:border-primary/30 transition-colors rounded-lg'
-  
+
+  // Ghế đang bảo trì/khóa: viền đỏ nét đứt, mờ, icon cờ lê (không phụ thuộc readonly)
+  if (isSeatCell(cell) && cell.status && cell.status !== 'AVAILABLE') {
+    const doubleClass = type === 'double' ? 'col-span-2 rounded-xl' : 'rounded-lg'
+    return `${doubleClass} bg-red-950/40 border-2 border-dashed border-red-500/60 text-red-300/70 opacity-70`
+  }
+
   // Mock logic: nếu đang ở mode readonly thì giả lập một số ghế đã bị đặt (dựa trên tọa độ cố định để khỏi bị giật)
-  const isSold = props.readonly && type !== 'aisle' && type !== 'remove' && ((r * 7 + c * 3) % 5 === 0);
-  
+  const isSold = props.readonly && type !== 'aisle' && type !== 'remove' && ((r * 7 + c * 3) % 5 === 0)
+
   if (isSold) {
-    const doubleClass = type === 'double' ? 'col-span-2 rounded-xl' : 'rounded-lg';
-    return `${doubleClass} bg-surface-container-high border border-white/5 text-white/20 cursor-not-allowed pointer-events-none opacity-50`;
+    const doubleClass = type === 'double' ? 'col-span-2 rounded-xl' : 'rounded-lg'
+    return `${doubleClass} bg-surface-container-high border border-white/5 text-white/20 cursor-not-allowed pointer-events-none opacity-50`
   }
 
   switch (type) {
@@ -127,10 +217,14 @@ const getSeatClass = (type, r, c) => {
 }
 
 const getToolClass = (tool) => {
-  return selectedTool.value === tool 
-    ? 'bg-gradient-to-br from-primary to-amber-600 text-on-primary shadow-[0_0_20px_rgba(245,197,24,0.3)] scale-[1.02] border-none' 
+  return selectedTool.value === tool
+    ? 'bg-gradient-to-br from-primary to-amber-600 text-on-primary shadow-[0_0_20px_rgba(245,197,24,0.3)] scale-[1.02] border-none'
     : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-white/10 hover:border-white/20 hover:scale-[1.01]'
 }
+
+const maintenanceCount = computed(() =>
+  Object.values(seatMap).filter(s => s && s.status && s.status !== 'AVAILABLE' && s.type !== 'aisle').length
+)
 
 onMounted(() => {
   window.addEventListener('mouseup', handleMouseUp)
@@ -227,7 +321,7 @@ onUnmounted(() => {
                 <div v-for="r in rows" :key="r" class="flex gap-2.5">
                   <template v-for="c in cols" :key="c">
                     <div v-if="!isOccupiedByDouble(r-1, c-1)"
-                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`]?.type, r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[82px]' : 'w-9', 'h-9 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative cursor-default shrink-0']">
+                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`], r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[82px]' : 'w-9', 'h-9 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative cursor-default shrink-0']">
                     {{ seatMap[`${r-1}-${c-1}`]?.label }}
                     <div v-if="!seatMap[`${r-1}-${c-1}`]?.type || seatMap[`${r-1}-${c-1}`]?.type === 'aisle'" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                        <div class="w-1 h-1 bg-white/10 rounded-full"></div>
@@ -295,6 +389,7 @@ onUnmounted(() => {
             { id: 'vip', label: 'Ghế VIP', icon: 'diamond', color: 'text-red-500' },
             { id: 'double', label: 'Ghế Đôi', icon: 'favorite', color: 'text-purple-400' },
             { id: 'aisle', label: 'Lối đi', icon: 'pave_list', color: 'text-blue-400' },
+            { id: 'maintenance', label: 'Bảo trì / Khóa', icon: 'build', color: 'text-red-400' },
             { id: 'remove', label: 'Xóa ô', icon: 'ink_eraser', color: 'text-orange-500' }
           ]" :key="tool.id" @click="toggleTool(tool.id)" :class="getToolClass(tool.id)" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-left group relative overflow-hidden">
             <div v-if="selectedTool === tool.id" class="absolute inset-0 bg-white/10"></div>
@@ -302,6 +397,10 @@ onUnmounted(() => {
             <p class="text-[10px] font-bold uppercase tracking-widest relative z-10" :class="selectedTool === tool.id ? 'text-white' : ''">{{ tool.label }}</p>
           </button>
         </div>
+        <p class="text-[9px] text-on-surface-variant/60 mt-4 leading-relaxed flex items-start gap-1.5">
+          <span class="material-symbols-outlined text-[13px] text-primary/70">lightbulb</span>
+          Nhấp đúp (hoặc chuột phải) vào một ghế để sửa tên/số ghế thủ công.
+        </p>
       </div>
 
       <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
@@ -314,7 +413,7 @@ onUnmounted(() => {
             <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Sức chứa</span>
             <span class="text-base font-black text-primary">{{ totalSeats }} ghế</span>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-3 gap-3">
             <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
               <p class="text-[8px] font-bold text-primary opacity-70 uppercase tracking-widest mb-1">VIP</p>
               <p class="text-sm font-black">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</p>
@@ -322,6 +421,10 @@ onUnmounted(() => {
             <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
               <p class="text-[8px] font-bold text-pink-400 opacity-70 uppercase tracking-widest mb-1">Double</p>
               <p class="text-sm font-black">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</p>
+            </div>
+            <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
+              <p class="text-[8px] font-bold text-red-400 opacity-70 uppercase tracking-widest mb-1">Bảo trì</p>
+              <p class="text-sm font-black">{{ maintenanceCount }}</p>
             </div>
           </div>
         </div>
@@ -341,7 +444,7 @@ onUnmounted(() => {
       <div class="flex-grow overflow-auto p-12 flex items-start justify-center relative scrollbar-hide">
         <!-- Dot matrix background overlay -->
         <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
-        
+
         <div class="relative z-10 flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-8 rounded-[2rem] border border-white/5 shadow-2xl">
            <!-- Column Labels -->
            <div class="flex gap-3 pl-10 mb-2">
@@ -363,9 +466,17 @@ onUnmounted(() => {
                     <div v-if="!isOccupiedByDouble(r-1, c-1)"
                       @mousedown="handleMouseDown($event, r-1, c-1)"
                       @mouseenter="handleMouseEnter(r-1, c-1)"
-                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`]?.type, r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[92px]' : 'w-10', 'h-10 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative select-none shrink-0']"
+                      @dblclick="openLabelEditor(r-1, c-1)"
+                      @contextmenu.prevent="openLabelEditor(r-1, c-1)"
+                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`], r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[92px]' : 'w-10', 'h-10 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative select-none shrink-0']"
                       style="cursor: pointer">
-                    {{ seatMap[`${r-1}-${c-1}`]?.label }}
+                    {{ seatMap[`${r-1}-${c-1}`]?.type !== 'aisle' ? seatMap[`${r-1}-${c-1}`]?.label : '' }}
+                    <!-- Cờ lê cho ghế bảo trì -->
+                    <span v-if="seatMap[`${r-1}-${c-1}`]?.status && seatMap[`${r-1}-${c-1}`]?.status !== 'AVAILABLE'"
+                          class="material-symbols-outlined absolute -top-1 -right-1 text-[11px] text-red-400 bg-black/70 rounded-full leading-none p-0.5">build</span>
+                    <!-- Dấu chốt cứng cho label thủ công -->
+                    <span v-else-if="seatMap[`${r-1}-${c-1}`]?.custom"
+                          class="material-symbols-outlined absolute -top-1 -right-1 text-[10px] text-primary/80 bg-black/70 rounded-full leading-none p-0.5">lock</span>
                     <!-- Placeholder dot for empty or aisle spaces -->
                     <div v-if="!seatMap[`${r-1}-${c-1}`]?.type || seatMap[`${r-1}-${c-1}`]?.type === 'aisle'" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                        <div class="w-1.5 h-1.5 bg-white/10 rounded-full group-hover:bg-primary/50 transition-colors"></div>
@@ -378,6 +489,23 @@ onUnmounted(() => {
         </div>
       </div>
     </section>
+
+    <!-- Modal sửa label thủ công -->
+    <div v-if="editingKey" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeLabelEditor">
+      <div class="bg-surface-container-low border border-white/10 rounded-2xl p-6 w-80 shadow-2xl">
+        <h3 class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
+          <span class="material-symbols-outlined text-sm">edit</span> Sửa tên ghế
+        </h3>
+        <input v-model="editingLabel" @keyup.enter="saveLabel" type="text" maxlength="10" autofocus
+               class="w-full bg-black/40 border border-white/10 text-lg font-black text-center tracking-widest rounded-xl py-3 px-3 text-white uppercase focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
+        <p class="text-[9px] text-on-surface-variant/60 mt-2 text-center">VD: A5, B12... Nhãn thủ công sẽ được giữ nguyên khi đánh số tự động.</p>
+        <div class="flex gap-2 mt-5">
+          <button @click="resetLabelToAuto" class="flex-1 px-3 py-2.5 rounded-lg border border-white/10 text-on-surface-variant text-[9px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Tự động</button>
+          <button @click="closeLabelEditor" class="flex-1 px-3 py-2.5 rounded-lg border border-white/10 text-on-surface-variant text-[9px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Hủy</button>
+          <button @click="saveLabel" class="flex-1 px-3 py-2.5 rounded-lg bg-primary text-on-primary text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all">Lưu</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

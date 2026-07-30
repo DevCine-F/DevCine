@@ -295,7 +295,7 @@ public class ApprovalService {
     }
 
     private String seatLabel(Seat seat) {
-        return seat.getRowChar() + seat.getColNum();
+        return seat.displayLabel();
     }
 
     private String writeJson(Map<String, Object> map) {

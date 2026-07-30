@@ -183,7 +183,7 @@ const refreshSeats = async () => {
     const lost = selectedSeats.value.filter(s => !freeIds.has(s.seatId))
     if (lost.length) {
       selectedSeats.value = selectedSeats.value.filter(s => freeIds.has(s.seatId))
-      showToast(`Ghế ${lost.map(s => s.rowChar + s.colNum).join(', ')} vừa bị khách khác đặt — đã gỡ khỏi đơn.`, 'error')
+      showToast(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa bị khách khác đặt — đã gỡ khỏi đơn.`, 'error')
       if (selectedSeats.value.length === 0) stopHoldTimer()
     }
   } catch (_) { /* im lặng — lần poll sau thử lại */ }
@@ -208,7 +208,7 @@ const seatRealtime = useSeatRealtime({
     const lost = selectedSeats.value.find(s => s.seatId === seatId)
     selectedSeats.value = selectedSeats.value.filter(s => s.seatId !== seatId)
     if (selectedSeats.value.length === 0) stopHoldTimer()
-    const label = lost ? lost.rowChar + lost.colNum : 'này'
+    const label = lost ? seatLabel(lost) : 'này'
     showToast(`Ghế ${label} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
   },
   // Ghế bị bán ở nơi khác trong lúc đang chọn → gỡ khỏi đơn nếu có
@@ -217,7 +217,7 @@ const seatRealtime = useSeatRealtime({
     if (lost.length) {
       selectedSeats.value = selectedSeats.value.filter(s => !seatIds.includes(s.seatId))
       if (selectedSeats.value.length === 0) stopHoldTimer()
-      showToast(`Ghế ${lost.map(s => s.rowChar + s.colNum).join(', ')} vừa được bán ở quầy khác — đã gỡ khỏi đơn.`, 'error')
+      showToast(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được bán ở quầy khác — đã gỡ khỏi đơn.`, 'error')
     }
   },
 })
@@ -353,7 +353,7 @@ const restoreHeldOrder = async (o) => {
     }
     selectedSeats.value = restored
     if (lost.length) {
-      const labels = lost.map(s => s.rowChar + s.colNum).join(', ')
+      const labels = lost.map(s => seatLabel(s)).join(', ')
       showToast(`Ghế ${labels} đã được bán cho khách hàng khác, vui lòng chọn lại ghế mới.`, 'error')
     }
     if (restored.length) startHoldTimer()
@@ -693,6 +693,9 @@ const selectShowtime = async (st) => {
 
 const seatAt = (row, col) => seatData.value.seats.find(s => s.gridRow === row && s.gridCol === col)
 const isSelected = (seat) => selectedSeats.value.some(s => s.seatId === seat.seatId)
+// Nhãn ghế: ưu tiên label lưu ở DB (Admin có thể sửa tay), fallback rowChar+colNum
+const seatLabel = (seat) => seat ? (seat.label || (seat.rowChar + seat.colNum)) : ''
+const isSeatMaintenance = (seat) => !!seat && (seat.status === 'MAINTENANCE' || seat.status === 'LOCKED' || seat.seatStatus === 'MAINTENANCE' || seat.seatStatus === 'LOCKED')
 // Nhãn hàng (A, B, C...) suy từ ghế đầu tiên có trên hàng đó
 const rowLabel = (gridRow) => {
   const s = seatData.value.seats.find(x => x.gridRow === gridRow)
@@ -708,7 +711,7 @@ const toggleSeat = (seat) => {
   } else {
     // Ghế đang bị quầy khác giữ (real-time) → chặn ngay, không cho chọn
     if (isSeatLockedByOthers(seat)) {
-      showToast(`Ghế ${seat.rowChar + seat.colNum} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
+      showToast(`Ghế ${seatLabel(seat)} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
       return
     }
     // Chặn sớm khi vượt giới hạn số vé/lần đặt (chống phe vé) — khớp với ràng buộc backend
@@ -728,6 +731,8 @@ const toggleSeat = (seat) => {
 const seatClass = (seat) => {
   const base = 'w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-bold border transition-all leading-none'
   if (!seat) return ''
+  // Ghế khóa vật lý (bảo trì/khóa) → không bán được ở quầy
+  if (isSeatMaintenance(seat)) return `${base} bg-red-950/40 border-dashed border-red-500/40 text-red-400/50 cursor-not-allowed`
   if (seat.status === 'SOLD') return `${base} bg-surface-container-high border-white/5 text-on-surface-variant/20 cursor-not-allowed opacity-40`
   if (seat.status === 'HOLD') return `${base} bg-yellow-500/10 border-yellow-500/30 text-yellow-500/60 cursor-not-allowed`
   // Ghế đang bị quầy khác / khách online giữ real-time → khóa xám, không cho click
@@ -829,7 +834,7 @@ const cashSuggestions = computed(() => {
 // ---- Thanh toán QR (VietQR) ----
 const removeDiacritics = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
 const transferContent = computed(() => {
-  const seats = selectedSeats.value.map(s => s.rowChar + s.colNum).join('')
+  const seats = selectedSeats.value.map(s => seatLabel(s)).join('')
   return removeDiacritics(`DevCine ve ${seats}`).slice(0, 50)
 })
 
@@ -1008,7 +1013,7 @@ const buildInvoiceHtml = () => {
     `<tr><td>${name}</td><td class="c">${qty}</td><td class="r">${fmt(unit)}đ</td><td class="r b">${fmt(total)}đ</td></tr>`
 
   const seatRows = seatTypeBreakdown.value.map(b => {
-    const labels = selectedSeats.value.filter(s => s.seatType === b.type).map(s => s.rowChar + s.colNum).join(', ')
+    const labels = selectedSeats.value.filter(s => s.seatType === b.type).map(s => seatLabel(s)).join(', ')
     const unit = b.count ? b.subtotal / b.count : 0
     return itemRow(`Ghế ${esc(seatTypeLabel(b.type))} <span class="muted">${esc(labels)}</span>`, b.count, unit, b.subtotal)
   }).join('')
@@ -1472,8 +1477,10 @@ onUnmounted(() => {
                 <span class="w-5 text-[10px] font-bold text-on-surface-variant/50 text-center shrink-0">{{ rowLabel(row - 1) }}</span>
                 <template v-for="col in seatData.matrixCol" :key="col">
                   <div v-if="seatAt(row - 1, col - 1)" :class="seatClass(seatAt(row - 1, col - 1))"
-                       @click="toggleSeat(seatAt(row - 1, col - 1))" :title="seatAt(row - 1, col - 1).rowChar + seatAt(row - 1, col - 1).colNum">
-                    {{ seatAt(row - 1, col - 1).rowChar }}{{ seatAt(row - 1, col - 1).colNum }}
+                       @click="toggleSeat(seatAt(row - 1, col - 1))"
+                       :title="isSeatMaintenance(seatAt(row - 1, col - 1)) ? 'Ghế đang bảo trì' : seatLabel(seatAt(row - 1, col - 1))">
+                    <span v-if="isSeatMaintenance(seatAt(row - 1, col - 1))" class="material-symbols-outlined text-[13px]">build</span>
+                    <template v-else>{{ seatLabel(seatAt(row - 1, col - 1)) }}</template>
                   </div>
                   <div v-else class="w-8 h-8"></div>
                 </template>
@@ -1532,7 +1539,7 @@ onUnmounted(() => {
               </span>
             </div>
             <div class="px-2 text-xs font-bold text-on-surface-variant">
-              Ghế đã chọn: <span class="text-primary">{{ selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
+              Ghế đã chọn: <span class="text-primary">{{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</span>
             </div>
           </div>
 
@@ -1774,7 +1781,7 @@ onUnmounted(() => {
             <div class="border-t border-dashed border-outline-variant/20 pt-6">
               <p class="text-[10px] font-black text-on-surface-variant uppercase mb-2">Thông tin vé</p>
               <div class="flex justify-between text-sm font-bold text-on-surface">
-                <span>{{ selectedSeats.length }} ghế: {{ selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
+                <span>{{ selectedSeats.length }} ghế: {{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</span>
                 <span class="text-primary italic">{{ fmt(totalPrice) }}đ</span>
               </div>
             </div>
@@ -1989,7 +1996,7 @@ onUnmounted(() => {
           </div>
           <div v-if="selectedSeats.length" class="pb-5 border-b border-outline-variant/10">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Ghế ({{ selectedSeats.length }})</p>
-            <p class="text-sm text-primary font-black mb-3">{{ selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</p>
+            <p class="text-sm text-primary font-black mb-3">{{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</p>
             <div v-for="b in seatTypeBreakdown" :key="b.type" class="flex justify-between text-xs font-semibold text-on-surface-variant mb-1">
               <span>Ghế {{ seatTypeLabel(b.type) }} <span class="text-on-surface-variant/60">x{{ b.count }}</span></span>
               <span class="text-on-surface">{{ fmt(b.subtotal) }}đ</span>
@@ -2170,7 +2177,7 @@ onUnmounted(() => {
                 </template>
                 <template v-else>
                   <span class="material-symbols-outlined text-sm text-on-surface-variant">event_seat</span>
-                  <span class="text-xs font-bold text-primary">{{ (o.seats || []).map(s => s.rowChar + s.colNum).join(', ') }}</span>
+                  <span class="text-xs font-bold text-primary">{{ (o.seats || []).map(s => seatLabel(s)).join(', ') }}</span>
                   <span v-if="o.combos?.length" class="text-[10px] text-on-surface-variant">· {{ o.combos.length }} món F&B</span>
                 </template>
               </div>

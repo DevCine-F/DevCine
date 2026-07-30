@@ -70,7 +70,7 @@ public class BookingController {
 
                 String seatLabels = seats.stream()
                         .filter(bs -> bs.getSeat() != null)
-                        .map(bs -> bs.getSeat().getRowChar() + bs.getSeat().getColNum())
+                        .map(bs -> bs.getSeat().displayLabel())
                         .collect(Collectors.joining(", "));
 
                 return Map.of(
