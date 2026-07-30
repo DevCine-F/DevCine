@@ -501,19 +501,19 @@ const groupShowtimesByFormat = (showtimes) => {
                   :class="isSoldOut(st)
                     ? 'border-[#333] bg-[#1a1a1a] opacity-40 cursor-not-allowed'
                     : 'border-[#444444] bg-[#1f1f1f] hover:border-[#f5c518] hover:bg-[#262626] cursor-pointer'"
-                  class="group flex flex-col items-center justify-center gap-0.5 border rounded-[8px] px-4 py-2 min-w-[112px] transition-all"
+                  class="group flex flex-col items-center justify-center gap-1 border rounded-lg w-[140px] min-h-[80px] px-4 py-3 flex-shrink-0 transition-all"
                 >
-                  <!-- Dòng 1: Tên phòng -->
-                  <span class="text-xs text-gray-400 font-medium leading-tight truncate max-w-[100px]">{{ st.roomName }}</span>
-                  <!-- Dòng 2: Giờ chiếu (nổi bật) -->
+                  <!-- Dòng 1: Tên phòng — cố định 1 dòng, tràn thì ellipsis gọn gàng -->
+                  <span class="block w-full text-center text-xs text-gray-400 font-medium leading-tight overflow-hidden text-ellipsis whitespace-nowrap">{{ st.roomName }}</span>
+                  <!-- Dòng 2: Giờ chiếu (tâm điểm) -->
                   <span
-                    class="text-lg font-bold leading-tight"
+                    class="text-xl font-bold leading-none tracking-tight"
                     :class="isSoldOut(st) ? 'text-gray-500' : 'text-[#f5c518]'"
                   >{{ fmtTime(st.startTime) }}</span>
-                  <!-- Dòng 3: Tình trạng ghế -->
+                  <!-- Dòng 3: Tình trạng ghế — luôn 1 dòng, không wrap -->
                   <span
                     v-if="st.totalSeats > 0"
-                    class="text-[11px] font-semibold leading-tight"
+                    class="text-xs font-medium leading-tight whitespace-nowrap"
                     :class="isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-orange-400' : 'text-gray-400')"
                   >{{ isSoldOut(st) ? 'Hết ghế' : `${st.availableSeats} / ${st.totalSeats} Ghế` }}</span>
                 </button>
