@@ -466,30 +466,33 @@ onMounted(() => { fetchBanners(); fetchMovies() })
            class="bg-surface-container-low border rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all group"
            :class="[
              dragIndex === i ? 'opacity-40 scale-95' : '',
-             dragOverIndex === i && dragIndex !== i ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant/10',
-             visibilityMap[banner.id] && !visibilityMap[banner.id].live && dragIndex !== i ? 'opacity-70' : ''
+             dragOverIndex === i && dragIndex !== i ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant/10'
            ]">
 
         <!-- Image Preview — giữ tỉ lệ 16:9 khớp khung banner thật (hero full màn hình) ở trang chủ -->
-        <div class="relative aspect-video w-full bg-surface-container-highest overflow-hidden"
-             :class="visibilityMap[banner.id] && !visibilityMap[banner.id].live ? 'grayscale' : ''">
-          <img v-if="banner.mode !== 'MOVIE' && banner.imageUrl" :src="banner.imageUrl" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Banner preview" />
-          <template v-else-if="banner.mode === 'MOVIE'">
-            <!-- Có ảnh phim: hiện ảnh + phủ tên phim ở đáy -->
-            <template v-if="movieImageById(banner.movieId)">
-              <img :src="movieImageById(banner.movieId)" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Ảnh phim" />
-              <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
-                <span class="text-xs font-bold text-white line-clamp-1">{{ movieTitleById(banner.movieId) }}</span>
+        <div class="relative aspect-video w-full bg-surface-container-highest overflow-hidden">
+          <!-- Lớp MEDIA (ảnh/placeholder): CHỈ layer này bị làm xám + mờ khi banner không hiển thị,
+               nhờ vậy các tag trạng thái phía trên vẫn giữ màu đặc, rõ ràng (filter/opacity ở cha
+               luôn ảnh hưởng con nên phải tách riêng). -->
+          <div class="absolute inset-0" :class="visibilityMap[banner.id] && !visibilityMap[banner.id].live ? 'grayscale opacity-60' : ''">
+            <img v-if="banner.mode !== 'MOVIE' && banner.imageUrl" :src="banner.imageUrl" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Banner preview" />
+            <template v-else-if="banner.mode === 'MOVIE'">
+              <!-- Có ảnh phim: hiện ảnh + phủ tên phim ở đáy -->
+              <template v-if="movieImageById(banner.movieId)">
+                <img :src="movieImageById(banner.movieId)" draggable="false" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Ảnh phim" />
+                <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                  <span class="text-xs font-bold text-white line-clamp-1">{{ movieTitleById(banner.movieId) }}</span>
+                </div>
+              </template>
+              <!-- Không có ảnh phim: giữ placeholder icon + tên -->
+              <div v-else class="w-full h-full flex flex-col items-center justify-center text-on-surface-variant gap-2">
+                <span class="material-symbols-outlined text-4xl text-primary/40">movie</span>
+                <span class="text-xs font-bold text-on-surface px-3 text-center line-clamp-2">{{ movieTitleById(banner.movieId) }}</span>
               </div>
             </template>
-            <!-- Không có ảnh phim: giữ placeholder icon + tên -->
-            <div v-else class="w-full h-full flex flex-col items-center justify-center text-on-surface-variant gap-2">
-              <span class="material-symbols-outlined text-4xl text-primary/40">movie</span>
-              <span class="text-xs font-bold text-on-surface px-3 text-center line-clamp-2">{{ movieTitleById(banner.movieId) }}</span>
+            <div v-else class="w-full h-full flex items-center justify-center text-on-surface-variant">
+              <span class="material-symbols-outlined text-4xl opacity-20">broken_image</span>
             </div>
-          </template>
-          <div v-else class="w-full h-full flex items-center justify-center text-on-surface-variant">
-            <span class="material-symbols-outlined text-4xl opacity-20">broken_image</span>
           </div>
 
           <!-- Mode Badge -->
