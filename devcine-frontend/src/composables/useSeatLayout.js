@@ -15,6 +15,11 @@ export function useSeatLayout() {
   const tempRows = ref(10);
   const tempCols = ref(16);
   const isSavingLayout = ref(false);
+  // Dirty check: chỉ cho phép Lưu khi sơ đồ thực sự có thay đổi so với lần tải/lưu gần nhất
+  const hasChanges = ref(false);
+
+  // Đánh dấu có thay đổi (gọi từ mọi thao tác Admin làm biến đổi cấu trúc)
+  const markDirty = () => { hasChanges.value = true; };
 
   const initializeSeatMap = () => {
     const map = {};
@@ -59,6 +64,7 @@ export function useSeatLayout() {
         });
         currentSeatMap.value = map;
         viewingHall.value = hall;
+        hasChanges.value = false; // vừa tải từ DB → coi như chưa có thay đổi
         return;
       }
     } catch (error) {
@@ -67,11 +73,13 @@ export function useSeatLayout() {
 
     initializeSeatMap();
     viewingHall.value = hall;
+    hasChanges.value = false; // baseline cho phòng mới/chưa có sơ đồ
   };
 
   const resetMap = () => {
     if (!viewingHall.value) return;
     initializeSeatMap();
+    hasChanges.value = true; // "Đặt lại" làm sơ đồ khác bản đã lưu → cho phép Lưu
   };
 
   const saveSeatLayout = async () => {
@@ -124,6 +132,7 @@ export function useSeatLayout() {
       };
 
       await axios.post(`/seats/layout/${viewingHall.value.id}`, payload);
+      hasChanges.value = false; // lưu thành công → hết thay đổi, khóa lại nút Lưu
       toast.success("Lưu cấu trúc ghế thành công!");
     } catch (error) {
       console.error("Error saving seat layout:", error);
@@ -139,6 +148,8 @@ export function useSeatLayout() {
     tempRows,
     tempCols,
     isSavingLayout,
+    hasChanges,
+    markDirty,
     openHallDetail,
     resetMap,
     saveSeatLayout,

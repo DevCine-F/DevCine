@@ -21,10 +21,14 @@ defineProps({
   isSavingLayout: {
     type: Boolean,
     default: false
+  },
+  hasChanges: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['back', 'reset', 'save', 'update:layout'])
+defineEmits(['back', 'reset', 'save', 'update:layout', 'dirty'])
 </script>
 
 <template>
@@ -60,8 +64,12 @@ defineEmits(['back', 'reset', 'save', 'update:layout'])
         </button>
         <button
           @click="$emit('save')"
-          :disabled="isSavingLayout"
-          class="px-8 py-2.5 rounded-lg bg-primary text-on-primary text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center gap-2 disabled:opacity-50"
+          :disabled="isSavingLayout || !hasChanges"
+          :class="(isSavingLayout || !hasChanges)
+            ? 'opacity-50 cursor-not-allowed shadow-none'
+            : 'hover:brightness-110 shadow-xl shadow-primary/20'"
+          class="px-8 py-2.5 rounded-lg bg-primary text-on-primary text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+          :title="!hasChanges && !isSavingLayout ? 'Chưa có thay đổi nào để lưu' : ''"
         >
           <span class="material-symbols-outlined text-sm">
             {{ isSavingLayout ? 'hourglass_empty' : 'save' }}
@@ -72,11 +80,12 @@ defineEmits(['back', 'reset', 'save', 'update:layout'])
     </header>
 
     <div class="flex-grow overflow-hidden min-h-0">
-      <SeatMapBuilder 
-        :initial-rows="tempRows" 
-        :initial-cols="tempCols" 
-        :initial-seat-map="currentSeatMap" 
-        @update:layout="(data) => $emit('update:layout', data)" 
+      <SeatMapBuilder
+        :initial-rows="tempRows"
+        :initial-cols="tempCols"
+        :initial-seat-map="currentSeatMap"
+        @update:layout="(data) => $emit('update:layout', data)"
+        @dirty="$emit('dirty')"
       />
     </div>
   </div>

@@ -73,6 +73,8 @@ const {
   tempRows,
   tempCols,
   isSavingLayout,
+  hasChanges,
+  markDirty,
   openHallDetail,
   resetMap,
   saveSeatLayout
@@ -348,9 +350,11 @@ const showCleaningSettingsModal = ref(false);
         :temp-rows="tempRows"
         :temp-cols="tempCols"
         :is-saving-layout="isSavingLayout"
+        :has-changes="hasChanges"
         @back="viewingHall = null"
         @reset="resetMap"
         @save="saveSeatLayout"
+        @dirty="markDirty"
         @update:layout="(data) => {
           tempRows = data.rows;
           tempCols = data.cols;

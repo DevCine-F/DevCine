@@ -11,7 +11,7 @@ const props = defineProps({
   revenue: { type: String, default: '0đ' }
 })
 
-const emit = defineEmits(['update:layout'])
+const emit = defineEmits(['update:layout', 'dirty'])
 
 const rows = ref(props.initialRows)
 const cols = ref(props.initialCols)
@@ -91,6 +91,18 @@ const emitUpdate = () => {
   })
 }
 
+// Đồng bộ dữ liệu + báo "đã có thay đổi" (chỉ dùng cho thao tác thật của Admin, KHÔNG dùng lúc mount)
+const markDirtyEmit = () => {
+  emit('dirty')
+  emitUpdate()
+}
+
+// Đổi số hàng/cột là một thao tác làm biến đổi ma trận → đánh dấu dirty
+const onDimensionChange = () => {
+  initializeMap()
+  emit('dirty')
+}
+
 const applyTool = (r, c) => {
   if (!selectedTool.value) return
 
@@ -101,7 +113,7 @@ const applyTool = (r, c) => {
     const cell = seatMap[key]
     if (!isSeatCell(cell)) return // chỉ áp lên ghế thật
     cell.status = cell.status === 'MAINTENANCE' ? 'AVAILABLE' : 'MAINTENANCE'
-    emitUpdate()
+    markDirtyEmit()
     return
   }
 
@@ -128,7 +140,7 @@ const applyTool = (r, c) => {
     }
   }
   relabelRow(r)
-  emitUpdate()
+  markDirtyEmit()
 }
 
 // ===== Sửa label thủ công =====
@@ -153,7 +165,7 @@ const saveLabel = () => {
   if (cell && val) {
     cell.label = val
     cell.custom = true // chốt cứng, không bị đánh số tự động ghi đè
-    emitUpdate()
+    markDirtyEmit()
   }
   closeLabelEditor()
 }
@@ -166,7 +178,7 @@ const resetLabelToAuto = () => {
     cell.custom = false
     const r = parseInt(editingKey.value.split('-')[0])
     relabelRow(r)
-    emitUpdate()
+    markDirtyEmit()
   }
   closeLabelEditor()
 }
@@ -373,11 +385,11 @@ onUnmounted(() => {
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Hàng (Rows)</label>
-            <input v-model.number="rows" @change="initializeMap" type="number" min="1" max="26" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
+            <input v-model.number="rows" @change="onDimensionChange" type="number" min="1" max="26" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
           </div>
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Cột (Cols)</label>
-            <input v-model.number="cols" @change="initializeMap" type="number" min="1" max="25" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
+            <input v-model.number="cols" @change="onDimensionChange" type="number" min="1" max="25" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
           </div>
         </div>
       </div>
