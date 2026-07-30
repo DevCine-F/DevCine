@@ -428,10 +428,10 @@ const visibilityMap = computed(() => {
 })
 
 const visToneClass = {
-  expired: 'bg-red-500/20 text-red-400 border-red-500/30',
-  scheduled: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  off: 'bg-white/10 text-on-surface-variant border-white/20',
-  movie: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  expired: 'bg-red-600 text-white border-red-700',
+  scheduled: 'bg-amber-500 text-black border-amber-600',
+  off: 'bg-neutral-700 text-white border-neutral-600',
+  movie: 'bg-orange-600 text-white border-orange-700',
 }
 const visIcon = { expired: 'event_busy', scheduled: 'schedule', off: 'visibility_off', movie: 'movie' }
 
