@@ -456,7 +456,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
     <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <div v-for="i in 4" :key="i" class="bg-surface-container-low border border-outline-variant/10 rounded-xl h-64 animate-pulse"></div>
     </div>
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 items-stretch content-start flex-1 overflow-y-auto pr-2 pb-10">
+    <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5 items-stretch content-start flex-1 overflow-y-auto pr-2 pb-10">
       <div v-for="(banner, i) in banners" :key="banner.id"
            draggable="true"
            @dragstart="onCardDragStart($event, i)"
@@ -495,25 +495,31 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             </div>
           </div>
 
-          <!-- Mode Badge -->
-          <div class="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border bg-black/40 text-on-surface border-white/10 flex items-center gap-1">
-            <span class="material-symbols-outlined text-xs">{{ banner.mode === 'MOVIE' ? 'movie' : 'image' }}</span>
-            {{ banner.mode === 'MOVIE' ? 'Theo phim' : 'Ảnh' }}
-          </div>
-
-          <!-- Status Badge Overlay -->
-          <div class="absolute top-3 right-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border"
-               :class="banner.isActive ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'">
-            {{ banner.isActive ? 'Đang bật' : 'Đang tắt' }}
-          </div>
-
-          <!-- Nhãn lý do KHÔNG hiển thị trên trang chủ (dù đang bật) — hết hạn / chưa tới hạn / phim ngừng chiếu.
-               Bỏ qua khi lý do là 'off' vì badge "Đang tắt" bên trên đã nói rõ. -->
-          <div v-if="visibilityMap[banner.id] && !visibilityMap[banner.id].live && visibilityMap[banner.id].tone !== 'off'"
-               class="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border flex items-center gap-1 z-10 whitespace-nowrap"
-               :class="visToneClass[visibilityMap[banner.id].tone]">
-            <span class="material-symbols-outlined text-xs">{{ visIcon[visibilityMap[banner.id].tone] }}</span>
-            {{ visibilityMap[banner.id].label }}
+          <!-- Thanh tag trên đầu ảnh: nhóm TRÁI (Mode + Lý do ẩn) tự xuống dòng khi chật,
+               nhóm PHẢI (Trạng thái) ghim phải. Dùng flex justify-between nên các tag KHÔNG BAO GIỜ
+               đè lên nhau ở mọi độ rộng card (thay cho kiểu ghim 3 góc tuyệt đối cũ). -->
+          <div class="absolute top-3 inset-x-3 z-10 flex items-start justify-between gap-2 pointer-events-none">
+            <!-- Nhóm trái -->
+            <div class="flex flex-wrap items-start gap-2">
+              <!-- Mode -->
+              <div class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10 bg-neutral-900 text-white shadow-md flex items-center gap-1">
+                <span class="material-symbols-outlined text-xs">{{ banner.mode === 'MOVIE' ? 'movie' : 'image' }}</span>
+                {{ banner.mode === 'MOVIE' ? 'Theo phim' : 'Ảnh' }}
+              </div>
+              <!-- Lý do KHÔNG hiển thị trên trang chủ (hết hạn / chưa tới hạn / phim ngừng chiếu).
+                   Ẩn khi lý do là 'off' vì tag "Đang tắt" bên phải đã nói rõ. -->
+              <div v-if="visibilityMap[banner.id] && !visibilityMap[banner.id].live && visibilityMap[banner.id].tone !== 'off'"
+                   class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-md flex items-center gap-1 whitespace-nowrap"
+                   :class="visToneClass[visibilityMap[banner.id].tone]">
+                <span class="material-symbols-outlined text-xs">{{ visIcon[visibilityMap[banner.id].tone] }}</span>
+                {{ visibilityMap[banner.id].label }}
+              </div>
+            </div>
+            <!-- Nhóm phải: trạng thái bật/tắt -->
+            <div class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-md whitespace-nowrap shrink-0"
+                 :class="banner.isActive ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'">
+              {{ banner.isActive ? 'Đang bật' : 'Đang tắt' }}
+            </div>
           </div>
 
           <!-- Nút Play: chỉ hiện cho banner theo phim có trailer; bấm để xem trước (không autoplay trong grid) -->
