@@ -13,6 +13,8 @@ import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.RoomRepository;
 import com.devcine.backend.repository.MovieFormatRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
+import com.devcine.backend.repository.SeatRepository;
+import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.dto.response.MovieCardDTO;
 import com.devcine.backend.dto.response.PublicShowtimeDTO;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,8 @@ public class ShowtimeService {
     private final MovieRepository movieRepository;
     private final RoomRepository roomRepository;
     private final MovieFormatRepository movieFormatRepository;
+    private final SeatRepository seatRepository;
+    private final BookingSeatRepository bookingSeatRepository;
 
     public List<String> getAllCities() {
         return cinemaRepository.findAllCities();
@@ -144,6 +148,25 @@ public class ShowtimeService {
         Map<Cinema, List<Showtime>> byCinema = showtimes.stream()
                 .collect(Collectors.groupingBy(s -> s.getRoom().getCinema()));
 
+        // Tính tình trạng ghế 1 LẦN cho tất cả suất (tránh N+1):
+        //  - sellable/phòng = ghế active & không bảo trì/khóa
+        //  - reserved/suất  = ghế SOLD/HOLD
+        Set<Integer> roomIds = showtimes.stream().map(s -> s.getRoom().getId()).collect(Collectors.toSet());
+        Set<Integer> showtimeIds = showtimes.stream().map(Showtime::getId).collect(Collectors.toSet());
+
+        Map<Integer, Integer> sellableByRoom = new HashMap<>();
+        Map<Integer, Integer> reservedByShowtime = new HashMap<>();
+        if (!roomIds.isEmpty()) {
+            for (Object[] row : seatRepository.countSellableSeatsByRoomIds(roomIds)) {
+                sellableByRoom.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+        if (!showtimeIds.isEmpty()) {
+            for (Object[] row : bookingSeatRepository.countReservedByShowtimeIds(showtimeIds)) {
+                reservedByShowtime.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+
         List<CinemaShowtimeDTO> result = new ArrayList<>();
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -156,6 +179,9 @@ public class ShowtimeService {
             
             for (Showtime s : cinemaShowtimes) {
                 String dateStr = s.getStartTime().format(dateFormatter);
+                int total = sellableByRoom.getOrDefault(s.getRoom().getId(), 0);
+                int reserved = reservedByShowtime.getOrDefault(s.getId(), 0);
+                int available = Math.max(0, total - reserved);
                 ShowtimeDTO dto = ShowtimeDTO.builder()
                         .id(s.getId())
                         .roomId(s.getRoom().getId())
@@ -167,8 +193,10 @@ public class ShowtimeService {
                         .status(s.getStatus())
                         .movie(s.getMovie().getTitle())
                         .duration(s.getMovie().getDurationMins())
+                        .totalSeats(total)
+                        .availableSeats(available)
                         .build();
-                        
+
                 showtimesByDate.computeIfAbsent(dateStr, k -> new ArrayList<>()).add(dto);
             }
 

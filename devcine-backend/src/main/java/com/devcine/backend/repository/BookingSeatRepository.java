@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -15,6 +16,13 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
     @Query("SELECT bs FROM BookingSeat bs JOIN bs.booking b JOIN FETCH bs.seat " +
            "WHERE b.showtime.id = :showtimeId AND (bs.status = 'SOLD' OR bs.status = 'HOLD')")
     List<BookingSeat> findReservedSeatsByShowtime(@Param("showtimeId") Integer showtimeId);
+
+    // Đếm ghế đã giữ/bán (SOLD/HOLD) cho nhiều suất một lần → tránh N+1 khi dựng card suất chiếu.
+    // Trả [showtimeId, count].
+    @Query("SELECT b.showtime.id, COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
+           "WHERE b.showtime.id IN :showtimeIds AND (bs.status = 'SOLD' OR bs.status = 'HOLD') " +
+           "GROUP BY b.showtime.id")
+    List<Object[]> countReservedByShowtimeIds(@Param("showtimeIds") Collection<Integer> showtimeIds);
 
     // Ghế đang HOLD nhưng đơn đã tạo trước mốc cutoff → quá hạn giữ, cần giải phóng
     @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.booking b " +

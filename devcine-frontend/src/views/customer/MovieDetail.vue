@@ -266,10 +266,18 @@ const visibleCinemas = computed(() =>
 )
 
 const selectShowtime = (showtime, cinema) => {
+  if (isSoldOut(showtime)) return // hết ghế → chặn chọn
   store.setMovie(movie.value)
   store.setShowtime(showtime, cinema)
   router.push('/booking')
 }
+
+// ===== Card suất chiếu: giờ + phòng + tình trạng ghế =====
+const fmtTime = (t) => new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+// Chỉ coi là "hết ghế" khi phòng có sơ đồ ghế (totalSeats > 0) và không còn ghế trống
+const isSoldOut = (st) => (st.totalSeats > 0) && (st.availableSeats <= 0)
+// Sắp hết: còn dưới 10 ghế
+const isLowSeats = (st) => (st.totalSeats > 0) && st.availableSeats > 0 && st.availableSeats < 10
 
 const uniqueDates = computed(() => {
   const dates = new Set()
@@ -482,15 +490,32 @@ const groupShowtimesByFormat = (showtimes) => {
                 <span class="text-[14px] text-gray-400 font-bold whitespace-pre-line leading-relaxed">{{ format.replace(' Lồng', '\nLồng').replace(' Phụ', '\nPhụ') }}</span>
               </div>
 
-              <!-- Right: Times -->
+              <!-- Right: Showtime cards (Phòng / Giờ / Ghế) -->
               <div class="flex-1 flex flex-wrap items-center gap-3">
                 <button
                   v-for="st in sts"
                   :key="st.id"
                   @click="selectShowtime(st, cinema)"
-                  class="bg-[#262626] border border-[#444444] text-gray-200 hover:border-[#f5c518] hover:text-[#f5c518] transition-all px-5 py-2 rounded-[6px] text-[15px] font-bold min-w-[80px]"
+                  :disabled="isSoldOut(st)"
+                  :title="isSoldOut(st) ? 'Suất chiếu đã hết ghế' : ''"
+                  :class="isSoldOut(st)
+                    ? 'border-[#333] bg-[#1a1a1a] opacity-40 cursor-not-allowed'
+                    : 'border-[#444444] bg-[#1f1f1f] hover:border-[#f5c518] hover:bg-[#262626] cursor-pointer'"
+                  class="group flex flex-col items-center justify-center gap-0.5 border rounded-[8px] px-4 py-2 min-w-[112px] transition-all"
                 >
-                  {{ new Date(st.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}
+                  <!-- Dòng 1: Tên phòng -->
+                  <span class="text-xs text-gray-400 font-medium leading-tight truncate max-w-[100px]">{{ st.roomName }}</span>
+                  <!-- Dòng 2: Giờ chiếu (nổi bật) -->
+                  <span
+                    class="text-lg font-bold leading-tight"
+                    :class="isSoldOut(st) ? 'text-gray-500' : 'text-[#f5c518]'"
+                  >{{ fmtTime(st.startTime) }}</span>
+                  <!-- Dòng 3: Tình trạng ghế -->
+                  <span
+                    v-if="st.totalSeats > 0"
+                    class="text-[11px] font-semibold leading-tight"
+                    :class="isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-orange-400' : 'text-gray-400')"
+                  >{{ isSoldOut(st) ? 'Hết ghế' : `${st.availableSeats} / ${st.totalSeats} Ghế` }}</span>
                 </button>
               </div>
             </div>
