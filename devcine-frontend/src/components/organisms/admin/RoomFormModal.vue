@@ -9,9 +9,10 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit'])
 
-const ROOM_TYPES = ['2D', '3D', 'IMAX', '4DX', 'Sweetbox']
+// Bộ mã hạng phòng chuẩn Lotte (đồng bộ ALLOWED_TYPES ở RoomService backend)
+const ROOM_TYPES = ['Standard', 'Superplex', 'Cine Comfort', 'Sweetbox']
 
-const form = reactive({ name: '', type: '2D', status: 'Active', turnaroundTimeMins: 15, matrixRow: 8, matrixCol: 10 })
+const form = reactive({ name: '', type: 'Standard', status: 'Active', turnaroundTimeMins: 15, matrixRow: 8, matrixCol: 10 })
 const errors = reactive({})
 
 // Nạp dữ liệu mỗi khi mở modal
@@ -20,13 +21,13 @@ watch(() => props.show, (open) => {
   Object.keys(errors).forEach(k => delete errors[k])
   if (props.mode === 'edit' && props.initial) {
     form.name = props.initial.name || ''
-    form.type = props.initial.type || '2D'
+    form.type = props.initial.type || 'Standard'
     form.status = props.initial.status === 'Maintenance' ? 'Maintenance' : 'Active'
     form.turnaroundTimeMins = props.initial.turnaroundTimeMins ?? props.initial.cleaningTime ?? 15
     form.matrixRow = props.initial.rows ?? props.initial.matrixRow ?? 8
     form.matrixCol = props.initial.cols ?? props.initial.matrixCol ?? 10
   } else {
-    form.name = ''; form.type = '2D'; form.status = 'Active'
+    form.name = ''; form.type = 'Standard'; form.status = 'Active'
     form.turnaroundTimeMins = 15; form.matrixRow = 8; form.matrixCol = 10
   }
 })

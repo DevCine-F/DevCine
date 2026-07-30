@@ -132,8 +132,8 @@ const showtimeCode = (st) => {
 // Nhãn định dạng phòng in đậm, tô màu để tránh nhân viên chọn nhầm
 const formatTone = (name) => {
   const n = String(name || '').toUpperCase()
-  if (n.includes('IMAX')) return 'text-cyan-300 border-cyan-400/40 bg-cyan-500/10'
-  if (n.includes('GOLD')) return 'text-amber-300 border-amber-400/40 bg-amber-500/10'
+  if (n.includes('SUPERPLEX') || n.includes('IMAX')) return 'text-cyan-300 border-cyan-400/40 bg-cyan-500/10'
+  if (n.includes('COMFORT') || n.includes('GOLD')) return 'text-amber-300 border-amber-400/40 bg-amber-500/10'
   return 'text-on-surface border-outline-variant/25 bg-surface-container-highest'
 }
 

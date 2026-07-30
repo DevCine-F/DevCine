@@ -27,7 +27,7 @@ public class CinemaServiceImpl implements CinemaService {
     private final LocationService locationService;
 
     // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ qua API)
-    private static final Set<String> ALLOWED_TYPES = Set.of("Standard", "Premium/IMAX", "Sweetbox", "Gold Class");
+    private static final Set<String> ALLOWED_TYPES = Set.of("Standard", "Superplex", "Cine Comfort", "Sweetbox");
     private static final Set<String> ALLOWED_STATUS = Set.of("ACTIVE", "MAINTENANCE", "CLOSED");
 
     /** Cắt khoảng trắng đầu/cuối + gộp khoảng trắng kép ở giữa. */

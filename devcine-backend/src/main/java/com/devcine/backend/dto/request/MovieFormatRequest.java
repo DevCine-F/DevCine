@@ -9,7 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Dữ liệu tạo/sửa định dạng chiếu (2D, 3D, IMAX 2D...).
+ * Dữ liệu tạo/sửa định dạng chiếu (2D, 3D...).
  * Cho phép chữ số vì tên định dạng cần "2D"/"3D" — khác với thể loại.
  * Phụ thu & giá cố định KHÔNG nằm ở đây: chỉnh tại màn "Cấu hình giá".
  */

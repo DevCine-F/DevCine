@@ -68,7 +68,7 @@ export function useShowtimes(selectedCinema) {
   };
 
   const checkFormatMismatch = (hall, format) => {
-    if (format.includes("IMAX") && !hall.type.includes("IMAX")) return true;
+    // Lotte chỉ có 2D/3D — chiếu được ở mọi hạng phòng nên không còn ràng buộc định dạng ↔ phòng.
     return false;
   };
 

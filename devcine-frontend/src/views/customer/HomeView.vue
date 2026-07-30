@@ -424,7 +424,7 @@ const getGenreNames = (movie) => {
               </div>
               <div class="p-8 flex flex-col flex-grow">
                 <h3 class="font-headline text-xl font-bold text-white mb-4 uppercase tracking-tight">TIFC FINGER FOOD TẠI CHỖ</h3>
-                <p class="text-on-surface-variant text-sm leading-relaxed mb-8 flex-grow">Trải nghiệm ẩm thực 5 sao được phục vụ trực tiếp tại phòng chiếu hạng Gold Class.</p>
+                <p class="text-on-surface-variant text-sm leading-relaxed mb-8 flex-grow">Trải nghiệm ẩm thực 5 sao được phục vụ trực tiếp tại phòng chiếu hạng Cine Comfort.</p>
                 <a class="inline-flex items-center text-[#f5c518] font-headline font-bold text-xs uppercase tracking-widest group/link hover:opacity-80 transition-opacity" href="#">
                   XEM THỰC ĐƠN
                   <span class="material-symbols-outlined ml-2 text-sm transition-transform duration-300 group-hover/link:translate-x-1">arrow_forward</span>
@@ -463,17 +463,17 @@ const getGenreNames = (movie) => {
             TRẢI NGHIỆM ĐIỆN ẢNH<br/>THƯỢNG LƯU & ĐỘC BẢN
           </h2>
           <p class="text-on-surface-variant text-xl leading-relaxed max-w-2xl mb-16">
-            Tại DevCine, chúng tôi tin rằng mỗi bộ phim không chỉ là sự giải trí, mà là một kiệt tác nghệ thuật cần được thưởng thức trong không gian hoàn hảo nhất. Từ công nghệ trình chiếu IMAX tân tiến đến dịch vụ Gold Class chuẩn mực, chúng tôi định nghĩa lại khái niệm đi xem rạp.
+            Tại DevCine, chúng tôi tin rằng mỗi bộ phim không chỉ là sự giải trí, mà là một kiệt tác nghệ thuật cần được thưởng thức trong không gian hoàn hảo nhất. Từ phòng chiếu Superplex màn ảnh siêu lớn đến dịch vụ Cine Comfort chuẩn mực, chúng tôi định nghĩa lại khái niệm đi xem rạp.
           </p>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-20">
             <div class="space-y-4">
               <span class="material-symbols-outlined text-4xl text-primary-container">center_focus_strong</span>
-              <h4 class="font-headline text-lg font-bold text-white uppercase tracking-tight">CÔNG NGHỆ IMAX</h4>
-              <p class="text-sm text-on-surface-variant leading-relaxed">Màn hình cực đại với độ phân giải siêu sắc nét và âm thanh choáng ngợp.</p>
+              <h4 class="font-headline text-lg font-bold text-white uppercase tracking-tight">PHÒNG SUPERPLEX</h4>
+              <p class="text-sm text-on-surface-variant leading-relaxed">Màn hình siêu lớn với độ phân giải siêu sắc nét và âm thanh choáng ngợp.</p>
             </div>
             <div class="space-y-4">
               <span class="material-symbols-outlined text-4xl text-primary-container">airline_seat_recline_extra</span>
-              <h4 class="font-headline text-lg font-bold text-white uppercase tracking-tight">GOLD CLASS</h4>
+              <h4 class="font-headline text-lg font-bold text-white uppercase tracking-tight">CINE COMFORT</h4>
               <p class="text-sm text-on-surface-variant leading-relaxed">Ghế sofa da cao cấp điều chỉnh điện, mang lại sự thoải mái tuyệt đối.</p>
             </div>
             <div class="space-y-4">

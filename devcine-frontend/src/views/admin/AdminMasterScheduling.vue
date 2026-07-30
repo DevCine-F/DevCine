@@ -174,7 +174,7 @@ onMounted(fetchData);
 
                 <div class="space-y-2">
                     <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ghi chú hợp đồng</label>
-                    <textarea v-model="newQuota.contractTerms" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface outline-none h-32" placeholder="VD: Cam kết tối thiểu 5 suất tại phòng IMAX..."></textarea>
+                    <textarea v-model="newQuota.contractTerms" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface outline-none h-32" placeholder="VD: Cam kết tối thiểu 5 suất tại phòng Superplex..."></textarea>
                 </div>
 
                 <div class="flex gap-4 pt-4">

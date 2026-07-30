@@ -51,7 +51,7 @@ public class Cinema {
     @Column
     private Double longitude;
 
-    /** Danh sách tiện ích, lưu chuỗi ngăn cách bởi dấu phẩy (vd "IMAX,Dolby Atmos,Bãi đỗ xe"). */
+    /** Danh sách tiện ích, lưu chuỗi ngăn cách bởi dấu phẩy (vd "Superplex,Dolby Atmos,Bãi đỗ xe"). */
     @Column(columnDefinition = "TEXT")
     private String amenities;
 

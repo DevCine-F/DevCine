@@ -65,7 +65,8 @@ export function useCinemaConfig(selectedCinema) {
     }
   };
 
-  const allFormats = ["2D", "3D", "IMAX", "4DX", "Dolby", "ScreenX"];
+  // Lotte chỉ khai thác 2D/3D (không có IMAX/4DX/ScreenX — độc quyền CGV).
+  const allFormats = ["2D", "3D"];
   const configFormats = reactive({
     supported: ["2D", "3D"],
   });

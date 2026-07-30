@@ -252,7 +252,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
                      <span class="material-symbols-outlined text-red-400 text-lg flex-shrink-0 group-hover/item:scale-110 transition-transform">warning</span>
                      <div>
                         <p class="text-[10px] font-bold text-on-surface leading-tight uppercase">Cảnh báo xung đột giờ chiếu</p>
-                        <p class="text-[9px] text-on-surface-variant mt-1.5 leading-relaxed">Phòng IMAX 01 đang bị trùng lịch giữa Oppenheimer và Avatar 2.</p>
+                        <p class="text-[9px] text-on-surface-variant mt-1.5 leading-relaxed">Phòng Superplex 01 đang bị trùng lịch giữa Oppenheimer và Avatar 2.</p>
                         <p class="text-[8px] text-on-surface-variant/50 mt-2 font-bold italic">Vừa xong</p>
                      </div>
                   </div>

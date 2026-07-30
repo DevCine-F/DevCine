@@ -103,7 +103,7 @@ export function useMovieManagement() {
     } catch (error) {
       console.error("Lỗi khi tải danh mục:", error);
       genres.value = [{ id: 1, name: "Hành động" }];
-      availableFormats.value = ["2D", "3D", "IMAX"];
+      availableFormats.value = ["2D", "3D"];
       availableAgeRatings.value = [{ code: "P", name: "Mọi đối tượng" }];
     }
   };

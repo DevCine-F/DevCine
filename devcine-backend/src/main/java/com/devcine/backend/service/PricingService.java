@@ -38,7 +38,7 @@ public class PricingService {
     public static final List<String> AUDIENCE_TYPES = List.of("ADULT", "U22", "CHILD", "SENIOR");
     /** Đối tượng được phép mua ONLINE — CHILD/SENIOR phải xác minh giấy tờ nên chỉ bán tại quầy POS. */
     public static final List<String> ONLINE_AUDIENCE_TYPES = List.of("ADULT", "U22");
-    public static final List<String> ROOM_TYPES = List.of("STANDARD", "DELUXE", "IMAX");
+    public static final List<String> ROOM_TYPES = List.of("STANDARD", "SUPERPLEX", "CINE_COMFORT");
     public static final String RULE_BASE_PRICE = "BASE_PRICE";
     private static final BigDecimal DEFAULT_BASE = new BigDecimal("85000");
 
@@ -61,12 +61,12 @@ public class PricingService {
         return m;
     }
 
-    /** Mã loại phòng -> nhãn hiển thị (giữ thứ tự). */
+    /** Mã loại phòng -> nhãn hiển thị (giữ thứ tự). Chuẩn Lotte Cinema. */
     public static Map<String, String> roomTypeLabels() {
         Map<String, String> m = new LinkedHashMap<>();
-        m.put("STANDARD", "Phòng Tiêu chuẩn");
-        m.put("DELUXE", "Phòng Cao cấp (Deluxe/Gold)");
-        m.put("IMAX", "Phòng IMAX / Superplex");
+        m.put("STANDARD", "Phòng Tiêu chuẩn (2D)");
+        m.put("SUPERPLEX", "Phòng Superplex (màn hình siêu lớn)");
+        m.put("CINE_COMFORT", "Phòng Cine Comfort (ghế sofa ngả lưng)");
         return m;
     }
 
@@ -77,12 +77,17 @@ public class PricingService {
         return AUDIENCE_TYPES.contains(up) ? up : "ADULT";
     }
 
-    /** Gom Room.type (free-text lộn xộn) về 3 hạng chuẩn. Mặc định STANDARD. */
+    /**
+     * Gom Room.type (free-text lộn xộn) về 3 hạng chuẩn Lotte. Mặc định STANDARD.
+     * Vẫn nhận diện chuỗi legacy (IMAX/DELUXE/GOLD) để dữ liệu cũ chưa backfill không bị tụt về STANDARD:
+     * IMAX/Premium (màn lớn) -> SUPERPLEX · Deluxe/Gold/Sweetbox/Comfort (ghế cao cấp) -> CINE_COMFORT.
+     */
     public String normalizeRoomType(String raw) {
         if (raw == null) return "STANDARD";
         String s = raw.trim().toUpperCase();
-        if (s.contains("IMAX") || s.contains("SUPERPLEX") || s.contains("PREMIUM")) return "IMAX";
-        if (s.contains("DELUXE") || s.contains("GOLD") || s.contains("SWEETBOX") || s.contains("COMFORT")) return "DELUXE";
+        if (s.contains("SUPERPLEX") || s.contains("IMAX") || s.contains("PREMIUM")) return "SUPERPLEX";
+        if (s.contains("CINE_COMFORT") || s.contains("COMFORT") || s.contains("DELUXE")
+                || s.contains("GOLD") || s.contains("SWEETBOX")) return "CINE_COMFORT";
         return "STANDARD";
     }
 

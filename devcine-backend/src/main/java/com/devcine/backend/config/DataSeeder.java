@@ -346,7 +346,7 @@ public class DataSeeder {
                             .address("Tầng B1, Vincom Landmark 81, 720A Điện Biên Phủ, Phường 22, Bình Thạnh")
                             .city("Hồ Chí Minh")
                             .district("Bình Thạnh")
-                            .type("Premium/IMAX")
+                            .type("Superplex")
                             .hotline("1900 1234")
                             .rooms(8)
                             .build();
@@ -367,8 +367,8 @@ public class DataSeeder {
                     cinemaRepository.save(cinema2);
                 }
 
-                Room room1 = Room.builder().cinema(cinema1).name("Phòng 01 - IMAX").type("IMAX").status("Hoạt động").build();
-                Room room2 = Room.builder().cinema(cinema1).name("Phòng 02 - Gold").type("Gold Class").status("Hoạt động").build();
+                Room room1 = Room.builder().cinema(cinema1).name("Phòng 01 - Superplex").type("Superplex").status("Hoạt động").build();
+                Room room2 = Room.builder().cinema(cinema1).name("Phòng 02 - Cine Comfort").type("Cine Comfort").status("Hoạt động").build();
                 Room room3 = Room.builder().cinema(cinema2).name("Phòng 01 - Standard").type("Standard").status("Hoạt động").build();
 
                 roomRepository.save(room1);
@@ -381,13 +381,12 @@ public class DataSeeder {
                 movieRepository.save(movie1);
                 movieRepository.save(movie2);
 
+                // Lotte chỉ có 2 định dạng chiếu: 2D (+0) và 3D (+30k). Không có IMAX (độc quyền CGV).
                 MovieFormat format1 = MovieFormat.builder().name("2D Phụ Đề").surcharge(BigDecimal.ZERO).build();
                 MovieFormat format2 = MovieFormat.builder().name("3D Lồng Tiếng").surcharge(new BigDecimal("30000")).build();
-                MovieFormat format3 = MovieFormat.builder().name("IMAX 2D").surcharge(new BigDecimal("50000")).build();
 
                 formatRepository.save(format1);
                 formatRepository.save(format2);
-                formatRepository.save(format3);
 
                 System.out.println("Đã thêm dữ liệu giả lập cho Cụm rạp, Phòng chiếu, Phim, và Định dạng thành công!");
             }
@@ -399,13 +398,14 @@ public class DataSeeder {
                 System.out.println("Đã thêm dữ liệu giả lập cho SeatType thành công!");
             }
 
-            // ============ FLAT PRICING V3 (chạy 1 lần, cờ FLAT_PRICING_V3) ============
+            // ======== FLAT PRICING V4 — CHUẨN LOTTE (chạy 1 lần, cờ FLAT_PRICING_V4_LOTTE) ========
             // Mô hình: giá = base(loại_ngày × loại_phòng × đối_tượng) + phụ_thu_định_dạng(2D/3D).
-            // 2 bậc ngày (WEEKDAY / WEEKEND gộp lễ), 3 hạng phòng (STANDARD/DELUXE/IMAX),
+            // 2 bậc ngày (WEEKDAY / WEEKEND gộp lễ), 3 hạng phòng (STANDARD/SUPERPLEX/CINE_COMFORT),
             // 4 đối tượng (ADULT/U22/CHILD/SENIOR). KHÔNG phụ thu theo loại ghế.
-            boolean flatPricingSeeded = systemSettingRepository.findById("FLAT_PRICING_V3").isPresent();
+            // Bump cờ (V3 -> V4) để re-seed lại bảng giá theo bộ mã & mặt bằng giá Lotte.
+            boolean flatPricingSeeded = systemSettingRepository.findById("FLAT_PRICING_V4_LOTTE").isPresent();
             if (!flatPricingSeeded) {
-                // Phụ thu ĐỊNH DẠNG (công nghệ): 2D +0 · 3D +30k · IMAX-format +0 (giá IMAX nằm ở hạng phòng).
+                // Phụ thu ĐỊNH DẠNG (công nghệ): 2D +0 · 3D +30k. Lotte không có IMAX (độc quyền CGV).
                 for (MovieFormat f : formatRepository.findAll()) {
                     String n = f.getName() != null ? f.getName().toUpperCase() : "";
                     if (n.contains("3D")) {
@@ -418,20 +418,24 @@ public class DataSeeder {
                     formatRepository.save(f);
                 }
 
-                // Ma trận giá nền: roomType -> dayType -> [ADULT, U22, CHILD, SENIOR]
+                // Ma trận giá nền CHUẨN LOTTE CINEMA: roomType -> dayType -> [ADULT, U22, CHILD, SENIOR]
+                // (VNĐ). U22 mất ưu đãi vào cuối tuần (bằng giá người lớn); trẻ em & người cao tuổi giữ giá cả tuần.
                 java.util.Map<String, java.util.Map<String, int[]>> matrix = new java.util.LinkedHashMap<>();
+                // STANDARD — phòng 2D thường
                 java.util.Map<String, int[]> standard = new java.util.LinkedHashMap<>();
-                standard.put("WEEKDAY", new int[]{85000, 65000, 55000, 60000});
-                standard.put("WEEKEND", new int[]{105000, 105000, 55000, 60000});
+                standard.put("WEEKDAY", new int[]{75000, 65000, 55000, 60000});
+                standard.put("WEEKEND", new int[]{95000, 95000, 55000, 60000});
                 matrix.put("STANDARD", standard);
-                java.util.Map<String, int[]> deluxe = new java.util.LinkedHashMap<>();
-                deluxe.put("WEEKDAY", new int[]{125000, 105000, 95000, 100000});
-                deluxe.put("WEEKEND", new int[]{145000, 145000, 95000, 100000});
-                matrix.put("DELUXE", deluxe);
-                java.util.Map<String, int[]> imax = new java.util.LinkedHashMap<>();
-                imax.put("WEEKDAY", new int[]{135000, 115000, 105000, 110000});
-                imax.put("WEEKEND", new int[]{155000, 155000, 105000, 110000});
-                matrix.put("IMAX", imax);
+                // SUPERPLEX — phòng màn hình siêu lớn (cao hơn Standard ~15-20k)
+                java.util.Map<String, int[]> superplex = new java.util.LinkedHashMap<>();
+                superplex.put("WEEKDAY", new int[]{95000, 85000, 75000, 80000});
+                superplex.put("WEEKEND", new int[]{115000, 115000, 75000, 80000});
+                matrix.put("SUPERPLEX", superplex);
+                // CINE_COMFORT — phòng ghế sofa ngả lưng (VIP, đắt nhất)
+                java.util.Map<String, int[]> cineComfort = new java.util.LinkedHashMap<>();
+                cineComfort.put("WEEKDAY", new int[]{105000, 95000, 85000, 90000});
+                cineComfort.put("WEEKEND", new int[]{125000, 125000, 85000, 90000});
+                matrix.put("CINE_COMFORT", cineComfort);
 
                 String[] auds = {"ADULT", "U22", "CHILD", "SENIOR"};
                 pricingRuleRepository.deleteAll(pricingRuleRepository.findByRuleType("BASE_PRICE"));
@@ -452,8 +456,34 @@ public class DataSeeder {
                 }
 
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("FLAT_PRICING_V3").settingValue("true").build());
-                System.out.println("Đã áp dụng FLAT PRICING V3 (2 bậc ngày × 3 hạng phòng × 4 đối tượng, 3D +30k).");
+                        .settingKey("FLAT_PRICING_V4_LOTTE").settingValue("true").build());
+                System.out.println("Đã áp dụng FLAT PRICING V4 — chuẩn Lotte (STANDARD/SUPERPLEX/CINE_COMFORT, 3D +30k).");
+            }
+
+            // Backfill LOẠI PHÒNG legacy (IMAX/Gold/Deluxe) -> bộ mã Lotte trên các Room đã tồn tại (CHẠY 1 LẦN).
+            // Pricing đã tự tha thứ chuỗi cũ (normalizeRoomType), backfill chỉ để làm sạch dữ liệu hiển thị/quản trị.
+            if (systemSettingRepository.findById("ROOM_TYPE_LOTTE_BACKFILL").isEmpty()) {
+                int fixed = 0;
+                for (Room r : roomRepository.findAll()) {
+                    String t = r.getType() != null ? r.getType().trim().toUpperCase() : "";
+                    String canonical = null;
+                    if (t.contains("SUPERPLEX") || t.contains("IMAX") || t.contains("PREMIUM")) canonical = "Superplex";
+                    else if (t.contains("CINE COMFORT") || t.contains("COMFORT")
+                            || t.contains("DELUXE") || t.contains("GOLD")) canonical = "Cine Comfort";
+                    if (canonical != null && !canonical.equalsIgnoreCase(r.getType())) {
+                        r.setType(canonical);
+                        // Đồng bộ tên phòng nếu còn dính nhãn cũ để UI không hiển thị lai tạp.
+                        if (r.getName() != null) {
+                            String nm = r.getName().replaceAll("(?i)IMAX|Gold( Class)?|Deluxe|Premium/?IMAX", canonical);
+                            r.setName(nm);
+                        }
+                        roomRepository.save(r);
+                        fixed++;
+                    }
+                }
+                systemSettingRepository.save(SystemSetting.builder()
+                        .settingKey("ROOM_TYPE_LOTTE_BACKFILL").settingValue("true").build());
+                if (fixed > 0) System.out.println("Đã chuẩn hoá " + fixed + " phòng sang bộ mã Lotte (Superplex/Cine Comfort).");
             }
 
             // Backfill điểm tích lũy trọn đời (lifetime_points) cho khách hiện có (CHẠY 1 LẦN).
@@ -563,9 +593,7 @@ public class DataSeeder {
                 }
 
                 if (!movies.isEmpty() && !rooms.isEmpty() && !formats.isEmpty()) {
-                    MovieFormat imaxFmt = formats.stream()
-                            .filter(f -> f.getName() != null && f.getName().toUpperCase().contains("IMAX"))
-                            .findFirst().orElse(formats.get(0));
+                    // Định dạng mặc định cho lịch demo: 2D (không phụ thu). Lotte không có IMAX.
                     MovieFormat stdFmt = formats.stream()
                             .filter(f -> f.getName() != null && f.getName().contains("2D"))
                             .findFirst().orElse(formats.get(0));
@@ -576,8 +604,7 @@ public class DataSeeder {
                     for (int day = 0; day < 3; day++) {
                         LocalDate date = LocalDate.now().plusDays(day);
                         for (Room room : rooms) {
-                            MovieFormat fmt = (room.getType() != null && room.getType().toUpperCase().contains("IMAX"))
-                                    ? imaxFmt : stdFmt;
+                            MovieFormat fmt = stdFmt;
                             for (int[] slot : slots) {
                                 Movie m = movies.get(movieIdx % movies.size());
                                 movieIdx++;
@@ -616,9 +643,6 @@ public class DataSeeder {
                             .filter(s -> s.getStartTime() != null)
                             .map(s -> s.getStartTime().toLocalDate())
                             .collect(java.util.stream.Collectors.toSet());
-                    MovieFormat imaxFmt = rollFormats.stream()
-                            .filter(f -> f.getName() != null && f.getName().toUpperCase().contains("IMAX"))
-                            .findFirst().orElse(rollFormats.get(0));
                     MovieFormat stdFmt = rollFormats.stream()
                             .filter(f -> f.getName() != null && f.getName().contains("2D"))
                             .findFirst().orElse(rollFormats.get(0));
@@ -630,8 +654,7 @@ public class DataSeeder {
                         LocalDate date = LocalDate.now().plusDays(day);
                         if (daysWithShowtimes.contains(date)) continue; // ngày đã có lịch -> bỏ qua
                         for (Room room : rollRooms) {
-                            MovieFormat fmt = (room.getType() != null && room.getType().toUpperCase().contains("IMAX"))
-                                    ? imaxFmt : stdFmt;
+                            MovieFormat fmt = stdFmt;
                             for (int[] slot : rollSlots) {
                                 LocalDateTime start = date.atTime(slot[0], slot[1]);
                                 if (start.isBefore(nowTs)) continue; // bỏ suất đã qua giờ trong hôm nay
@@ -713,10 +736,10 @@ public class DataSeeder {
             Cinema c1 = cinemaRepository.findById(1).orElse(null);
             if (c1 != null && (c1.getImageUrl() == null || c1.getImageUrl().isBlank())) {
                 c1.setImageUrl("https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80");
-                c1.setDescription("Cụm rạp cao cấp tại tòa nhà cao nhất Việt Nam — Vincom Landmark 81. Trang bị phòng chiếu IMAX màn ảnh khổng lồ cùng hệ thống âm thanh Dolby Atmos sống động, mang đến trải nghiệm điện ảnh đẳng cấp bậc nhất.");
+                c1.setDescription("Cụm rạp cao cấp tại tòa nhà cao nhất Việt Nam — Vincom Landmark 81. Trang bị phòng chiếu Superplex màn ảnh siêu lớn cùng hệ thống âm thanh Dolby Atmos sống động, mang đến trải nghiệm điện ảnh đẳng cấp bậc nhất.");
                 c1.setLatitude(10.794903);
                 c1.setLongitude(106.721866);
-                c1.setAmenities("IMAX,Dolby Atmos,Phòng Sweetbox,Bãi đỗ xe,Khu vực F&B,Wifi miễn phí");
+                c1.setAmenities("Superplex,Dolby Atmos,Phòng Cine Comfort,Bãi đỗ xe,Khu vực F&B,Wifi miễn phí");
                 c1.setStatus("ACTIVE");
                 cinemaRepository.save(c1);
                 System.out.println("Đã bổ sung thông tin mở rộng cho cụm rạp DevCine Landmark 81.");

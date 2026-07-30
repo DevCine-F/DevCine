@@ -30,10 +30,13 @@ public class CinemaBackfillRunner implements CommandLineRunner {
         this.cinemaRepository = cinemaRepository;
     }
 
-    // Map loại cụm rạp legacy (không thuộc danh mục hợp lệ) -> giá trị chuẩn, để updateCinema không 400.
+    // Map loại cụm rạp legacy (không thuộc danh mục hợp lệ) -> giá trị chuẩn Lotte, để updateCinema không 400.
     private static final java.util.Map<String, String> LEGACY_TYPE_FIX = java.util.Map.of(
             "Standard/Sweetbox", "Sweetbox",
-            "Premium/IMAX ", "Premium/IMAX"
+            "Premium/IMAX ", "Superplex",
+            "Premium/IMAX", "Superplex",
+            "Gold Class", "Cine Comfort",
+            "Deluxe", "Cine Comfort"
     );
 
     // Danh mục quận/huyện để dò trong địa chỉ. Thứ tự quan trọng: các mục dài/đặc thù đứng trước

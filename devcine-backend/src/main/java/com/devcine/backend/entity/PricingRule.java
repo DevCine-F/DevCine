@@ -31,7 +31,7 @@ public class PricingRule {
     private String dayType;
 
     /**
-     * STANDARD | DELUXE | IMAX | ALL — hạng PHÒNG (phần cứng), tách khỏi công nghệ 2D/3D (MovieFormat).
+     * STANDARD | SUPERPLEX | CINE_COMFORT | ALL — hạng PHÒNG (phần cứng, chuẩn Lotte), tách khỏi công nghệ 2D/3D (MovieFormat).
      * Giá nền map theo (dayType × roomType × audienceType).
      */
     @Column(name = "room_type", length = 30)

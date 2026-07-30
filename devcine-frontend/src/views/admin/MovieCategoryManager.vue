@@ -44,7 +44,7 @@ const tabLabel = computed(() =>
 
 // ===== Validate tên danh mục (scoped theo tab) =====
 // Ký tự đặc biệt nguy hiểm bị chặn ở MỌI tab; riêng THỂ LOẠI còn chặn cả chữ số
-// (Định dạng cần "2D/3D/IMAX 2D" nên chừa số).
+// (Định dạng cần "2D/3D" nên chừa số).
 const FORBIDDEN_NAME = /[@#$%^&*<>/,[\]{}]/g
 const nameRules = computed(() => {
   if (activeTab.value === 'formats') return { min: 2, max: 30, blockDigits: false, capitalize: false }

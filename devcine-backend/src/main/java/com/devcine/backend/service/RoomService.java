@@ -25,8 +25,9 @@ public class RoomService {
     private final SeatRepository seatRepository;
     private final SeatService seatService;
 
-    // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ)
-    private static final Set<String> ALLOWED_TYPES = Set.of("2D", "3D", "IMAX", "4DX", "Sweetbox");
+    // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ).
+    // Bộ mã hạng phòng chuẩn Lotte (khớp normalizeRoomType của PricingService).
+    private static final Set<String> ALLOWED_TYPES = Set.of("Standard", "Superplex", "Cine Comfort", "Sweetbox");
     private static final Set<String> ALLOWED_STATUS = Set.of("Active", "Maintenance");
 
     private String clean(String s) {
@@ -68,7 +69,7 @@ public class RoomService {
         Room room = Room.builder()
                 .cinema(cinema)
                 .name(req.getName())
-                .type(req.getType() != null ? req.getType() : "2D")
+                .type(req.getType() != null ? req.getType() : "Standard")
                 .status(req.getStatus() != null ? req.getStatus() : "Active")
                 .turnaroundTimeMins(req.getTurnaroundTimeMins() != null ? req.getTurnaroundTimeMins() : 15)
                 .matrixRow(req.getMatrixRow())

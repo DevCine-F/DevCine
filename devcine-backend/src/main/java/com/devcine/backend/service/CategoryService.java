@@ -95,10 +95,10 @@ public class CategoryService {
     @Transactional
     public List<MovieFormat> getFormats() {
         if (movieFormatRepository.count() == 0) {
+            // Lotte chỉ có 2 định dạng chiếu: 2D và 3D (không có IMAX — độc quyền CGV).
             movieFormatRepository.saveAll(List.of(
                     MovieFormat.builder().name("2D").description("Định dạng tiêu chuẩn").surcharge(BigDecimal.ZERO).build(),
-                    MovieFormat.builder().name("3D").description("Định dạng 3 chiều").surcharge(BigDecimal.ZERO).build(),
-                    MovieFormat.builder().name("IMAX").description("Màn hình IMAX").surcharge(BigDecimal.ZERO).build()
+                    MovieFormat.builder().name("3D").description("Định dạng 3 chiều").surcharge(BigDecimal.ZERO).build()
             ));
         }
         return movieFormatRepository.findAll();
