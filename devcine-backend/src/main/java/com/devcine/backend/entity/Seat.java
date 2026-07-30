@@ -42,6 +42,15 @@ public class Seat {
     private String label;
 
     /**
+     * true = label do Admin TỰ TAY gõ đổi (chốt cứng, không bị đánh số tự động ghi đè khi tải lại).
+     * false/null = label auto sinh theo thứ tự ghế. Cần lưu riêng vì label auto và custom đều
+     * suy ra rowChar+colNum nên không thể phân biệt qua so sánh chuỗi.
+     */
+    @Column(name = "custom_label")
+    @Builder.Default
+    private Boolean customLabel = false;
+
+    /**
      * Trạng thái VẬT LÝ của ghế (khác is_active — is_active phục vụ xóa mềm khi lưu layout):
      * AVAILABLE = ghế bán bình thường, MAINTENANCE = đang bảo trì, LOCKED = khóa không bán.
      * Không dùng cho trạng thái runtime SOLD/HOLD (những cái đó tính từ BookingSeat).

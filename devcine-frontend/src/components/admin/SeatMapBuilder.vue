@@ -207,10 +207,13 @@ const getSeatClass = (cell, r, c) => {
     return `${doubleClass} bg-surface-container-high border border-white/5 text-white/20 cursor-not-allowed pointer-events-none opacity-50`
   }
 
+  // Ghế có label thủ công (custom) → thêm viền hổ phách báo hiệu (không dùng icon che chữ)
+  const customRing = isSeatCell(cell) && cell.custom ? ' ring-2 ring-inset ring-primary/70' : ''
+
   switch (type) {
-    case 'standard': return `${baseClasses} rounded-lg bg-slate-800/80 border border-slate-600/50 text-slate-300 hover:brightness-125 hover:-translate-y-0.5 hover:shadow-lg`
-    case 'vip': return `${baseClasses} rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 text-red-100 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 hover:brightness-110`
-    case 'double': return `${baseClasses} col-span-2 rounded-t-2xl rounded-b-lg bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 text-purple-100 shadow-[0_0_15px_rgba(147,51,234,0.2)] hover:shadow-[0_0_20px_rgba(147,51,234,0.4)] hover:-translate-y-0.5 hover:brightness-110`
+    case 'standard': return `${baseClasses}${customRing} rounded-lg bg-slate-800/80 border border-slate-600/50 text-slate-300 hover:brightness-125 hover:-translate-y-0.5 hover:shadow-lg`
+    case 'vip': return `${baseClasses}${customRing} rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 text-red-100 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 hover:brightness-110`
+    case 'double': return `${baseClasses}${customRing} col-span-2 rounded-t-2xl rounded-b-lg bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 text-purple-100 shadow-[0_0_15px_rgba(147,51,234,0.2)] hover:shadow-[0_0_20px_rgba(147,51,234,0.4)] hover:-translate-y-0.5 hover:brightness-110`
     case 'aisle': return 'bg-transparent border border-dashed border-white/10 text-transparent opacity-20 rounded-lg hover:opacity-50 hover:border-primary/50'
     default: return 'rounded-lg'
   }
@@ -468,15 +471,18 @@ onUnmounted(() => {
                       @mouseenter="handleMouseEnter(r-1, c-1)"
                       @dblclick="openLabelEditor(r-1, c-1)"
                       @contextmenu.prevent="openLabelEditor(r-1, c-1)"
-                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`], r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[92px]' : 'w-10', 'h-10 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative select-none shrink-0']"
+                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`], r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[92px]' : 'w-10', 'h-10 flex items-center justify-center text-[10px] font-black leading-none transition-all duration-75 group relative select-none shrink-0']"
                       style="cursor: pointer">
-                    {{ seatMap[`${r-1}-${c-1}`]?.type !== 'aisle' ? seatMap[`${r-1}-${c-1}`]?.label : '' }}
-                    <!-- Cờ lê cho ghế bảo trì -->
+                    <!-- Tên/số ghế: luôn ưu tiên hiển thị to, rõ, ở giữa ô -->
+                    <span class="relative z-[1] pointer-events-none">{{ seatMap[`${r-1}-${c-1}`]?.type !== 'aisle' ? seatMap[`${r-1}-${c-1}`]?.label : '' }}</span>
+                    <!-- Marker bảo trì: chấm đỏ nhỏ góc trên phải (không che text) -->
                     <span v-if="seatMap[`${r-1}-${c-1}`]?.status && seatMap[`${r-1}-${c-1}`]?.status !== 'AVAILABLE'"
-                          class="material-symbols-outlined absolute -top-1 -right-1 text-[11px] text-red-400 bg-black/70 rounded-full leading-none p-0.5">build</span>
-                    <!-- Dấu chốt cứng cho label thủ công -->
+                          class="material-symbols-outlined absolute z-[2] text-red-300 bg-red-950 rounded-full leading-none pointer-events-none"
+                          style="top:2px;right:2px;font-size:11px;width:12px;height:12px;">build</span>
+                    <!-- Marker label thủ công: chấm hổ phách nhỏ góc trên phải -->
                     <span v-else-if="seatMap[`${r-1}-${c-1}`]?.custom"
-                          class="material-symbols-outlined absolute -top-1 -right-1 text-[10px] text-primary/80 bg-black/70 rounded-full leading-none p-0.5">lock</span>
+                          class="absolute z-[2] rounded-full bg-primary ring-1 ring-black/40 pointer-events-none"
+                          style="top:2px;right:2px;width:6px;height:6px;" title="Tên ghế đặt thủ công"></span>
                     <!-- Placeholder dot for empty or aisle spaces -->
                     <div v-if="!seatMap[`${r-1}-${c-1}`]?.type || seatMap[`${r-1}-${c-1}`]?.type === 'aisle'" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                        <div class="w-1.5 h-1.5 bg-white/10 rounded-full group-hover:bg-primary/50 transition-colors"></div>

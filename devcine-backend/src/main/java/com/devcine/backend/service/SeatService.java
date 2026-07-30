@@ -117,6 +117,7 @@ public class SeatService {
                     .colNum(seat.getColNum())
                     .seatType(seat.getSeatType().getName())
                     .label(seat.displayLabel())
+                    .custom(Boolean.TRUE.equals(seat.getCustomLabel()))
                     .price(null) // preview phòng (không gắn suất) → không có giá; giá tính khi có Showtime
                     // preview phòng: giữ nguyên trạng thái vật lý (AVAILABLE/MAINTENANCE/LOCKED) để builder hiển thị đúng
                     .status(seatStatus)
@@ -153,7 +154,7 @@ public class SeatService {
             }
         }
 
-        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', true)";
+        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, custom_label, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', false, true)";
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -189,7 +190,7 @@ public class SeatService {
                 .collect(Collectors.toMap(SeatType::getName, type -> type));
 
         List<com.devcine.backend.dto.request.SeatLayoutRequest.SeatDefinition> seatDefs = request.getSeats();
-        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, custom_label, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
@@ -220,7 +221,8 @@ public class SeatService {
                 ps.setInt(6, seatType.getId());
                 ps.setString(7, label);
                 ps.setString(8, seatStatus);
-                ps.setBoolean(9, true);
+                ps.setBoolean(9, Boolean.TRUE.equals(def.getCustom()));
+                ps.setBoolean(10, true);
             }
 
             @Override

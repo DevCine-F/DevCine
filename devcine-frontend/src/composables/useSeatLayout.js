@@ -53,7 +53,8 @@ export function useSeatLayout() {
             label: seat.label || `${seat.rowChar}${seat.colNum}`,
             // seatStatus = trạng thái vật lý (AVAILABLE/MAINTENANCE/LOCKED); status runtime bị bỏ qua ở builder
             status: seat.seatStatus || "AVAILABLE",
-            custom: !!seat.label,
+            // Chỉ chốt cứng khi Admin thực sự gõ tay (cờ custom lưu ở DB), KHÔNG suy từ việc có label
+            custom: !!seat.custom,
           };
         });
         currentSeatMap.value = map;
@@ -112,6 +113,7 @@ export function useSeatLayout() {
           type: seatData.type,
           label: seatData.label,
           status: seatData.status || "AVAILABLE",
+          custom: !!seatData.custom,
         });
       });
 
