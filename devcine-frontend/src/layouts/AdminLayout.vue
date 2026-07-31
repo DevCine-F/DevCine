@@ -89,7 +89,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
         </router-link>
 
         <!-- ===== PHIM & NỘI DUNG ===== -->
-        <div v-if="canShowAny(['movies', 'schedules', 'banners'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Phim & Nội dung</div>
+        <div v-if="canShowAny(['movies', 'banners'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Phim & Nội dung</div>
 
         <router-link v-if="canShow('movies')" to="/admin/movies" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">movie</span>
@@ -100,13 +100,6 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">category</span>
           <span class="font-semibold text-sm">Danh mục phim</span>
         </router-link>
-
-        <!-- Tạm ẩn tab "Lịch chiếu & Điều phối" (route/chức năng vẫn giữ nguyên)
-        <router-link v-if="canShow('schedules')" to="/admin/master-scheduling" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
-          <span class="material-symbols-outlined group-hover:text-primary transition-colors">calendar_month</span>
-          <span class="font-semibold text-sm">Lịch chiếu & Điều phối</span>
-        </router-link>
-        -->
 
         <router-link v-if="canShow('banners')" to="/admin/banners" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">view_carousel</span>

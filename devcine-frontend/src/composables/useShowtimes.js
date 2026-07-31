@@ -55,7 +55,9 @@ export function useShowtimes(selectedCinema) {
     const hallShows = selectedCinema.value.shows.filter(
       (s) => s.roomId === hallId && s.date === selectedDate.value && s.id !== show.id,
     );
-    const CLEANING_TIME = selectedCinema.value.cleaningTime || 20;
+    // NGUỒN DUY NHẤT: thời gian dọn dẹp bốc từ chính phòng (turnaroundTimeMins), khớp với backend.
+    const hall = selectedCinema.value.halls?.find((h) => h.id === hallId);
+    const CLEANING_TIME = Number(hall?.turnaroundTimeMins ?? 15);
 
     const showStart = timeToMinutes(show.startTime);
     const showEnd = showStart + Number(show.duration) + CLEANING_TIME;

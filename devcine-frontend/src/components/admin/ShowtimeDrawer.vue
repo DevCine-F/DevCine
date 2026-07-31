@@ -20,8 +20,7 @@ const form = reactive({
   roomId: '',
   formatId: '',
   startHour: '',
-  startMinute: '',
-  cleaningTime: 15
+  startMinute: ''
 });
 
 const movies = ref([]);
@@ -165,8 +164,7 @@ const handleSave = async () => {
       movieId: parseInt(form.movieId),
       roomId: parseInt(form.roomId),
       formatId: parseInt(form.formatId),
-      startTime: formattedStartTime,
-      cleaningTime: parseInt(form.cleaningTime)
+      startTime: formattedStartTime
     });
 
     toast.success('Đã thêm suất chiếu.');
@@ -258,10 +256,10 @@ const handleSave = async () => {
           <p v-if="fieldErrors.time" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.time }}</p>
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Thời gian dọn dẹp (Phút)</label>
-          <input type="number" v-model="form.cleaningTime" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-        </div>
+        <p class="text-[11px] text-white/40 italic flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[14px]">info</span>
+          Thời gian dọn dẹp được lấy tự động theo cấu hình của từng phòng chiếu.
+        </p>
 
       </div>
 

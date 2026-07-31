@@ -24,7 +24,5 @@ public class ShowtimeRequest {
 
     @NotNull(message = "Start time is required")
     private LocalDateTime startTime;
-    
-    // Cleaning time in minutes, default is 15 if not provided
-    private Integer cleaningTime;
+    // Thời gian dọn dẹp KHÔNG nhận từ FE nữa — bốc trực tiếp từ Room.turnaroundTimeMins ở service.
 }

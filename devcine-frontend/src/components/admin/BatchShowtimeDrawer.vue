@@ -17,7 +17,6 @@ const toast = useToastStore();
 const form = reactive({
   movieId: '',
   formatId: '',
-  cleaningTime: 15,
   dateFrom: '',
   dateTo: '',
   daysOfWeek: [],        // ISO 1..7 (rỗng = mọi ngày)
@@ -101,14 +100,14 @@ watch(() => props.isOpen, (open) => {
     clearErrors();
     preview.value = null;
     const today = new Date().toISOString().slice(0, 10);
-    form.movieId = ''; form.formatId = ''; form.cleaningTime = 15;
+    form.movieId = ''; form.formatId = '';
     form.dateFrom = today; form.dateTo = today;
     form.daysOfWeek = []; form.roomIds = []; form.startTimes = [];
   }
 });
 
 // Đổi bất kỳ tham số nào → preview cũ không còn đúng
-watch(() => [form.movieId, form.formatId, form.cleaningTime, form.dateFrom, form.dateTo,
+watch(() => [form.movieId, form.formatId, form.dateFrom, form.dateTo,
   form.daysOfWeek.length, form.roomIds.length, form.startTimes.length], () => { preview.value = null; });
 
 // Lỗi tự xóa khi người dùng bắt đầu sửa đúng trường đó (đỡ cảm giác lỗi dai)
@@ -177,7 +176,6 @@ const focusFirstError = async (fieldRef) => {
 const buildPayload = (dryRun) => ({
   movieId: parseInt(form.movieId),
   formatId: parseInt(form.formatId),
-  cleaningTime: parseInt(form.cleaningTime) || 15,
   roomIds: [...form.roomIds],
   dateFrom: form.dateFrom,
   dateTo: form.dateTo,
@@ -339,11 +337,11 @@ const handleCreate = async () => {
           </div>
         </div>
 
-        <!-- Thời gian dọn dẹp -->
-        <div>
-          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Thời gian dọn dẹp (phút)</label>
-          <input type="number" min="0" v-model="form.cleaningTime" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-        </div>
+        <!-- Thời gian dọn dẹp: lấy tự động theo từng phòng -->
+        <p class="text-[11px] text-white/40 italic flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[14px]">info</span>
+          Thời gian dọn dẹp được lấy tự động theo cấu hình của từng phòng chiếu.
+        </p>
 
         <!-- Kết quả xem trước -->
         <div v-if="preview" class="rounded-xl border border-white/10 bg-black/20 overflow-hidden">

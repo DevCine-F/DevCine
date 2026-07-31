@@ -53,6 +53,17 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
                         @Param("endTime") LocalDateTime endTime);
 
     /**
+     * Như {@link #hasConflict} nhưng BỎ QUA chính suất đang sửa (excludeId) — dùng khi kéo-thả/PATCH
+     * đổi giờ/phòng: nếu không loại trừ, suất tự chồng lên chính nó và luôn báo trùng.
+     */
+    @Query("SELECT COUNT(s) > 0 FROM Showtime s WHERE s.room.id = :roomId AND s.id <> :excludeId " +
+           "AND s.startTime < :endTime AND s.endTime > :startTime")
+    boolean hasConflictExcluding(@Param("roomId") Integer roomId,
+                                 @Param("startTime") LocalDateTime startTime,
+                                 @Param("endTime") LocalDateTime endTime,
+                                 @Param("excludeId") Integer excludeId);
+
+    /**
      * Nạp MỘT lần toàn bộ suất của các phòng có giao với cửa sổ [start, end) — phục vụ
      * tạo lịch hàng loạt, kiểm tra trùng in-memory thay vì gọi hasConflict từng suất (chống N+1).
      */

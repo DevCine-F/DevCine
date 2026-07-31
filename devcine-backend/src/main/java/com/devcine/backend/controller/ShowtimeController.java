@@ -100,13 +100,33 @@ public class ShowtimeController {
         }
     }
 
+    @GetMapping("/{id}/detail")
+    public ResponseEntity<?> getShowtimeDetail(@PathVariable Integer id) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(showtimeService.getShowtimeDetail(id)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+        }
+    }
+
     @PatchMapping("/{id}")
     @PreAuthorize("@perm.can('schedules', 'edit')")
     public ResponseEntity<?> updateShowtime(@PathVariable Integer id, @RequestBody java.util.Map<String, Object> updates) {
         try {
             showtimeService.updateShowtime(id, updates);
             return ResponseEntity.ok(ApiResponse.success("Đã cập nhật suất chiếu."));
-        } catch (Exception e) {
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("@perm.can('schedules', 'edit')")
+    public ResponseEntity<?> deleteShowtime(@PathVariable Integer id) {
+        try {
+            showtimeService.deleteShowtime(id);
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá suất chiếu."));
+        } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }

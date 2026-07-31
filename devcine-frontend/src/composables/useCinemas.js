@@ -90,7 +90,7 @@ export function useCinemas() {
         const old = prev.get(String(c.id));
         // Không đặt halls khi chưa nạp -> card fallback về c.rooms cho đúng số phòng.
         return old
-          ? { ...c, cleaningTime: old.cleaningTime, stats: old.stats, halls: old.halls, shows: old.shows, staff: old.staff, inventory: old.inventory }
+          ? { ...c, stats: old.stats, halls: old.halls, shows: old.shows, staff: old.staff, inventory: old.inventory }
           : { ...c };
       });
       if (selectedCinema.value) {
@@ -108,7 +108,6 @@ export function useCinemas() {
     // Hiện khung chi tiết ngay (rỗng) để cảm giác nhanh, rồi nạp dần.
     selectedCinema.value = {
       ...cinema,
-      cleaningTime: cinema.cleaningTime ?? 15,
       stats: cinema.stats ?? defaultStats(),
       halls: cinema.halls ?? [],
       shows: cinema.shows ?? [],

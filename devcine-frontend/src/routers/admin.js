@@ -26,11 +26,6 @@ export default [
         component: () => import('../views/admin/AdminMovies.vue')
       },
       {
-        // Màn hình lịch chiếu cũ (mock) đã hợp nhất vào Điều phối lịch chiếu
-        path: 'schedule',
-        redirect: { name: 'admin-master-scheduling' }
-      },
-      {
         path: 'cinemas',
         name: 'admin-cinemas',
         meta: { permission: { feature: 'cinemas', action: 'view' } },
@@ -65,12 +60,6 @@ export default [
         name: 'admin-pricing',
         meta: { permission: { feature: 'pricing', action: 'view' } },
         component: () => import('../views/admin/AdminPricing.vue')
-      },
-      {
-        path: 'master-scheduling',
-        name: 'admin-master-scheduling',
-        meta: { permission: { feature: 'schedules', action: 'view' } },
-        component: () => import('../views/admin/AdminMasterScheduling.vue')
       },
       {
         path: 'categories',

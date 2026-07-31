@@ -29,6 +29,26 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
            "WHERE bs.status = 'HOLD' AND b.createdAt < :cutoff")
     List<BookingSeat> findStaleHolds(@Param("cutoff") LocalDateTime cutoff);
 
+    // Số ghế đã GIỮ/BÁN (SOLD/HOLD) của MỘT suất — guard trước khi xoá suất chiếu.
+    @Query("SELECT COUNT(bs) FROM BookingSeat bs " +
+           "WHERE bs.booking.showtime.id = :showtimeId AND (bs.status = 'SOLD' OR bs.status = 'HOLD')")
+    long countReservedByShowtime(@Param("showtimeId") Integer showtimeId);
+
+    // Số ghế đã BÁN (SOLD) của MỘT suất — vé thực bán cho drawer chi tiết.
+    @Query("SELECT COUNT(bs) FROM BookingSeat bs " +
+           "WHERE bs.booking.showtime.id = :showtimeId AND bs.status = 'SOLD'")
+    long countSoldByShowtime(@Param("showtimeId") Integer showtimeId);
+
+    // Số ghế đang GIỮ (HOLD) của MỘT suất.
+    @Query("SELECT COUNT(bs) FROM BookingSeat bs " +
+           "WHERE bs.booking.showtime.id = :showtimeId AND bs.status = 'HOLD'")
+    long countHeldByShowtime(@Param("showtimeId") Integer showtimeId);
+
+    // Doanh thu vé thực tế của MỘT suất = tổng giá chốt (priceSnapshot) các ghế đã BÁN.
+    @Query("SELECT COALESCE(SUM(bs.priceSnapshot), 0) FROM BookingSeat bs " +
+           "WHERE bs.booking.showtime.id = :showtimeId AND bs.status = 'SOLD'")
+    java.math.BigDecimal sumSoldRevenueByShowtime(@Param("showtimeId") Integer showtimeId);
+
     List<BookingSeat> findAllByBookingId(Integer bookingId);
 
     @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.seat s LEFT JOIN FETCH s.seatType " +

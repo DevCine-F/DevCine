@@ -26,9 +26,6 @@ public class BatchShowtimeRequest {
     @NotNull(message = "Format ID is required")
     private Integer formatId;
 
-    /** Thời gian dọn dẹp (phút); mặc định 15 nếu bỏ trống. */
-    private Integer cleaningTime;
-
     /** Danh sách phòng áp dụng (có thể thuộc nhiều cơ sở). */
     @NotEmpty(message = "Phải chọn ít nhất một phòng chiếu")
     private List<Integer> roomIds;

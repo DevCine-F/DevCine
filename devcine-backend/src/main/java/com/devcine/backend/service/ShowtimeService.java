@@ -230,6 +230,7 @@ public class ShowtimeService {
                 .build()).collect(Collectors.toList());
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public ShowtimeDTO createShowtime(ShowtimeRequest request) {
         Movie movie = movieRepository.findById(request.getMovieId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim với ID: " + request.getMovieId()));
@@ -239,10 +240,10 @@ public class ShowtimeService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng với ID: " + request.getFormatId()));
 
         LocalDateTime startTime = request.getStartTime();
-        int cleaningTime = request.getCleaningTime() != null ? request.getCleaningTime() : 15;
-        // Assume duration is in minutes
-        int duration = movie.getDurationMins() != null ? movie.getDurationMins() : 120; 
-        LocalDateTime endTime = startTime.plusMinutes(duration + cleaningTime);
+        // NGUỒN DUY NHẤT: thời gian dọn dẹp bốc từ chính phòng (Room.turnaroundTimeMins), không nhận từ FE.
+        int turnaround = turnaroundOf(room);
+        int duration = movie.getDurationMins() != null ? movie.getDurationMins() : 120;
+        LocalDateTime endTime = startTime.plusMinutes(duration + turnaround);
 
         boolean hasConflict = showtimeRepository.hasConflict(room.getId(), startTime, endTime);
         if (hasConflict) {
@@ -292,9 +293,7 @@ public class ShowtimeService {
             throw new IllegalArgumentException("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
         }
 
-        int cleaningTime = req.getCleaningTime() != null ? req.getCleaningTime() : 15;
         int duration = movie.getDurationMins() != null ? movie.getDurationMins() : 120;
-        int blockMins = duration + cleaningTime;
 
         // Nạp phòng theo id, giữ thứ tự để đặt tên trong báo cáo
         Map<Integer, Room> roomMap = new LinkedHashMap<>();
@@ -338,10 +337,11 @@ public class ShowtimeService {
 
             for (java.time.LocalTime time : times) {
                 LocalDateTime start = date.atTime(time);
-                LocalDateTime end = start.plusMinutes(blockMins);
 
                 for (Integer roomId : req.getRoomIds()) {
                     Room room = roomMap.get(roomId);
+                    // endTime tính theo turnaround của CHÍNH phòng (mỗi phòng có thể khác nhau).
+                    LocalDateTime end = start.plusMinutes(duration + turnaroundOf(room));
                     if (start.isBefore(now)) {
                         skipped.add(skip(roomId, room.getName(), start, "Đã qua giờ chiếu"));
                         continue;
@@ -387,25 +387,104 @@ public class ShowtimeService {
     @org.springframework.transaction.annotation.Transactional
     public void updateShowtime(Integer id, java.util.Map<String, Object> updates) {
         Showtime showtime = showtimeRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Showtime not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy suất chiếu."));
 
-        if (updates.containsKey("roomId")) {
-            Integer roomId = (Integer) updates.get("roomId");
-            Room room = roomRepository.findById(roomId)
-                    .orElseThrow(() -> new IllegalArgumentException("Room not found"));
-            showtime.setRoom(room);
+        // Phòng đích: phòng mới (nếu đổi) hoặc phòng hiện tại.
+        Room targetRoom = showtime.getRoom();
+        if (updates.containsKey("roomId") && updates.get("roomId") != null) {
+            Integer roomId = ((Number) updates.get("roomId")).intValue();
+            targetRoom = roomRepository.findById(roomId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng chiếu."));
         }
 
-        if (updates.containsKey("startTime")) {
-            LocalDateTime startTime = LocalDateTime.parse((String) updates.get("startTime"));
-            int duration = showtime.getMovie().getDurationMins();
-            int cleaningTime = updates.containsKey("cleaningTime") ? (Integer) updates.get("cleaningTime") : 15;
-            LocalDateTime endTime = startTime.plusMinutes(duration).plusMinutes(cleaningTime);
-
-            showtime.setStartTime(startTime);
-            showtime.setEndTime(endTime);
+        // Giờ bắt đầu đích: giờ mới (nếu đổi) hoặc giữ nguyên.
+        LocalDateTime targetStart = showtime.getStartTime();
+        if (updates.containsKey("startTime") && updates.get("startTime") != null) {
+            targetStart = LocalDateTime.parse((String) updates.get("startTime"));
         }
 
+        // endTime luôn tính lại từ thời lượng phim + turnaround của PHÒNG ĐÍCH (nguồn duy nhất).
+        int duration = showtime.getMovie().getDurationMins() != null ? showtime.getMovie().getDurationMins() : 120;
+        LocalDateTime targetEnd = targetStart.plusMinutes(duration + turnaroundOf(targetRoom));
+
+        // VÁ LỖ HỔNG: chặn đổi giờ/phòng gây chồng lấn (bỏ qua chính suất đang sửa).
+        if (showtimeRepository.hasConflictExcluding(targetRoom.getId(), targetStart, targetEnd, id)) {
+            throw new IllegalStateException(
+                    "Phòng chiếu đã có lịch trong khung giờ này (gồm thời gian dọn dẹp). Vui lòng chọn giờ/phòng khác.");
+        }
+
+        showtime.setRoom(targetRoom);
+        showtime.setStartTime(targetStart);
+        showtime.setEndTime(targetEnd);
         showtimeRepository.save(showtime);
+    }
+
+    /**
+     * Xoá một suất chiếu. Guard: nếu suất đã có vé BÁN/GIỮ (BookingSeat SOLD/HOLD) thì TỪ CHỐI —
+     * phải hoàn tiền/huỷ vé trước, tránh xoá suất làm mồ côi đơn hàng.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public void deleteShowtime(Integer id) {
+        Showtime showtime = showtimeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy suất chiếu."));
+        long reserved = bookingSeatRepository.countReservedByShowtime(id);
+        if (reserved > 0) {
+            throw new IllegalStateException("Suất chiếu đã có " + reserved
+                    + " vé được bán/giữ chỗ. Vui lòng huỷ/hoàn tiền các vé này trước khi xoá suất chiếu.");
+        }
+        showtimeRepository.delete(showtime);
+    }
+
+    /** Chi tiết một suất chiếu kèm số liệu vé/doanh thu THỰC TẾ (cho drawer quản trị). */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public com.devcine.backend.dto.response.ShowtimeDetailResponse getShowtimeDetail(Integer id) {
+        Showtime s = showtimeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy suất chiếu."));
+
+        Movie m = s.getMovie();
+        Room room = s.getRoom();
+
+        int totalSeats = 0;
+        for (Object[] row : seatRepository.countSellableSeatsByRoomIds(java.util.List.of(room.getId()))) {
+            totalSeats = ((Number) row[1]).intValue();
+        }
+        long sold = bookingSeatRepository.countSoldByShowtime(id);
+        long held = bookingSeatRepository.countHeldByShowtime(id);
+        java.math.BigDecimal revenue = bookingSeatRepository.sumSoldRevenueByShowtime(id);
+
+        return com.devcine.backend.dto.response.ShowtimeDetailResponse.builder()
+                .id(s.getId())
+                .status(s.getStatus())
+                .startTime(s.getStartTime())
+                .endTime(s.getEndTime())
+                .movieId(m.getId())
+                .movieTitle(m.getTitle())
+                .movieTitleVietnamese(m.getTitleVietnamese())
+                .posterUrl(m.getPosterUrl())
+                .ageRating(m.getAgeRating())
+                .durationMins(m.getDurationMins())
+                .director(m.getDirector())
+                .castMembers(m.getCastMembers())
+                .description(m.getDescription())
+                .versionType(m.getVersionType())
+                .genres(m.getGenres() != null
+                        ? m.getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet())
+                        : new HashSet<>())
+                .formatId(s.getFormat().getId())
+                .formatName(s.getFormat().getName())
+                .roomId(room.getId())
+                .roomName(room.getName())
+                .cinemaName(room.getCinema().getName())
+                .totalSeats(totalSeats)
+                .soldSeats(sold)
+                .heldSeats(held)
+                .availableSeats(Math.max(0, totalSeats - sold - held))
+                .revenue(revenue != null ? revenue : java.math.BigDecimal.ZERO)
+                .build();
+    }
+
+    /** Thời gian dọn dẹp (phút) của phòng — nguồn duy nhất; mặc định 15 nếu chưa cấu hình. */
+    private int turnaroundOf(Room room) {
+        return room.getTurnaroundTimeMins() != null ? room.getTurnaroundTimeMins() : 15;
     }
 }

@@ -24,9 +24,13 @@ import CinemaAnalyticsTab from "@/components/organisms/admin/CinemaAnalyticsTab.
 import CinemaConfigTab from "@/components/organisms/admin/CinemaConfigTab.vue";
 import CreateCinemaModal from "@/components/organisms/admin/CreateCinemaModal.vue";
 import RoomFormModal from "@/components/organisms/admin/RoomFormModal.vue";
-import CleaningSettingsModal from "@/components/organisms/admin/CleaningSettingsModal.vue";
 import CinemaSeatMapView from "@/components/organisms/admin/CinemaSeatMapView.vue";
 import ShowtimeDetailsDrawer from "@/components/organisms/admin/ShowtimeDetailsDrawer.vue";
+import api from "@/api/axios";
+import { friendlyError } from "@/utils/friendlyError";
+import { useConfirmStore } from "@/stores/confirm";
+
+const confirm = useConfirmStore();
 
 const {
   cinemas,
@@ -127,14 +131,48 @@ const closeDetail = () => {
 
 // Drawer state
 const showDrawer = ref(false);
-const selectedShowtime = ref(null);
+const selectedShowtime = ref(null);   // object card timeline (id, roomId, movie, startTime...)
+const showtimeDetail = ref(null);     // dữ liệu THỰC TẾ từ API /showtimes/{id}/detail
+const isLoadingShowtimeDetail = ref(false);
 const showAddShowtimeDrawer = ref(false);
 const showBatchShowtimeDrawer = ref(false);
 const showSeatMapModal = ref(false);
 
-const openShowtimeDetails = (show) => {
+const openShowtimeDetails = async (show) => {
   selectedShowtime.value = show;
+  showtimeDetail.value = null;
   showDrawer.value = true;
+  isLoadingShowtimeDetail.value = true;
+  try {
+    const { data } = await api.get(`/showtimes/${show.id}/detail`);
+    showtimeDetail.value = data;
+  } catch (e) {
+    toast.error(friendlyError(e, "Không tải được chi tiết suất chiếu."));
+  } finally {
+    isLoadingShowtimeDetail.value = false;
+  }
+};
+
+// Xoá suất chiếu — backend chặn nếu đã có vé bán/giữ (yêu cầu hoàn/huỷ vé trước).
+const handleDeleteShowtime = async () => {
+  const st = selectedShowtime.value;
+  if (!st) return;
+  const ok = await confirm.show({
+    title: "Xoá suất chiếu",
+    message: "Xác nhận xoá suất chiếu này? Thao tác không thể hoàn tác.",
+    confirmText: "Xoá suất chiếu",
+    cancelText: "Đóng",
+    tone: "danger",
+  });
+  if (!ok) return;
+  try {
+    await api.delete(`/showtimes/${st.id}`);
+    toast.success("Đã xoá suất chiếu.");
+    closeDrawer();
+    await loadCinemaDetail(selectedCinema.value);
+  } catch (e) {
+    toast.error(friendlyError(e, "Không thể xoá suất chiếu."));
+  }
 };
 
 // Chỉ mở drawer Thêm suất chiếu khi cụm rạp đã có phòng chiếu
@@ -149,6 +187,7 @@ const handleAddShowtime = () => {
 const closeDrawer = () => {
   showDrawer.value = false;
   selectedShowtime.value = null;
+  showtimeDetail.value = null;
 };
 
 // Time tracking
@@ -182,9 +221,6 @@ onMounted(() => {
 onUnmounted(() => {
   clearInterval(timer);
 });
-
-// Settings modal
-const showCleaningSettingsModal = ref(false);
 
 </script>
 
@@ -317,7 +353,6 @@ const showCleaningSettingsModal = ref(false);
             :can-schedule="can('schedules', 'add')"
             :can-schedule-edit="can('schedules', 'edit')"
             @update:selectedDate="(d) => selectedDate = d"
-            @open-settings="showCleaningSettingsModal = true"
             @add-showtime="handleAddShowtime"
             @open-batch="showBatchShowtimeDrawer = true"
             @publish="handlePublish"
@@ -394,25 +429,17 @@ const showCleaningSettingsModal = ref(false);
       </div>
     </div>
 
-    <CleaningSettingsModal
-      :show="showCleaningSettingsModal"
-      :cinema="selectedCinema"
-      @close="showCleaningSettingsModal = false"
-      @save="(time) => {
-        if (selectedCinema) selectedCinema.cleaningTime = time;
-        showCleaningSettingsModal = false;
-      }"
-    />
-
     <ShowtimeDetailsDrawer
       :show="showDrawer"
       :show-seat-map-only="showSeatMapModal"
-      :showtime="selectedShowtime"
+      :detail="showtimeDetail"
+      :is-loading="isLoadingShowtimeDetail"
       :cinema="selectedCinema"
       :get-end-time="getEndTime"
       @close="closeDrawer"
       @close-seat-map="showSeatMapModal = false"
       @open-seat-map="showSeatMapModal = true"
+      @delete="handleDeleteShowtime"
     />
 
     <ShowtimeDrawer

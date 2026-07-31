@@ -23,7 +23,7 @@ watch(() => props.show, (open) => {
     form.name = props.initial.name || ''
     form.type = props.initial.type || 'Standard'
     form.status = props.initial.status === 'Maintenance' ? 'Maintenance' : 'Active'
-    form.turnaroundTimeMins = props.initial.turnaroundTimeMins ?? props.initial.cleaningTime ?? 15
+    form.turnaroundTimeMins = props.initial.turnaroundTimeMins ?? 15
     form.matrixRow = props.initial.rows ?? props.initial.matrixRow ?? 8
     form.matrixCol = props.initial.cols ?? props.initial.matrixCol ?? 10
   } else {
