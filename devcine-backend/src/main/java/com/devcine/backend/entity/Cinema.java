@@ -3,6 +3,8 @@ package com.devcine.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalTime;
+
 @Entity
 @Table(name = "cinemas")
 @Getter
@@ -58,6 +60,14 @@ public class Cinema {
     /** Trạng thái hoạt động: ACTIVE / MAINTENANCE / CLOSED. */
     @Column(length = 20)
     private String status;
+
+    /** Giờ mở cửa (mặc định 08:00). Dùng cho ma trận timeline động + kiểm soát ràng buộc suất chiếu. */
+    @Column(name = "opening_time")
+    private LocalTime openingTime;
+
+    /** Giờ đóng cửa (mặc định 23:30). Nếu <= openingTime ⇒ đóng cửa RẠNG SÁNG hôm sau (suất khuya). */
+    @Column(name = "closing_time")
+    private LocalTime closingTime;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id")

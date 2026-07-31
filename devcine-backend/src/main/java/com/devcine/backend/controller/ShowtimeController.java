@@ -82,8 +82,7 @@ public class ShowtimeController {
     @PreAuthorize("@perm.can('schedules', 'add')")
     public ResponseEntity<?> createShowtime(@Valid @RequestBody ShowtimeRequest request) {
         try {
-            ShowtimeDTO dto = showtimeService.createShowtime(request);
-            return ResponseEntity.ok(ApiResponse.ok(dto));
+            return ResponseEntity.ok(ApiResponse.ok(showtimeService.createShowtime(request)));
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }

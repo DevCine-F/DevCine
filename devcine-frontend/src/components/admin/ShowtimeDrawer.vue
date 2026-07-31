@@ -3,9 +3,11 @@ import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue';
 import api from '@/api/axios';
 import CustomSelect from './CustomSelect.vue';
 import { useToastStore } from '@/stores/toast';
+import { useConfirmStore } from '@/stores/confirm';
 import { friendlyError } from '@/utils/friendlyError';
 
 const toast = useToastStore();
+const confirm = useConfirmStore();
 
 const props = defineProps({
   isOpen: Boolean,
@@ -149,27 +151,41 @@ const focusFirstError = async (fieldRef) => {
   el.querySelector('input, button, select, [tabindex]')?.focus?.();
 };
 
+// Gửi tạo suất; force=true khi admin đã xác nhận suất khuya (kết thúc quá giờ đóng cửa).
+const submit = async (formattedStartTime, force) => {
+  const { data } = await api.post('/showtimes', {
+    movieId: parseInt(form.movieId),
+    roomId: parseInt(form.roomId),
+    formatId: parseInt(form.formatId),
+    startTime: formattedStartTime,
+    force
+  });
+  // BE trả requiresConfirmation khi suất kết thúc quá giờ đóng cửa → hỏi rồi gửi lại force.
+  if (data?.requiresConfirmation) {
+    const ok = await confirm.show({
+      title: 'Suất chiếu khuya',
+      message: data.message || 'Suất chiếu kết thúc sau giờ đóng cửa. Vẫn tạo?',
+      confirmText: 'Vẫn tạo',
+      cancelText: 'Huỷ',
+      tone: 'primary',
+    });
+    if (ok) return submit(formattedStartTime, true);
+    return;
+  }
+  toast.success('Đã thêm suất chiếu.');
+  emit('saved');
+  emit('close');
+};
+
 const handleSave = async () => {
   const badField = validate();
   if (badField) { focusFirstError(badField); return; }
 
   try {
-    // Combine selectedDate (e.g. "12/06") and time (e.g. "14" + "30")
-    // Assuming current year for mock API
     const year = new Date().getFullYear();
     const [day, month] = props.selectedDate.split('/');
     const formattedStartTime = `${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`;
-
-    await api.post('/showtimes', {
-      movieId: parseInt(form.movieId),
-      roomId: parseInt(form.roomId),
-      formatId: parseInt(form.formatId),
-      startTime: formattedStartTime
-    });
-
-    toast.success('Đã thêm suất chiếu.');
-    emit('saved');
-    emit('close');
+    await submit(formattedStartTime, false);
   } catch (error) {
     toast.error(friendlyError(error, 'Có lỗi xảy ra khi lưu suất chiếu.'));
   }

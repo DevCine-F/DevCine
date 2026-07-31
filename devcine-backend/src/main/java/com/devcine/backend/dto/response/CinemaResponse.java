@@ -28,6 +28,11 @@ public class CinemaResponse {
     private String status;
     private Integer managerId;
     private String managerName;
+    private String openingTime;  // "HH:mm" (default 08:00 nếu null)
+    private String closingTime;  // "HH:mm" (default 23:30 nếu null)
+
+    private static final java.time.format.DateTimeFormatter HM =
+            java.time.format.DateTimeFormatter.ofPattern("HH:mm");
 
     public static CinemaResponse fromEntity(Cinema cinema) {
         return CinemaResponse.builder()
@@ -47,6 +52,8 @@ public class CinemaResponse {
                 .status(cinema.getStatus())
                 .managerId(cinema.getManager() != null ? cinema.getManager().getUserId() : null)
                 .managerName((cinema.getManager() != null && cinema.getManager().getUser() != null) ? cinema.getManager().getUser().getFullName() : null)
+                .openingTime(cinema.getOpeningTime() != null ? cinema.getOpeningTime().format(HM) : "08:00")
+                .closingTime(cinema.getClosingTime() != null ? cinema.getClosingTime().format(HM) : "23:30")
                 .build();
     }
 }

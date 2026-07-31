@@ -22,6 +22,12 @@ public class BatchShowtimeResult {
 
     private List<SkippedSlot> skipped;
 
+    /** Suất hợp lệ nhưng KẾT THÚC quá giờ đóng cửa — cần admin xác nhận (force) mới tạo. */
+    private List<SkippedSlot> warnings;
+
+    /** true khi có warnings & chưa force: FE hiện xác nhận, gửi lại với force=true. */
+    private boolean requiresConfirmation;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

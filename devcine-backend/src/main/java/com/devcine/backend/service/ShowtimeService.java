@@ -231,7 +231,7 @@ public class ShowtimeService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public ShowtimeDTO createShowtime(ShowtimeRequest request) {
+    public com.devcine.backend.dto.response.ShowtimeCreateResult createShowtime(ShowtimeRequest request) {
         Movie movie = movieRepository.findById(request.getMovieId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim với ID: " + request.getMovieId()));
         Room room = roomRepository.findById(request.getRoomId())
@@ -245,9 +245,30 @@ public class ShowtimeService {
         int duration = movie.getDurationMins() != null ? movie.getDurationMins() : 120;
         LocalDateTime endTime = startTime.plusMinutes(duration + turnaround);
 
+        // ===== Constraint Engine: kiểm soát theo giờ hoạt động của cụm rạp =====
+        Cinema cinema = room.getCinema();
+        int[] win = cinemaWindow(cinema);       // [openMin, closeMin] (closeMin đã +1440 nếu qua nửa đêm)
+        int startPos = posOf(startTime.toLocalTime(), win[0]);
+        int endPos = startPos + duration + turnaround;
+        // RULE A — chặn cứng: suất bắt đầu ngoài giờ hoạt động.
+        if (startPos < win[0] || startPos >= win[1]) {
+            throw new IllegalArgumentException("Suất chiếu bắt đầu ngoài giờ hoạt động của rạp ("
+                    + fmtMin(win[0]) + "–" + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
+        }
+
         boolean hasConflict = showtimeRepository.hasConflict(room.getId(), startTime, endTime);
         if (hasConflict) {
             throw new IllegalStateException("Phòng chiếu đã có lịch trong khung giờ này (Bao gồm thời gian dọn dẹp). Vui lòng chọn giờ khác.");
+        }
+
+        // RULE B — cảnh báo + xác nhận: suất kết thúc quá giờ đóng cửa (không chặn, chờ force).
+        if (endPos > win[1] && !request.isForce()) {
+            return com.devcine.backend.dto.response.ShowtimeCreateResult.builder()
+                    .requiresConfirmation(true)
+                    .endTime(fmtMin(endPos))
+                    .message("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
+                            + fmtMin(win[1]) + "). Bạn có chắc muốn tạo suất khuya này?")
+                    .build();
         }
 
         Showtime showtime = Showtime.builder()
@@ -261,17 +282,20 @@ public class ShowtimeService {
 
         Showtime saved = showtimeRepository.save(showtime);
 
-        return ShowtimeDTO.builder()
-                .id(saved.getId())
-                .roomId(room.getId())
-                .roomName(room.getName())
-                .formatId(format.getId())
-                .formatName(format.getName())
-                .startTime(saved.getStartTime())
-                .endTime(saved.getEndTime())
-                .status(saved.getStatus())
-                .movie(movie.getTitle())
-                .duration(movie.getDurationMins())
+        return com.devcine.backend.dto.response.ShowtimeCreateResult.builder()
+                .requiresConfirmation(false)
+                .showtime(ShowtimeDTO.builder()
+                        .id(saved.getId())
+                        .roomId(room.getId())
+                        .roomName(room.getName())
+                        .formatId(format.getId())
+                        .formatName(format.getName())
+                        .startTime(saved.getStartTime())
+                        .endTime(saved.getEndTime())
+                        .status(saved.getStatus())
+                        .movie(movie.getTitle())
+                        .duration(movie.getDurationMins())
+                        .build())
                 .build();
     }
 
@@ -328,9 +352,15 @@ public class ShowtimeService {
                     .add(new LocalDateTime[]{ s.getStartTime(), s.getEndTime() });
         }
 
+        // Giờ hoạt động theo TỪNG phòng (mỗi phòng có thể thuộc cụm rạp khác nhau) — tính 1 lần.
+        Map<Integer, int[]> windowByRoom = new HashMap<>();
+        roomMap.forEach((rid, r) -> windowByRoom.put(rid, cinemaWindow(r.getCinema())));
+
         LocalDateTime now = LocalDateTime.now();
         List<Showtime> toSave = new ArrayList<>();
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> skipped = new ArrayList<>();
+        // Suất hợp lệ nhưng KẾT THÚC quá giờ đóng cửa — chỉ tạo khi force.
+        List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> warnings = new ArrayList<>();
 
         for (LocalDate date = req.getDateFrom(); !date.isAfter(req.getDateTo()); date = date.plusDays(1)) {
             if (daysFilter != null && !daysFilter.contains(date.getDayOfWeek().getValue())) continue;
@@ -346,14 +376,30 @@ public class ShowtimeService {
                         skipped.add(skip(roomId, room.getName(), start, "Đã qua giờ chiếu"));
                         continue;
                     }
+                    // RULE A — chặn cứng: suất bắt đầu ngoài giờ hoạt động của cụm rạp.
+                    int[] win = windowByRoom.get(roomId);
+                    int startPos = posOf(time, win[0]);
+                    int endPos = startPos + duration + turnaroundOf(room);
+                    if (startPos < win[0] || startPos >= win[1]) {
+                        skipped.add(skip(roomId, room.getName(), start,
+                                "Ngoài giờ hoạt động (" + fmtMin(win[0]) + "–" + fmtMin(win[1]) + ")"));
+                        continue;
+                    }
                     List<LocalDateTime[]> busy = busyByRoom.computeIfAbsent(roomId, k -> new ArrayList<>());
                     boolean overlap = busy.stream().anyMatch(iv -> start.isBefore(iv[1]) && end.isAfter(iv[0]));
                     if (overlap) {
                         skipped.add(skip(roomId, room.getName(), start, "Trùng lịch phòng (gồm giờ dọn dẹp)"));
                         continue;
                     }
-                    // Nhận suất: giữ chỗ để các suất sau trong lô không đè
+                    // Giữ chỗ để các suất sau trong lô không đè (kể cả suất khuya cảnh báo).
                     busy.add(new LocalDateTime[]{ start, end });
+                    boolean afterClosing = endPos > win[1];
+                    if (afterClosing) {
+                        warnings.add(skip(roomId, room.getName(), start,
+                                "Kết thúc " + fmtMin(endPos) + " quá giờ đóng cửa (" + fmtMin(win[1]) + ")"));
+                        // Chỉ đưa vào danh sách ghi khi admin đã xác nhận (force).
+                        if (!req.isForce()) continue;
+                    }
                     toSave.add(Showtime.builder()
                             .movie(movie).room(room).format(format)
                             .startTime(start).endTime(end)
@@ -363,16 +409,23 @@ public class ShowtimeService {
             }
         }
 
+        // All-or-nothing: còn suất khuya chưa xác nhận ⇒ chưa ghi, yêu cầu FE xác nhận rồi gửi lại force.
+        boolean requiresConfirmation = !warnings.isEmpty() && !req.isForce();
+        int toCreate = toSave.size() + (req.isForce() ? 0 : warnings.size());
+
         int created = 0;
-        if (!req.isDryRun() && !toSave.isEmpty()) {
+        // Chỉ ghi khi KHÔNG dryRun VÀ không còn suất khuya chờ xác nhận (all-or-nothing).
+        if (!req.isDryRun() && !requiresConfirmation && !toSave.isEmpty()) {
             showtimeRepository.saveAll(toSave);
             created = toSave.size();
         }
 
         return com.devcine.backend.dto.response.BatchShowtimeResult.builder()
-                .toCreate(toSave.size())
+                .toCreate(toCreate)
                 .createdCount(created)
                 .skipped(skipped)
+                .warnings(warnings)
+                .requiresConfirmation(requiresConfirmation)
                 .build();
     }
 
@@ -486,5 +539,31 @@ public class ShowtimeService {
     /** Thời gian dọn dẹp (phút) của phòng — nguồn duy nhất; mặc định 15 nếu chưa cấu hình. */
     private int turnaroundOf(Room room) {
         return room.getTurnaroundTimeMins() != null ? room.getTurnaroundTimeMins() : 15;
+    }
+
+    /**
+     * Cửa sổ giờ hoạt động của cụm rạp theo phút [openMin, closeMin].
+     * Nếu giờ đóng ≤ giờ mở ⇒ đóng cửa RẠNG SÁNG hôm sau → closeMin += 1440 (suất khuya vắt qua nửa đêm).
+     */
+    private int[] cinemaWindow(Cinema cinema) {
+        java.time.LocalTime open = cinema.getOpeningTime() != null ? cinema.getOpeningTime() : java.time.LocalTime.of(8, 0);
+        java.time.LocalTime close = cinema.getClosingTime() != null ? cinema.getClosingTime() : java.time.LocalTime.of(23, 30);
+        int openMin = open.getHour() * 60 + open.getMinute();
+        int closeMin = close.getHour() * 60 + close.getMinute();
+        if (closeMin <= openMin) closeMin += 1440;
+        return new int[]{ openMin, closeMin };
+    }
+
+    /** Vị trí (phút) của một mốc giờ trên trục ngày vận hành: giờ < giờ mở ⇒ +1440 (thuộc phần khuya). */
+    private int posOf(java.time.LocalTime t, int openMin) {
+        int m = t.getHour() * 60 + t.getMinute();
+        if (m < openMin) m += 1440;
+        return m;
+    }
+
+    /** Định dạng phút-trong-ngày-vận-hành thành "HH:mm" (chia dư 1440 để hiển thị giờ đồng hồ). */
+    private String fmtMin(int min) {
+        int m = ((min % 1440) + 1440) % 1440;
+        return String.format("%02d:%02d", m / 60, m % 60);
     }
 }

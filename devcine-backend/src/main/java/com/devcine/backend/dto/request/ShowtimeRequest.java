@@ -25,4 +25,7 @@ public class ShowtimeRequest {
     @NotNull(message = "Start time is required")
     private LocalDateTime startTime;
     // Thời gian dọn dẹp KHÔNG nhận từ FE nữa — bốc trực tiếp từ Room.turnaroundTimeMins ở service.
+
+    /** true = admin đã xác nhận tạo dù suất kết thúc quá giờ đóng cửa (suất khuya). */
+    private boolean force;
 }

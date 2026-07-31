@@ -1,12 +1,22 @@
-import { ref, computed } from "vue";
+import { ref, computed, onScopeDispose } from "vue";
 import axios from "@/api/axios";
 import { useToastStore } from "@/stores/toast";
 import { friendlyError } from "@/utils/friendlyError";
 
+// Bề rộng mỗi ô 15 phút trên timeline (px) — dùng tính min-width vùng cuộn.
+export const PX_PER_COL = 34;
+
 export function useShowtimes(selectedCinema) {
   const toast = useToastStore();
   const draggedShow = ref(null);
-  
+
+  const parseHM = (s, fallback) => {
+    if (!s || typeof s !== "string") return fallback;
+    const [h, m] = s.split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return fallback;
+    return h * 60 + m;
+  };
+
   const generateDates = () => {
     const today = new Date();
     return Array.from({ length: 5 }, (_, i) => {
@@ -25,9 +35,52 @@ export function useShowtimes(selectedCinema) {
   const selectedDate = ref(dates[1].date);
   const isToday = computed(() => selectedDate.value === dates[1].date);
 
+  // ===== Cửa sổ giờ hoạt động động (co giãn theo cụm rạp) =====
+  // openMin/closeMin theo phút; nếu đóng ≤ mở ⇒ qua nửa đêm (closeMin += 1440).
+  // endMin = max(closeMin, kết thúc suất muộn nhất trong ngày) làm tròn lên giờ ⇒ suất khuya luôn render trọn.
+  const gridWindow = computed(() => {
+    const c = selectedCinema.value;
+    const openMin = parseHM(c?.openingTime, 8 * 60);
+    let closeMin = parseHM(c?.closingTime, 23 * 60 + 30);
+    if (closeMin <= openMin) closeMin += 1440;
+
+    let endMin = closeMin;
+    const shows = (c?.shows || []).filter((s) => s.date === selectedDate.value);
+    for (const s of shows) {
+      const hall = c?.halls?.find((h) => h.id === s.roomId);
+      const turn = Number(hall?.turnaroundTimeMins ?? 15);
+      let startPos = parseHM(s.startTime, openMin);
+      if (startPos < openMin) startPos += 1440; // suất khuya thuộc phần đuôi timeline
+      const e = startPos + Number(s.duration) + turn;
+      if (e > endMin) endMin = e;
+    }
+    endMin = Math.ceil(endMin / 60) * 60; // làm tròn mép phải lên giờ
+    const cols = Math.max(4, Math.ceil((endMin - openMin) / 15));
+    return { openMin, closeMin, endMin, cols };
+  });
+
+  const gridCols = computed(() => gridWindow.value.cols);
+
+  // Nhãn giờ trên thước — đặt theo % trái, bền vững kể cả giờ mở lệch 30'.
+  const hourMarks = computed(() => {
+    const { openMin, endMin } = gridWindow.value;
+    const span = endMin - openMin || 1;
+    const marks = [];
+    const firstHour = Math.ceil(openMin / 60) * 60;
+    for (let m = firstHour; m <= endMin; m += 60) {
+      marks.push({
+        label: `${String(Math.floor((m / 60) % 24)).padStart(2, "0")}:00`,
+        leftPct: `${((m - openMin) / span) * 100}%`,
+      });
+    }
+    return marks;
+  });
+
   const getGridStyle = (startTime, duration) => {
-    const [hour, minute] = startTime.split(":").map(Number);
-    const startUnit = (hour - 8) * 4 + Math.floor(minute / 15) + 1;
+    const { openMin } = gridWindow.value;
+    let startPos = parseHM(startTime, openMin);
+    if (startPos < openMin) startPos += 1440; // suất sau nửa đêm → phần đuôi
+    const startUnit = Math.round((startPos - openMin) / 15) + 1;
     const spanUnit = Math.ceil(duration / 15);
     return {
       gridColumnStart: startUnit,
@@ -35,6 +88,28 @@ export function useShowtimes(selectedCinema) {
       gridRow: '1',
     };
   };
+
+  // ===== Chỉ báo "thời gian hiện tại" theo cửa sổ động =====
+  const clockNow = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const nowMin = ref(clockNow());
+  const nowTimer = setInterval(() => { nowMin.value = clockNow(); }, 60000);
+  onScopeDispose(() => clearInterval(nowTimer));
+
+  const showNowIndicator = computed(() => {
+    if (!isToday.value) return false;
+    const { openMin, endMin } = gridWindow.value;
+    let n = nowMin.value;
+    if (n < openMin) n += 1440;
+    return n >= openMin && n <= endMin;
+  });
+
+  const currentTimeLeft = computed(() => {
+    const { openMin, endMin } = gridWindow.value;
+    let n = nowMin.value;
+    if (n < openMin) n += 1440;
+    const span = endMin - openMin || 1;
+    return `${Math.min(100, Math.max(0, ((n - openMin) / span) * 100))}%`;
+  });
 
   const getEndTime = (startTime, duration = 120) => {
     const [hour, minute] = startTime.split(":").map(Number);
@@ -152,6 +227,10 @@ export function useShowtimes(selectedCinema) {
     dates,
     selectedDate,
     isToday,
+    gridCols,
+    hourMarks,
+    showNowIndicator,
+    currentTimeLeft,
     getGridStyle,
     getEndTime,
     timeToMinutes,

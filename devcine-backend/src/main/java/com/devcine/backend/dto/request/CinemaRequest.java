@@ -58,4 +58,11 @@ public class CinemaRequest {
     private String status;
 
     private Integer managerId;
+
+    // Giờ hoạt động dạng "HH:mm" (String để tránh nhập nhằng serialize LocalTime của Jackson).
+    @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "Giờ mở cửa phải theo định dạng HH:mm")
+    private String openingTime;
+
+    @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "Giờ đóng cửa phải theo định dạng HH:mm")
+    private String closingTime;
 }

@@ -1,5 +1,7 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   cinema: {
     type: Object,
     required: true
@@ -16,9 +18,20 @@ defineProps({
     type: Boolean,
     default: false
   },
-  currentMinuteOffset: {
+  // Số cột 15' của lưới (co giãn theo giờ hoạt động rạp).
+  gridCols: {
     type: Number,
-    default: 0
+    default: 72
+  },
+  // Nhãn giờ trên thước: [{ label, leftPct }].
+  hourMarks: {
+    type: Array,
+    default: () => []
+  },
+  // Có hiển thị vạch thời gian hiện tại không.
+  showNow: {
+    type: Boolean,
+    default: false
   },
   currentTimeLeft: {
     type: String,
@@ -59,6 +72,12 @@ defineEmits([
   'drop',
   'open-showtime'
 ])
+
+const PX_PER_COL = 34 // bề rộng mỗi ô 15'
+const LABEL_COL_PX = 192 // cột "Room \ Time" (w-48)
+const gridTemplate = computed(() => `repeat(${props.gridCols}, minmax(0, 1fr))`)
+const gridMinWidth = computed(() => `${props.gridCols * PX_PER_COL}px`)
+const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER_COL}px`)
 </script>
 
 <template>
@@ -119,7 +138,7 @@ defineEmits([
       class="flex-grow overflow-x-auto overflow-y-auto scrollbar-hide relative bg-[#0b111e]"
     >
       <!-- Main Wrapper -->
-      <div class="min-w-[2400px] flex flex-col min-h-full relative">
+      <div class="flex flex-col min-h-full relative" :style="{ minWidth: wrapperMinWidth }">
         <!-- Time Ruler -->
         <div
           class="flex border-b border-outline-variant/10 bg-[#0b111e] flex-shrink-0 sticky top-0 z-40"
@@ -129,25 +148,25 @@ defineEmits([
           >
             Room \ Time
           </div>
-          <div
-            class="flex-grow grid grid-cols-[repeat(72,minmax(0,1fr))] relative h-10"
-          >
+          <div class="flex-grow relative h-10" :style="{ minWidth: gridMinWidth }">
             <div
-              v-for="hour in 18"
-              :key="hour"
-              class="col-span-4 border-r border-outline-variant/10 flex items-center justify-start pl-2 text-[9px] font-black text-on-surface-variant/30"
+              v-for="mark in hourMarks"
+              :key="mark.label + mark.leftPct"
+              class="absolute top-0 bottom-0 flex items-center pl-1 text-[9px] font-black text-on-surface-variant/30 border-l border-outline-variant/10"
+              :style="{ left: mark.leftPct }"
             >
-              {{ ((hour + 7) % 24).toString().padStart(2, "0") }}:00
+              {{ mark.label }}
             </div>
           </div>
         </div>
 
         <!-- Vertical Grid Lines -->
         <div
-          class="absolute inset-0 top-10 grid grid-cols-[repeat(72,minmax(0,1fr))] pointer-events-none pl-48 z-0"
+          class="absolute inset-0 top-10 grid pointer-events-none pl-48 z-0"
+          :style="{ gridTemplateColumns: gridTemplate }"
         >
           <div
-            v-for="i in 72"
+            v-for="i in gridCols"
             :key="i"
             :class="
               i % 4 === 0
@@ -157,10 +176,10 @@ defineEmits([
             class="h-full"
           ></div>
         </div>
-        
+
         <!-- Current Time Indicator -->
         <div
-          v-if="isToday && currentMinuteOffset >= 0 && currentMinuteOffset <= 960"
+          v-if="showNow"
           class="absolute top-10 bottom-0 left-48 right-0 pointer-events-none z-30"
         >
           <div
@@ -206,7 +225,8 @@ defineEmits([
             <div
               @dragover.prevent
               @drop="$emit('drop', $event, hall.id)"
-              class="flex-grow grid grid-cols-[repeat(72,minmax(0,1fr))] grid-rows-1 gap-x-0 relative p-0 items-center min-w-[2200px]"
+              class="flex-grow grid grid-rows-1 gap-x-0 relative p-0 items-center"
+              :style="{ gridTemplateColumns: gridTemplate, minWidth: gridMinWidth }"
             >
               <div
                 v-for="show in cinema.shows.filter(

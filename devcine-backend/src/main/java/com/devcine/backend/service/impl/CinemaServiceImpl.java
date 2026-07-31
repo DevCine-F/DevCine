@@ -30,6 +30,12 @@ public class CinemaServiceImpl implements CinemaService {
     private static final Set<String> ALLOWED_TYPES = Set.of("Standard", "Superplex", "Cine Comfort", "Sweetbox");
     private static final Set<String> ALLOWED_STATUS = Set.of("ACTIVE", "MAINTENANCE", "CLOSED");
 
+    /** Parse "HH:mm" -> LocalTime (null nếu rỗng). Định dạng đã được @Pattern chặn ở DTO. */
+    private java.time.LocalTime parseTime(String s) {
+        if (s == null || s.isBlank()) return null;
+        return java.time.LocalTime.parse(s.trim());
+    }
+
     /** Cắt khoảng trắng đầu/cuối + gộp khoảng trắng kép ở giữa. */
     private String clean(String s) {
         if (s == null) return null;
@@ -140,6 +146,9 @@ public class CinemaServiceImpl implements CinemaService {
                 .longitude(request.getLongitude())
                 .amenities(request.getAmenities())
                 .status(request.getStatus() != null ? request.getStatus() : "ACTIVE")
+                // Giờ hoạt động: dùng giá trị gửi lên, mặc định 08:00 / 23:30 khi tạo mới.
+                .openingTime(request.getOpeningTime() != null ? parseTime(request.getOpeningTime()) : java.time.LocalTime.of(8, 0))
+                .closingTime(request.getClosingTime() != null ? parseTime(request.getClosingTime()) : java.time.LocalTime.of(23, 30))
                 .build();
 
         if (request.getManagerId() != null) {
@@ -173,6 +182,9 @@ public class CinemaServiceImpl implements CinemaService {
         if (request.getLongitude() != null) cinema.setLongitude(request.getLongitude());
         if (request.getAmenities() != null) cinema.setAmenities(request.getAmenities());
         if (request.getStatus() != null) cinema.setStatus(request.getStatus());
+        // Giờ hoạt động: chỉ ghi đè khi request có gửi (tránh form cũ làm mất dữ liệu).
+        if (request.getOpeningTime() != null) cinema.setOpeningTime(parseTime(request.getOpeningTime()));
+        if (request.getClosingTime() != null) cinema.setClosingTime(parseTime(request.getClosingTime()));
 
         if (request.getManagerId() != null) {
             Staff manager = staffRepository.findById(request.getManagerId())

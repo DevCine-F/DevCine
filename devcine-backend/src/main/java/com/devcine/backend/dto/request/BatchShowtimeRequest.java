@@ -45,4 +45,7 @@ public class BatchShowtimeRequest {
 
     /** true = chỉ xem trước (không ghi DB). */
     private boolean dryRun;
+
+    /** true = admin đã xác nhận tạo cả các suất kết thúc quá giờ đóng cửa (suất khuya). */
+    private boolean force;
 }

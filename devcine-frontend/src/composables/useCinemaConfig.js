@@ -18,11 +18,13 @@ export function useCinemaConfig(selectedCinema) {
 
   const configSaving = reactive({
     basic: false,
+    hours: false,
     seats: false,
   });
 
   const configSuccess = reactive({
     basic: false,
+    hours: false,
     seats: false,
   });
 
@@ -33,7 +35,7 @@ export function useCinemaConfig(selectedCinema) {
     hotline: "",
     description: "",
   });
-  const configError = reactive({ basic: "" }); // thông báo lỗi lưu (hiển thị inline, không giả "Đã lưu")
+  const configError = reactive({ basic: "", hours: "" }); // thông báo lỗi lưu (hiển thị inline, không giả "Đã lưu")
 
   const configHours = reactive({
     openTime: "08:00",
@@ -78,9 +80,11 @@ export function useCinemaConfig(selectedCinema) {
     configBasic.hotline = cinema.hotline || "";
     configBasic.description = cinema.description || "";
     configError.basic = "";
-    // Mục 2, 3, 5 là thông tin TĨNH (seed) chỉ để giải trình nghiệp vụ — không ghi DB.
-    configHours.openTime = cinema.openTime || "08:00";
-    configHours.closeTime = cinema.closeTime || "23:30";
+    configError.hours = "";
+    // Mục 2 (Giờ hoạt động): GHI THẬT — đọc openingTime/closingTime từ entity Cinema.
+    configHours.openTime = cinema.openingTime || "08:00";
+    configHours.closeTime = cinema.closingTime || "23:30";
+    // Ngày nghỉ lễ vẫn là thông tin tĩnh tham khảo (chưa ghi DB).
     configHours.holidays = cinema.holidays || "01/01\n30/04\n01/05\n02/09";
     configCleaning.cleaningMinutes = cinema.cleaningMinutes || 20;
     if (cinema.supportedFormats) configFormats.supported = [...cinema.supportedFormats];
@@ -130,6 +134,52 @@ export function useCinemaConfig(selectedCinema) {
     }
   };
 
+  // Mục 2: ghi THẬT giờ hoạt động qua PUT /api/v1/cinemas/{id}. updateCinema ghi đè các trường
+  // cơ bản nên phải gửi kèm để không mất dữ liệu (giống saveConfigBasic).
+  const saveConfigHours = async () => {
+    const c = selectedCinema.value;
+    if (!c) return;
+    configError.hours = "";
+    if (!configHours.openTime || !configHours.closeTime) {
+      configError.hours = "Vui lòng nhập đủ giờ mở và giờ đóng cửa.";
+      return;
+    }
+    if (configHours.openTime === configHours.closeTime) {
+      configError.hours = "Giờ mở và giờ đóng cửa không được trùng nhau.";
+      return;
+    }
+    configSaving.hours = true;
+    try {
+      await axios.put(`${API_BASE_URL}/${c.id}`, {
+        name: c.name,
+        address: c.address,
+        hotline: (c.hotline || "").replace(/\D/g, ""),
+        city: c.city,
+        district: c.district,
+        type: c.type,
+        status: c.status,
+        rooms: c.rooms,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        amenities: c.amenities,
+        managerId: c.managerId ?? null,
+        imageUrl: null, // null = giữ nguyên ảnh hiện có
+        openingTime: configHours.openTime,
+        closingTime: configHours.closeTime,
+      });
+      // Đồng bộ vào cụm rạp đang chọn để TIMELINE co giãn lại ngay lập tức.
+      c.openingTime = configHours.openTime;
+      c.closingTime = configHours.closeTime;
+      showConfigSuccess("hours");
+    } catch (e) {
+      configError.hours = e?.response?.data?.message
+        || "Lưu giờ hoạt động thất bại — kiểm tra định dạng HH:mm.";
+      console.error("[Config] Lưu giờ hoạt động thất bại:", e);
+    } finally {
+      configSaving.hours = false;
+    }
+  };
+
   // Lưu tên + màu + phụ thu loại ghế THẬT vào seat_types qua /pricing/seat-types.
   // (Loại ghế là cấu hình toàn cục nên không gắn theo selectedCinema.)
   const saveConfigSeats = async () => {
@@ -168,6 +218,7 @@ export function useCinemaConfig(selectedCinema) {
     allFormats,
     loadConfigForCinema,
     saveConfigBasic,
+    saveConfigHours,
     saveConfigSeats,
   };
 }

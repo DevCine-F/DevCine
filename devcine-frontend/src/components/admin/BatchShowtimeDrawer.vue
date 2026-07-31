@@ -3,7 +3,10 @@ import { ref, reactive, computed, watch, nextTick } from 'vue';
 import api from '@/api/axios';
 import CustomSelect from './CustomSelect.vue';
 import { useToastStore } from '@/stores/toast';
+import { useConfirmStore } from '@/stores/confirm';
 import { friendlyError } from '@/utils/friendlyError';
+
+const confirm = useConfirmStore();
 
 const props = defineProps({
   isOpen: Boolean,
@@ -173,7 +176,7 @@ const focusFirstError = async (fieldRef) => {
   el.querySelector('input, button, select, [tabindex]')?.focus?.();
 };
 
-const buildPayload = (dryRun) => ({
+const buildPayload = (dryRun, force = false) => ({
   movieId: parseInt(form.movieId),
   formatId: parseInt(form.formatId),
   roomIds: [...form.roomIds],
@@ -181,7 +184,8 @@ const buildPayload = (dryRun) => ({
   dateTo: form.dateTo,
   daysOfWeek: [...form.daysOfWeek],
   startTimes: [...form.startTimes],
-  dryRun
+  dryRun,
+  force
 });
 
 const runPreview = async () => {
@@ -198,16 +202,34 @@ const runPreview = async () => {
   }
 };
 
+// force=true khi admin đã xác nhận tạo cả các suất khuya (kết thúc quá giờ đóng cửa).
+const runCreate = async (force) => {
+  const { data } = await api.post('/showtimes/batch', buildPayload(false, force));
+  // All-or-nothing: BE chưa ghi gì khi còn suất khuya chưa xác nhận → hỏi rồi gửi lại force.
+  if (data?.requiresConfirmation) {
+    const ok = await confirm.show({
+      title: 'Suất chiếu khuya',
+      message: `Có ${data.warnings?.length || 0} suất kết thúc quá giờ đóng cửa của rạp. Vẫn tạo toàn bộ ${data.toCreate} suất?`,
+      confirmText: 'Vẫn tạo',
+      cancelText: 'Huỷ',
+      tone: 'primary',
+    });
+    if (ok) return runCreate(true);
+    toast.warning('Đã huỷ tạo lịch (còn suất vượt quá giờ đóng cửa chưa xác nhận).');
+    return;
+  }
+  toast.success(`Đã tạo ${data.createdCount} suất chiếu` +
+    (data.skipped?.length ? `, bỏ qua ${data.skipped.length} suất.` : '.'));
+  emit('saved');
+  emit('close');
+};
+
 const handleCreate = async () => {
   const badField = validate();
   if (badField) { focusFirstError(badField); return; }
   isBusy.value = true;
   try {
-    const { data } = await api.post('/showtimes/batch', buildPayload(false));
-    toast.success(`Đã tạo ${data.createdCount} suất chiếu` +
-      (data.skipped?.length ? `, bỏ qua ${data.skipped.length} suất.` : '.'));
-    emit('saved');
-    emit('close');
+    await runCreate(false);
   } catch (e) {
     toast.error(friendlyError(e, 'Không thể tạo lịch chiếu.'));
   } finally {
@@ -350,9 +372,20 @@ const handleCreate = async () => {
               <span class="text-2xl font-black text-primary">{{ preview.toCreate }}</span>
               <span class="text-[11px] font-bold text-white/50 uppercase tracking-widest">suất sẽ tạo</span>
             </div>
+            <div v-if="preview.warnings?.length" class="flex items-baseline gap-1.5">
+              <span class="text-2xl font-black text-amber-400">{{ preview.warnings.length }}</span>
+              <span class="text-[11px] font-bold text-white/50 uppercase tracking-widest">suất khuya</span>
+            </div>
             <div v-if="preview.skipped?.length" class="flex items-baseline gap-1.5">
               <span class="text-2xl font-black text-red-400">{{ preview.skipped.length }}</span>
               <span class="text-[11px] font-bold text-white/50 uppercase tracking-widest">bỏ qua</span>
+            </div>
+          </div>
+          <!-- Suất khuya: vượt quá giờ đóng cửa, cần xác nhận khi tạo -->
+          <div v-if="preview.warnings?.length" class="max-h-32 overflow-y-auto divide-y divide-white/5 border-b border-white/5">
+            <div v-for="(w, i) in preview.warnings" :key="'w' + i" class="px-4 py-2 flex items-center justify-between text-[11px]">
+              <span class="text-white/70 font-bold">{{ w.roomName }} · {{ w.startTime.slice(0, 16).replace('T', ' ') }}</span>
+              <span class="text-amber-400/90">{{ w.reason }}</span>
             </div>
           </div>
           <div v-if="preview.skipped?.length" class="max-h-40 overflow-y-auto divide-y divide-white/5">

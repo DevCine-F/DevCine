@@ -36,23 +36,31 @@ export function useCinemas() {
   });
 
   // Chuẩn hoá một suất chiếu từ API -> cấu trúc card timeline.
-  const mapShow = (s) => {
+  // openMin = giờ mở cửa của rạp (phút). Suất có giờ đồng hồ < openMin được quy về
+  // "ngày vận hành" HÔM TRƯỚC (thói quen điều phối: suất 00:30 thuộc đêm hôm trước).
+  const mapShow = (s, openMin = 480) => {
     const st = s.startTime;
+    const pad = (n) => n.toString().padStart(2, '0');
     let startTimeStr = "00:00";
     let fullDateTimeStr = "";
-    let dateStr = "";
+    let y = 1970, mo = 1, d = 1;
     if (Array.isArray(st)) {
       // [year, month, day, hour, minute]
-      startTimeStr = `${st[3].toString().padStart(2, '0')}:${st[4].toString().padStart(2, '0')}`;
-      dateStr = `${st[2].toString().padStart(2, '0')}/${st[1].toString().padStart(2, '0')}`;
-      fullDateTimeStr = `${st[0]}-${st[1].toString().padStart(2, '0')}-${st[2].toString().padStart(2, '0')}T${startTimeStr}:00`;
+      startTimeStr = `${pad(st[3])}:${pad(st[4])}`;
+      y = st[0]; mo = st[1]; d = st[2];
+      fullDateTimeStr = `${st[0]}-${pad(st[1])}-${pad(st[2])}T${startTimeStr}:00`;
     } else if (typeof st === 'string') {
       // "2026-06-11T13:00:00" -> "13:00"
       startTimeStr = st.substring(11, 16);
       const parts = st.split('T')[0].split('-');
-      dateStr = `${parts[2]}/${parts[1]}`;
+      y = Number(parts[0]); mo = Number(parts[1]); d = Number(parts[2]);
       fullDateTimeStr = st;
     }
+    // Ngày HIỂN THỊ trên timeline: lùi 1 ngày nếu suất khuya (giờ < giờ mở cửa).
+    const [sh, sm] = startTimeStr.split(':').map(Number);
+    const dateObj = new Date(y, mo - 1, d);
+    if (sh * 60 + sm < openMin) dateObj.setDate(dateObj.getDate() - 1);
+    const dateStr = `${pad(dateObj.getDate())}/${pad(dateObj.getMonth() + 1)}`;
     return {
       id: s.id,
       roomId: s.roomId,
@@ -121,10 +129,13 @@ export function useCinemas() {
         axios.get(`/showtimes/cinema/${cinema.id}`).catch(e => { console.error(e); return { data: [] }; }),
         axios.get(`/staff/cinema-roster/${cinema.id}`).catch(e => { console.error("Error fetching staff roster:", e); return { data: [] }; })
       ]);
+      // openMin từ giờ mở cửa rạp (mặc định 08:00) → gán ngày vận hành cho suất khuya.
+      const [oh, om] = (cinema.openingTime || "08:00").split(":").map(Number);
+      const openMin = (oh || 8) * 60 + (om || 0);
       const enriched = {
         ...selectedCinema.value,
         halls: roomsRes.data.map(mapHall),
-        shows: showsRes.data.map(mapShow),
+        shows: showsRes.data.map((s) => mapShow(s, openMin)),
         staff: staffRes.data
       };
       // Đồng bộ vào list để số phòng trên card đúng, và giữ chi tiết cho refresh sau.

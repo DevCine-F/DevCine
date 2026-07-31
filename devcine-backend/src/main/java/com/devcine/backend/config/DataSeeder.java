@@ -744,6 +744,12 @@ public class DataSeeder {
                 cinemaRepository.save(c1);
                 System.out.println("Đã bổ sung thông tin mở rộng cho cụm rạp DevCine Landmark 81.");
             }
+            // Backfill giờ hoạt động (idempotent: chỉ khi còn null). c1 giờ chuẩn 08:00–23:30.
+            if (c1 != null && c1.getOpeningTime() == null && c1.getClosingTime() == null) {
+                c1.setOpeningTime(java.time.LocalTime.of(8, 0));
+                c1.setClosingTime(java.time.LocalTime.of(23, 30));
+                cinemaRepository.save(c1);
+            }
             Cinema c2 = cinemaRepository.findById(2).orElse(null);
             if (c2 != null && (c2.getImageUrl() == null || c2.getImageUrl().isBlank())) {
                 c2.setImageUrl("https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=1200&q=80");
@@ -754,6 +760,12 @@ public class DataSeeder {
                 c2.setStatus("ACTIVE");
                 cinemaRepository.save(c2);
                 System.out.println("Đã bổ sung thông tin mở rộng cho cụm rạp DevCine Bitexco.");
+            }
+            // c2 mở tới RẠNG SÁNG (08:00–02:00) để minh hoạ suất khuya vắt qua nửa đêm trên timeline.
+            if (c2 != null && c2.getOpeningTime() == null && c2.getClosingTime() == null) {
+                c2.setOpeningTime(java.time.LocalTime.of(8, 0));
+                c2.setClosingTime(java.time.LocalTime.of(2, 0));
+                cinemaRepository.save(c2);
             }
 
             // Seed tin khuyến mãi mẫu (idempotent: chỉ khi bảng trống)

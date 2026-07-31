@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
 import BatchShowtimeDrawer from "@/components/admin/BatchShowtimeDrawer.vue";
 
@@ -62,6 +62,10 @@ const {
   dates,
   selectedDate,
   isToday,
+  gridCols,
+  hourMarks,
+  showNowIndicator,
+  currentTimeLeft,
   getGridStyle,
   getEndTime,
   checkConflict,
@@ -190,36 +194,9 @@ const closeDrawer = () => {
   showtimeDetail.value = null;
 };
 
-// Time tracking
-const currentTimeStr = ref("");
-const currentMinuteOffset = ref(0);
-
-const updateTime = () => {
-  const now = new Date();
-  currentTimeStr.value = now.toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  currentMinuteOffset.value = (hours - 8) * 60 + minutes;
-};
-
-const currentTimeLeft = computed(() => {
-  const totalMinutesInGrid = 16 * 60; // 8h to 24h
-  const pct = (currentMinuteOffset.value / totalMinutesInGrid) * 100;
-  return `${pct}%`;
-});
-
-let timer;
+// Vạch thời gian hiện tại + cửa sổ timeline giờ do useShowtimes quản lý (co giãn theo giờ hoạt động rạp).
 onMounted(() => {
   fetchCinemas();
-  updateTime();
-  timer = setInterval(updateTime, 60000);
-});
-
-onUnmounted(() => {
-  clearInterval(timer);
 });
 
 </script>
@@ -344,7 +321,9 @@ onUnmounted(() => {
             :dates="dates"
             :selected-date="selectedDate"
             :is-today="isToday"
-            :current-minute-offset="currentMinuteOffset"
+            :grid-cols="gridCols"
+            :hour-marks="hourMarks"
+            :show-now="showNowIndicator"
             :current-time-left="currentTimeLeft"
             :get-grid-style="getGridStyle"
             :check-conflict="checkConflict"

@@ -24,6 +24,7 @@ const {
   allFormats,
   loadConfigForCinema,
   saveConfigBasic,
+  saveConfigHours,
   saveConfigSeats,
 } = useCinemaConfig(cinemaRef)
 
@@ -116,6 +117,9 @@ watch(() => props.cinema, (newCinema) => {
         </div>
         <div class="flex items-center gap-3 flex-shrink-0">
           <span class="text-blue-400 text-[10px] font-black">{{ configHours.openTime || '--:--' }} – {{ configHours.closeTime || '--:--' }}</span>
+          <span v-if="configSuccess.hours" class="text-green-400 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
+            <span class="material-symbols-outlined text-xs">check_circle</span> Đã lưu
+          </span>
           <span class="material-symbols-outlined text-on-surface-variant/50 text-lg transition-transform duration-300"
             :style="{ transform: openSections.hours ? 'rotate(180deg)' : 'rotate(0deg)' }">expand_more</span>
         </div>
@@ -126,13 +130,13 @@ watch(() => props.cinema, (newCinema) => {
             <div class="pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giờ mở cửa</label>
-                <input :value="configHours.openTime" type="time" disabled
-                  class="w-full bg-surface-container/60 border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface-variant cursor-not-allowed" />
+                <input v-model="configHours.openTime" type="time"
+                  class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giờ đóng cửa</label>
-                <input :value="configHours.closeTime" type="time" disabled
-                  class="w-full bg-surface-container/60 border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface-variant cursor-not-allowed" />
+                <input v-model="configHours.closeTime" type="time"
+                  class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
               </div>
               <div class="md:col-span-2 space-y-2">
                 <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ngày nghỉ lễ <span class="normal-case text-on-surface-variant/50">(mỗi ngày một dòng, định dạng DD/MM)</span></label>
@@ -140,9 +144,20 @@ watch(() => props.cinema, (newCinema) => {
                   class="w-full bg-surface-container/60 border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface-variant resize-none cursor-not-allowed" />
               </div>
             </div>
-            <p class="mt-4 text-[10px] text-on-surface-variant/60 flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-sm">lock</span>Thông tin cấu hình mẫu — chỉ để tham khảo, chưa mở chỉnh sửa.
+            <p class="mt-3 text-[10px] text-on-surface-variant/60 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">info</span>Nếu giờ đóng ≤ giờ mở, hệ thống hiểu là rạp đóng cửa rạng sáng hôm sau (suất khuya). Ngày nghỉ lễ hiện chỉ để tham khảo.
             </p>
+            <p v-if="configError.hours" class="mt-2 text-xs text-red-400 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">error</span>{{ configError.hours }}
+            </p>
+            <div class="flex justify-end items-center gap-4 mt-6 pt-6 border-t border-outline-variant/10">
+              <button @click="saveConfigHours" :disabled="configSaving.hours"
+                class="bg-primary text-on-primary font-black text-[10px] uppercase tracking-widest px-8 py-3 rounded-xl hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span v-if="configSaving.hours" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                <span v-else class="material-symbols-outlined text-sm">save</span>
+                {{ configSaving.hours ? 'Đang lưu...' : 'Lưu giờ hoạt động' }}
+              </button>
+            </div>
           </div>
         </div>
       </transition>
