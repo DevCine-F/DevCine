@@ -1,7 +1,12 @@
 # DevCine — Project Context
 
 > File ngữ cảnh tổng hợp để đính kèm vào đầu mỗi phiên chat mới, giúp AI nắm nhanh dự án mà không phải đọc lại toàn bộ lịch sử hội thoại.
-> Cập nhật lần cuối: 24/06/2026
+> Cập nhật lần cuối: 24/06/2026 (một số mục 4.x đã cũ — **nguồn trạng thái chuẩn nhất là `CLAUDE.md` mục "Tiến độ hiện tại"** + memory `devcine-progress` / `devcine-permission-architecture`).
+
+> **⚠️ Thay đổi kiến trúc lớn (cập nhật sau 24/06):**
+> - **Đã GỠ HOÀN TOÀN Kho/Định mức BOM** (11/07): tồn kho VÔ HẠN, chỉ bán/hiển thị F&B.
+> - **Đã GỠ HOÀN TOÀN phân hệ Ca làm việc & Bàn giao ca** (01/08): không còn `Shift`/`StaffSchedule`/`ShiftHandover`/`WorkPosition`/check-in ca/đổi ghế. POS bán vé + Check-in QR chạy **RBAC thuần** (`@perm.can('pos_ticketing',...)`) — nhân viên đăng nhập là bán/soát được ngay.
+> - **Strict Cinema Scoping** (`SecurityUtils.assertCinemaAccess`): nhân viên chỉ thao tác trên cụm rạp của mình; bán/soát chéo rạp → **403**. Đơn POS lưu vết `sold_by` (Staff); đơn F&B thuần lưu thêm `cinema_id`.
 
 ---
 
@@ -10,7 +15,7 @@
 **DevCine** là hệ thống website **quản lý rạp chiếu phim & đặt vé xem phim trực tuyến** (fullstack, đồ án tốt nghiệp), phục vụ 2 nhóm người dùng:
 
 - **Khách hàng:** duyệt phim → xem lịch chiếu → chọn ghế + combo F&B → áp voucher → thanh toán (VNPAY) → nhận vé QR → xem lịch sử/hồ sơ.
-- **Quản trị/Nhân viên:** quản lý phim, suất chiếu, rạp/phòng/ghế, bán vé tại quầy (POS), check-in vé bằng QR, kho F&B, nhân sự & ca trực, khuyến mãi, định giá, dashboard, CSKH.
+- **Quản trị/Nhân viên:** quản lý phim, suất chiếu, rạp/phòng/ghế, bán vé tại quầy (POS), check-in vé bằng QR, thực đơn F&B, nhân sự, khuyến mãi, định giá, dashboard, CSKH. *(POS/Check-in theo RBAC + Cinema Scoping — không còn phụ thuộc ca làm việc.)*
 
 **Tính năng cốt lõi:** Đặt vé online, thanh toán VNPAY, sinh & quét vé QR, loyalty points + hạng thành viên, quản trị vận hành rạp toàn diện.
 
@@ -89,13 +94,13 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 ### 4.1 ĐÃ hoàn thiện (kết nối FE↔BE↔DB thật)
 **Khách hàng:** Đăng ký/Đăng nhập (JWT), Trang chủ & danh sách phim, Lịch chiếu, Hệ thống rạp, Chi tiết phim + **đánh giá sao/bình luận**, Đặt vé (chọn ghế + F&B + voucher, hold ghế 10', tính giá server), Thanh toán VNPAY + tích điểm/nâng hạng, Hồ sơ cá nhân (xem+sửa), Lịch sử đặt vé, Đổi mật khẩu, **Voucher của tôi**, **Tìm kiếm phim (debounce)**, **Khuyến mãi (Promotion thật)**, **Thông báo (badge + đánh dấu đã đọc)**.
 
-**Quản trị:** Đăng nhập admin (JWT + chặn role), Dashboard, Quản lý phim (CRUD + Cloudinary), Danh mục phim, Banner, Điều phối lịch chiếu (Master Scheduling), Quản lý rạp/phòng, Sơ đồ ghế, Nhân sự & ca trực, POS bán vé, Check-in QR, Khuyến mãi & phát voucher, Định giá, Kho F&B, CSKH, Cài đặt, **Nhật ký hệ thống (ghi thật)**, **Phân quyền chi tiết (@PreAuthorize + ma trận DB)**.
+**Quản trị:** Đăng nhập admin (JWT + chặn role), Dashboard, Quản lý phim (CRUD + Cloudinary), Danh mục phim, Banner, Điều phối lịch chiếu (Master Scheduling), Quản lý rạp/phòng, Sơ đồ ghế, Nhân sự, POS bán vé, Check-in QR, Khuyến mãi & phát voucher, Định giá, Thực đơn F&B, CSKH, Cài đặt, **Nhật ký hệ thống (ghi thật)**, **Phân quyền chi tiết (@PreAuthorize + ma trận DB)**, **Phê duyệt hủy hóa đơn F&B (FnB Void)**.
 
 ### 4.2 Hạ tầng nghiệp vụ mới bổ sung
 - **Audit Log tự động:** `AuditLogInterceptor` ghi mọi thao tác ghi-dữ-liệu của ADMIN/STAFF + LOGIN. (Dùng HandlerInterceptor thay vì AOP vì pom là file bảo vệ, không thêm lib.)
 - **Phân quyền:** `@EnableMethodSecurity` + `@PreAuthorize("@perm.can('feature','action')")` (bean `PermissionService`), ma trận JSON ở `Role.permissionsMatrix`, quản lý qua `/api/admin/roles`.
-- **Tự trừ kho theo định mức (BOM):** `InventoryService.deductForSale` chạy trong `BookingService.completePayment`; quản lý định mức qua `/api/bom`.
-- **Bàn giao ca:** `/api/staff/handovers` (tạo + liệt kê, tự tính chênh lệch tiền quỹ).
+- ~~Tự trừ kho theo định mức (BOM)~~ — **ĐÃ GỠ 11/07/2026** (tồn kho vô hạn).
+- ~~Bàn giao ca `/api/staff/handovers`~~ — **ĐÃ GỠ 01/08/2026** cùng toàn bộ phân hệ Ca làm việc.
 - **Lưu ý Spng Boot 4:** Jackson 3 → import `tools.jackson.*` (không phải `com.fasterxml.jackson.*`).
 - **Bảo mật cấu hình:** secret VNPAY (`tmnCode`/`hashSecret`) tách khỏi `application.properties` sang env `${VNPAY_TMN_CODE}`/`${VNPAY_HASH_SECRET}` (`.env` gitignore). ⚠️ Secret cũ đã lộ trong git history → cần rotate trên VNPAY.
 
@@ -120,7 +125,7 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 - **Hệ thống Toast + Friendly Error** (`AppToast.vue`, `stores/toast.js`, `utils/friendlyError.js`): hạ tầng đã có nhưng **mới áp 5/43 view** (Vouchers, KhuyenMai, Contact, BookingSuccess, Booking + CustomerLayout). Cần rollout ra toàn bộ view admin và các view khách còn lại để đạt chuẩn "4 trạng thái" của RULES.
 
 ### 4.3 CHƯA hoàn thiện (còn lại)
-1. **Màn admin UI cho BOM (định mức) & Bàn giao ca** — backend API (`/api/bom`, `/api/staff/handovers`) đã sẵn; **xác nhận chưa có route/giao diện** trong `routers/admin.js`.
+1. ~~Màn admin UI cho BOM & Bàn giao ca~~ — **KHÔNG CÒN áp dụng:** cả hai phân hệ (Kho/BOM và Ca làm việc/Bàn giao ca) đã bị **gỡ hoàn toàn** khỏi backend lẫn frontend.
 2. **Chuẩn hóa `ApiResponse<T>` + `@ControllerAdvice`** — **xác nhận (24/06): KHÔNG tồn tại** lớp `ApiResponse` hay `@ControllerAdvice`/`@RestControllerAdvice` nào trong backend; nhiều controller vẫn trả `Map`/entity trực tiếp + `@CrossOrigin(origins="*")`. Đây là nợ kỹ thuật lớn nhất so với chuẩn RULES 1.2 (xem 3.4).
 3. **Hoàn tất rollout Toast** (xem 4.2.3).
 4. **Mở rộng:** đăng nhập Google (OAuth), thêm cổng thanh toán (Momo/ZaloPay).

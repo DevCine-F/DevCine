@@ -31,9 +31,15 @@ public class ConcessionSale {
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
+    /** Nhân viên đã bán đơn F&B tại quầy. Null nếu do admin/hệ thống tạo. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "staff_schedule_id")
-    private StaffSchedule staffSchedule;
+    @JoinColumn(name = "sold_by")
+    private Staff soldBy;
+
+    /** Cơ sở (rạp) thực hiện bán F&B — neo trực tiếp vì đơn F&B thuần không có suất chiếu. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cinema_id")
+    private Cinema cinema;
 
     @Column(name = "total_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalPrice;

@@ -29,7 +29,6 @@ const editingId = ref(null)
 const blankForm = () => ({
   fullName: '', username: '', email: '', phone: '',
   staffCode: '', cinemaId: '', isActive: true, role: 'STAFF',
-  defaultPosition: '',
 })
 const form = ref(blankForm())
 
@@ -78,29 +77,15 @@ const errPhone = computed(() => {
   return ''
 })
 const errCinema = computed(() => form.value.cinemaId ? '' : 'Vui lòng chọn cơ sở làm việc.')
-const errPosition = computed(() => {
-  if (form.value.role !== 'STAFF') return ''
-  return form.value.defaultPosition ? '' : 'Vui lòng chọn vị trí cho nhân viên.'
-})
 
 const showErr = (field, err) => ((touched.value[field] || attempted.value) && err) ? err : ''
 const formValid = computed(() =>
   !errFullName.value && !errUsername.value && !errStaffCode.value &&
-  !errEmail.value && !errPhone.value && !errCinema.value && !errPosition.value
+  !errEmail.value && !errPhone.value && !errCinema.value
 )
 
 // Kết quả tạo tài khoản (username + mật khẩu mặc định) để admin báo cho nhân viên
 const credsResult = ref(null)
-
-// Vị trí thường trực GỢI Ý (không phải quyền đăng nhập) — dùng mặc định khi xếp ca
-const workPositions = [
-  { value: '', label: '— Chưa gán —' },
-  { value: 'POS_TICKETING', label: 'NV Quầy vé' },
-  { value: 'FNB', label: 'NV Bắp nước' },
-  { value: 'CHECK_IN', label: 'NV Soát vé & Sảnh' },
-  { value: 'SHIFT_LEAD', label: 'Trưởng ca' },
-]
-const positionLabel = (p) => workPositions.find(w => w.value === (p || ''))?.label || 'Chưa gán'
 
 const roleLabel = (role) => {
   switch ((role || '').toUpperCase()) {
@@ -190,7 +175,6 @@ const openEditModal = (person) => {
     cinemaId: person.cinemaId ?? '',
     isActive: !!person.isActive,
     role: (person.role || 'STAFF').toUpperCase(),
-    defaultPosition: person.defaultPosition || '',
   }
   resetValidationState()
   isModalOpen.value = true
@@ -205,8 +189,6 @@ const buildPayload = () => {
     phone: form.value.phone.trim() || null,
     staffCode: form.value.staffCode.trim().toUpperCase() || null,
     cinemaId: form.value.cinemaId || null,
-    // Vị trí chỉ áp cho STAFF; MANAGER/ADMIN gửi null
-    defaultPosition: form.value.role === 'STAFF' ? (form.value.defaultPosition || null) : null,
   }
   // Chỉ ADMIN mới được gán vai trò (STAFF/MANAGER); manager tạo NV luôn là STAFF
   if (auth.isAdmin) base.role = form.value.role
@@ -369,7 +351,6 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             </td>
             <td class="px-8 py-4">
               <span class="text-xs font-semibold">{{ roleLabel(person.role) }}</span>
-              <p v-if="person.defaultPosition && (person.role || '').toUpperCase() === 'STAFF'" class="text-[10px] text-on-surface-variant mt-0.5">{{ positionLabel(person.defaultPosition) }}</p>
             </td>
             <td class="px-8 py-4">
               <span class="text-xs text-on-surface-variant">{{ formatDate(person.joinDate) }}</span>
@@ -482,17 +463,6 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
               <option value="STAFF">Nhân viên</option>
               <option value="MANAGER">Quản lý cơ sở</option>
             </select>
-          </div>
-
-          <div v-if="form.role === 'STAFF'" class="space-y-1.5">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vị trí <span class="text-red-500">*</span></label>
-            <select v-model="form.defaultPosition" @blur="touch('defaultPosition')"
-                    class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
-                    :class="showErr('defaultPosition', errPosition) ? 'border-red-500' : 'border-transparent'">
-              <option v-for="p in workPositions" :key="p.value" :value="p.value">{{ p.label }}</option>
-            </select>
-            <p v-if="showErr('defaultPosition', errPosition)" class="text-[11px] text-red-400 font-medium">{{ errPosition }}</p>
-            <p v-else class="text-[10px] text-on-surface-variant/70">Gợi ý khi xếp ca — không phải quyền đăng nhập.</p>
           </div>
 
           <div v-if="editingId" class="space-y-1.5">

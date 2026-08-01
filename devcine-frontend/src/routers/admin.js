@@ -74,28 +74,9 @@ export default [
         component: () => import('../views/admin/FnbMenuManager.vue')
       },
       {
-        path: 'staff-shifts',
-        name: 'admin-staff-shifts',
-        meta: { permission: { feature: 'staff_management', action: 'view' } },
-        component: () => import('../views/admin/StaffShiftManagement.vue')
-      },
-      {
-        path: 'my-shifts',
-        name: 'staff-my-shifts',
-        meta: { staffOnly: true },
-        component: () => import('../views/admin/MyShifts.vue')
-      },
-      {
-        path: 'shift-handover',
-        name: 'admin-shift-handover',
-        // Khớp v-if sidebar: STAFF hoặc MANAGER có quyền staff_management (guard hiểu là HOẶC)
-        meta: { staffOnly: true, permission: { feature: 'staff_management', action: 'view' } },
-        component: () => import('../views/admin/ShiftHandover.vue')
-      },
-      {
         path: 'approvals',
         name: 'admin-approvals',
-        // Khớp v-if sidebar: STAFF hoặc MANAGER có quyền staff_management (guard hiểu là HOẶC)
+        // Hàng đợi duyệt hủy hóa đơn F&B — Quản lý/Quản trị viên (guard hiểu STAFF/MANAGER)
         meta: { staffOnly: true, permission: { feature: 'staff_management', action: 'view' } },
         component: () => import('../views/admin/ApprovalQueue.vue')
       },

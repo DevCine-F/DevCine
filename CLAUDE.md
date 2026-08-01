@@ -57,13 +57,11 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 
 **Đã GỠ HOÀN TOÀN — Kho / Định mức BOM (11/07/2026):** không còn `InventoryService`/`BomRecipe`/`BomController`/`/api/bom`/`InventoryController`/`/api/inventory`/màn `InventoryManagement.vue`. Tồn kho VÔ HẠN, không định mức. Chỉ giữ hiển thị + bán F&B/combo (`FnbController`, `FnbMenuManager`, `ConcessionSale`). Quyền gác màn này là **`fnb_menu`** (đổi tên từ `pos_inventory` ngày 21/07 vì nó gác THỰC ĐƠN chứ không phải kho).
 
-**Đã hoàn thiện — Phân hệ Ca làm việc & Bàn giao ca (13/07/2026):**
-- Chia ca theo Position + duyệt + check-in/out (lưu `actual_check_in_at/out_at` để hiển thị, KHÔNG tính lương/phạt)
-- Bàn giao ca TỰ ĐỘNG (không cần Manager duyệt): nhập tiền → `difference = thực đếm − (quỹ đầu ca + DT tiền mặt)` → chốt COMPLETED + khóa POS
-- Quỹ đầu ca cố định qua SystemSetting `SHIFT_OPENING_FLOAT` (mặc định 2.000.000)
-- Preset ca Sáng/Chiều/Tối (cứng ở FE); màn Lịch sử bàn giao tô đỏ dòng lệch quỹ + cột Vào–Ra
-- Đã gỡ: endpoint `/handovers/legacy`, `/shifts/{all,template}`, receive/confirm/reject/receivers; `Shift.status`; vị trí `PROJECTION`
-- Phạm vi CỐ Ý bỏ (Quản lý Vận hành, không HRM): tính lương, phạt đi muộn, đơn nghỉ, đổi ca, tồn kho F&B
+**Đã GỠ HOÀN TOÀN — Phân hệ Ca làm việc & Bàn giao ca (01/08/2026):** không còn `Shift`/`StaffSchedule`/`ShiftHandover` (entity), `WorkPosition` (enum), `ShiftAccessService`/`ShiftHandoverService`/`StaffScheduleService`, các repo/DTO ca, cột `staff_schedule_id`/`Staff.default_position`, setting `SHIFT_OPENING_FLOAT`; đã gỡ mọi endpoint `/api/staff/shifts*`, `/handovers*`, `/shifts/{id}/check-in|check-out` và FE `ShiftHandover.vue`/`StaffShiftManagement.vue`/`MyShifts.vue`/`stores/shift.js`. **POS bán vé + Check-in QR nay chạy RBAC thuần** (`@perm.can('pos_ticketing',...)`) — STAFF đăng nhập là bán/soát được ngay.
+- **Strict Cinema Scoping** (`SecurityUtils.assertCinemaAccess(targetCinemaId)`): ADMIN bỏ qua; STAFF/MANAGER thiếu `cinemaId` (JWT) hoặc thao tác **chéo cụm rạp** → **403**. Áp cho bán vé (`Showtime→Room→Cinema`), F&B (gán `cinema=staff.getCinema()`), soát/in vé (`Booking→Showtime→Cinema`).
+- **Ghi vết người bán:** thêm cột `Booking.sold_by` + `ConcessionSale.sold_by`/`cinema_id` (thay `staff_schedule_id`). Đã verify runtime 4 kịch bản (bán/soát rạp mình OK, chéo rạp 403).
+- **Phê duyệt sửa sai còn lại:** chỉ `FNB_VOID` (đổi ghế SEAT_MOVE đã gỡ); gate duyệt đổi từ ca → **role ADMIN/MANAGER** (`ApprovalService.requireApprover`).
+- **File bất khả xâm phạm đã sửa (được duyệt):** `Booking.java`, `ConcessionSale.java` (thêm cột) — dùng `ddl-auto=update` tự migrate.
 
 **Đã hoàn thiện — Chuẩn hoá lỗi & response (22/07/2026):**
 - **Toast/FriendlyError:** phủ 44/49 view. KHÔNG còn toast/`notify`/`errMsg` tự chế — mọi nơi dùng `useToastStore` + `friendlyError`. CỐ Ý giữ im lặng ở dữ liệu phụ (banner trang trí, phim gợi ý, voucher đã lưu, thăm dò quyền đánh giá) vì báo lỗi chỉ gây nhiễu.

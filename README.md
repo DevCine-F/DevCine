@@ -16,14 +16,14 @@
 
 ## Overview
 
-DevCine handles the day-to-day operations of a cinema chain — from movie scheduling and online ticket sales to food & beverage inventory, staff shift management, and customer loyalty programs.
+DevCine handles the day-to-day operations of a cinema chain — from movie scheduling and online ticket sales to in-house POS ticketing, food & beverage sales, and customer loyalty programs.
 
 **Core features:**
 
 - Movie catalog, showtimes, room layouts, and seat maps
 - Online ticket booking with VNPAY payment and QR code generation
-- F&B ordering, combo recipes (BOM), per-cinema inventory tracking
-- Staff scheduling, shift handovers with cash reconciliation
+- F&B / combo sales at POS (unlimited stock — no BOM/inventory)
+- POS ticketing & QR check-in — pure RBAC (no work-shift requirement), with **Strict Cinema Scoping**: staff only sell / check in for their own cinema; cross-cinema actions are rejected with 403. Each POS order records `sold_by` (staff) and, for F&B, `cinema_id`.
 - Promotions, vouchers, membership tiers, loyalty points
 - Customer support tickets, lost & found tracking
 - Admin dashboard with full audit logging

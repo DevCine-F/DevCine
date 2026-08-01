@@ -40,14 +40,6 @@ public class AuditLogController {
             m.put("performedBy", log.getUser() != null ? log.getUser().getUsername() : "system");
             m.put("userRole", log.getUser() != null && log.getUser().getRole() != null ? log.getUser().getRole().getName() : "SYSTEM");
             m.put("ipAddress", log.getIpAddress() != null ? log.getIpAddress() : "");
-            if (log.getStaffSchedule() != null) {
-                var schedule = log.getStaffSchedule();
-                var shift = schedule.getShift();
-                m.put("staffScheduleId", schedule.getId());
-                m.put("workPosition", schedule.getWorkPosition() != null ? schedule.getWorkPosition() : "");
-                m.put("shiftStartAt", shift != null && shift.getStartTime() != null ? shift.getStartTime().toString() : null);
-                m.put("shiftEndAt", shift != null && shift.getEndTime() != null ? shift.getEndTime().toString() : null);
-            }
             m.put("description", describe(act, log.getTargetTable()));
             return m;
         }).collect(Collectors.toList());

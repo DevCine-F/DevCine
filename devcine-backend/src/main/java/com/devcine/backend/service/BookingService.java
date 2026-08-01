@@ -5,6 +5,7 @@ import com.devcine.backend.dto.request.BookingRequestDTO;
 import com.devcine.backend.dto.request.FnbSelectionDTO;
 import com.devcine.backend.entity.*;
 import com.devcine.backend.repository.*;
+import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,15 +47,23 @@ public class BookingService {
         return holdSeats(request, null, "ONLINE");
     }
 
+    /** POS: giữ ghế do nhân viên {@code soldBy} tạo tại quầy (kênh POS). */
     @Transactional
-    public Booking holdSeatsForStaffSchedule(BookingRequestDTO request, StaffSchedule staffSchedule) {
-        return holdSeats(request, staffSchedule, "POS");
+    public Booking holdSeatsForStaff(BookingRequestDTO request, Staff soldBy) {
+        return holdSeats(request, soldBy, "POS");
     }
 
-    private Booking holdSeats(BookingRequestDTO request, StaffSchedule staffSchedule, String channel) {
+    private Booking holdSeats(BookingRequestDTO request, Staff soldBy, String channel) {
         // Khóa ghi bi quan trên suất → tuần tự hóa mọi lệnh giữ ghế cùng suất, chống bán trùng (race)
         Showtime showtime = showtimeRepository.findByIdForUpdate(request.getShowtimeId())
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
+
+        // Cách ly cụm rạp cho đơn POS: nhân viên/quản lý chỉ bán suất thuộc cơ sở mình (ADMIN bỏ qua).
+        if ("POS".equalsIgnoreCase(channel)) {
+            Integer cinemaId = showtime.getRoom() != null && showtime.getRoom().getCinema() != null
+                    ? showtime.getRoom().getCinema().getId() : null;
+            SecurityUtils.assertCinemaAccess(cinemaId);
+        }
 
         // Chuẩn hoá danh sách ghế kèm loại vé: ưu tiên seatSelections, fallback seatIds (ADULT)
         java.util.Map<Integer, String> ticketTypeBySeat = new java.util.LinkedHashMap<>();
@@ -141,7 +150,7 @@ public class BookingService {
         Booking booking = Booking.builder()
                 .customer(customer)
                 .showtime(showtime)
-                .staffSchedule(staffSchedule)
+                .soldBy(soldBy)
                 .channel(channel) // ONLINE (khách đặt) | POS (bán quầy) — nguồn tin cậy tách email
                 .bookingCode(UUID.randomUUID().toString().substring(0, 10).toUpperCase())
                 .status("HOLD") // Initial status

@@ -1,7 +1,6 @@
 <script setup>
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/api/axios'
-import { useShiftStore } from '@/stores/shift'
 import { openInvoice, paymentLabel } from '@/utils/invoiceTemplate'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
@@ -39,7 +38,6 @@ const buildInv = (b) => ({
 
 const printBooking = (b) => { try { openInvoice(buildInv(b)) } catch (_) {} }
 
-const shiftStore = useShiftStore()
 const activeTab = ref('camera') // 'camera' or 'manual'
 const qrCodeInput = ref('')
 const isLoading = ref(false)
@@ -47,9 +45,6 @@ const checkInResult = ref(null) // { success: boolean, data: object, message: st
 const cameraError = ref('')
 const isScannerActive = ref(false)
 let html5QrCode = null
-const canCheckIn = computed(() => shiftStore.canUse(['CHECK_IN']))
-const isShiftLocked = computed(() => !canCheckIn.value)
-const lockedMessage = computed(() => shiftStore.lockedMessage('kiểm soát vé'))
 
 // Web Audio Beep generator (no external audio files needed)
 const playBeep = (type = 'success') => {
@@ -96,7 +91,6 @@ const loadScannerScript = () => {
 }
 
 const startCamera = async () => {
-  if (isShiftLocked.value) return
   cameraError.value = ''
   try {
     await loadScannerScript()
@@ -145,12 +139,7 @@ const stopCamera = async () => {
 
 const handleCheckIn = async (code) => {
   if (!code || !code.trim()) return
-  if (isShiftLocked.value) {
-    checkInResult.value = { success: false, message: lockedMessage.value, data: null }
-    playBeep('error')
-    return
-  }
-  
+
   isLoading.value = true
   checkInResult.value = null
 
@@ -277,9 +266,8 @@ const triggerMockCheckIn = (status = 'success') => {
   }, 600)
 }
 
-onMounted(async () => {
-  await shiftStore.fetchCurrent(true)
-  if (activeTab.value === 'camera' && !isShiftLocked.value) {
+onMounted(() => {
+  if (activeTab.value === 'camera') {
     startCamera()
   }
 })
@@ -337,14 +325,8 @@ onUnmounted(() => {
     <!-- Main Working Card -->
     <div class="glass-card bg-surface rounded-3xl border border-outline-variant/10 shadow-2xl p-8 overflow-hidden min-h-[400px] flex flex-col justify-center">
       
-      <div v-if="isShiftLocked" class="text-center py-14 space-y-4">
-        <span class="material-symbols-outlined text-6xl text-on-surface-variant/40">lock_clock</span>
-        <h2 class="text-xl font-black text-on-surface">Chưa mở chức năng kiểm soát vé</h2>
-        <p class="text-sm text-on-surface-variant">{{ lockedMessage }}</p>
-      </div>
-
       <!-- LOADING STATE -->
-      <div v-else-if="isLoading" class="text-center py-12 space-y-4">
+      <div v-if="isLoading" class="text-center py-12 space-y-4">
         <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
         <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang xử lý & in vé...</p>
       </div>

@@ -1,5 +1,6 @@
 package com.devcine.backend.util;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -7,6 +8,21 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.Map;
 
 public class SecurityUtils {
+
+    /**
+     * Cách ly dữ liệu theo Cụm rạp (Strict Cinema Scoping).
+     * <p>ADMIN: bỏ qua (toàn hệ thống). STAFF/MANAGER: bắt buộc {@code myCinemaId} khớp
+     * {@code targetCinemaId}; thiếu cơ sở hoặc bán/thao tác chéo rạp ⇒ ném 403.
+     *
+     * @param targetCinemaId cơ sở của đối tượng đang thao tác (suất chiếu/đơn hàng/quầy F&B)
+     */
+    public static void assertCinemaAccess(Integer targetCinemaId) {
+        if (isAdmin()) return;
+        Integer myCinemaId = getCurrentUserCinemaId();
+        if (myCinemaId == null || !myCinemaId.equals(targetCinemaId)) {
+            throw new AccessDeniedException("Bạn không có quyền thao tác trên Cụm rạp khác");
+        }
+    }
 
     /**
      * Lấy cinemaId của người dùng hiện tại từ SecurityContext (nếu có)

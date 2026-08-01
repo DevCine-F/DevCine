@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Luồng phê duyệt "sửa sai" nội bộ của Trưởng ca (Shift Leader):
- * nhân viên quầy tạo yêu cầu → Trưởng ca/Manager/Admin duyệt hoặc từ chối.
- * Gate chi tiết theo Position (SHIFT_LEAD) nằm trong {@link ApprovalService}.
+ * Luồng phê duyệt "sửa sai" nội bộ (chỉ còn hủy hóa đơn F&B):
+ * nhân viên quầy tạo yêu cầu → Quản lý/Quản trị viên duyệt hoặc từ chối.
+ * Gate theo Vai trò + cách ly cụm rạp nằm trong {@link ApprovalService}.
  */
 @RestController
 @RequestMapping("/api/staff/approvals")
@@ -32,14 +32,6 @@ public class ApprovalController {
         return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.requestFnbVoid(saleId, reason))));
     }
 
-    @PostMapping("/seat-move")
-    public ResponseEntity<ApiResponse<ApprovalResponse>> requestSeatMove(@RequestBody Map<String, Object> body) {
-        Integer bookingSeatId = asInt(body.get("bookingSeatId"));
-        Integer toSeatId = asInt(body.get("toSeatId"));
-        String reason = asString(body.get("reason"));
-        return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.requestSeatMove(bookingSeatId, toSeatId, reason))));
-    }
-
     @GetMapping("/pending")
     public ResponseEntity<ApiResponse<List<ApprovalResponse>>> listPending() {
         return ResponseEntity.ok(ApiResponse.ok(approvalService.listPending().stream().map(ApprovalResponse::from).toList()));
@@ -48,11 +40,6 @@ public class ApprovalController {
     @GetMapping("/mine")
     public ResponseEntity<ApiResponse<List<ApprovalResponse>>> listMine() {
         return ResponseEntity.ok(ApiResponse.ok(approvalService.listMine().stream().map(ApprovalResponse::from).toList()));
-    }
-
-    @GetMapping("/seat-move/options")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> seatMoveOptions(@RequestParam Integer showtimeId) {
-        return ResponseEntity.ok(ApiResponse.ok(approvalService.seatMoveOptions(showtimeId)));
     }
 
     @PutMapping("/{id}/approve")

@@ -12,10 +12,13 @@ import com.devcine.backend.entity.Seat;
 import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.entity.Ticket;
 import com.devcine.backend.entity.User;
+import com.devcine.backend.entity.Staff;
 import com.devcine.backend.repository.BookingFnbRepository;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
+import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.TicketRepository;
+import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,8 +41,21 @@ public class TicketService {
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final BookingFnbRepository bookingFnbRepository;
-    private final ShiftAccessService shiftAccessService;
+    private final StaffRepository staffRepository;
     private final MailService mailService;
+
+    /** Nhân viên (Staff) đang đăng nhập, hoặc null nếu là ADMIN không phải nhân sự quầy. */
+    private Staff currentStaffOrNull() {
+        Integer uid = SecurityUtils.getCurrentUserId();
+        return uid == null ? null : staffRepository.findById(uid).orElse(null);
+    }
+
+    /** Cơ sở (rạp) của đơn: Booking → Showtime → Room → Cinema. */
+    private Integer cinemaIdOf(Booking booking) {
+        Showtime s = booking.getShowtime();
+        return s != null && s.getRoom() != null && s.getRoom().getCinema() != null
+                ? s.getRoom().getCinema().getId() : null;
+    }
 
     @Transactional(readOnly = true)
     public List<Ticket> getTicketsByBooking(Integer bookingId) {
@@ -52,13 +68,14 @@ public class TicketService {
      */
     @Transactional(readOnly = true)
     public BookingPrintResponse lookupByBookingCode(String bookingCode) {
-        shiftAccessService.requireCurrentShiftForStaff(List.of("CHECK_IN", "SHIFT_LEAD"), "kiem tra ve");
-
         if (bookingCode == null || bookingCode.isBlank()) {
             throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
         }
         Booking booking = bookingRepository.findByBookingCodeForPrint(bookingCode.trim())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn đặt vé với mã: " + bookingCode));
+
+        // Cách ly cụm rạp: chỉ soát/tra cứu vé của cơ sở mình.
+        SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
 
         if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
             throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để in vé.");
@@ -79,13 +96,15 @@ public class TicketService {
      */
     @Transactional
     public BookingPrintResponse printByBookingCode(String bookingCode) {
-        var schedule = shiftAccessService.requireCurrentShiftForStaff(List.of("CHECK_IN", "SHIFT_LEAD"), "in ve tai quay");
-
         if (bookingCode == null || bookingCode.isBlank()) {
             throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
         }
         Booking booking = bookingRepository.findByBookingCodeForPrint(bookingCode.trim())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn đặt vé với mã: " + bookingCode));
+
+        // Cách ly cụm rạp: chỉ in/soát vé của cơ sở mình.
+        SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
+        Staff staff = currentStaffOrNull();
 
         if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
             throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để in vé.");
@@ -97,8 +116,8 @@ public class TicketService {
 
         LocalDateTime now = LocalDateTime.now();
         booking.setPrintedAt(now);
-        if (schedule != null) {
-            booking.setPrintedBy(schedule.getStaff());
+        if (staff != null) {
+            booking.setPrintedBy(staff);
         }
         bookingRepository.save(booking);
 
@@ -108,8 +127,8 @@ public class TicketService {
             if (!Boolean.TRUE.equals(t.getIsCheckedIn())) {
                 t.setIsCheckedIn(true);
                 t.setCheckInTime(now);
-                if (schedule != null) {
-                    t.setCheckedInBy(schedule.getStaff());
+                if (staff != null) {
+                    t.setCheckedInBy(staff);
                 }
             }
         }

@@ -1,22 +1,14 @@
 package com.devcine.backend.controller;
 
 import com.devcine.backend.dto.ApiResponse;
-import com.devcine.backend.dto.request.ShiftHandoverRequest;
-import com.devcine.backend.dto.request.StaffShiftRequest;
 import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.Staff;
-import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.entity.User;
-import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.StaffRepository;
-import com.devcine.backend.repository.StaffScheduleRepository;
 import com.devcine.backend.repository.UserRepository;
-import com.devcine.backend.service.ShiftHandoverService;
-import com.devcine.backend.service.StaffScheduleService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,7 +16,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
@@ -38,14 +29,10 @@ import java.util.stream.Collectors;
 public class StaffController {
 
     private final StaffRepository staffRepository;
-    private final StaffScheduleRepository staffScheduleRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final CinemaRepository cinemaRepository;
-    private final BookingRepository bookingRepository;
     private final PasswordEncoder passwordEncoder;
-    private final StaffScheduleService staffScheduleService;
-    private final ShiftHandoverService shiftHandoverService;
     private final com.devcine.backend.service.MailService mailService;
 
     @org.springframework.beans.factory.annotation.Value("${staff.default-password:DevCine@2026}")
@@ -153,25 +140,8 @@ public class StaffController {
         m.put("updatedAt", s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null);
         m.put("cinemaId", s.getCinema() != null ? s.getCinema().getId() : null);
         m.put("cinemaName", s.getCinema() != null ? s.getCinema().getName() : null);
-        m.put("defaultPosition", s.getDefaultPosition());
         return m;
     }
-
-    /** Chuẩn hóa vị trí mặc định: chỉ nhận mã hợp lệ, rỗng -> null (Chưa gán). */
-    private String normalizePosition(Object value) {
-        String p = str(value).trim().toUpperCase();
-        if (p.isBlank()) return null;
-        if (!ALLOWED_POSITIONS.contains(p)) {
-            throw new IllegalArgumentException("Vị trí mặc định không hợp lệ.");
-        }
-        return p;
-    }
-
-    private static final java.util.Set<String> ALLOWED_POSITIONS = java.util.Set.of(
-            com.devcine.backend.enums.WorkPosition.POS_TICKETING,
-            com.devcine.backend.enums.WorkPosition.FNB,
-            com.devcine.backend.enums.WorkPosition.CHECK_IN,
-            com.devcine.backend.enums.WorkPosition.SHIFT_LEAD);
 
     /**
      * Danh sách nhân viên + bộ lọc theo cơ sở / trạng thái / từ khoá.
@@ -215,56 +185,18 @@ public class StaffController {
     @GetMapping("/cinema-roster/{cinemaId}")
     @PreAuthorize("@perm.can('staff_management','view')")
     public ResponseEntity<?> getCinemaRoster(@PathVariable Integer cinemaId) {
-        List<Staff> staffList = staffRepository.findAllWithDetails().stream()
+        List<Map<String, Object>> result = staffRepository.findAllWithDetails().stream()
                 .filter(s -> s.getCinema() != null && s.getCinema().getId().equals(cinemaId))
+                .map(staff -> {
+                    User u = staff.getUser();
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", staff.getUserId());
+                    m.put("name", u != null ? u.getFullName() : "Nhân viên");
+                    m.put("role", u != null && u.getRole() != null ? u.getRole().getName() : "STAFF");
+                    m.put("isActive", u != null && Boolean.TRUE.equals(u.getIsActive()));
+                    return m;
+                })
                 .collect(Collectors.toList());
-
-        LocalDate today = LocalDate.now();
-        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByWorkDateWithDetails(today, cinemaId, "APPROVED");
-
-        List<Map<String, Object>> result = staffList.stream().map(staff -> {
-            StaffSchedule schedule = todaySchedules.stream()
-                    .filter(ss -> ss.getStaff().getUserId().equals(staff.getUserId()))
-                    .findFirst()
-                    .orElse(null);
-
-            User u = staff.getUser();
-            Map<String, Object> m = new HashMap<>();
-            m.put("id", staff.getUserId());
-            m.put("name", u != null ? u.getFullName() : "Nhân viên");
-
-            String workPosition = schedule != null && schedule.getWorkPosition() != null ? schedule.getWorkPosition() : "Unassigned";
-            String uiRole = "Box Office"; // default fallback for UI
-            String wpLower = workPosition.toLowerCase();
-            if (wpLower.contains("f&b") || wpLower.contains("bắp") || wpLower.contains("nước")) {
-                uiRole = "F&B";
-            } else if (wpLower.contains("usher") || wpLower.contains("soát") || wpLower.contains("kiểm")) {
-                uiRole = "Usher";
-            } else if (workPosition.equals("Unassigned")) {
-                uiRole = "Unassigned";
-            }
-
-            m.put("role", uiRole);
-            
-            // Format shift name based on start/end time
-            String shiftName = "-";
-            if (schedule != null && schedule.getShift() != null) {
-                shiftName = schedule.getShift().getStartTime().toLocalTime().toString() + " - " + schedule.getShift().getEndTime().toLocalTime().toString();
-            }
-            m.put("shift", shiftName);
-            
-            // Determine status based on current time
-            String status = "Off Duty";
-            if (schedule != null && schedule.getShift() != null) {
-                java.time.LocalTime now = java.time.LocalTime.now();
-                if (!now.isBefore(schedule.getShift().getStartTime().toLocalTime()) && !now.isAfter(schedule.getShift().getEndTime().toLocalTime())) {
-                    status = "On Duty";
-                }
-            }
-            m.put("status", status);
-            m.put("sales", schedule != null ? bookingRepository.countTicketsByStaffSchedule(schedule.getId()) : 0);
-            return m;
-        }).collect(Collectors.toList());
 
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
@@ -300,15 +232,6 @@ public class StaffController {
             Role role = roleRepository.findByName(roleName)
                     .orElseThrow(() -> new IllegalArgumentException("Hệ thống chưa cấu hình vai trò " + roleName + "."));
 
-            // Vị trí mặc định BẮT BUỘC khi là STAFF; MANAGER/ADMIN bỏ qua (null)
-            String defaultPosition = null;
-            if ("STAFF".equals(roleName)) {
-                defaultPosition = normalizePosition(body.get("defaultPosition"));
-                if (defaultPosition == null) {
-                    throw new IllegalArgumentException("Vui lòng chọn vị trí cho nhân viên.");
-                }
-            }
-
             // Luôn dùng MẬT KHẨU MẶC ĐỊNH + buộc đổi ở lần đăng nhập đầu tiên
             User u = User.builder()
                     .username(username)
@@ -342,7 +265,6 @@ public class StaffController {
                     .user(u)
                     .staffCode(resolveStaffCodeForCreate(body.get("staffCode")))
                     .cinema(staffCinema)
-                    .defaultPosition(defaultPosition)
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
 
@@ -406,9 +328,6 @@ public class StaffController {
             }
             userRepository.save(u);
             updateStaffCode(staff, body.get("staffCode"));
-            if (body.containsKey("defaultPosition")) {
-                staff.setDefaultPosition(normalizePosition(body.get("defaultPosition")));
-            }
             staff.setUpdatedAt(LocalDateTime.now());
 
             if (body.containsKey("cinemaId")) {
@@ -470,94 +389,6 @@ public class StaffController {
     private Cinema resolveCinema(Object cinemaId) {
         if (cinemaId == null || str(cinemaId).isBlank()) return null;
         return cinemaRepository.findById(Integer.parseInt(str(cinemaId))).orElse(null);
-    }
-
-    @GetMapping("/shifts")
-    @PreAuthorize("@perm.can('staff_management','view')")
-    public ResponseEntity<?> getShifts(
-            @RequestParam(required = false) String date,
-            @RequestParam(required = false) Integer cinemaId,
-            @RequestParam(required = false) String status) {
-        LocalDate workDate = date != null && !date.isBlank() ? LocalDate.parse(date) : LocalDate.now();
-        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.getShifts(workDate, cinemaId, status)));
-    }
-
-    @GetMapping("/shifts/current")
-    public ResponseEntity<?> getCurrentShift() {
-        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.getCurrentShift().orElse(null)));
-    }
-
-    @GetMapping("/shifts/my")
-    @PreAuthorize("hasRole('STAFF')")
-    public ResponseEntity<?> getMyShifts(
-            @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        LocalDate fromDate = from != null && !from.isBlank() ? LocalDate.parse(from) : null;
-        LocalDate toDate = to != null && !to.isBlank() ? LocalDate.parse(to) : null;
-        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.getMyShifts(fromDate, toDate)));
-    }
-
-    @PostMapping("/shifts")
-    @PreAuthorize("@perm.can('staff_management','add')")
-    public ResponseEntity<?> assignShift(@Valid @RequestBody StaffShiftRequest request) {
-        return ResponseEntity.status(201).body(staffScheduleService.assignShift(request));
-    }
-
-    @PutMapping("/shifts/{id}/approve")
-    @PreAuthorize("@perm.can('staff_management','edit')")
-    public ResponseEntity<?> approveShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.approveShift(id)));
-    }
-
-    @PutMapping("/shifts/{id}/reject")
-    @PreAuthorize("@perm.can('staff_management','edit')")
-    public ResponseEntity<?> rejectShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.rejectShift(id)));
-    }
-
-    // Vào ca / Kết ca (nhân viên tự thao tác trên ca của chính mình để bật/tắt quyền theo Position)
-    @PutMapping("/shifts/{id}/check-in")
-    @PreAuthorize("hasRole('STAFF')")
-    public ResponseEntity<?> checkInShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.checkIn(id)));
-    }
-
-    @PutMapping("/shifts/{id}/check-out")
-    @PreAuthorize("hasRole('STAFF')")
-    public ResponseEntity<?> checkOutShift(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(staffScheduleService.checkOut(id)));
-    }
-
-    // ===== Bàn giao ca (Shift Handover) =====
-
-    @GetMapping("/handovers")
-    @PreAuthorize("@perm.can('staff_management','view')")
-    public ResponseEntity<?> getShiftHandovers() {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.list()));
-    }
-
-    @GetMapping("/handovers/my")
-    @PreAuthorize("hasRole('STAFF')")
-    public ResponseEntity<?> getMyShiftHandovers() {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.myList()));
-    }
-
-    @GetMapping("/shifts/current/handover-summary")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> getCurrentHandoverSummary() {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.currentSummary()));
-    }
-
-    @GetMapping("/handovers/summary")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> getHandoverSummary(@RequestParam Integer staffScheduleId) {
-        return ResponseEntity.ok(ApiResponse.ok(shiftHandoverService.summary(staffScheduleId)));
-    }
-
-    @PostMapping("/handovers")
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
-    public ResponseEntity<?> submitShiftHandover(@Valid @RequestBody ShiftHandoverRequest request) {
-        return ResponseEntity.status(201).body(shiftHandoverService.submit(request));
     }
 
     @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})

@@ -40,7 +40,6 @@ const settings = ref({
   seatHoldMinutes: 10,
   maxTicketsPerBooking: 8,
   bookingLateMinutes: 15,
-  shiftOpeningFloat: 2000000,
   maintenanceMode: false,
   bankCode: '',
   bankName: '',
@@ -73,7 +72,6 @@ const loadSettings = async () => {
       else if (item.settingKey === 'SEAT_HOLD_MINUTES') settings.value.seatHoldMinutes = parseInt(item.settingValue) || 10
       else if (item.settingKey === 'MAX_TICKETS_PER_BOOKING') settings.value.maxTicketsPerBooking = parseInt(item.settingValue) || 8
       else if (item.settingKey === 'BOOKING_LATE_MINUTES') settings.value.bookingLateMinutes = parseInt(item.settingValue) || 15
-      else if (item.settingKey === 'SHIFT_OPENING_FLOAT') settings.value.shiftOpeningFloat = parseInt(item.settingValue) || 2000000
       else if (item.settingKey === 'MAINTENANCE_MODE') settings.value.maintenanceMode = item.settingValue === 'true'
       else if (item.settingKey === 'PAYMENT_BANK_CODE') settings.value.bankCode = item.settingValue || ''
       else if (item.settingKey === 'PAYMENT_BANK_NAME') settings.value.bankName = item.settingValue || ''
@@ -92,7 +90,6 @@ const saveSettings = async () => {
   settings.value.seatHoldMinutes = Math.min(30, Math.max(3, parseInt(settings.value.seatHoldMinutes) || 10))
   settings.value.maxTicketsPerBooking = Math.min(20, Math.max(1, parseInt(settings.value.maxTicketsPerBooking) || 8))
   settings.value.bookingLateMinutes = Math.min(60, Math.max(0, parseInt(settings.value.bookingLateMinutes) || 15))
-  settings.value.shiftOpeningFloat = Math.max(0, parseInt(settings.value.shiftOpeningFloat) || 2000000)
   isLoading.value = true
   try {
     await Promise.all([
@@ -102,7 +99,6 @@ const saveSettings = async () => {
       settingsApi.save({ settingKey: 'SEAT_HOLD_MINUTES', settingValue: settings.value.seatHoldMinutes.toString() }),
       settingsApi.save({ settingKey: 'MAX_TICKETS_PER_BOOKING', settingValue: settings.value.maxTicketsPerBooking.toString() }),
       settingsApi.save({ settingKey: 'BOOKING_LATE_MINUTES', settingValue: settings.value.bookingLateMinutes.toString() }),
-      settingsApi.save({ settingKey: 'SHIFT_OPENING_FLOAT', settingValue: settings.value.shiftOpeningFloat.toString() }),
       settingsApi.save({ settingKey: 'MAINTENANCE_MODE', settingValue: settings.value.maintenanceMode.toString() }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_CODE', settingValue: settings.value.bankCode }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_NAME', settingValue: settings.value.bankName }),
@@ -192,17 +188,6 @@ onMounted(() => {
               <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
             </div>
             <p class="text-[10px] text-on-surface-variant/70">Sau giờ chiếu vẫn cho mua trong khoảng này. Vd 15 → phim 19:30 bán đến 19:45.</p>
-          </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Quỹ đầu ca (đối soát bàn giao)</label>
-            <div class="relative">
-              <input v-model.number="settings.shiftOpeningFloat" :disabled="isLoading" type="number" min="0" step="50000"
-                     class="w-full bg-surface-container-high border-none text-sm font-bold rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 pr-16 text-on-surface">
-              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">VNĐ</span>
-            </div>
-            <p class="text-[10px] text-on-surface-variant/70">Tiền mặt sẵn trong két đầu mỗi ca. Cộng vào công thức đối soát cuối ca. Mặc định 2.000.000.</p>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">

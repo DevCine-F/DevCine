@@ -1,11 +1,12 @@
 package com.devcine.backend.service;
 
 import com.devcine.backend.dto.request.FnbSelectionDTO;
+import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.ConcessionSale;
 import com.devcine.backend.entity.ConcessionSaleItem;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.FnbItem;
-import com.devcine.backend.entity.StaffSchedule;
+import com.devcine.backend.entity.Staff;
 import com.devcine.backend.repository.ConcessionSaleItemRepository;
 import com.devcine.backend.repository.ConcessionSaleRepository;
 import com.devcine.backend.repository.CustomerRepository;
@@ -39,12 +40,12 @@ public class ConcessionService {
 
     @Transactional
     public ConcessionSale createSale(List<FnbSelectionDTO> items, Integer customerId, String paymentMethod) {
-        return createSale(items, customerId, paymentMethod, null);
+        return createSale(items, customerId, paymentMethod, null, null);
     }
 
     @Transactional
     public ConcessionSale createSale(List<FnbSelectionDTO> items, Integer customerId,
-                                     String paymentMethod, StaffSchedule staffSchedule) {
+                                     String paymentMethod, Staff soldBy, Cinema cinema) {
         if (items == null || items.isEmpty()) {
             throw new RuntimeException("Vui long chon it nhat 1 mon.");
         }
@@ -59,7 +60,8 @@ public class ConcessionService {
 
         ConcessionSale sale = ConcessionSale.builder()
                 .customer(customer)
-                .staffSchedule(staffSchedule)
+                .soldBy(soldBy)
+                .cinema(cinema)
                 .saleCode("CCS-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .paymentMethod(paymentMethod != null ? paymentMethod : "CASH")
                 .status("CONFIRMED")

@@ -56,8 +56,8 @@ const features = ref([
   // Cụm rạp: thao tác ghi là ADMIN-only (hasRole), không điều khiển qua ma trận → chỉ có 'view' (thấy menu)
   { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view'],
     labels: { view: 'Xem cụm rạp & sơ đồ ghế' } },
-  { id: 'staff_management', moduleId: 'system', name: 'Nhân sự & Ca trực', actions: ['view', 'add', 'edit'],
-    labels: { view: 'Xem nhân sự & ca', add: 'Thêm nhân viên / xếp ca', edit: 'Duyệt ca, bàn giao, sửa NV' } },
+  { id: 'staff_management', moduleId: 'system', name: 'Nhân sự', actions: ['view', 'add', 'edit'],
+    labels: { view: 'Xem nhân sự', add: 'Thêm nhân viên', edit: 'Sửa nhân viên' } },
   { id: 'support', moduleId: 'system', name: 'Chăm sóc khách hàng', actions: ['view', 'edit', 'delete'],
     labels: { view: 'Xem CSKH & đánh giá', edit: 'Xử lý ticket / phản hồi', delete: 'Xoá ticket / đánh giá' } },
   { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'],

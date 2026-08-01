@@ -1,13 +1,9 @@
 package com.devcine.backend.config;
 
 import java.math.BigDecimal;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.TemporalAdjusters;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -28,9 +24,7 @@ import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.entity.Role;
 import com.devcine.backend.entity.Room;
 import com.devcine.backend.entity.SeatType;
-import com.devcine.backend.entity.Shift;
 import com.devcine.backend.entity.Showtime;
-import com.devcine.backend.entity.StaffSchedule;
 import com.devcine.backend.entity.SystemSetting;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.repository.AgeRatingRepository;
@@ -46,8 +40,6 @@ import com.devcine.backend.repository.MovieRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.RoomRepository;
 import com.devcine.backend.repository.StaffRepository;
-import com.devcine.backend.repository.StaffScheduleRepository;
-import com.devcine.backend.repository.ShiftRepository;
 import com.devcine.backend.repository.SeatTypeRepository;
 import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.SystemSettingRepository;
@@ -73,8 +65,6 @@ public class DataSeeder {
             RoleRepository roleRepository,
             UserRepository userRepository,
             StaffRepository staffRepository,
-            ShiftRepository shiftRepository,
-            StaffScheduleRepository staffScheduleRepository,
             CustomerRepository customerRepository,
             FnbItemRepository fnbItemRepository,
             ShowtimeRepository showtimeRepository,
@@ -931,73 +921,6 @@ public class DataSeeder {
                         .build());
                 System.out.println("Đã seed tài khoản Quản lý demo (" + mgrUsername
                         + " / Manager@123) cho cơ sở " + cinemaId + ".");
-            }
-
-            // ===== Seed CA LÀM demo (idempotent, cuốn chiếu) — từ hôm nay tới Thứ Ba tuần sau =====
-            // Mục đích: thử nhanh luồng ca/check-in/POS/in vé ở MỌI cơ sở. Ca tạo sẵn ở trạng thái
-            // ĐÃ DUYỆT (APPROVED) + khung giờ rộng (08:00–23:30) để nhân viên có thể "Vào ca" ngay.
-            // Chạy mỗi lần khởi động nhưng bỏ qua staff+ngày đã có ca (không đè lịch thật đã tạo).
-            {
-                LocalDate today = LocalDate.now();
-                // Thứ Ba của TUẦN SAU (bất kể hôm nay là thứ mấy)
-                LocalDate endDate = today.with(TemporalAdjusters.next(DayOfWeek.MONDAY)).plusDays(1);
-
-                List<Staff> shiftStaffs = staffRepository.findAllWithDetails().stream()
-                        .filter(s -> s.getUser() != null && s.getUser().getRole() != null
-                                && "STAFF".equalsIgnoreCase(s.getUser().getRole().getName())
-                                && s.getCinema() != null)
-                        .toList();
-
-                // Vị trí gợi ý theo username (đảm bảo mỗi cơ sở có Trưởng ca); fallback xoay vòng
-                java.util.Map<String, String> posByUser = java.util.Map.of(
-                        "nv_huy", "POS_TICKETING",
-                        "nv_lan", "FNB",
-                        "nv_minh", "SHIFT_LEAD",
-                        "nv_thao", "POS_TICKETING",
-                        "nv_dat", "SHIFT_LEAD");
-                String[] rotate = {"POS_TICKETING", "FNB", "CHECK_IN", "SHIFT_LEAD"};
-
-                // Idempotent: tập (staffId|ngày) đã có ca để không tạo trùng
-                Set<String> existingKeys = new HashSet<>();
-                for (StaffSchedule sc : staffScheduleRepository.findAll()) {
-                    if (sc.getStaff() != null && sc.getWorkDate() != null) {
-                        existingKeys.add(sc.getStaff().getUserId() + "|" + sc.getWorkDate());
-                    }
-                }
-
-                int createdShifts = 0;
-                int rotIdx = 0;
-                for (Staff st : shiftStaffs) {
-                    String pos = posByUser.getOrDefault(st.getUser().getUsername(), rotate[rotIdx % rotate.length]);
-                    rotIdx++;
-                    // Gán vị trí thường trực gợi ý cho staff nếu chưa có (tiện pre-fill UI xếp ca)
-                    if (st.getDefaultPosition() == null || st.getDefaultPosition().isBlank()) {
-                        st.setDefaultPosition(pos);
-                        staffRepository.save(st);
-                    }
-                    for (LocalDate d = today; !d.isAfter(endDate); d = d.plusDays(1)) {
-                        if (existingKeys.contains(st.getUserId() + "|" + d)) continue;
-                        Shift shift = shiftRepository.save(Shift.builder()
-                                .startTime(d.atTime(8, 0))
-                                .endTime(d.atTime(23, 30))
-                                .build());
-                        staffScheduleRepository.save(StaffSchedule.builder()
-                                .staff(st)
-                                .shift(shift)
-                                .cinema(st.getCinema())
-                                .workDate(d)
-                                .workPosition(pos)
-                                .location(st.getCinema().getName())
-                                .note("Ca demo (seed) — sẵn sàng vào ca")
-                                .status("APPROVED")
-                                .build());
-                        createdShifts++;
-                    }
-                }
-                if (createdShifts > 0) {
-                    System.out.println("Đã seed " + createdShifts + " ca làm DEMO (APPROVED) tới "
-                            + endDate + " cho " + shiftStaffs.size() + " nhân viên (mọi cơ sở).");
-                }
             }
         };
     }

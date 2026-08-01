@@ -2,16 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppModal from '@/components/common/AppModal.vue'
-import { approvalApi, ticketingApi } from '@/api/admin/index'
+import { approvalApi } from '@/api/admin/index'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirmStore } from '@/stores/confirm'
-import { useShiftStore } from '@/stores/shift'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
 const auth = useAuthStore()
 const confirm = useConfirmStore()
-const shiftStore = useShiftStore()
 const toast = useToastStore()
 
 const activeTab = ref('pending') // 'pending' | 'mine'
@@ -25,91 +23,12 @@ const busyId = ref(null)
 const rejectTarget = ref(null)
 const rejectNote = ref('')
 
-// --- Tạo yêu cầu ĐỔI GHẾ (do sự cố vật lý) ---
-const showSeatMove = ref(false)
-const smShowtimes = ref([])
-const smShowtimeId = ref('')
-const smOccupied = ref([])       // ghế đã bán [{bookingSeatId, seatId, label, seatType, bookingCode}]
-const smFreeSeats = ref([])      // ghế trống của suất [{seatId, rowChar, colNum, seatType}]
-const smBrokenId = ref('')       // bookingSeatId ghế hỏng
-const smTargetId = ref('')       // seatId ghế đích
-const smReason = ref('')
-const smLoadingSeats = ref(false)
-const smSubmitting = ref(false)
+// Chỉ Quản lý (MANAGER) hoặc Quản trị viên (ADMIN) mới được phê duyệt.
+const canApprove = computed(() => auth.isAdmin || auth.isManager)
 
-const smBroken = computed(() => smOccupied.value.find(o => String(o.bookingSeatId) === String(smBrokenId.value)) || null)
-// Ghế đích phải cùng loại (tương đương giá) với ghế hỏng
-const smTargetOptions = computed(() => {
-  if (!smBroken.value) return []
-  return smFreeSeats.value.filter(s => (s.seatType || '') === (smBroken.value.seatType || ''))
-})
-const canSubmitSeatMove = computed(() => smBrokenId.value && smTargetId.value && !smSubmitting.value)
-
-const loadSeatMoveShowtimes = async () => {
-  try {
-    const { data } = await ticketingApi.getShowtimes()
-    smShowtimes.value = data?.data ?? data ?? []
-  } catch (err) {
-    toast.error(friendlyError(err, 'Không tải được danh sách suất chiếu.'))
-  }
-}
-
-const onSelectShowtime = async () => {
-  smBrokenId.value = ''
-  smTargetId.value = ''
-  smOccupied.value = []
-  smFreeSeats.value = []
-  if (!smShowtimeId.value) return
-  smLoadingSeats.value = true
-  try {
-    const [occRes, seatRes] = await Promise.all([
-      approvalApi.seatMoveOptions(smShowtimeId.value),
-      ticketingApi.getSeats(smShowtimeId.value),
-    ])
-    smOccupied.value = occRes.data?.data ?? occRes.data ?? []
-    const seats = seatRes.data?.seats ?? seatRes.data?.data?.seats ?? []
-    smFreeSeats.value = seats.filter(s => s.status === 'AVAILABLE')
-  } catch (err) {
-    toast.error(friendlyError(err, 'Không tải được sơ đồ ghế.'))
-  } finally {
-    smLoadingSeats.value = false
-  }
-}
-
-const submitSeatMove = async () => {
-  if (!canSubmitSeatMove.value) return
-  smSubmitting.value = true
-  try {
-    await approvalApi.requestSeatMove(Number(smBrokenId.value), Number(smTargetId.value), smReason.value?.trim() || null)
-    toast.success('Đã gửi yêu cầu đổi ghế — chờ Trưởng ca duyệt.')
-    showSeatMove.value = false
-    smShowtimeId.value = ''; smBrokenId.value = ''; smTargetId.value = ''; smReason.value = ''
-    smOccupied.value = []; smFreeSeats.value = []
-    activeTab.value = 'mine'
-    await loadData()
-  } catch (err) {
-    toast.error(friendlyError(err, 'Gửi yêu cầu đổi ghế thất bại.'))
-  } finally {
-    smSubmitting.value = false
-  }
-}
-
-const openSeatMove = () => {
-  showSeatMove.value = true
-  if (!smShowtimes.value.length) loadSeatMoveShowtimes()
-}
-
-const seatLabelOf = (s) => (s.rowChar || '') + (s.colNum ?? '')
-
-// Trưởng ca (đang mở ca vị trí SHIFT_LEAD) hoặc Manager/Admin mới được phê duyệt.
-const canApprove = computed(() =>
-  auth.isAdmin || auth.isManager || shiftStore.current?.workPosition === 'SHIFT_LEAD'
-)
-
-const typeLabel = (t) => ({ FNB_VOID: 'Hủy hóa đơn F&B', SEAT_MOVE: 'Đổi ghế' }[t] || t)
+const typeLabel = (t) => ({ FNB_VOID: 'Hủy hóa đơn F&B' }[t] || t)
 const typeClass = (t) => ({
   FNB_VOID: 'bg-red-500/10 text-red-300',
-  SEAT_MOVE: 'bg-blue-500/10 text-blue-300',
 }[t] || 'bg-surface-container-high text-on-surface-variant')
 const statusLabel = (s) => ({ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Từ chối' }[s] || s)
 const statusClass = (s) => ({
@@ -190,7 +109,6 @@ const handleReject = async () => {
 }
 
 onMounted(() => {
-  shiftStore.fetchCurrent()
   loadData()
 })
 </script>
@@ -201,7 +119,7 @@ onMounted(() => {
       <div>
         <h1 class="text-2xl font-black text-on-surface">Phê duyệt sửa sai</h1>
         <p class="text-sm text-on-surface-variant mt-1">
-          Trưởng ca duyệt hủy hóa đơn F&B bấm nhầm và đổi ghế cho khách do sự cố vật lý.
+          Quản lý duyệt yêu cầu hủy hóa đơn F&B bấm nhầm (hoàn điểm cho thành viên).
         </p>
       </div>
       <div class="flex gap-2 bg-surface-container rounded-xl p-1">
@@ -217,67 +135,6 @@ onMounted(() => {
         >Yêu cầu của tôi</button>
       </div>
     </header>
-
-    <!-- Tạo yêu cầu đổi ghế (do sự cố vật lý) -->
-    <div class="rounded-xl bg-surface-container p-4 md:p-5">
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary">event_seat</span>
-          <span class="font-bold text-on-surface">Yêu cầu đổi ghế cho khách</span>
-          <span class="text-xs text-on-surface-variant hidden md:inline">— khi ghế bị hỏng/sự cố vật lý</span>
-        </div>
-        <AppButton variant="outline" @click="showSeatMove ? (showSeatMove = false) : openSeatMove()">
-          {{ showSeatMove ? 'Đóng' : 'Tạo yêu cầu' }}
-        </AppButton>
-      </div>
-
-      <div v-if="showSeatMove" class="mt-4 grid md:grid-cols-2 gap-4">
-        <label class="block space-y-1.5 md:col-span-2">
-          <span class="text-[11px] uppercase tracking-widest font-black text-on-surface-variant">Suất chiếu</span>
-          <select v-model="smShowtimeId" @change="onSelectShowtime" class="w-full bg-surface-container-high rounded-xl px-4 py-3 text-sm outline-none">
-            <option value="">— Chọn suất chiếu —</option>
-            <option v-for="st in smShowtimes" :key="st.id" :value="st.id">
-              {{ st.movieTitle }} · {{ st.roomName }} · {{ new Date(st.startTime).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }}
-            </option>
-          </select>
-        </label>
-
-        <p v-if="smLoadingSeats" class="md:col-span-2 text-sm text-on-surface-variant">Đang tải sơ đồ ghế…</p>
-
-        <template v-else-if="smShowtimeId">
-          <label class="block space-y-1.5">
-            <span class="text-[11px] uppercase tracking-widest font-black text-on-surface-variant">Ghế hỏng (khách đang giữ)</span>
-            <select v-model="smBrokenId" class="w-full bg-surface-container-high rounded-xl px-4 py-3 text-sm outline-none">
-              <option value="">— Chọn ghế đã bán —</option>
-              <option v-for="o in smOccupied" :key="o.bookingSeatId" :value="o.bookingSeatId">
-                {{ o.label }} ({{ o.seatType }}) · {{ o.bookingCode }}
-              </option>
-            </select>
-            <span v-if="!smOccupied.length" class="text-xs text-on-surface-variant">Suất này chưa có ghế nào được bán.</span>
-          </label>
-
-          <label class="block space-y-1.5">
-            <span class="text-[11px] uppercase tracking-widest font-black text-on-surface-variant">Ghế đích (trống, cùng loại)</span>
-            <select v-model="smTargetId" :disabled="!smBroken" class="w-full bg-surface-container-high rounded-xl px-4 py-3 text-sm outline-none disabled:opacity-50">
-              <option value="">— Chọn ghế trống —</option>
-              <option v-for="s in smTargetOptions" :key="s.seatId" :value="s.seatId">
-                {{ seatLabelOf(s) }} ({{ s.seatType }})
-              </option>
-            </select>
-            <span v-if="smBroken && !smTargetOptions.length" class="text-xs text-red-300">Không còn ghế trống cùng loại "{{ smBroken.seatType }}".</span>
-          </label>
-
-          <label class="block space-y-1.5 md:col-span-2">
-            <span class="text-[11px] uppercase tracking-widest font-black text-on-surface-variant">Lý do</span>
-            <input v-model="smReason" type="text" placeholder="VD: Ghế A5 bị gãy tay vịn / điều hòa hỏng trên đầu" class="w-full bg-surface-container-high rounded-xl px-4 py-3 text-sm outline-none" />
-          </label>
-
-          <div class="md:col-span-2 flex justify-end">
-            <AppButton :loading="smSubmitting" :disabled="!canSubmitSeatMove" @click="submitSeatMove">Gửi yêu cầu đổi ghế</AppButton>
-          </div>
-        </template>
-      </div>
-    </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="space-y-3">
@@ -325,7 +182,7 @@ onMounted(() => {
           <AppButton variant="outline" :disabled="busyId === item.id" @click="openReject(item)">Từ chối</AppButton>
         </div>
         <div v-else-if="activeTab === 'pending' && item.status === 'PENDING' && !canApprove" class="text-xs text-on-surface-variant italic shrink-0">
-          Cần Trưởng ca duyệt
+          Cần Quản lý duyệt
         </div>
       </article>
     </div>

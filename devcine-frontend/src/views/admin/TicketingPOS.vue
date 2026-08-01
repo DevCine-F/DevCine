@@ -3,11 +3,9 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { ticketingApi, settingsApi, approvalApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
-import { useShiftStore } from '@/stores/shift'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
-const shiftStore = useShiftStore()
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
 
 const showtimes = ref([])
@@ -49,10 +47,9 @@ const showQrModal = ref(false)
 const cashGiven = ref(0)
 
 const error = ref('')
-const canUseTicketing = computed(() => shiftStore.canUse(['POS_TICKETING']))
-const canUseFnb = computed(() => shiftStore.canUse(['FNB']))
-const isLocked = computed(() => !canUseTicketing.value && !canUseFnb.value)
-const lockedMessage = computed(() => shiftStore.lockedMessage('bán vé POS hoặc quầy F&B'))
+// POS không còn phụ thuộc Ca làm việc — nhân viên có quyền pos_ticketing là bán/soát được ngay.
+const canUseTicketing = computed(() => true)
+const canUseFnb = computed(() => true)
 
 const toastStore = useToastStore()
 // Giữ tên showToast để không phải sửa ~40 lời gọi rải khắp file
@@ -243,8 +240,6 @@ const canHoldOrder = computed(() => {
 })
 const isHolding = ref(false)
 const holdCurrentOrder = async () => {
-  if (saleMode.value === 'TICKET' && !canUseTicketing.value) { showToast(shiftStore.lockedMessage('bán vé POS'), 'error'); return }
-  if (saleMode.value === 'FNB' && !canUseFnb.value) { showToast(shiftStore.lockedMessage('quầy F&B'), 'error'); return }
   if (!canHoldOrder.value) { showToast('Chưa có gì để giữ đơn (giỏ hàng đang trống).', 'error'); return }
   // Giới hạn số đơn chờ cùng lúc để tránh treo rác bộ nhớ tạm
   if (heldOrders.value.length >= HELD_MAX) {
@@ -478,8 +473,6 @@ const handleRequestVoid = async () => {
 
 const switchMode = (mode) => {
   if (saleMode.value === mode) return
-  if (mode === 'TICKET' && !canUseTicketing.value) { showToast(shiftStore.lockedMessage('bán vé POS'), 'error'); return }
-  if (mode === 'FNB' && !canUseFnb.value) { showToast(shiftStore.lockedMessage('quầy F&B'), 'error'); return }
   saleMode.value = mode
   // Đổi luồng → dọn sạch khu làm việc để tránh lẫn dữ liệu giữa 2 kiểu bán
   stopHoldTimer(); stopSeatPolling()
@@ -512,7 +505,6 @@ const checkoutReady = () => {
 }
 
 const processConcessionPayment = async (method) => {
-  if (!canUseFnb.value) { showToast(shiftStore.lockedMessage('quầy F&B'), 'error'); return }
   if (selectedCombos.value.length === 0) { showToast('Chưa chọn món nào.', 'error'); return }
   paymentMethod.value = method
   isPaying.value = true
@@ -639,27 +631,18 @@ const fetchData = async () => {
   isLoading.value = true
   error.value = ''
   try {
-    await shiftStore.fetchCurrent(true)
-    if (isLocked.value) {
-      showtimes.value = []
-      combos.value = []
-      error.value = lockedMessage.value
-      return
-    }
-    if (!canUseTicketing.value && canUseFnb.value) saleMode.value = 'FNB'
-    if (canUseTicketing.value && !canUseFnb.value) saleMode.value = 'TICKET'
     const [stRes, cbRes] = await Promise.all([
-      canUseTicketing.value ? ticketingApi.getShowtimes() : Promise.resolve({ data: [] }),
+      ticketingApi.getShowtimes(),
       ticketingApi.getCombos()
     ])
-    showtimes.value = canUseTicketing.value ? (stRes.data.data ?? stRes.data) : []
+    showtimes.value = stRes.data.data ?? stRes.data
     combos.value = cbRes.data.data ?? cbRes.data
   } catch (err) {
     // 401 (hết phiên) đã được interceptor axios xử lý tập trung (logout + về login),
     // nên ở đây chỉ còn 403 (thiếu quyền) hoặc 500/mạng — KHÔNG đẩy về đăng nhập.
     const status = err.response?.status
     if (status === 403) {
-      error.value = 'Tài khoản không có quyền bán vé POS (cần đang trong ca làm việc).'
+      error.value = 'Bạn không có quyền bán vé cho cụm rạp này.'
     } else {
       error.value = 'Không tải được dữ liệu bán vé. Vui lòng thử lại.'
     }
@@ -961,7 +944,6 @@ const selectVoucher = (v) => { voucherCodeInput.value = v.code; showVoucherDropd
 
 const processPayment = async (method) => {
   if (saleMode.value === 'FNB') return processConcessionPayment(method)
-  if (!canUseTicketing.value) { showToast(shiftStore.lockedMessage('bán vé POS'), 'error'); return }
   if (selectedSeats.value.length === 0) {
     showToast('Chưa chọn ghế.', 'error')
     return

@@ -34,19 +34,6 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     long countTicketsByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
                                  @Param("cinemaId") Integer cinemaId);
 
-    @Query("SELECT COALESCE(SUM(b.finalPrice), 0) FROM Booking b " +
-           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId AND b.paymentMethod = :paymentMethod")
-    BigDecimal sumConfirmedRevenueByStaffScheduleAndPaymentMethod(@Param("staffScheduleId") Integer staffScheduleId,
-                                                                  @Param("paymentMethod") String paymentMethod);
-
-    @Query("SELECT COALESCE(SUM(bs.priceSnapshot), 0) FROM BookingSeat bs JOIN bs.booking b " +
-           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId")
-    BigDecimal sumTicketRevenueByStaffSchedule(@Param("staffScheduleId") Integer staffScheduleId);
-
-    @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +
-           "WHERE b.status = 'CONFIRMED' AND b.staffSchedule.id = :staffScheduleId")
-    long countTicketsByStaffSchedule(@Param("staffScheduleId") Integer staffScheduleId);
-
     /**
      * Khách LẦN ĐẦU giao dịch tại cơ sở trong khoảng đã chọn.
      *
@@ -143,7 +130,7 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     @Query(value = "SELECT b FROM Booking b " +
            "JOIN FETCH b.showtime s JOIN FETCH s.movie m JOIN FETCH s.room r " +
            "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user u " +
-           "LEFT JOIN b.staffSchedule ss LEFT JOIN ss.staff st " +
+           "LEFT JOIN b.soldBy st " +
            "WHERE b.createdAt BETWEEN :from AND :to " +
            "AND (:status = '' OR b.status = :status) " +
            "AND (:method = '' OR b.paymentMethod = :method) " +
@@ -153,7 +140,7 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')) " +
            "ORDER BY b.createdAt DESC",
            countQuery = "SELECT COUNT(b) FROM Booking b LEFT JOIN b.customer c LEFT JOIN c.user u " +
-           "LEFT JOIN b.staffSchedule ss LEFT JOIN ss.staff st " +
+           "LEFT JOIN b.soldBy st " +
            "WHERE b.createdAt BETWEEN :from AND :to " +
            "AND (:status = '' OR b.status = :status) " +
            "AND (:method = '' OR b.paymentMethod = :method) " +
