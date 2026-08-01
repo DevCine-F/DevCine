@@ -8,6 +8,14 @@ import { friendlyError } from '@/utils/friendlyError'
 
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
 
+const lateBookingMinutes = ref(15)
+
+const getTodayYmd = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const selectedPosDate = ref(getTodayYmd())
+
 const showtimes = ref([])
 const combos = ref([])
 const isLoading = ref(false)
@@ -116,7 +124,7 @@ const setTicketCount = (code, delta) => {
 watch(currentStep, (step) => { if (step === 3) syncTicketCountsFromSeats() })
 
 // ===== Định dạng & validate suất chiếu =====
-const isPastShowtime = (st) => !!(st?.startTime) && new Date(st.startTime).getTime() < Date.now()
+const isPastShowtime = (st) => !!(st?.startTime) && new Date(st.startTime).getTime() < (Date.now() - lateBookingMinutes.value * 60 * 1000)
 // Giờ 24h (HH:mm)
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
 // Mã suất chiếu theo chuẩn nội bộ: SC-YYYYMMDD-<id>
@@ -377,10 +385,95 @@ const HELD_TICKET_TTL = HOLD_SECONDS // đơn chờ CÓ VÉ hết hạn sau 5 ph
 const nowTs = ref(Date.now())        // nhịp đồng hồ 1s để countdown/tuổi đơn cập nhật reactive
 let nowTimer = null
 
-// Chỉ hiện suất chưa tới giờ chiếu; suất quá giờ tự ẩn theo nhịp đồng hồ
-const visibleShowtimes = computed(() =>
-  showtimes.value.filter(st => !(st?.startTime && new Date(st.startTime).getTime() < nowTs.value))
-)
+// 1. TRÍCH XUẤT NGUỒN DỮ LIỆU NGÀY CÓ LỊCH
+const availableDates = computed(() => {
+  if (!showtimes.value.length) return []
+  
+  const dates = new Set()
+  const nowTsVal = nowTs.value
+  const todayYmd = getTodayYmd()
+  const lateMs = lateBookingMinutes.value * 60 * 1000
+
+  showtimes.value.forEach(st => {
+    if (!st?.startTime) return
+    const d = new Date(st.startTime)
+    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    
+    // Bỏ qua các suất trong quá khứ đối với ngày hôm nay (tôn trọng LATE_BOOKING_MINUTES)
+    if (ymd === todayYmd) {
+      if (d.getTime() >= (nowTsVal - lateMs)) dates.add(ymd)
+    } else if (ymd > todayYmd) {
+      dates.add(ymd)
+    }
+  })
+  
+  // Trả về mảng đã sắp xếp tăng dần
+  return Array.from(dates).sort()
+})
+
+// LOGIC STATE AN TOÀN
+watch(availableDates, (newDates) => {
+  if (newDates.length > 0 && !newDates.includes(selectedPosDate.value)) {
+    selectedPosDate.value = newDates[0]
+    selectedShowtime.value = null
+  }
+})
+
+// 2. REFACTOR GIAO DIỆN TABS & DROPDOWN/CARD CHỌN NGÀY
+const quickDateTabs = computed(() => {
+  return availableDates.value.slice(0, 3).map(ymd => {
+    const d = new Date(ymd)
+    const isToday = ymd === getTodayYmd()
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const isTomorrow = ymd === `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+    
+    let label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    if (isToday) label = `Hôm nay (${label})`
+    else if (isTomorrow) label = `Ngày mai (${label})`
+    else {
+      const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+      label = `${days[d.getDay()]} (${label})`
+    }
+    return { value: ymd, label }
+  })
+})
+
+const otherDateOptions = computed(() => {
+  return availableDates.value.slice(3).map(ymd => {
+    const d = new Date(ymd)
+    const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+    const label = `${days[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+    return { value: ymd, label }
+  })
+})
+
+const showOtherDatesDropdown = ref(false)
+const toggleOtherDates = () => { showOtherDatesDropdown.value = !showOtherDatesDropdown.value }
+
+const selectPosDate = (val) => {
+  selectedPosDate.value = val
+  selectedShowtime.value = null
+  showOtherDatesDropdown.value = false
+}
+
+// Lọc suất chiếu theo tab ngày và cấu hình Bán vé trễ (chỉ áp dụng cho ngày hôm nay)
+const visibleShowtimes = computed(() => {
+  return showtimes.value.filter(st => {
+    if (!st?.startTime) return false
+    const d = new Date(st.startTime)
+    const stYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (stYmd !== selectedPosDate.value) return false
+    
+    // Đối với ngày hôm nay, cộng thêm khoảng trễ vào giờ chiếu
+    if (stYmd === getTodayYmd()) {
+      const lateMs = lateBookingMinutes.value * 60 * 1000
+      if (d.getTime() < (nowTs.value - lateMs)) return false
+    }
+    
+    return true
+  })
+})
 
 // Số giây còn lại của đơn chờ có vé (null = đơn F&B, không hết hạn)
 const heldRemainingSec = (o) => {
@@ -1391,6 +1484,52 @@ onUnmounted(() => {
           <h2 class="text-xl font-black uppercase italic tracking-tighter text-on-surface flex items-center gap-3">
             <span class="w-8 h-1 bg-primary rounded-full"></span> 1. Chọn phim & suất chiếu
           </h2>
+
+          <!-- BỘ LỌC NGÀY CHO POS (DYNAMIC AVAILABLE DATES) -->
+          <div class="flex flex-wrap items-center gap-2 pb-2 relative">
+            <button v-for="tab in quickDateTabs" :key="tab.value" type="button"
+              @click="selectPosDate(tab.value)"
+              :class="[
+                'shrink-0 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all border',
+                selectedPosDate === tab.value
+                  ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20'
+                  : 'bg-surface-container text-on-surface-variant border-outline-variant/30 hover:bg-surface-container-high hover:text-on-surface'
+              ]"
+            >
+              {{ tab.label }}
+            </button>
+            
+            <!-- Custom Dropdown / Popover Card -->
+            <div v-if="otherDateOptions.length > 0" class="relative shrink-0" :class="{ 'z-[9999]': showOtherDatesDropdown }">
+              <button type="button" @click.stop="toggleOtherDates"
+                :class="[
+                  'px-4 py-2.5 rounded-2xl font-bold text-sm transition-all border flex items-center gap-1',
+                  !quickDateTabs.find(t => t.value === selectedPosDate)
+                    ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20'
+                    : 'bg-surface-container text-on-surface-variant border-outline-variant/30 hover:bg-surface-container-high hover:text-on-surface'
+                ]"
+              >
+                Ngày khác ({{ otherDateOptions.length }})
+                <span class="material-symbols-outlined text-lg leading-none transition-transform" :class="{ 'rotate-180': showOtherDatesDropdown }">arrow_drop_down</span>
+              </button>
+              
+              <!-- Dropdown Menu -->
+              <div v-if="showOtherDatesDropdown" 
+                class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max min-w-[160px] bg-surface border border-outline-variant/30 rounded-2xl shadow-2xl z-50 overflow-hidden py-1.5">
+                <button v-for="opt in otherDateOptions" :key="opt.value" type="button"
+                  @click="selectPosDate(opt.value)"
+                  class="w-full text-left px-4 py-3 text-sm font-semibold transition-colors flex items-center justify-between"
+                  :class="selectedPosDate === opt.value ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'"
+                >
+                  {{ opt.label }}
+                  <span v-if="selectedPosDate === opt.value" class="material-symbols-outlined text-base text-primary">check</span>
+                </button>
+              </div>
+              
+              <!-- Invisible Backdrop to close dropdown -->
+              <div v-if="showOtherDatesDropdown" class="fixed inset-0 z-40" @click="showOtherDatesDropdown = false"></div>
+            </div>
+          </div>
 
           <div v-if="isLoading" class="grid grid-cols-2 gap-6">
             <div v-for="i in 4" :key="i" class="h-44 bg-surface-container-high rounded-3xl animate-pulse"></div>
