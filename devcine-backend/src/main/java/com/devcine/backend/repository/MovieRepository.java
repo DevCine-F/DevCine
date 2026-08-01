@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 @Repository
@@ -46,26 +45,39 @@ public interface MovieRepository extends JpaRepository<Movie, Integer> {
     int bulkUpdateStatus(@Param("ids") List<Integer> ids, @Param("status") String status);
 
     /**
-     * ID các phim "Sắp chiếu" đủ điều kiện tự chuyển sang "Đang chiếu":
-     * đã tới ngày khởi chiếu (releaseDate <= hôm nay) VÀ có ≥1 suất chiếu.
-     * Gộp 1 query để job không phải đếm suất trong vòng lặp (chống N+1).
+     * Đếm số phim (trong tập id) CHƯA có suất chiếu nào — 1 query gộp (chống N+1).
+     * Dùng để nhắc nhẹ admin "nhớ cấu hình suất chiếu" sau khi bật ĐANG CHIẾU, KHÔNG chặn thao tác.
      */
-    @Query("SELECT m.id FROM Movie m WHERE LOWER(m.status) = 'upcoming' " +
-           "AND m.releaseDate IS NOT NULL AND m.releaseDate <= :today " +
-           "AND EXISTS (SELECT 1 FROM Showtime s WHERE s.movie = m)")
-    List<Integer> findUpcomingIdsToActivate(@Param("today") LocalDate today);
+    @Query("SELECT COUNT(m) FROM Movie m WHERE m.id IN :ids " +
+           "AND NOT EXISTS (SELECT 1 FROM Showtime s WHERE s.movie = m)")
+    long countWithoutShowtimes(@Param("ids") List<Integer> ids);
 
-    /**
-     * ID các phim "Đang chiếu" cần tự chuyển sang "Ngừng chiếu":
-     * <b>(</b> đã quá ngày kết thúc (endDate < hôm nay) HOẶC không còn suất chiếu nào ở tương lai <b>)</b>
-     * VÀ không còn vé nào đang GIỮ CHỖ (Booking status = 'HOLD').
-     *
-     * <p>Guard vé đang giữ đồng bộ với chặn thủ công {@code countActiveHoldsByMovie}: không tự
-     * ngừng chiếu khi khách còn giao dịch dở, tránh làm suất chiếu biến mất giữa luồng thanh toán.</p>
-     */
-    @Query("SELECT m.id FROM Movie m WHERE LOWER(m.status) = 'active' " +
-           "AND ( (m.endDate IS NOT NULL AND m.endDate < :today) " +
-           "OR NOT EXISTS (SELECT 1 FROM Showtime s WHERE s.movie = m AND s.startTime > :now) ) " +
-           "AND NOT EXISTS (SELECT 1 FROM Booking b WHERE b.showtime.movie = m AND b.status = 'HOLD')")
-    List<Integer> findActiveIdsToArchive(@Param("today") LocalDate today, @Param("now") LocalDateTime now);
+    // ─────────────────────────────────────────────────────────────────────────────
+    //  AUTO-SYNC TRẠNG THÁI THEO NGÀY — 3 quy tắc, mỗi quy tắc 1 bulk UPDATE (chống N+1).
+    //  clearAutomatically/flushAutomatically: đồng bộ persistence context để query đọc
+    //  ngay sau đó (getNowShowing/getUpcoming) không thấy dữ liệu cũ.
+    //  Mọi quy tắc TÔN TRỌNG 'archived' thủ công (điều kiện status <> 'archived').
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /** QUY TẮC 1 — HẾT HẠN: endDate &lt; today ⇒ 'archived'. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Movie m SET m.status = 'archived' " +
+           "WHERE m.endDate IS NOT NULL AND m.endDate < :today " +
+           "AND LOWER(m.status) <> 'archived'")
+    int syncArchiveExpired(@Param("today") LocalDate today);
+
+    /** QUY TẮC 2 — ĐẾN NGÀY CHIẾU: releaseDate &lt;= today AND (endDate null OR endDate &gt;= today) AND chưa archived ⇒ 'active'. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Movie m SET m.status = 'active' " +
+           "WHERE m.releaseDate IS NOT NULL AND m.releaseDate <= :today " +
+           "AND (m.endDate IS NULL OR m.endDate >= :today) " +
+           "AND LOWER(m.status) <> 'archived' AND LOWER(m.status) <> 'active'")
+    int syncActivateReleased(@Param("today") LocalDate today);
+
+    /** QUY TẮC 3 — CHƯA CHIẾU: releaseDate &gt; today AND chưa archived ⇒ 'upcoming'. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Movie m SET m.status = 'upcoming' " +
+           "WHERE m.releaseDate IS NOT NULL AND m.releaseDate > :today " +
+           "AND LOWER(m.status) <> 'archived' AND LOWER(m.status) <> 'upcoming'")
+    int syncUpcomingFuture(@Param("today") LocalDate today);
 }

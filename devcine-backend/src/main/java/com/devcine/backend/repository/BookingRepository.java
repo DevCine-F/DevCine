@@ -184,6 +184,11 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "WHERE s.movie.id = :movieId AND b.status = 'CONFIRMED'")
     long countTicketsByMovie(@Param("movieId") Integer movieId);
 
+    /** Lấy map số vé đã bán của danh sách phim (giúp tránh N+1). */
+    @Query("SELECT s.movie.id, COUNT(bs) FROM BookingSeat bs JOIN bs.booking b JOIN b.showtime s " +
+           "WHERE s.movie.id IN :movieIds AND b.status = 'CONFIRMED' GROUP BY s.movie.id")
+    List<Object[]> countTicketsByMovieIds(@Param("movieIds") List<Integer> movieIds);
+
     /** Số vé đang GIỮ CHỖ (HOLD, chưa thanh toán) của 1 phim — chặn ngừng chiếu/ẩn khi còn giao dịch dở. */
     @Query("SELECT COUNT(b) FROM Booking b JOIN b.showtime s " +
            "WHERE s.movie.id = :movieId AND b.status = 'HOLD'")

@@ -46,35 +46,93 @@ public class MovieService {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    private static final java.time.ZoneId VN_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /** Ngày đã chạy auto-sync gần nhất — chặn read-path ghi DB lặp lại trong cùng ngày. */
+    private final java.util.concurrent.atomic.AtomicReference<LocalDate> lastAutoSync =
+            new java.util.concurrent.atomic.AtomicReference<>(null);
+
     public List<MovieSummaryDTO> getAllMovies() {
-        return movieRepository.findAllWithGenres().stream()
+        List<MovieSummaryDTO> list = movieRepository.findAllWithGenres().stream()
                 .map(this::toSummary)
                 .collect(Collectors.toList());
+        return enrichAndSort(list);
     }
 
-    /** Phim đang chiếu (status = active). */
+    /** Trạng thái phim bị loại khỏi mọi danh sách công khai (ngừng chiếu / huỷ / vô hiệu hoá). */
+    private static final Set<String> HIDDEN_STATUSES = Set.of("archived", "cancelled", "disabled");
+
+    private boolean isVisible(Movie m) {
+        String s = m.getStatus() == null ? "" : m.getStatus().trim().toLowerCase();
+        return !HIDDEN_STATUSES.contains(s);
+    }
+
+    /**
+     * Phim ĐANG CHIẾU — lọc theo NGÀY (nguồn sự thật), không phụ thuộc admin có nhớ đổi status hay không:
+     * <ul>
+     *   <li>đã tới/qua ngày khởi chiếu: {@code releaseDate != null && releaseDate <= today}</li>
+     *   <li>chưa hết hạn chiếu: {@code endDate == null || endDate >= today}</li>
+     *   <li>không ở trạng thái ẩn (archived/cancelled/disabled)</li>
+     * </ul>
+     * Nhờ vậy phim hết hạn (endDate < today) bị loại DỨT ĐIỂM dù status còn 'active'.
+     */
+    @Transactional
     public List<MovieSummaryDTO> getNowShowing() {
-        return movieRepository.findAllWithGenres().stream()
-                .filter(m -> "active".equalsIgnoreCase(m.getStatus()))
+        syncIfStale();
+        LocalDate today = LocalDate.now(VN_ZONE);
+        List<MovieSummaryDTO> list = movieRepository.findAllWithGenres().stream()
+                .filter(this::isVisible)
+                .filter(m -> m.getReleaseDate() != null && !m.getReleaseDate().isAfter(today)) // releaseDate <= today
+                .filter(m -> m.getEndDate() == null || !m.getEndDate().isBefore(today))        // endDate == null || endDate >= today
                 .map(this::toSummary)
                 .collect(Collectors.toList());
+        return enrichAndSort(list);
     }
 
-    /** Phim sắp chiếu (status = upcoming). */
+    /**
+     * Phim SẮP CHIẾU — CHỈ lấy phim NGHIÊM NGẶT chưa tới ngày khởi chiếu: {@code releaseDate > today}.
+     * Loại bỏ mọi phim đã tới/qua ngày khởi chiếu (releaseDate <= today) dù status còn 'upcoming',
+     * và loại phim ở trạng thái ẩn.
+     */
+    @Transactional
     public List<MovieSummaryDTO> getUpcoming() {
-        return movieRepository.findAllWithGenres().stream()
-                .filter(m -> "upcoming".equalsIgnoreCase(m.getStatus()))
+        syncIfStale();
+        LocalDate today = LocalDate.now(VN_ZONE);
+        List<MovieSummaryDTO> list = movieRepository.findAllWithGenres().stream()
+                .filter(this::isVisible)
+                .filter(m -> m.getReleaseDate() != null && m.getReleaseDate().isAfter(today)) // releaseDate > today (nghiêm ngặt)
                 .map(this::toSummary)
                 .collect(Collectors.toList());
+        return enrichAndSort(list);
     }
 
     public List<MovieSummaryDTO> searchMovies(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return List.of();
         }
-        return movieRepository.searchMovies(keyword.trim()).stream()
+        List<MovieSummaryDTO> list = movieRepository.searchMovies(keyword.trim()).stream()
                 .map(this::toSummary)
                 .collect(Collectors.toList());
+        return enrichAndSort(list);
+    }
+
+    private List<MovieSummaryDTO> enrichAndSort(List<MovieSummaryDTO> movies) {
+        if (movies == null || movies.isEmpty()) return movies;
+        
+        List<Integer> ids = movies.stream().map(MovieSummaryDTO::getId).collect(Collectors.toList());
+        List<Object[]> counts = bookingRepository.countTicketsByMovieIds(ids);
+        
+        Map<Integer, Long> salesMap = new HashMap<>();
+        for (Object[] row : counts) {
+            salesMap.put((Integer) row[0], ((Number) row[1]).longValue());
+        }
+        
+        movies.forEach(m -> m.setTicketSales(salesMap.getOrDefault(m.getId(), 0L)));
+        
+        movies.sort(java.util.Comparator.comparing(MovieSummaryDTO::getTicketSales, java.util.Comparator.reverseOrder())
+                .thenComparing(MovieSummaryDTO::getId, java.util.Comparator.reverseOrder()));
+        
+        return movies;
     }
 
     private MovieSummaryDTO toSummary(Movie movie) {
@@ -235,11 +293,15 @@ public class MovieService {
         return null;
     }
 
-    /** Lý do KHÔNG cho đổi sang trạng thái mới (null = hợp lệ); kèm tên phim cho thông báo. */
+    /**
+     * Lý do KHÔNG cho đổi sang trạng thái mới (null = hợp lệ); kèm tên phim cho thông báo.
+     *
+     * <p><b>ĐÃ GỠ chặn cứng "phải có lịch chiếu" khi chuyển sang 'active'/'upcoming'</b> — Admin được
+     * tự do bật ĐANG CHIẾU / SẮP CHIẾU dù chưa cấu hình suất chiếu (FE chỉ nhắc bằng Toast Warning nhẹ),
+     * tránh phim bị kẹt ở "Sắp chiếu". Chỉ còn giữ guard khi NGỪNG CHIẾU ('archived') để không phá
+     * luồng suất chiếu tương lai / vé đang thanh toán dở.</p>
+     */
     private String blockStatusReason(Integer id, String title, String status, LocalDateTime now) {
-        if ("active".equalsIgnoreCase(status) && showtimeRepository.countByMovieId(id) == 0) {
-            return "Không thể chuyển '" + title + "' sang 'Đang chiếu'. Phim chưa được cấu hình lịch chiếu hợp lệ!";
-        }
         if ("archived".equalsIgnoreCase(status)) {
             if (showtimeRepository.countFutureByMovieId(id, now) > 0) {
                 return "Không thể ngừng chiếu '" + title + "'. Hiện vẫn còn suất chiếu chưa hoàn tất!";
@@ -276,36 +338,53 @@ public class MovieService {
         Map<String, Object> result = new HashMap<>();
         result.put("updated", updated);
         result.put("blocked", blocked);
+        // Nhắc nhẹ (KHÔNG chặn): số phim vừa bật ĐANG CHIẾU nhưng chưa có suất chiếu nào.
+        long noShowtime = ("active".equalsIgnoreCase(status) && !okIds.isEmpty())
+                ? movieRepository.countWithoutShowtimes(okIds) : 0L;
+        result.put("noShowtime", noShowtime);
         return result;
     }
 
     /**
-     * Tự đồng bộ trạng thái phim theo lịch phát hành + suất chiếu (gọi bởi Cron Job hằng ngày).
-     * KHÔNG thay thế thao tác thủ công của admin — chỉ bù các phim admin quên chuyển.
+     * TỰ ĐỘNG ĐỒNG BỘ TRẠNG THÁI PHIM theo NGÀY (nguồn sự thật), 3 quy tắc mỗi quy tắc 1 bulk UPDATE:
+     * <ol>
+     *   <li><b>Hết hạn:</b> endDate &lt; today ⇒ 'archived'</li>
+     *   <li><b>Đến ngày chiếu:</b> releaseDate &lt;= today &amp; (endDate null hoặc endDate &gt;= today) &amp; chưa archived ⇒ 'active'</li>
+     *   <li><b>Chưa chiếu:</b> releaseDate &gt; today &amp; chưa archived ⇒ 'upcoming'</li>
+     * </ol>
      *
-     * <p>Đọc CẢ HAI danh sách ứng viên trước rồi mới cập nhật (snapshot theo trạng thái đầu lượt):
-     * nhờ vậy phim vừa được kích hoạt trong cùng lượt sẽ KHÔNG bị ngừng chiếu ngay dù chưa có
-     * suất tương lai — nó được sống trọn 1 ngày, tới lượt hôm sau mới xét ngừng.</p>
+     * <p>Thứ tự archive → active → upcoming để phim vừa hết hạn (archived) không bị 2 quy tắc sau
+     * kéo ngược. Mọi quy tắc TÔN TRỌNG 'archived' thủ công của admin (điều kiện status &lt;&gt; 'archived').</p>
      *
-     * <p>Ngừng chiếu tự động còn tôn trọng guard "vé đang giữ" (xem {@code findActiveIdsToArchive}):
-     * phim còn Booking HOLD sẽ KHÔNG bị archive, tránh phá luồng thanh toán dang dở của khách.</p>
+     * <p>Gọi bởi: startup ({@code ApplicationReadyEvent}), cron 00:00 hằng ngày, và lười (once-per-day)
+     * ngay trước khi trả {@link #getNowShowing()}/{@link #getUpcoming()}.</p>
      *
-     * @param today thời điểm "hôm nay" (theo múi giờ VN, do scheduler truyền vào để dễ test)
-     * @param now   mốc hiện tại để xác định "suất chiếu tương lai"
-     * @return {@code {activated, archived}} — số phim đã lật mỗi chiều
+     * @return {@code {archived, activated, upcoming}} — số phim đổi trạng thái ở mỗi quy tắc
      */
     @Transactional
-    public Map<String, Integer> autoSyncStatuses(LocalDate today, LocalDateTime now) {
-        List<Integer> toActivate = movieRepository.findUpcomingIdsToActivate(today);
-        List<Integer> toArchive = movieRepository.findActiveIdsToArchive(today, now);
+    public Map<String, Integer> autoSyncMovieStatuses() {
+        return runAutoSync();
+    }
 
-        int activated = toActivate.isEmpty() ? 0 : movieRepository.bulkUpdateStatus(toActivate, "active");
-        int archived = toArchive.isEmpty() ? 0 : movieRepository.bulkUpdateStatus(toArchive, "archived");
-
+    /** Lõi đồng bộ (không tự mở transaction — dùng lại được từ read-path đã có transaction). */
+    private Map<String, Integer> runAutoSync() {
+        LocalDate today = LocalDate.now(VN_ZONE);
+        int archived = movieRepository.syncArchiveExpired(today);   // Quy tắc 1
+        int activated = movieRepository.syncActivateReleased(today); // Quy tắc 2
+        int upcoming = movieRepository.syncUpcomingFuture(today);    // Quy tắc 3
+        lastAutoSync.set(today);
         Map<String, Integer> result = new HashMap<>();
-        result.put("activated", activated);
         result.put("archived", archived);
+        result.put("activated", activated);
+        result.put("upcoming", upcoming);
         return result;
+    }
+
+    /** Chạy đồng bộ TỐI ĐA 1 LẦN/NGÀY cho read-path (tránh ghi DB mỗi request tải trang chủ). */
+    private void syncIfStale() {
+        if (!LocalDate.now(VN_ZONE).equals(lastAutoSync.get())) {
+            runAutoSync();
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ import api from '@/api/axios'
 import { promoArticleApi } from '@/api/customer/index'
 import { formatDate, formatDateDot } from '@/utils/format'
 import TrailerModal from '@/components/common/TrailerModal.vue'
+import MovieCard from '@/components/customer/MovieCard.vue'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
@@ -279,24 +280,7 @@ const getGenreNames = (movie) => {
             </div>
 
             <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <router-link :to="`/movie/${movie.id}`" v-for="movie in nowShowingMovies" :key="movie.id" class="group cursor-pointer block">
-                <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge hover-shine-effect">
-                  <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110" 
-                       :src="movie.posterUrl || '/images/Hopper.webp'"/>
-                  <span v-if="movie.ageRating" class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
-                </div>
-                <div class="flex justify-between items-center mb-1">
-                  <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider">{{ getGenreNames(movie) }}</span>
-                  <span class="text-[#f5c518] text-[11px] font-bold tracking-widest">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
-                </div>
-                <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 group-hover:text-primary-container transition-colors">
-                  {{ movie.title }}
-                </div>
-                <div class="flex justify-between items-center text-sm text-on-surface-variant/80 font-normal">
-                  <span>{{ movie.versionType || movie.format || 'Phụ đề' }}</span>
-                  <span>{{ movie.durationMins ? movie.durationMins + ' phút' : '' }}</span>
-                </div>
-              </router-link>
+              <MovieCard v-for="movie in nowShowingMovies.slice(0, 12)" :key="movie.id" :movie="movie" :show-expired="false" />
             </div>
           </section>
         </div>
@@ -337,24 +321,7 @@ const getGenreNames = (movie) => {
         </div>
 
         <div v-else class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          <router-link :to="`/movie/${movie.id}`" v-for="movie in upcomingMovies" :key="movie.id" class="group cursor-pointer block">
-            <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge hover-shine-effect">
-              <img :alt="movie.title" crossorigin="anonymous" class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110" 
-                   :src="movie.posterUrl || '/images/Hopper.webp'"/>
-              <span v-if="movie.ageRating" class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
-            </div>
-            <div class="flex justify-between items-center mb-1">
-              <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider">{{ getGenreNames(movie) }}</span>
-              <span class="text-[#f5c518] text-[11px] font-bold tracking-widest">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
-            </div>
-            <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 group-hover:text-primary-container transition-colors">
-              {{ movie.title }}
-            </div>
-            <div class="flex justify-between items-center text-sm text-on-surface-variant/80 font-normal">
-              <span>{{ movie.versionType || movie.format || 'Phụ đề' }}</span>
-              <span>{{ movie.durationMins ? movie.durationMins + ' phút' : '' }}</span>
-            </div>
-          </router-link>
+          <MovieCard v-for="movie in upcomingMovies.slice(0, 12)" :key="movie.id" :movie="movie" :show-expired="false" />
         </div>
       </section>
 

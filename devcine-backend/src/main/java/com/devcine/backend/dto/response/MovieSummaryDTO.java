@@ -16,12 +16,14 @@ public class MovieSummaryDTO {
     private String rating;
     private String country;
     private String status;
+    @com.fasterxml.jackson.annotation.JsonProperty("posterUrl")
     private String posterUrl;
     private String trailerUrl;
     private java.time.LocalDate releaseDate;
     private java.time.LocalDate endDate;
     private String ageRating;
     private Integer ratingCount;
+    private Long ticketSales;
     private Set<CategorySummaryDTO> genres;
 
     @Data

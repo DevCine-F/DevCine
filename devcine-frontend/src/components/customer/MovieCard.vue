@@ -1,45 +1,89 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+import { formatDateDot } from '@/utils/format'
+
+const props = defineProps({
   movie: {
     type: Object,
     required: true
+  },
+  // Trang chủ chỉ hiển thị phim đang chiếu/sắp chiếu (archived đã bị auto-sync loại bỏ),
+  // nên tắt hẳn hiệu ứng "ĐÃ HẾT HẠN" ở đó cho gọn. Mặc định vẫn bật (dùng cho tìm kiếm...).
+  showExpired: {
+    type: Boolean,
+    default: true
   }
+})
+
+const getGenreNames = (movie) => {
+  if (!movie.genres || !movie.genres.length) return 'ĐANG CẬP NHẬT'
+  return [...movie.genres].slice(0, 2).map(g => g.name).join(', ').toUpperCase()
+}
+
+const isExpired = computed(() => {
+  if (!props.showExpired) return false
+  if (!props.movie.endDate) return false
+  return new Date(props.movie.endDate) < new Date()
+})
+
+const displayPoster = computed(() => props.movie.posterUrl || props.movie.poster || props.movie.poster_url)
+
+const formatMeta = computed(() => {
+  const parts = []
+  if (props.movie.versionType || props.movie.format) parts.push(props.movie.versionType || props.movie.format || 'Phụ đề')
+  if (props.movie.durationMins) parts.push(`${props.movie.durationMins} phút`)
+  return parts.join(' • ')
 })
 </script>
 
 <template>
-  <div class="group relative bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_20px_50px_-15px_rgba(245,197,24,0.15)]">
-    <!-- Poster Image -->
-    <div class="aspect-[2/3] overflow-hidden relative hover-shine-effect">
-      <img :src="movie.poster || 'https://placehold.co/400x600/1a1a1a/f5c518?text=DevCine'" 
-           class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-           :alt="movie.title">
+  <component 
+    :is="isExpired ? 'div' : 'router-link'" 
+    :to="isExpired ? undefined : `/movie/${movie.id}`" 
+    class="group block" 
+    :class="isExpired ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'"
+  >
+    <div class="relative aspect-[2/3] overflow-hidden rounded-2xl mb-4 border border-white/5 shadow-xl glass-shine-edge"
+         :class="!isExpired ? 'hover-shine-effect' : ''">
+      
+      <!-- Poster -->
+      <img v-if="displayPoster" :alt="movie.title" crossorigin="anonymous" 
+           class="w-full h-full object-cover transition-all duration-500" 
+           :class="!isExpired ? 'group-hover:scale-110 group-hover:brightness-110' : 'grayscale'"
+           :src="displayPoster"/>
+      <div v-else class="w-full h-full flex items-center justify-center bg-surface-container-high">
+        <span class="material-symbols-outlined text-4xl text-outline-variant">movie</span>
+      </div>
       
       <!-- Overlay Gradient -->
-      <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
-      
-      <!-- Rating Badge -->
-      <div class="absolute top-4 left-4 bg-black/60 backdrop-blur-md border border-white/10 px-2 py-1 rounded text-[10px] font-black tracking-widest text-primary">
-        {{ movie.rating || 'T18' }}
+      <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity"
+           :class="!isExpired ? 'group-hover:opacity-100' : ''"></div>
+           
+      <!-- Badges -->
+      <span v-if="movie.ageRating" class="absolute top-3 left-3 bg-error-container text-white text-[10px] font-bold px-2 py-1 rounded">{{ movie.ageRating }}</span>
+      <div v-if="movie.rating" class="absolute top-3 right-3 flex items-center gap-1 bg-black/70 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-primary-container">
+        <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'FILL' 1">star</span>{{ movie.rating }}
+      </div>
+
+      <!-- Expired Overlay -->
+      <div v-if="isExpired" class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[2px]">
+        <div class="bg-error px-3 py-1.5 rounded text-white font-bold text-[10px] tracking-widest uppercase border border-error-container">
+          ĐÃ HẾT HẠN
+        </div>
       </div>
     </div>
-
-    <!-- Movie Info -->
-    <div class="p-5">
-      <div class="flex items-center gap-2 mb-2">
-        <span class="material-symbols-outlined text-primary text-sm">calendar_month</span>
-        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{{ movie.releaseDate || 'Sắp chiếu' }}</span>
-      </div>
-      <h3 class="text-sm font-black uppercase tracking-tight text-on-surface line-clamp-1 group-hover:text-primary transition-colors">{{ movie.title || 'Untitled Movie' }}</h3>
-      <p class="text-[10px] text-on-surface-variant mt-1 line-clamp-1 font-medium">{{ movie.genre || 'Hành động, Viễn tưởng' }}</p>
+    
+    <!-- Info -->
+    <div class="flex justify-between items-center mb-1">
+      <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider truncate mr-2">{{ getGenreNames(movie) }}</span>
+      <span class="text-[#f5c518] text-[11px] font-bold tracking-widest whitespace-nowrap">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
     </div>
-
-    <!-- Quick Action Hover -->
-    <div class="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-surface/90 backdrop-blur-md">
-      <router-link :to="`/movie/${movie.id}`" class="w-full py-3 bg-primary text-black text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors">
-        Đặt vé ngay
-        <span class="material-symbols-outlined text-sm">local_activity</span>
-      </router-link>
+    <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 transition-colors"
+         :class="!isExpired ? 'group-hover:text-primary-container' : ''">
+      {{ movie.title }}
     </div>
-  </div>
+    <div class="flex justify-between items-center text-[11px] text-on-surface-variant/80 font-normal">
+      <span>{{ formatMeta }}</span>
+    </div>
+  </component>
 </template>

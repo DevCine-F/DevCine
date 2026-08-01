@@ -335,7 +335,7 @@ export function useMovieManagement() {
     try {
       const res = await axios.patch("/movies/bulk-status", { ids: [movie.id], status: newStatus });
       const blocked = res.data?.blocked || [];
-      // BE chặn theo nghiệp vụ (chưa có lịch chiếu / còn suất chưa hoàn tất / còn vé chờ) → hoàn tác
+      // BE chỉ còn chặn khi NGỪNG CHIẾU (còn suất chưa hoàn tất / còn vé chờ) → hoàn tác
       if ((res.data?.updated ?? 0) === 0 && blocked.length) {
         movie.status = prev;
         movie.statusText = statusToText(prev);
@@ -343,6 +343,10 @@ export function useMovieManagement() {
         return;
       }
       toast.success(`Chuyển trạng thái phim "${movie.title}" sang "${statusToText(newStatus)}" thành công.`);
+      // Nhắc nhẹ (không chặn): vừa bật ĐANG CHIẾU nhưng phim chưa có suất chiếu nào.
+      if ((res.data?.noShowtime ?? 0) > 0) {
+        toast.warning("Đã chuyển trạng thái phim. Nhớ cấu hình thêm suất chiếu cho phim nhé!");
+      }
     } catch (error) {
       console.error("Lỗi đổi trạng thái:", error);
       movie.status = prev;
@@ -365,6 +369,10 @@ export function useMovieManagement() {
       toast.warning(`Cập nhật ${updated} phim. ${blocked.length} phim bị bỏ qua — ${blocked[0]}`);
     } else {
       toast.error(blocked[0] || "Không có phim nào được cập nhật.");
+    }
+    // Nhắc nhẹ (không chặn): có phim vừa bật ĐANG CHIẾU nhưng chưa có suất chiếu nào.
+    if ((res.data?.noShowtime ?? 0) > 0) {
+      toast.warning("Đã chuyển trạng thái phim. Nhớ cấu hình thêm suất chiếu cho phim nhé!");
     }
   };
 

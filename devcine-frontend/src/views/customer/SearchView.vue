@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { movieApi } from '@/api/customer/index'
 import api from '@/api/axios'
+import MovieCard from '@/components/customer/MovieCard.vue'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
@@ -163,21 +164,7 @@ const formatMeta = (m) => {
         <span class="text-on-surface-variant text-sm font-bold">{{ results.length }} phim</span>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        <RouterLink v-for="m in results" :key="m.id" :to="`/movie/${m.id}`" class="group cursor-pointer">
-          <div class="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl bg-surface-container-high border border-white/5">
-            <img v-if="m.posterUrl" :src="m.posterUrl" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-            <div v-else class="w-full h-full flex items-center justify-center">
-              <span class="material-symbols-outlined text-4xl text-outline-variant">movie</span>
-            </div>
-            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div v-if="m.ageRating" class="absolute top-2 left-2 bg-error-container text-on-error-container px-2 py-0.5 rounded font-label text-[10px] font-bold">{{ m.ageRating }}</div>
-            <div v-if="m.rating" class="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-primary-container">
-              <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'FILL' 1">star</span>{{ m.rating }}
-            </div>
-          </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">{{ m.title }}</h3>
-          <p class="font-label text-[10px] text-on-surface-variant tracking-wider">{{ formatMeta(m) }}</p>
-        </RouterLink>
+        <MovieCard v-for="m in results" :key="m.id" :movie="m" />
       </div>
     </section>
 
@@ -207,18 +194,7 @@ const formatMeta = (m) => {
       </div>
 
       <div v-else-if="suggested.length" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        <RouterLink v-for="m in suggested" :key="m.id" :to="`/movie/${m.id}`" class="group cursor-pointer">
-          <div class="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl bg-surface-container-high border border-white/5">
-            <img v-if="m.posterUrl" :src="m.posterUrl" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-            <div v-else class="w-full h-full flex items-center justify-center">
-              <span class="material-symbols-outlined text-4xl text-outline-variant">movie</span>
-            </div>
-            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div v-if="m.ageRating" class="absolute top-2 left-2 bg-error-container text-on-error-container px-2 py-0.5 rounded font-label text-[10px] font-bold">{{ m.ageRating }}</div>
-          </div>
-          <h3 class="font-headline font-bold text-sm text-on-surface group-hover:text-primary-container transition-colors uppercase truncate">{{ m.title }}</h3>
-          <p class="font-label text-[10px] text-on-surface-variant tracking-wider">{{ formatMeta(m) }}</p>
-        </RouterLink>
+        <MovieCard v-for="m in suggested" :key="m.id" :movie="m" />
       </div>
 
       <!-- Không có phim gợi ý -->
