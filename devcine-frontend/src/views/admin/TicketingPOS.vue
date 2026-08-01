@@ -386,6 +386,30 @@ const nowTs = ref(Date.now())        // nhịp đồng hồ 1s để countdown/t
 let nowTimer = null
 
 // 1. TRÍCH XUẤT NGUỒN DỮ LIỆU NGÀY CÓ LỊCH
+// Helper 1: Chuyển chuỗi bất kỳ sang Date Object chuẩn
+const parseToDate = (st) => {
+  if (!st) return null;
+  const rawStr = st.startTime || st.start_time || st.showTime || st.start;
+  if (!rawStr) return null;
+  if (rawStr instanceof Date) return rawStr;
+  
+  // Xử lý thay khoảng trắng bằng 'T' để chuẩn hóa ISO (VD: "2026-08-02 09:00:00" -> "2026-08-02T09:00:00")
+  const isoStr = String(rawStr).replace(' ', 'T');
+  const d = new Date(isoStr);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// Helper 2: Lấy chuỗi YYYY-MM-DD local
+const getStYmd = (st) => {
+  const d = parseToDate(st);
+  if (!d) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+// 1. TRÍCH XUẤT NGUỒN DỮ LIỆU NGÀY CÓ LỊCH
 const availableDates = computed(() => {
   if (!showtimes.value.length) return []
   
@@ -395,9 +419,9 @@ const availableDates = computed(() => {
   const lateMs = lateBookingMinutes.value * 60 * 1000
 
   showtimes.value.forEach(st => {
-    if (!st?.startTime) return
-    const d = new Date(st.startTime)
-    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const d = parseToDate(st)
+    if (!d) return
+    const ymd = getStYmd(st)
     
     // Bỏ qua các suất trong quá khứ đối với ngày hôm nay (tôn trọng LATE_BOOKING_MINUTES)
     if (ymd === todayYmd) {
@@ -422,11 +446,13 @@ watch(availableDates, (newDates) => {
 // 2. REFACTOR GIAO DIỆN TABS & DROPDOWN/CARD CHỌN NGÀY
 const quickDateTabs = computed(() => {
   return availableDates.value.slice(0, 3).map(ymd => {
-    const d = new Date(ymd)
+    const [y, m, dNum] = ymd.split('-')
+    const d = new Date(y, m - 1, dNum)
     const isToday = ymd === getTodayYmd()
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
-    const isTomorrow = ymd === `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+    const tomorrowYmd = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+    const isTomorrow = ymd === tomorrowYmd
     
     let label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
     if (isToday) label = `Hôm nay (${label})`
@@ -441,7 +467,8 @@ const quickDateTabs = computed(() => {
 
 const otherDateOptions = computed(() => {
   return availableDates.value.slice(3).map(ymd => {
-    const d = new Date(ymd)
+    const [y, m, dNum] = ymd.split('-')
+    const d = new Date(y, m - 1, dNum)
     const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
     const label = `${days[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
     return { value: ymd, label }
@@ -459,21 +486,85 @@ const selectPosDate = (val) => {
 
 // Lọc suất chiếu theo tab ngày và cấu hình Bán vé trễ (chỉ áp dụng cho ngày hôm nay)
 const visibleShowtimes = computed(() => {
-  return showtimes.value.filter(st => {
-    if (!st?.startTime) return false
-    const d = new Date(st.startTime)
-    const stYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    if (stYmd !== selectedPosDate.value) return false
+  if (!showtimes.value || !showtimes.value.length) return [];
+  
+  const result = showtimes.value.filter(st => {
+    // 1. Kiểm tra ngày trùng với selectedPosDate
+    const stYmd = getStYmd(st);
+    if (stYmd !== selectedPosDate.value) return false;
     
-    // Đối với ngày hôm nay, cộng thêm khoảng trễ vào giờ chiếu
-    if (stYmd === getTodayYmd()) {
-      const lateMs = lateBookingMinutes.value * 60 * 1000
-      if (d.getTime() < (nowTs.value - lateMs)) return false
+    // 2. Logic kiểm tra giờ trễ cho TAB HÔM NAY
+    const isTodayTab = selectedPosDate.value === getTodayYmd();
+    if (isTodayTab) {
+      const d = parseToDate(st);
+      if (!d) return false;
+      const cutoffTime = Date.now() - (lateBookingMinutes.value * 60 * 1000);
+      return d.getTime() >= cutoffTime; // Giữ lại suất chiếu chưa quá hạn trễ
     }
     
-    return true
-  })
+    return true; // Các ngày tương lai: Giữ lại toàn bộ
+  });
+  
+  console.log("Selected Date:", selectedPosDate.value, "Filtered Visible Showtimes:", result.length);
+  return result;
 })
+
+const groupedMoviesWithShowtimes = computed(() => {
+  if (!visibleShowtimes.value || !visibleShowtimes.value.length) return [];
+  
+  const moviesMap = new Map();
+
+  visibleShowtimes.value.forEach(st => {
+    // 1. Lấy Movie Object an toàn
+    const mObj = (typeof st.movie === 'object' && st.movie !== null) ? st.movie : (st.movieSummary || {});
+    
+    // 2. Lấy Movie ID bằng fallback 6 lớp (Chống mất dữ liệu)
+    const mId = mObj.id || mObj.movieId || st.movieId || st.movie_id || st.filmId || 
+                (typeof st.movie === 'number' || typeof st.movie === 'string' ? st.movie : null) || 
+                mObj.title || st.movieTitle || 'fallback_movie';
+
+    if (!moviesMap.has(mId)) {
+      moviesMap.set(mId, {
+        movie: {
+          id: mId,
+          title: mObj.title || st.movieTitle || st.title || 'Phim chưa đặt tên',
+          titleVietnamese: mObj.titleVietnamese || st.movieTitleVietnamese || st.titleVietnamese,
+          posterUrl: mObj.posterUrl || st.moviePoster || st.posterUrl,
+          posterBase64: mObj.posterBase64 || mObj.poster_base64 || st.moviePosterBase64 || st.posterBase64,
+          durationMins: mObj.durationMins || mObj.duration || mObj.duration_mins || st.durationMins || st.duration || 'N/A',
+          ageRating: mObj.ageRating || st.movieAgeRating || st.ageRating
+        },
+        roomGroupsMap: new Map()
+      });
+    }
+    const movieData = moviesMap.get(mId);
+
+    // 3. Lấy Tên Phòng & Định Dạng
+    const formatName = st.formatName || st.format?.name || st.format_name || '2D Phụ Đề';
+    const roomName = st.roomName || st.room?.name || st.room_name || 'Phòng chiếu';
+    const groupLabel = `${formatName} • ${roomName}`.toUpperCase();
+
+    if (!movieData.roomGroupsMap.has(groupLabel)) {
+      movieData.roomGroupsMap.set(groupLabel, {
+        groupLabel,
+        showtimes: []
+      });
+    }
+    
+    // 4. Push suất chiếu vào đúng nhóm phòng
+    movieData.roomGroupsMap.get(groupLabel).showtimes.push(st);
+  });
+
+  // Convert Map to Array
+  return Array.from(moviesMap.values()).map(mData => ({
+    movie: mData.movie,
+    roomGroups: Array.from(mData.roomGroupsMap.values())
+  }));
+});
+
+const getPoster = (movie) => {
+  return movie?.posterBase64 || movie?.posterUrl || movie?.poster_base64 || '/images/Hopper.webp'
+}
 
 // Số giây còn lại của đơn chờ có vé (null = đơn F&B, không hết hạn)
 const heldRemainingSec = (o) => {
@@ -730,6 +821,8 @@ const fetchData = async () => {
     ])
     showtimes.value = stRes.data.data ?? stRes.data
     combos.value = cbRes.data.data ?? cbRes.data
+    console.log("POS Raw Showtimes:", showtimes.value.length, "Available Dates:", availableDates.value)
+    console.log("DEBUG - Grouped Movies Value:", groupedMoviesWithShowtimes.value);
   } catch (err) {
     // 401 (hết phiên) đã được interceptor axios xử lý tập trung (logout + về login),
     // nên ở đây chỉ còn 403 (thiếu quyền) hoặc 500/mạng — KHÔNG đẩy về đăng nhập.
@@ -1541,32 +1634,43 @@ onUnmounted(() => {
               <span class="material-symbols-outlined text-base">refresh</span>Thử lại
             </button>
           </div>
-          <div v-else-if="visibleShowtimes.length === 0" class="py-20 text-center border border-dashed border-outline-variant/20 rounded-3xl">
-            <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-3">event_busy</span>
-            <p class="text-on-surface-variant font-semibold">Không có suất chiếu nào hôm nay/sắp tới.</p>
-            <p class="text-xs text-on-surface-variant/60 mt-1">Tạo suất chiếu ở "Lịch chiếu & Điều phối".</p>
+          <div v-else-if="groupedMoviesWithShowtimes.length === 0" class="py-20 text-center border border-dashed border-outline-variant/20 rounded-3xl col-span-full">
+            <span class="material-symbols-outlined text-6xl text-primary/40 mb-3">calendar_month</span>
+            <p class="text-on-surface-variant text-lg font-semibold">Không có suất chiếu nào cho ngày {{ selectedPosDate ? `${selectedPosDate.split('-')[2]}/${selectedPosDate.split('-')[1]}/${selectedPosDate.split('-')[0]}` : '' }}</p>
+            <p class="text-sm text-on-surface-variant/60 mt-1">Vui lòng chọn ngày khác hoặc kiểm tra lại cấu hình lịch chiếu trong Quản trị.</p>
           </div>
 
           <div v-else class="grid grid-cols-2 gap-6">
-            <div v-for="st in visibleShowtimes" :key="st.id" @click="selectShowtime(st)"
-                 class="relative p-6 bg-surface-container-high rounded-3xl border border-outline-variant/10 transition-all group hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
+            <div v-for="movieGroup in groupedMoviesWithShowtimes" :key="movieGroup.movie.id"
+                 class="relative p-6 bg-surface-container-high rounded-3xl border border-outline-variant/10 transition-all">
               <div class="flex gap-6">
-                <div class="w-24 h-36 bg-surface-container-highest rounded-xl overflow-hidden shadow-lg border border-outline-variant/10">
-                  <img :src="st.moviePoster || '/images/Hopper.webp'" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                </div>
-                <div class="flex flex-col justify-between py-1 min-w-0">
-                  <div>
-                    <p class="text-[9px] font-black text-on-surface-variant/60 uppercase tracking-[0.15em] mb-1 font-mono">{{ showtimeCode(st) }}</p>
-                    <h3 class="font-black text-lg uppercase tracking-tight text-on-surface group-hover:text-primary transition-colors truncate">{{ st.movieTitle }}</h3>
-                    <div class="flex items-center gap-2 mt-2">
-                      <span :class="formatTone(st.formatName)" class="px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider">{{ String(st.formatName).toUpperCase() }}</span>
-                      <span class="text-[10px] font-bold text-on-surface-variant uppercase">{{ st.roomName }}</span>
-                    </div>
-                    <p class="text-[10px] font-bold text-on-surface-variant/70 mt-1.5">{{ new Date(st.startTime).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) }}</p>
+                <!-- BÊN TRÁI: Ảnh Poster -->
+                <div class="w-24 shrink-0 flex flex-col items-center">
+                  <div class="w-24 h-36 bg-surface-container-highest rounded-xl overflow-hidden shadow-lg border border-outline-variant/10 mb-3">
+                    <img :src="getPoster(movieGroup.movie)" class="w-full h-full object-cover" />
                   </div>
-                  <span class="px-4 py-2 bg-primary/10 text-primary text-sm font-black italic rounded-xl border border-primary/20 w-fit mt-3 tabular-nums">
-                    {{ fmtTime(st.startTime) }}
-                  </span>
+                  <!-- Age Rating -->
+                  <span v-if="movieGroup.movie.ageRating" class="px-2 py-0.5 bg-error/20 text-error rounded-md text-[10px] font-black uppercase border border-error/30">{{ movieGroup.movie.ageRating }}</span>
+                </div>
+                
+                <!-- BÊN PHẢI: Thông tin & Suất chiếu -->
+                <div class="flex flex-col min-w-0 w-full">
+                  <h3 class="font-black text-lg uppercase tracking-tight text-on-surface truncate">{{ movieGroup.movie.title }}</h3>
+                  <div class="flex items-center gap-2 mt-1 mb-4">
+                    <span class="text-[10px] font-bold text-on-surface-variant uppercase">{{ movieGroup.movie.durationMins || '???' }} PHÚT</span>
+                  </div>
+                  
+                  <div class="flex flex-col gap-4">
+                    <div v-for="roomGroup in movieGroup.roomGroups" :key="roomGroup.groupLabel">
+                      <p class="text-[10px] font-black text-on-surface-variant/80 uppercase tracking-widest mb-2">{{ roomGroup.groupLabel }}</p>
+                      <div class="flex flex-wrap gap-2">
+                        <button v-for="st in roomGroup.showtimes" :key="st.id" @click="selectShowtime(st)" type="button"
+                          class="px-4 py-2 bg-surface-container-highest hover:bg-primary/20 text-on-surface hover:text-primary transition-colors text-sm font-black italic rounded-xl border border-outline-variant/20 hover:border-primary/50 tabular-nums">
+                          {{ fmtTime(st.startTime) }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
