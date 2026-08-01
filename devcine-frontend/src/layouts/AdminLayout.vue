@@ -63,7 +63,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
 
       <nav class="flex-grow px-4 pb-6 space-y-1.5 overflow-y-auto">
         <!-- ===== TỔNG QUAN & VẬN HÀNH ===== -->
-        <div v-if="canShowAny(['dashboard_stats', 'pos_ticketing'])" class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
+        <div v-if="canShowAny(['dashboard_stats', 'pos_ticketing', 'bookings'])" class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
 
         <router-link v-if="canShow('dashboard_stats')" to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
@@ -80,7 +80,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Kiểm soát vé</span>
         </router-link>
 
-        <router-link v-if="canShow('pos_ticketing')" to="/admin/bookings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('bookings')" to="/admin/bookings" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">receipt_long</span>
           <span class="font-semibold text-sm">Hoá đơn</span>
         </router-link>
@@ -117,7 +117,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
         </router-link>
 
         <!-- ===== KINH DOANH & KHÁCH HÀNG ===== -->
-        <div v-if="canShowAny(['pricing', 'promotions', 'support'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
+        <div v-if="canShowAny(['pricing', 'promotions', 'support', 'customers'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
 
         <router-link v-if="canShow('pricing')" to="/admin/pricing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">payments</span>
@@ -129,7 +129,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Khuyến mãi</span>
         </router-link>
 
-        <router-link v-if="canShow('support')" to="/admin/customers" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('customers')" to="/admin/customers" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">groups</span>
           <span class="font-semibold text-sm">Khách hàng</span>
         </router-link>
@@ -150,14 +150,14 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
         </router-link>
 
         <!-- ===== NHÂN SỰ ===== -->
-        <div v-if="canShow('staff_management') || authStore.isStaff" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
+        <div v-if="canShowAny(['staff_management', 'approvals'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Nhân sự</div>
 
         <router-link v-if="canShow('staff_management')" to="/admin/staff" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">group</span>
           <span class="font-semibold text-sm">Nhân viên</span>
         </router-link>
 
-        <router-link v-if="authStore.isStaff || canShow('staff_management')" to="/admin/approvals" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('approvals')" to="/admin/approvals" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">approval</span>
           <span class="font-semibold text-sm">Phê duyệt sửa sai</span>
         </router-link>
@@ -170,7 +170,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Phân quyền</span>
         </router-link>
 
-        <router-link v-if="authStore.isAdmin" to="/admin/logs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('audit_logs')" to="/admin/logs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">manage_search</span>
           <span class="font-semibold text-sm">Nhật ký</span>
         </router-link>

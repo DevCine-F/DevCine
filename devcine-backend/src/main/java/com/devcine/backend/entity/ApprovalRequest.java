@@ -6,13 +6,12 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * Yêu cầu "sửa sai" nội bộ cần Trưởng ca (Shift Leader) phê duyệt.
- * Mô hình: nhân viên tạo yêu cầu (PENDING) → Trưởng ca/Quản lý duyệt (APPROVED) hoặc từ chối (REJECTED).
+ * Yêu cầu "sửa sai" nội bộ cần Quản lý/Quản trị viên phê duyệt.
+ * Mô hình: nhân viên tạo yêu cầu (PENDING) → Quản lý/Admin duyệt (APPROVED) hoặc từ chối (REJECTED).
  *
  * <p>Loại ({@code type}):
  * <ul>
  *   <li>{@code FNB_VOID} — hủy hóa đơn bắp nước bấm nhầm; {@code refId} = ConcessionSale.id.</li>
- *   <li>{@code SEAT_MOVE} — đổi ghế do sự cố vật lý; {@code refId} = Booking.id, chi tiết ở {@code payload}.</li>
  * </ul>
  */
 @Entity
@@ -28,7 +27,7 @@ public class ApprovalRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    /** FNB_VOID | SEAT_MOVE */
+    /** FNB_VOID */
     @Column(nullable = false, length = 30)
     private String type;
 
@@ -40,11 +39,11 @@ public class ApprovalRequest {
     @Column(name = "ref_code", length = 50)
     private String refCode;
 
-    /** Dữ liệu bổ sung dạng JSON (VD SEAT_MOVE: {"bookingSeatId":..,"fromSeatId":..,"toSeatId":..}). */
+    /** Dữ liệu bổ sung dạng JSON (dự phòng cho các loại yêu cầu sau này). */
     @Column(columnDefinition = "TEXT")
     private String payload;
 
-    /** Mô tả ngắn để Trưởng ca đọc nhanh (VD "A1 → A5 (ghế gãy)"). */
+    /** Mô tả ngắn để người duyệt đọc nhanh (VD "Hủy hóa đơn CCS-XXXX (95.000đ)"). */
     @Column(length = 255)
     private String summary;
 

@@ -34,13 +34,19 @@ const features = ref([
   { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view'],
     labels: { view: 'Xem báo cáo doanh thu' } },
 
-  // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng Trưởng ca duyệt)
+  // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng duyệt hủy hóa đơn F&B của Quản lý)
   { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add'],
     labels: { view: 'Vào quầy & xem suất chiếu', add: 'Tạo đơn / bán vé & F&B' } },
   // KHÔNG phải kho: tồn kho vô hạn, module Kho/BOM đã gỡ. Đây là quản trị THỰC ĐƠN (món & combo).
   { id: 'fnb_menu', moduleId: 'pos', name: 'Thực đơn F&B (món & combo)', actions: ['view', 'add', 'edit', 'delete'],
     labels: { view: 'Xem toàn bộ thực đơn (kể cả món ẩn)', add: 'Thêm món / combo',
       edit: 'Sửa món — tên, GIÁ, ảnh, ẩn/hiện', delete: 'Xoá món khỏi thực đơn' } },
+  // Quản lý hóa đơn: xem danh sách/chi tiết (STAFF chỉ thấy đơn của mình); delete = hủy đơn/hoàn tiền (ADMIN)
+  { id: 'bookings', moduleId: 'pos', name: 'Quản lý hóa đơn', actions: ['view', 'delete'],
+    labels: { view: 'Xem danh sách / chi tiết hóa đơn', delete: 'Hủy đơn / hoàn tiền' } },
+  // Phê duyệt sửa sai: view = tạo & theo dõi yêu cầu hủy F&B; edit = duyệt / từ chối (Quản lý/Admin)
+  { id: 'approvals', moduleId: 'pos', name: 'Phê duyệt sửa sai', actions: ['view', 'edit'],
+    labels: { view: 'Xem danh sách yêu cầu', edit: 'Duyệt / Từ chối hủy F&B' } },
 
   { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'],
     labels: { view: 'Xem danh sách phim', add: 'Thêm phim', edit: 'Sửa thông tin phim', delete: 'Xoá / ẩn phim' } },
@@ -52,6 +58,9 @@ const features = ref([
     labels: { view: 'Xem khuyến mãi', add: 'Tạo khuyến mãi / voucher', edit: 'Sửa khuyến mãi', delete: 'Xoá khuyến mãi' } },
   { id: 'pricing', moduleId: 'content', name: 'Cấu hình giá vé', actions: ['view', 'edit'],
     labels: { view: 'Xem bảng giá', edit: 'Chỉnh cấu hình giá' } },
+  // Khách hàng: CHỈ xem danh sách thành viên, hạng & điểm tích lũy (không sửa từ màn quản trị)
+  { id: 'customers', moduleId: 'content', name: 'Quản lý khách hàng', actions: ['view'],
+    labels: { view: 'Xem thành viên, hạng & điểm tích lũy' } },
 
   // Cụm rạp: thao tác ghi là ADMIN-only (hasRole), không điều khiển qua ma trận → chỉ có 'view' (thấy menu)
   { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view'],
@@ -62,6 +71,9 @@ const features = ref([
     labels: { view: 'Xem CSKH & đánh giá', edit: 'Xử lý ticket / phản hồi', delete: 'Xoá ticket / đánh giá' } },
   { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'],
     labels: { view: 'Xem cài đặt', edit: 'Đổi cài đặt hệ thống' } },
+  // Nhật ký hệ thống: chỉ xem lịch sử thao tác (ghi log là tự động; ADMIN-scope)
+  { id: 'audit_logs', moduleId: 'system', name: 'Nhật ký hệ thống', actions: ['view'],
+    labels: { view: 'Xem nhật ký thao tác' } },
 ])
 
 // Nhãn action theo ngữ cảnh feature (mô tả đúng việc), fallback về nhãn chung nếu feature chưa khai báo

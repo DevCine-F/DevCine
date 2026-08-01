@@ -52,7 +52,7 @@ export default [
       {
         path: 'logs',
         name: 'admin-logs',
-        meta: { adminOnly: true },
+        meta: { permission: { feature: 'audit_logs', action: 'view' } },
         component: () => import('../views/admin/AdminLogs.vue')
       },
       {
@@ -76,8 +76,7 @@ export default [
       {
         path: 'approvals',
         name: 'admin-approvals',
-        // Hàng đợi duyệt hủy hóa đơn F&B — Quản lý/Quản trị viên (guard hiểu STAFF/MANAGER)
-        meta: { staffOnly: true, permission: { feature: 'staff_management', action: 'view' } },
+        meta: { permission: { feature: 'approvals', action: 'view' } },
         component: () => import('../views/admin/ApprovalQueue.vue')
       },
       {
@@ -88,7 +87,7 @@ export default [
       {
         path: 'bookings',
         name: 'admin-bookings',
-        meta: { permission: { feature: 'pos_ticketing', action: 'view' } },
+        meta: { permission: { feature: 'bookings', action: 'view' } },
         component: () => import('../views/admin/AdminBookings.vue')
       },
       {
@@ -132,7 +131,7 @@ export default [
       {
         path: 'customers',
         name: 'admin-customers',
-        meta: { permission: { feature: 'support', action: 'view' } },
+        meta: { permission: { feature: 'customers', action: 'view' } },
         component: () => import('../views/admin/AdminCustomers.vue')
       },
       {

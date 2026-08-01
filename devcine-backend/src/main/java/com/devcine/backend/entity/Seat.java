@@ -67,7 +67,7 @@ public class Seat {
     private Integer gridCol;
 
     /**
-     * Nhãn hiển thị chuẩn cho mọi nơi (vé, email, QR-liên quan, in POS, đổi ghế):
+     * Nhãn hiển thị chuẩn cho mọi nơi (vé, email, QR-liên quan, in POS):
      * ưu tiên label do Admin đặt/sửa tay, fallback về rowChar+colNum khi chưa có.
      * Dùng thay cho việc ghép rowChar+colNum rải rác để tránh lệch nhãn.
      */

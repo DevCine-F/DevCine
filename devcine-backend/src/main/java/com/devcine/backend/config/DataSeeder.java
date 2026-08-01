@@ -116,47 +116,60 @@ public class DataSeeder {
                     -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
             // Seed ma trận phân quyền mặc định.
-            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V4 (seed thường chỉ set khi blank).
+            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V5 (seed thường chỉ set khi blank).
             // V3: gỡ mọi action KHÔNG có endpoint @perm.can tương ứng ("checkbox chết"), MANAGER thêm settings:view.
             // V4: đổi tên feature pos_inventory -> fnb_menu (nó gác THỰC ĐƠN F&B, không phải kho — kho đã gỡ),
-            //     và gỡ hẳn khỏi STAFF: bán F&B tại quầy đi qua pos_ticketing + Position FNB, nên quyền này
+            //     và gỡ hẳn khỏi STAFF: bán F&B tại quầy đi qua pos_ticketing, nên quyền này
             //     với STAFF chỉ có tác dụng cho sửa GIÁ món — không cần thiết.
-            boolean permissionMatrixV4 = systemSettingRepository.findById("PERMISSION_MATRIX_V4").isPresent();
-            if (!permissionMatrixV4 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+            // V5: (01/08) gỡ phân hệ Ca -> POS/Check-in là RBAC thuần + Cinema Scoping. Thêm 4 feature khớp menu:
+            //     bookings (hóa đơn), approvals (duyệt hủy F&B), customers (khách hàng), audit_logs (nhật ký).
+            //     Dọn action thừa của ADMIN: cinemas chỉ view (ghi là hasRole ADMIN), pricing chỉ view+edit,
+            //     pos_ticketing chỉ view+add (không có sửa/xoá vé).
+            boolean permissionMatrixV5 = systemSettingRepository.findById("PERMISSION_MATRIX_V5").isPresent();
+            if (!permissionMatrixV5 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
                         + "\"dashboard_stats\":[\"view\",\"export\"],"
                         + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"schedules\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"banners\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"promotions\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"pricing\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"cinemas\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pricing\":[\"view\",\"edit\"],"
+                        + "\"cinemas\":[\"view\"],"
                         + "\"staff_management\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"pos_ticketing\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"pos_ticketing\":[\"view\",\"add\"],"
                         + "\"fnb_menu\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"bookings\":[\"view\",\"delete\"],"
+                        + "\"approvals\":[\"view\",\"edit\"],"
+                        + "\"customers\":[\"view\"],"
+                        + "\"audit_logs\":[\"view\"],"
                         + "\"support\":[\"view\",\"edit\",\"delete\"],"
                         + "\"settings\":[\"view\",\"edit\"]}");
                 roleRepository.save(adminRole);
             }
             // STAFF (trần quyền TĨNH): KHÔNG có báo cáo doanh thu (dashboard_stats) theo spec.
-            // Nghiệp vụ thực tế (bán vé/F&B/kiểm vé) được kích hoạt theo Position khi mở ca — ShiftAccessService,
-            // nên trần này chỉ cần rộng vừa đủ. support:edit đã gỡ — CSKH thuộc quản lý; trưởng ca cần thì
-            // cấp lại bằng quyền riêng từng người (UserPermissionOverride). fnb_menu cũng đã gỡ — quản trị
-            // thực đơn (sửa giá món) là việc của quản lý, không phải nhân viên đứng quầy.
-            if (!permissionMatrixV4 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+            // POS bán vé/soát vé chạy RBAC thuần + Cinema Scoping (không còn phụ thuộc Ca làm việc).
+            // support:edit đã gỡ — CSKH thuộc quản lý. bookings:view để xem hoá đơn của chính mình;
+            // approvals:view để TẠO & theo dõi yêu cầu hủy F&B (duyệt là quyền của Quản lý — cần 'edit').
+            // customers:view giữ để tra cứu thành viên. fnb_menu (sửa giá món) vẫn là việc của quản lý.
+            if (!permissionMatrixV5 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
                 staffRole.setPermissionsMatrix("{"
                         + "\"movies\":[\"view\"],"
                         + "\"schedules\":[\"view\"],"
                         + "\"pos_ticketing\":[\"view\",\"add\"],"
+                        + "\"bookings\":[\"view\"],"
+                        + "\"approvals\":[\"view\"],"
+                        + "\"customers\":[\"view\"],"
                         + "\"support\":[\"view\"]}");
                 roleRepository.save(staffRole);
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho STAFF.");
             }
             // MANAGER = "admin thu nhỏ theo 1 cơ sở": mạnh về VẬN HÀNH (lịch chiếu, giá, khuyến mãi, banner,
-            // nhân sự & ca, kho, báo cáo) nhưng không đụng CẤU TRÚC hệ thống — cụm rạp/phòng/phân quyền/FAQ là
+            // nhân sự, báo cáo) nhưng không đụng CẤU TRÚC hệ thống — cụm rạp/phòng/phân quyền/FAQ là
             // ADMIN-cứng (hasRole), settings chỉ cho xem. Phạm vi cơ sở do scoping cinemaId (SecurityUtils).
             // support:delete đã gỡ vì xoá đánh giá là ADMIN-cứng (ReviewController) → nút sẽ 403.
-            if (!permissionMatrixV4 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
+            // Có quyền DUYỆT hủy hóa đơn F&B (approvals:edit) trong phạm vi cơ sở mình. Nhật ký (audit_logs)
+            // là ADMIN-only nên MANAGER không được cấp.
+            if (!permissionMatrixV5 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
                 managerRole.setPermissionsMatrix("{"
                         + "\"dashboard_stats\":[\"view\"],"
                         + "\"movies\":[\"view\"],"
@@ -168,14 +181,17 @@ public class DataSeeder {
                         + "\"staff_management\":[\"view\",\"add\",\"edit\"],"
                         + "\"pos_ticketing\":[\"view\",\"add\"],"
                         + "\"fnb_menu\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"bookings\":[\"view\"],"
+                        + "\"approvals\":[\"view\",\"edit\"],"
+                        + "\"customers\":[\"view\"],"
                         + "\"support\":[\"view\",\"edit\"],"
                         + "\"settings\":[\"view\"]}");
                 roleRepository.save(managerRole);
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho MANAGER.");
             }
-            if (!permissionMatrixV4) {
+            if (!permissionMatrixV5) {
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("PERMISSION_MATRIX_V4").settingValue("true").build());
+                        .settingKey("PERMISSION_MATRIX_V5").settingValue("true").build());
             }
 
             // Chuẩn hoá mã kiểm duyệt tuổi về đúng bộ VN (P/K/T13/T16/T18/C): dữ liệu cũ lỡ nhập

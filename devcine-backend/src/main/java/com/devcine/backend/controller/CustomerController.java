@@ -27,7 +27,7 @@ public class CustomerController {
 
     /** Danh sách khách hàng cho khu vực quản trị (xem hạng, điểm). Hỗ trợ tìm kiếm theo q. */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("@perm.can('customers', 'view')")
     public ResponseEntity<?> listCustomers(@RequestParam(required = false) String q) {
         boolean hasKeyword = q != null && !q.isBlank();
         List<Customer> customers = hasKeyword

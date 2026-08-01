@@ -37,7 +37,7 @@ public class AdminBookingController {
     private static final LocalDateTime MIN_DATE = LocalDateTime.of(2000, 1, 1, 0, 0);
 
     @GetMapping
-    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
+    @PreAuthorize("@perm.can('bookings', 'view')")
     @Transactional(readOnly = true)
     public ResponseEntity<?> list(
             @RequestParam(required = false, defaultValue = "") String q,
@@ -96,7 +96,7 @@ public class AdminBookingController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@perm.can('pos_ticketing', 'view')")
+    @PreAuthorize("@perm.can('bookings', 'view')")
     @Transactional(readOnly = true)
     public ResponseEntity<?> detail(@PathVariable Integer id) {
         Booking b = bookingRepository.findDetailById(id).orElse(null);

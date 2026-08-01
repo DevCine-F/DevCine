@@ -25,7 +25,9 @@ public class ApprovalController {
 
     private final ApprovalService approvalService;
 
+    // Tạo yêu cầu + xem danh sách = approvals:view (STAFF được tạo/xem của mình).
     @PostMapping("/fnb-void")
+    @PreAuthorize("@perm.can('approvals', 'view')")
     public ResponseEntity<ApiResponse<ApprovalResponse>> requestFnbVoid(@RequestBody Map<String, Object> body) {
         Integer saleId = asInt(body.get("saleId"));
         String reason = asString(body.get("reason"));
@@ -33,21 +35,26 @@ public class ApprovalController {
     }
 
     @GetMapping("/pending")
+    @PreAuthorize("@perm.can('approvals', 'view')")
     public ResponseEntity<ApiResponse<List<ApprovalResponse>>> listPending() {
         return ResponseEntity.ok(ApiResponse.ok(approvalService.listPending().stream().map(ApprovalResponse::from).toList()));
     }
 
     @GetMapping("/mine")
+    @PreAuthorize("@perm.can('approvals', 'view')")
     public ResponseEntity<ApiResponse<List<ApprovalResponse>>> listMine() {
         return ResponseEntity.ok(ApiResponse.ok(approvalService.listMine().stream().map(ApprovalResponse::from).toList()));
     }
 
+    // Duyệt / Từ chối = approvals:edit (chỉ Quản lý/Quản trị viên — service còn chặn thêm ở requireApprover).
     @PutMapping("/{id}/approve")
+    @PreAuthorize("@perm.can('approvals', 'edit')")
     public ResponseEntity<ApiResponse<ApprovalResponse>> approve(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.approve(id))));
     }
 
     @PutMapping("/{id}/reject")
+    @PreAuthorize("@perm.can('approvals', 'edit')")
     public ResponseEntity<ApiResponse<ApprovalResponse>> reject(@PathVariable Integer id, @RequestBody(required = false) Map<String, Object> body) {
         String note = body != null ? asString(body.get("note")) : null;
         return ResponseEntity.ok(ApiResponse.ok(ApprovalResponse.from(approvalService.reject(id, note))));
