@@ -515,34 +515,41 @@ const groupedMoviesWithShowtimes = computed(() => {
   const moviesMap = new Map();
 
   visibleShowtimes.value.forEach(st => {
-    // 1. Lấy Movie Object an toàn
-    const mObj = (typeof st.movie === 'object' && st.movie !== null) ? st.movie : (st.movieSummary || {});
-    
-    // 2. Lấy Movie ID bằng fallback 6 lớp (Chống mất dữ liệu)
-    const mId = mObj.id || mObj.movieId || st.movieId || st.movie_id || st.filmId || 
-                (typeof st.movie === 'number' || typeof st.movie === 'string' ? st.movie : null) || 
-                mObj.title || st.movieTitle || 'fallback_movie';
+    // 1. TÊN PHIM & ID
+    const movieTitle = typeof st.movie === 'string' ? st.movie : (st.movie?.title || st.movieTitle || 'Phim chiếu');
+    const mId = st.movieId || movieTitle;
 
     if (!moviesMap.has(mId)) {
+      // 2. POSTER PHIM
+      const posterSrc = st.moviePoster || st.posterUrl || st.moviePosterBase64 || '/images/Hopper.webp';
+      
+      // 3. THỜI LƯỢNG
+      const durationVal = st.duration || st.durationMins || st.movieDuration || '120';
+      
       moviesMap.set(mId, {
         movie: {
           id: mId,
-          title: mObj.title || st.movieTitle || st.title || 'Phim chưa đặt tên',
-          titleVietnamese: mObj.titleVietnamese || st.movieTitleVietnamese || st.titleVietnamese,
-          posterUrl: mObj.posterUrl || st.moviePoster || st.posterUrl,
-          posterBase64: mObj.posterBase64 || mObj.poster_base64 || st.moviePosterBase64 || st.posterBase64,
-          durationMins: mObj.durationMins || mObj.duration || mObj.duration_mins || st.durationMins || st.duration || 'N/A',
-          ageRating: mObj.ageRating || st.movieAgeRating || st.ageRating
+          title: movieTitle,
+          titleVietnamese: st.movieTitleVietnamese || st.titleVietnamese,
+          posterUrl: posterSrc,
+          posterBase64: posterSrc,
+          durationMins: durationVal,
+          ageRating: st.movieAgeRating || st.ageRating
         },
         roomGroupsMap: new Map()
       });
     }
     const movieData = moviesMap.get(mId);
 
-    // 3. Lấy Tên Phòng & Định Dạng
-    const formatName = st.formatName || st.format?.name || st.format_name || '2D Phụ Đề';
-    const roomName = st.roomName || st.room?.name || st.room_name || 'Phòng chiếu';
-    const groupLabel = `${formatName} • ${roomName}`.toUpperCase();
+    // 4. TÊN PHÒNG CHIẾU
+    let rawRoom = st.roomName || st.room?.name || '223';
+    if (!rawRoom.toUpperCase().includes('PHÒNG') && !isNaN(parseInt(rawRoom.charAt(0)))) {
+      rawRoom = `PHÒNG ${rawRoom}`;
+    }
+    
+    // 5. ĐỊNH DẠNG
+    const formatName = st.formatName || st.format?.name || '2D PHỤ ĐỀ';
+    const groupLabel = `${formatName} • ${rawRoom}`.toUpperCase();
 
     if (!movieData.roomGroupsMap.has(groupLabel)) {
       movieData.roomGroupsMap.set(groupLabel, {
@@ -551,7 +558,7 @@ const groupedMoviesWithShowtimes = computed(() => {
       });
     }
     
-    // 4. Push suất chiếu vào đúng nhóm phòng
+    // Push suất chiếu
     movieData.roomGroupsMap.get(groupLabel).showtimes.push(st);
   });
 
@@ -821,8 +828,10 @@ const fetchData = async () => {
     ])
     showtimes.value = stRes.data.data ?? stRes.data
     combos.value = cbRes.data.data ?? cbRes.data
+    
     console.log("POS Raw Showtimes:", showtimes.value.length, "Available Dates:", availableDates.value)
     console.log("DEBUG - Grouped Movies Value:", groupedMoviesWithShowtimes.value);
+    console.log("DEBUG - Sample Raw Showtime Item:", showtimes.value[0]);
   } catch (err) {
     // 401 (hết phiên) đã được interceptor axios xử lý tập trung (logout + về login),
     // nên ở đây chỉ còn 403 (thiếu quyền) hoặc 500/mạng — KHÔNG đẩy về đăng nhập.
