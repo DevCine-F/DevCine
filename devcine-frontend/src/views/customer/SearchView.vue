@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { movieApi } from '@/api/customer/index'
 import api from '@/api/axios'
@@ -13,6 +13,38 @@ const results = ref([])
 const isLoading = ref(false)
 const hasSearched = ref(false)
 
+const page = ref(1)
+const pageSize = ref(15)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(results.value.length / pageSize.value)))
+
+const pagedResults = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return results.value.slice(start, start + pageSize.value)
+})
+
+const pageNumbers = computed(() => {
+  const total = totalPages.value;
+  const current = page.value;
+  const pages = [];
+  const add = (n) => pages.push(n);
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) add(i);
+  } else {
+    add(1);
+    if (current > 3) add("…");
+    for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) add(i);
+    if (current < total - 2) add("…");
+    add(total);
+  }
+  return pages;
+});
+
+const goToPage = (n) => {
+  page.value = Math.min(Math.max(1, n), totalPages.value)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 const genres = ref([])
 const suggested = ref([])
 const isLoadingSuggested = ref(false)
@@ -24,10 +56,12 @@ const runSearch = async (keyword) => {
   if (!keyword || !keyword.trim()) {
     results.value = []
     hasSearched.value = false
+    page.value = 1
     return
   }
   isLoading.value = true
   hasSearched.value = true
+  page.value = 1
   try {
     const { data } = await movieApi.search(keyword.trim())
     results.value = data.data ?? data
@@ -61,6 +95,7 @@ const resetSearch = () => {
   query.value = ''
   results.value = []
   hasSearched.value = false
+  page.value = 1
   searchInput.value?.focus()
 }
 
@@ -77,7 +112,7 @@ onMounted(async () => {
   isLoadingSuggested.value = true
   try {
     const { data } = await movieApi.getNowShowing()
-    suggested.value = (data.data ?? data).slice(0, 10)
+    suggested.value = (data.data ?? data).slice(0, 15)
   } catch (e) {
     console.error('Không tải được phim gợi ý', e)
   } finally {
@@ -147,7 +182,7 @@ const formatMeta = (m) => {
 
     <!-- Loading kết quả -->
     <section v-if="isLoading" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-      <div v-for="i in 10" :key="i" class="animate-pulse">
+      <div v-for="i in 15" :key="i" class="animate-pulse">
         <div class="aspect-[2/3] mb-4 rounded-xl bg-surface-container-high"></div>
         <div class="h-4 bg-surface-container-high rounded w-3/4 mb-2"></div>
         <div class="h-3 bg-surface-container-high rounded w-1/2"></div>
@@ -164,7 +199,36 @@ const formatMeta = (m) => {
         <span class="text-on-surface-variant text-sm font-bold">{{ results.length }} phim</span>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        <MovieCard v-for="m in results" :key="m.id" :movie="m" />
+        <MovieCard v-for="m in pagedResults" :key="m.id" :movie="m" />
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex flex-col items-center mt-12 gap-4">
+        <div class="flex items-center gap-2">
+          <button
+            @click="goToPage(page - 1)"
+            :disabled="page === 1"
+            class="px-3 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-[11px] font-black uppercase"
+          >
+            < Trước
+          </button>
+          <template v-for="(p, i) in pageNumbers" :key="i">
+            <span v-if="p === '…'" class="px-2 text-on-surface-variant/50 text-xs">…</span>
+            <button
+              v-else
+              @click="goToPage(p)"
+              :class="p === page ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant hover:text-primary'"
+              class="w-9 h-9 flex items-center justify-center rounded-sm border border-outline-variant/10 text-[11px] font-black transition-all"
+            >{{ p }}</button>
+          </template>
+          <button
+            @click="goToPage(page + 1)"
+            :disabled="page === totalPages"
+            class="px-3 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-[11px] font-black uppercase"
+          >
+            Sau >
+          </button>
+        </div>
       </div>
     </section>
 
@@ -187,7 +251,7 @@ const formatMeta = (m) => {
 
       <!-- Loading gợi ý -->
       <div v-if="isLoadingSuggested" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        <div v-for="i in 5" :key="i" class="animate-pulse">
+        <div v-for="i in 15" :key="i" class="animate-pulse">
           <div class="aspect-[2/3] mb-4 rounded-xl bg-surface-container-high"></div>
           <div class="h-4 bg-surface-container-high rounded w-3/4"></div>
         </div>

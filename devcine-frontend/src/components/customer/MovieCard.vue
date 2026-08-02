@@ -26,7 +26,7 @@ const isExpired = computed(() => {
   return new Date(props.movie.endDate) < new Date()
 })
 
-const displayPoster = computed(() => props.movie.posterUrl || props.movie.poster || props.movie.poster_url)
+const displayPoster = computed(() => props.movie.posterUrl || props.movie.poster || props.movie.poster_url || props.movie.posterBase64)
 
 const formatMeta = computed(() => {
   const parts = []
