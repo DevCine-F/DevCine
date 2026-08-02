@@ -113,6 +113,75 @@ const handleBulkDelete = async () => {
   }
 };
 
+const isSubmittingStatus = ref(false);
+
+const handleQuickStatus = async ({ movie, status }) => {
+  if (isSubmittingStatus.value) return;
+  const newStatus = status;
+  const oldStatus = movie.status;
+  
+  const revertUI = () => {
+    movie.status = oldStatus;
+    const realMovie = mm.pagedMovies.value.find(m => m.id === movie.id);
+    if (realMovie) {
+      realMovie.status = oldStatus;
+      if (mm.statusToText) {
+        realMovie.statusText = mm.statusToText(oldStatus);
+        movie.statusText = mm.statusToText(oldStatus);
+      }
+    }
+  };
+
+  // LỚP 1: CHẶN "SẮP CHIẾU" NẾU NGÀY KHỞI CHIẾU <= HÔM NAY
+  if (newStatus === 'upcoming') {
+     const startStr = movie.startDate || movie.releaseDate;
+     if (startStr) {
+       const start = new Date(startStr);
+       start.setHours(0, 0, 0, 0);
+       const today = new Date();
+       today.setHours(0, 0, 0, 0);
+       if (start <= today) {
+          toast.warning("Không thể chuyển thành Sắp chiếu vì ngày khởi chiếu đã/đang diễn ra!");
+          revertUI();
+          return; // BẮT BUỘC RETURN NGẮT LUỒNG NGAY TẠI ĐÂY!
+       }
+     }
+  }
+
+  // LỚP 2: CHẶN LỊCH CHIẾU CÒN ACTIVE (CHO CẢ 'upcoming' VÀ 'archived')
+  if ((newStatus === 'archived' || newStatus === 'upcoming') && movie.hasActiveShowtimes) {
+    toast.error(`Không thể ngừng chiếu '${movie.title}'. Hiện vẫn còn suất chiếu chưa hoàn tất!`);
+    revertUI();
+    return; // BẮT BUỘC RETURN NGẮT LUỒNG NGAY TẠI ĐÂY! TUYỆT ĐỐI KHÔNG BẬT MODAL HOẶC GỌI API!
+  }
+
+  // LỚP 3: NẾU HỢP LỆ VÀ LÀ "LƯU TRỮ" -> BẬT POPUP CONFIRM
+  if (newStatus === 'archived') {
+    const ok = await confirm.show({
+      title: "XÁC NHẬN NGỪNG CHIẾU PHIM",
+      message: `Bạn có chắc chắn muốn chuyển trạng thái phim '${movie.title}' sang LƯU TRỮ không? Phim sẽ bị ẩn khỏi danh sách bán vé trên Website và App.`,
+      confirmText: "XÁC NHẬN",
+      cancelText: "HỦY BỎ",
+      tone: "danger",
+    });
+    if (!ok) {
+      revertUI();
+      return; // DỪNG LẠI CHỜ ADMIN BẤM POPUP, KHÔNG GỌI API TRỰC TIẾP
+    }
+  }
+  
+  // LỚP 4: THỰC THI CẬP NHẬT TRỰC TIẾP CHO CÁC TRƯỜNG HỢP HỢP LỆ KHÁC
+  try {
+    isSubmittingStatus.value = true;
+    await mm.quickUpdateStatus(movie, newStatus);
+  } catch (error) {
+    console.error("Lỗi cập nhật trạng thái:", error);
+    revertUI();
+  } finally {
+    isSubmittingStatus.value = false;
+  }
+};
+
 // ===== Phân trang: dãy số trang gọn =====
 const pageNumbers = computed(() => {
   const total = mm.totalPages.value;
@@ -130,6 +199,55 @@ const pageNumbers = computed(() => {
   }
   return pages;
 });
+
+// ===== Fix Logic Tự Động =====
+const computeMovieStatus = (startDateStr, endDateStr) => {
+  if (!startDateStr) return "upcoming";
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const start = new Date(startDateStr);
+  start.setHours(0, 0, 0, 0);
+  
+  let end = null;
+  if (endDateStr) {
+    end = new Date(endDateStr);
+    end.setHours(23, 59, 59, 999);
+  }
+  
+  if (start > today) return "upcoming";
+  if (end && today > end) return "archived";
+  return "active";
+};
+
+const enhancedPagedMovies = computed(() => {
+  if (!mm.pagedMovies.value) return [];
+  return mm.pagedMovies.value.map(movie => {
+    return {
+      ...movie,
+      status: computeMovieStatus(movie.startDate || movie.releaseDate, movie.endDate)
+    };
+  });
+});
+
+const customReleaseInfo = (movie) => {
+  const startStr = movie.startDate || movie.releaseDate;
+  if (!startStr) return { label: "", tone: "none" };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = new Date(startStr);
+  start.setHours(0, 0, 0, 0);
+
+  const diffMs = start.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 0) return { label: `CÒN ${diffDays} NGÀY`, tone: "future" };
+  if (diffDays === 0) return { label: "KHỞI CHIẾU HÔM NAY", tone: "live" };
+  return { label: `ĐÃ KHỞI CHIẾU ${Math.abs(diffDays)} NGÀY`, tone: "ended" };
+};
 
 onMounted(() => {
   mm.fetchMovies();
@@ -216,7 +334,7 @@ onMounted(() => {
     <!-- Table + pagination -->
     <template v-else>
       <MovieTable
-        :movies="mm.pagedMovies.value"
+        :movies="enhancedPagedMovies"
         :selected-ids="mm.selectedIds.value"
         :sort-key="mm.sortKey.value"
         :sort-dir="mm.sortDir.value"
@@ -224,7 +342,7 @@ onMounted(() => {
         :optimize-cloudinary-url="mm.optimizeCloudinaryUrl"
         :format-price="mm.formatPrice"
         :format-date="mm.formatDate"
-        :release-info="mm.releaseInfo"
+        :release-info="customReleaseInfo"
         :can-edit="can('movies', 'edit')"
         :can-delete="can('movies', 'delete')"
         @sort="mm.setSort"
@@ -233,7 +351,7 @@ onMounted(() => {
         @row-click="handleRowClick"
         @edit="handleEdit"
         @delete="handleDelete"
-        @quick-status="({ movie, status }) => mm.quickUpdateStatus(movie, status)"
+        @quick-status="handleQuickStatus"
       />
 
       <!-- Pagination -->

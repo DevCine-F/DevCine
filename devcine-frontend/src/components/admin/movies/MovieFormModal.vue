@@ -74,6 +74,59 @@ watch(
   },
 );
 
+const computeMovieStatus = (startDateStr, endDateStr) => {
+  if (!startDateStr) return "upcoming";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const start = new Date(startDateStr);
+  start.setHours(0, 0, 0, 0);
+  
+  if (endDateStr) {
+    const end = new Date(endDateStr);
+    end.setHours(23, 59, 59, 999);
+    if (today > end) return "archived";
+  }
+  
+  if (start > today) return "upcoming";
+  return "active";
+};
+
+const handleStatusChange = () => {
+  if (props.isEditing && props.movieData && props.movieData.hasActiveShowtimes) {
+    if (newMovie.value.status === 'upcoming' || newMovie.value.status === 'archived') {
+       toast.error("Không thể chuyển trạng thái! Phim đang có suất chiếu trong hệ thống. Vui lòng hủy các suất chiếu của phim trước khi đổi về 'Sắp chiếu' hoặc 'Lưu trữ'!");
+       newMovie.value.status = 'active'; 
+       return;
+    }
+  }
+
+  if (newMovie.value.status === 'upcoming') {
+     const startStr = newMovie.value.startDate;
+     if (startStr) {
+       const start = new Date(startStr);
+       start.setHours(0, 0, 0, 0);
+       const today = new Date();
+       today.setHours(0, 0, 0, 0);
+       if (start <= today) {
+          toast.warning("Không thể chuyển thành 'Sắp chiếu' vì Ngày khởi chiếu đã/đang diễn ra. Vui lòng cập nhật Ngày khởi chiếu về tương lai!");
+          newMovie.value.status = 'active';
+          return;
+       }
+     }
+  }
+};
+
+watch(
+  () => [newMovie.value.startDate, newMovie.value.endDate],
+  ([newStart, newEnd]) => {
+    if (newStart || newEnd) {
+      newMovie.value.status = computeMovieStatus(newStart, newEnd);
+      handleStatusChange();
+    }
+  }
+);
+
 const optimizeCloudinaryUrl = (url) => {
   if (!url) return "";
   if (url.includes("cloudinary.com") && url.includes("/upload/") && !url.includes("f_auto")) {
@@ -323,12 +376,41 @@ const handleSave = () => {
 
   errors.value = e;
   if (Object.keys(e).length) {
-    toast.warning("Vui lòng kiểm tra lại các trường được tô đỏ.");
+    toast.warning("Vui lòng kiểm tra lỗi các trường được tô đỏ.");
     return;
   }
+
+  // 1. SHOWTIME GUARDRAIL 
+  if (props.isEditing && props.movieData && props.movieData.hasActiveShowtimes) {
+    if (newMovie.value.status === 'upcoming' || newMovie.value.status === 'archived') {
+       toast.error("Không thể chuyển trạng thái! Phim đang có suất chiếu trong hệ thống. Vui lòng hủy các suất chiếu của phim trước khi đổi về 'Sắp chiếu' hoặc 'Lưu trữ'!");
+       newMovie.value.status = 'active'; 
+       return;
+    }
+  }
+
+  // 2. DATE vs STATUS SYNC
+  if (newMovie.value.status === 'upcoming') {
+     const startStr = newMovie.value.startDate;
+     if (startStr) {
+       const start = new Date(startStr);
+       start.setHours(0, 0, 0, 0);
+       const today = new Date();
+       today.setHours(0, 0, 0, 0);
+       if (start <= today) {
+          toast.warning("Không thể chuyển thành 'Sắp chiếu' vì Ngày khởi chiếu đã/đang diễn ra. Vui lòng cập nhật Ngày khởi chiếu về tương lai!");
+          newMovie.value.status = 'active';
+          return;
+       }
+     }
+  }
+
   // Chuẩn hoá diễn viên: cắt khoảng trắng thừa quanh mỗi tên, nối lại bằng ", ".
   const normalizedCast = (newMovie.value.castMembers || "")
     .split(",").map((s) => s.trim()).filter(Boolean).join(", ");
+  const formattedStartDate = newMovie.value.startDate ? newMovie.value.startDate.split("T")[0] : null;
+  const formattedEndDate = newMovie.value.endDate ? newMovie.value.endDate.split("T")[0] : null;
+  
   const payload = {
     ...newMovie.value,
     castMembers: normalizedCast,
@@ -337,7 +419,9 @@ const handleSave = () => {
     format: selectedFormats.value[0] || "2D",
     supportedFormats: selectedFormats.value.join(", "),
     rating: newMovie.value.rating || "5.0",
-    releaseDate: newMovie.value.releaseDate || new Date().toISOString().split("T")[0],
+    startDate: formattedStartDate,
+    releaseDate: formattedStartDate,
+    endDate: formattedEndDate,
   };
   emit("save", payload, props.isEditing ? newMovie.value.id : null);
 };
@@ -479,7 +563,7 @@ const handleSave = () => {
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trạng thái</label>
-                <select v-model="newMovie.status" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
+                <select v-model="newMovie.status" @change="handleStatusChange" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
                   <option value="active">Đang chiếu</option>
                   <option value="upcoming">Sắp chiếu</option>
                   <option value="archived">Ngừng chiếu</option>
