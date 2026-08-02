@@ -60,3 +60,16 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 - **UI Tối giản:** Sử dụng inline-filter và comment-out để tạm ẩn các Component/Tính năng chưa cần thiết trên màn hình Chi tiết Cụm Rạp (Cinema Detail / Manager).
 - Các thành phần bị ẩn: Khung thống kê 4 chỉ số (CinemaStatsBar) và 2 tab quản trị chuyên sâu (`Nhân sự`, `Phân tích`).
 - **Quy tắc cô lập:** Tuyệt đối chỉ ẩn ở giao diện `<template>`, bảo tồn 100% logic bên dưới thẻ `<script>` để có thể khôi phục ngay lập tức sau đợt review.
+
+### 11. Tối Ưu Hiệu Năng & Đồng Bộ State Quản Lý Phòng Chiếu
+- **Tối ưu Batch Insert & Security Backend:**
+  - Áp dụng `JdbcTemplate.batchUpdate` trong `SeatService.java` thay thế cho JPA `saveAll` để bypass giới hạn chiến lược `IDENTITY` của Hibernate. Giảm thời gian khởi tạo 160+ ghế từ ~3s xuống < 100ms. Kết hợp cấu hình `rewriteBatchedStatements=true` ở MySQL driver.
+  - Bổ sung Unique Constraint vật lý tại Database qua annotation `@Table` (Entity `Room.java`) trên `cinema_id` và `name`. Bắt ngoại lệ `DataIntegrityViolationException` để trả về lỗi thân thiện HTTP 400 (Phòng chiếu này đang được tạo hoặc đã tồn tại).
+- **Chuẩn Hóa Luồng Async & UX State Frontend:**
+  - Khắc phục sự bất đồng bộ của sự kiện `emit` ở Vue 3 bằng cách truyền 2 callback `onSuccess` và `onError` vào Event Payload (`RoomFormModal.vue`). Nút [ ĐANG LƯU... ] giữ trạng thái loading cho đến khi `onSuccess` được kích hoạt (sau khi Toast xanh hiện ra và API hoàn thành thật sự), chống triệt để Race Condition.
+  - Xử lý UX Popup Xác nhận xóa (`CinemaManager.vue`): Khai báo cờ `isDeletingRoom` để vô hiệu hóa double-click. Đảm bảo biến `roomToDelete = null` được đưa vào khối `finally` để Modal đen bắt buộc phải đóng khi hoàn thành giao dịch (dù lỗi hay không).
+
+### 12. Thuật Toán Gợi Ý Tên Phòng Động (Dynamic Smart Chips)
+- **Regex Bóc Tách STT Phòng:** Sử dụng Regex `/Phòng\s*(\d+)/i` hoặc `/\d+/` trên danh sách `room.name` hiện hữu để lọc ra số thứ tự lớn nhất.
+- **Loop Until Unique:** Chạy vòng lặp `while` tịnh tiến `nextNum` và đối chiếu thực tế mảng tên phòng để ra con số tiếp theo chắc chắn không bị trùng.
+- **Giao diện Dynamic Chips:** Các chip gợi ý đổi từ trạng thái hardcode tĩnh sang render động `[ Phòng 0X ]` kết hợp check trùng lặp Realtime (`isDuplicateName`) để ngăn form submit.
