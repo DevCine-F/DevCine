@@ -391,6 +391,7 @@ onMounted(() => {
       :show="showRoomModal"
       :mode="roomModalMode"
       :initial="editingRoom"
+      :cinema="selectedCinema"
       @close="showRoomModal = false"
       @submit="submitRoom"
     />

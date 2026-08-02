@@ -4,7 +4,8 @@ import { reactive, ref, computed, watch } from 'vue'
 const props = defineProps({
   show: { type: Boolean, default: false },
   mode: { type: String, default: 'create' },   // 'create' | 'edit'
-  initial: { type: Object, default: null }      // dữ liệu phòng khi sửa
+  initial: { type: Object, default: null },      // dữ liệu phòng khi sửa
+  cinema: { type: Object, default: null }        // cụm rạp để check danh sách phòng
 })
 
 const emit = defineEmits(['close', 'submit'])
@@ -21,6 +22,21 @@ const errors = reactive({})
 
 const hasShowtimes = computed(() => props.mode === 'edit' && props.initial?.hasShowtimes)
 
+// Dynamic Naming Logic
+const padZero = (n) => (n < 10 ? '0' + n : n)
+const nextRoomNum = computed(() => {
+  if (!props.cinema || !props.cinema.halls) return 1
+  let max = 0
+  props.cinema.halls.forEach(room => {
+    const match = room.name.match(/^Phòng\s+(\d+)/i)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      if (num > max) max = num
+    }
+  })
+  return max + 1
+})
+
 // Nạp dữ liệu mỗi khi mở modal
 watch(() => props.show, (open) => {
   if (!open) return
@@ -33,7 +49,8 @@ watch(() => props.show, (open) => {
     form.matrixRow = props.initial.rows ?? props.initial.matrixRow ?? 10
     form.matrixCol = props.initial.cols ?? props.initial.matrixCol ?? 16
   } else {
-    form.name = ''; form.type = 'STANDARD'; form.status = 'Active'
+    form.type = 'STANDARD'; form.status = 'Active'
+    form.name = `Phòng ${padZero(nextRoomNum.value)} - Standard`
     form.turnaroundTimeMins = 15; form.matrixRow = 10; form.matrixCol = 16
   }
 })
@@ -43,7 +60,7 @@ watch(() => form.type, (newType) => {
   const t = ROOM_TYPES.find(x => x.value === newType)
   if (!t) return
   const match = form.name.match(/^Phòng (\d+)/i)
-  const stt = match ? match[1] : '01'
+  const stt = match ? match[1] : padZero(nextRoomNum.value)
   
   if (!form.name || form.name.match(/^Phòng \d+( - .*)?$/i)) {
     form.name = `Phòng ${stt} - ${t.label}`
@@ -59,7 +76,7 @@ const setRoomName = (base) => {
 
 const appendRoomType = () => {
   const t = ROOM_TYPES.find(x => x.value === form.type)?.label || ''
-  const base = form.name.split(' - ')[0] || 'Phòng 01'
+  const base = form.name.split(' - ')[0] || `Phòng ${padZero(nextRoomNum.value)}`
   form.name = `${base} - ${t}`
   validateName()
 }
@@ -129,9 +146,9 @@ const handleSubmit = () => {
             :class="errors.name ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
             class="w-full bg-black/20 border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 outline-none transition-all placeholder-white/20">
           <div class="flex flex-wrap gap-2 mt-2">
-            <button type="button" @click="setRoomName('Phòng 01')" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng 01 ]</button>
-            <button type="button" @click="setRoomName('Phòng 02')" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng 02 ]</button>
-            <button type="button" @click="setRoomName('Phòng 03')" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng 03 ]</button>
+            <button type="button" @click="setRoomName('Phòng ' + padZero(nextRoomNum))" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng {{ padZero(nextRoomNum) }} ]</button>
+            <button type="button" @click="setRoomName('Phòng ' + padZero(nextRoomNum + 1))" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng {{ padZero(nextRoomNum + 1) }} ]</button>
+            <button type="button" @click="setRoomName('Phòng ' + padZero(nextRoomNum + 2))" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng {{ padZero(nextRoomNum + 2) }} ]</button>
             <button type="button" @click="appendRoomType" class="px-3 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 text-[10px] font-medium transition-colors">[ + Tên loại phòng ]</button>
           </div>
           <p v-if="errors.name" class="text-red-400 text-xs mt-1">{{ errors.name }}</p>
