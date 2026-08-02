@@ -227,7 +227,7 @@ onMounted(() => {
       </header>
 
       <!-- Bộ lọc theo địa điểm -->
-      <div class="flex flex-wrap items-center gap-4 mb-8">
+      <div v-if="isAdmin()" class="flex flex-wrap items-center gap-4 mb-8">
         <span class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
           <span class="material-symbols-outlined text-base text-primary">filter_alt</span> Lọc theo địa điểm
         </span>
