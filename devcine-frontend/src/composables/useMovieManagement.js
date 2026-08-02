@@ -35,7 +35,7 @@ export function useMovieManagement() {
 
   // ===== Phân trang =====
   const page = ref(1);
-  const pageSize = ref(10);
+  const pageSize = ref(15);
 
   // ===== Chọn nhiều =====
   const selectedIds = ref(new Set());
@@ -229,6 +229,7 @@ export function useMovieManagement() {
 
   const goToPage = (n) => {
     page.value = Math.min(Math.max(1, n), totalPages.value);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const hasActiveFilters = computed(

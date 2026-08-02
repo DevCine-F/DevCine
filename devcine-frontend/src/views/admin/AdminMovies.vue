@@ -359,15 +359,15 @@ onMounted(() => {
       <!-- Pagination -->
       <div class="flex items-center justify-between mt-6 flex-wrap gap-4">
         <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-          Trang {{ mm.page.value }} / {{ mm.totalPages.value }} · {{ mm.totalFiltered.value }} phim
+          Hiển thị {{ mm.totalFiltered.value === 0 ? 0 : (mm.page.value - 1) * mm.pageSize.value + 1 }} - {{ Math.min(mm.page.value * mm.pageSize.value, mm.totalFiltered.value) }} trên tổng số {{ mm.totalFiltered.value }} phim
         </p>
         <div class="flex items-center gap-2">
           <button
             @click="mm.goToPage(mm.page.value - 1)"
             :disabled="mm.page.value === 1"
-            class="w-9 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            class="px-3 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-[11px] font-black uppercase"
           >
-            <span class="material-symbols-outlined text-base">chevron_left</span>
+            < Trước
           </button>
           <template v-for="(p, i) in pageNumbers" :key="i">
             <span v-if="p === '…'" class="px-2 text-on-surface-variant/50 text-xs">…</span>
@@ -381,9 +381,9 @@ onMounted(() => {
           <button
             @click="mm.goToPage(mm.page.value + 1)"
             :disabled="mm.page.value === mm.totalPages.value"
-            class="w-9 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            class="px-3 h-9 flex items-center justify-center rounded-sm bg-surface-container-high border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-[11px] font-black uppercase"
           >
-            <span class="material-symbols-outlined text-base">chevron_right</span>
+            Sau >
           </button>
         </div>
       </div>
