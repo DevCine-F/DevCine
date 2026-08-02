@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
+import jakarta.annotation.PostConstruct;
 
 @Service
 @RequiredArgsConstructor
@@ -26,9 +27,26 @@ public class RoomService {
     private final SeatService seatService;
 
     // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ).
-    // Bộ mã hạng phòng chuẩn Lotte (khớp normalizeRoomType của PricingService).
-    private static final Set<String> ALLOWED_TYPES = Set.of("Standard", "Superplex", "Cine Comfort", "Sweetbox");
+    // Bắt mã hạng phòng chuẩn Lotte (khớp normalizeRoomType của PricingService).
+    private static final Set<String> ALLOWED_TYPES = Set.of("STANDARD", "SUPERPLEX", "CINE_COMFORT");
     private static final Set<String> ALLOWED_STATUS = Set.of("Active", "Maintenance");
+
+    @PostConstruct
+    public void migrateRoomTypes() {
+        roomRepository.findAll().forEach(r -> {
+            String raw = r.getType();
+            if (raw == null) return;
+            String updated = raw;
+            if (raw.equalsIgnoreCase("Sweetbox") || raw.equalsIgnoreCase("Standard")) updated = "STANDARD";
+            else if (raw.equalsIgnoreCase("Superplex")) updated = "SUPERPLEX";
+            else if (raw.equalsIgnoreCase("Cine Comfort") || raw.equalsIgnoreCase("Cine_Comfort")) updated = "CINE_COMFORT";
+            
+            if (!updated.equals(raw)) {
+                r.setType(updated);
+                roomRepository.save(r);
+            }
+        });
+    }
 
     private String clean(String s) {
         if (s == null) return null;

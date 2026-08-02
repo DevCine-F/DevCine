@@ -176,10 +176,9 @@ const handleCreate = () => {
           <div class="space-y-1.5 col-span-2 sm:col-span-1">
             <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Loại Cụm Rạp</label>
             <select v-model="c.type" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all appearance-none cursor-pointer">
-              <option value="Standard" class="bg-surface-container-high text-white">Standard</option>
-              <option value="Superplex" class="bg-surface-container-high text-white">Superplex</option>
-              <option value="Sweetbox" class="bg-surface-container-high text-white">Sweetbox</option>
-              <option value="Cine Comfort" class="bg-surface-container-high text-white">Cine Comfort</option>
+              <option value="STANDARD" class="bg-surface-container-high text-white">Standard</option>
+              <option value="SUPERPLEX" class="bg-surface-container-high text-white">Superplex</option>
+              <option value="CINE_COMFORT" class="bg-surface-container-high text-white">Cine Comfort</option>
             </select>
           </div>
 

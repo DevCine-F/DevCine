@@ -9,10 +9,14 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit'])
 
-// Bộ mã hạng phòng chuẩn Lotte (đồng bộ ALLOWED_TYPES ở RoomService backend)
-const ROOM_TYPES = ['Standard', 'Superplex', 'Cine Comfort', 'Sweetbox']
-
-const form = reactive({ name: '', type: 'Standard', status: 'Active', turnaroundTimeMins: 15, matrixRow: 8, matrixCol: 10 })
+  // Bắt mã hạng phòng chuẩn Lotte (đồng bộ ALLOWED_TYPES ở RoomService backend)
+  const ROOM_TYPES = [
+    { value: 'STANDARD', label: 'Standard' },
+    { value: 'SUPERPLEX', label: 'Superplex' },
+    { value: 'CINE_COMFORT', label: 'Cine Comfort' }
+  ]
+  
+  const form = reactive({ name: '', type: 'STANDARD', status: 'Active', turnaroundTimeMins: 15, matrixRow: 8, matrixCol: 10 })
 const errors = reactive({})
 
 // Nạp dữ liệu mỗi khi mở modal
@@ -21,13 +25,13 @@ watch(() => props.show, (open) => {
   Object.keys(errors).forEach(k => delete errors[k])
   if (props.mode === 'edit' && props.initial) {
     form.name = props.initial.name || ''
-    form.type = props.initial.type || 'Standard'
+    form.type = props.initial.type || 'STANDARD'
     form.status = props.initial.status === 'Maintenance' ? 'Maintenance' : 'Active'
     form.turnaroundTimeMins = props.initial.turnaroundTimeMins ?? 15
     form.matrixRow = props.initial.rows ?? props.initial.matrixRow ?? 8
     form.matrixCol = props.initial.cols ?? props.initial.matrixCol ?? 10
   } else {
-    form.name = ''; form.type = 'Standard'; form.status = 'Active'
+    form.name = ''; form.type = 'STANDARD'; form.status = 'Active'
     form.turnaroundTimeMins = 15; form.matrixRow = 8; form.matrixCol = 10
   }
 })
@@ -103,12 +107,12 @@ const handleSubmit = () => {
 
         <div class="grid grid-cols-2 gap-5">
           <!-- Loại phòng -->
-          <div class="space-y-1.5">
-            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Loại phòng</label>
-            <select v-model="form.type" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all appearance-none cursor-pointer">
-              <option v-for="t in ROOM_TYPES" :key="t" :value="t" class="bg-surface-container-high text-white">{{ t }}</option>
-            </select>
-          </div>
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Loại phòng</label>
+              <select v-model="form.type" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all appearance-none cursor-pointer">
+                <option v-for="t in ROOM_TYPES" :key="t.value" :value="t.value" class="bg-surface-container-high text-white">{{ t.label }}</option>
+              </select>
+            </div>
           <!-- Trạng thái -->
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Trạng thái</label>

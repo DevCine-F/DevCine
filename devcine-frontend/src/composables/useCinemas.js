@@ -18,7 +18,7 @@ export function useCinemas() {
     city: '',
     district: '',
     hotline: '',
-    type: 'Standard',
+    type: 'STANDARD',
     imageUrl: '',
     description: '',
     status: 'ACTIVE'

@@ -12,6 +12,7 @@ import com.devcine.backend.service.LocationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.annotation.PostConstruct;
 
 import java.util.List;
 import java.util.Set;
@@ -27,8 +28,25 @@ public class CinemaServiceImpl implements CinemaService {
     private final LocationService locationService;
 
     // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ qua API)
-    private static final Set<String> ALLOWED_TYPES = Set.of("Standard", "Superplex", "Cine Comfort", "Sweetbox");
+    private static final Set<String> ALLOWED_TYPES = Set.of("STANDARD", "SUPERPLEX", "CINE_COMFORT");
     private static final Set<String> ALLOWED_STATUS = Set.of("ACTIVE", "MAINTENANCE", "CLOSED");
+
+    @PostConstruct
+    public void migrateCinemaTypes() {
+        cinemaRepository.findAll().forEach(c -> {
+            String raw = c.getType();
+            if (raw == null) return;
+            String updated = raw;
+            if (raw.equalsIgnoreCase("Sweetbox") || raw.equalsIgnoreCase("Standard")) updated = "STANDARD";
+            else if (raw.equalsIgnoreCase("Superplex")) updated = "SUPERPLEX";
+            else if (raw.equalsIgnoreCase("Cine Comfort") || raw.equalsIgnoreCase("Cine_Comfort")) updated = "CINE_COMFORT";
+            
+            if (!updated.equals(raw)) {
+                c.setType(updated);
+                cinemaRepository.save(c);
+            }
+        });
+    }
 
     /** Parse "HH:mm" -> LocalTime (null nếu rỗng). Định dạng đã được @Pattern chặn ở DTO. */
     private java.time.LocalTime parseTime(String s) {
