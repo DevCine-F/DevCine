@@ -51,8 +51,9 @@ const weekDays = [
 ];
 
 const movieOptions = computed(() => {
-  return movies.value
+  return [...movies.value]
     .filter(m => m.status === 'active' || m.status === 'upcoming')
+    .sort((a, b) => (b.id || 0) - (a.id || 0))
     .map(m => ({ value: m.id, label: m.title || m.name }))
 });
 
@@ -180,17 +181,84 @@ const focusFirstError = async (fieldRef) => {
   el.querySelector('input, button, select, [tabindex]')?.focus?.();
 };
 
-const buildPayload = (dryRun, force = false) => ({
-  movieId: parseInt(form.movieId),
-  formatId: parseInt(form.formatId),
-  roomIds: [...form.roomIds],
-  dateFrom: form.dateFrom,
-  dateTo: form.dateTo,
-  daysOfWeek: [...form.daysOfWeek],
-  startTimes: [...form.startTimes],
-  dryRun,
-  force
-});
+// Preset features
+const applyGoldenPreset = () => {
+  form.startTimes = ["10:00", "13:30", "17:00", "20:00", "22:30"];
+  fieldErrors.startTimes = '';
+};
+
+const clearTimes = () => {
+  form.startTimes = [];
+};
+
+const autoGenerateShifts = () => {
+  if (!form.movieId) {
+    fieldErrors.movieId = 'Vui lòng chọn phim trước để tính thời lượng.';
+    return;
+  }
+  const movie = movies.value.find(m => m.id === form.movieId);
+  if (!movie) return;
+  const duration = movie.durationMins || 120;
+  const turnaround = 15; // default turnaround for auto-shift in batch
+  const totalMins = duration + turnaround;
+
+  let startMin = 8 * 60; // 08:00
+  if (newTime.value) {
+    const [h, m] = newTime.value.split(':');
+    startMin = parseInt(h) * 60 + parseInt(m);
+  } else if (form.startTimes.length > 0) {
+    const [h, m] = form.startTimes[0].split(':');
+    startMin = parseInt(h) * 60 + parseInt(m);
+  }
+
+  const endDay = 23 * 60 + 30; // 23:30
+  const generated = [];
+  let currentMin = startMin;
+  
+  while (currentMin + totalMins <= endDay) {
+    const h = Math.floor(currentMin / 60).toString().padStart(2, '0');
+    const m = (currentMin % 60).toString().padStart(2, '0');
+    generated.push(`${h}:${m}`);
+    currentMin += totalMins;
+  }
+  
+  const allSet = new Set([...form.startTimes, ...generated]);
+  form.startTimes = Array.from(allSet).sort();
+  newTime.value = '';
+  fieldErrors.startTimes = '';
+};
+
+const buildPayload = (dryRun, force = false) => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = (today.getMonth() + 1).toString().padStart(2, '0');
+  const day = today.getDate().toString().padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
+  
+  const isToday = form.dateFrom === todayStr;
+  let validTimes = [...form.startTimes];
+
+  if (isToday) {
+    const currentHour = today.getHours();
+    const currentMin = today.getMinutes();
+    validTimes = validTimes.filter(t => {
+      const [th, tm] = t.split(':').map(Number);
+      return th > currentHour || (th === currentHour && tm >= currentMin);
+    });
+  }
+
+  return {
+    movieId: parseInt(form.movieId),
+    formatId: parseInt(form.formatId),
+    roomIds: [...form.roomIds],
+    dateFrom: form.dateFrom,
+    dateTo: form.dateTo,
+    daysOfWeek: [...form.daysOfWeek],
+    startTimes: validTimes,
+    dryRun,
+    force
+  };
+};
 
 const validateMovieDateRange = () => {
   const selectedMovie = movies.value.find(m => m.id === form.movieId);
@@ -296,7 +364,7 @@ const handleCreate = async () => {
         <div class="grid grid-cols-2 gap-4">
           <div ref="movieField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>
-            <CustomSelect v-model="form.movieId" :options="movieOptions" placeholder="-- Chọn phim --"
+            <CustomSelect v-model="form.movieId" :options="movieOptions" :searchable="true" placeholder="-- Chọn phim --"
               :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
             <p v-if="fieldErrors.movieId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.movieId }}</p>
           </div>
@@ -374,7 +442,20 @@ const handleCreate = async () => {
 
         <!-- Khung giờ -->
         <div ref="timesField">
-          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Khung giờ chiếu</label>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest">Khung giờ chiếu</label>
+            <div class="flex gap-2">
+              <button type="button" @click="applyGoldenPreset" class="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded hover:bg-primary/20 transition-colors">
+                [Gói Khung Giờ Vàng]
+              </button>
+              <button type="button" @click="autoGenerateShifts" class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded hover:bg-emerald-500/20 transition-colors">
+                [Tự động rải ca]
+              </button>
+              <button type="button" @click="clearTimes" class="text-[10px] font-bold text-red-400 bg-red-500/10 px-2 py-1 rounded hover:bg-red-500/20 transition-colors">
+                [Xóa tất cả]
+              </button>
+            </div>
+          </div>
           <div class="flex gap-2">
             <input type="time" v-model="newTime" @keyup.enter="addTime"
               :class="fieldErrors.startTimes ? 'border-red-500/60' : 'border-white/10'"
