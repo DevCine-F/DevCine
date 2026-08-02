@@ -24,22 +24,43 @@ const hasShowtimes = computed(() => props.mode === 'edit' && props.initial?.hasS
 
 // Dynamic Naming Logic
 const padZero = (n) => (n < 10 ? '0' + n : n)
+
+const isDuplicateName = computed(() => {
+  if (!props.cinema || !props.cinema.halls) return false
+  const v = (form.name || '').trim().toLowerCase()
+  if (!v) return false
+  return props.cinema.halls.some(room => {
+    if (props.mode === 'edit' && props.initial && room.id === props.initial.id) return false
+    return room.name.toLowerCase() === v
+  })
+})
+
 const nextRoomNum = computed(() => {
   if (!props.cinema || !props.cinema.halls) return 1
-  let max = 0
+  let maxFound = 0
   props.cinema.halls.forEach(room => {
-    const match = room.name.match(/^Phòng\s+(\d+)/i)
+    const match = room.name.match(/Phòng\s*(\d+)/i) || room.name.match(/\d+/)
     if (match) {
-      const num = parseInt(match[1], 10)
-      if (num > max) max = num
+      const num = parseInt(match[1] || match[0], 10)
+      if (num > maxFound) maxFound = num
     }
   })
-  return max + 1
+  let nextNum = maxFound + 1
+  while (true) {
+    const candidateName = `Phòng ${padZero(nextNum)}`.toLowerCase()
+    const isDup = props.cinema.halls.some(room => room.name.toLowerCase().includes(candidateName))
+    if (!isDup) break
+    nextNum++
+  }
+  return nextNum
 })
+
+const isSubmitting = ref(false)
 
 // Nạp dữ liệu mỗi khi mở modal
 watch(() => props.show, (open) => {
   if (!open) return
+  isSubmitting.value = false
   Object.keys(errors).forEach(k => delete errors[k])
   if (props.mode === 'edit' && props.initial) {
     form.name = props.initial.name || ''
@@ -110,16 +131,22 @@ const validateTurnaround = () => {
 
 const validateAll = () => [validateName(), validateRow(), validateCol(), validateTurnaround()].every(Boolean)
 
-const handleSubmit = () => {
-  if (!validateAll()) return
-  emit('submit', {
-    name: form.name,
-    type: form.type,
-    status: form.status,
-    turnaroundTimeMins: Number(form.turnaroundTimeMins),
-    matrixRow: Number(form.matrixRow),
-    matrixCol: Number(form.matrixCol)
-  })
+const handleSubmit = async () => {
+  if (!validateAll() || isDuplicateName.value) return
+  isSubmitting.value = true
+  try {
+    emit('submit', {
+      name: form.name,
+      type: form.type,
+      status: form.status,
+      turnaroundTimeMins: Number(form.turnaroundTimeMins),
+      matrixRow: Number(form.matrixRow),
+      matrixCol: Number(form.matrixCol)
+    })
+    await new Promise(r => setTimeout(r, 1500))
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -143,7 +170,7 @@ const handleSubmit = () => {
         <div class="space-y-1.5">
           <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Tên phòng <span class="text-red-500">*</span></label>
           <input v-model="form.name" @blur="validateName" type="text" placeholder="VD: Phòng 01"
-            :class="errors.name ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
+            :class="(errors.name || isDuplicateName) ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
             class="w-full bg-black/20 border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 outline-none transition-all placeholder-white/20">
           <div class="flex flex-wrap gap-2 mt-2">
             <button type="button" @click="setRoomName('Phòng ' + padZero(nextRoomNum))" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng {{ padZero(nextRoomNum) }} ]</button>
@@ -152,6 +179,7 @@ const handleSubmit = () => {
             <button type="button" @click="appendRoomType" class="px-3 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 text-[10px] font-medium transition-colors">[ + Tên loại phòng ]</button>
           </div>
           <p v-if="errors.name" class="text-red-400 text-xs mt-1">{{ errors.name }}</p>
+          <p v-else-if="isDuplicateName" class="text-red-400 text-xs mt-1">* Tên phòng này đã tồn tại trong cụm rạp!</p>
         </div>
 
         <div class="grid grid-cols-2 gap-5">
@@ -209,11 +237,11 @@ const handleSubmit = () => {
 
       <!-- Footer -->
       <div class="px-8 py-6 border-t border-outline-variant/10 bg-surface-container-high/10 flex justify-end gap-4">
-        <button @click="$emit('close')" class="px-6 py-3 rounded-xl border border-white/10 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">
+        <button @click="$emit('close')" :disabled="isSubmitting" class="px-6 py-3 rounded-xl border border-white/10 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
           Hủy bỏ
         </button>
-        <button @click="handleSubmit" class="px-8 py-3 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-primary/20">
-          {{ mode === 'edit' ? 'Lưu thay đổi' : 'Tạo phòng' }}
+        <button @click="handleSubmit" :disabled="isDuplicateName || isSubmitting" class="px-8 py-3 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed">
+          {{ isSubmitting ? 'Đang lưu...' : (mode === 'edit' ? 'Lưu thay đổi' : 'Tạo phòng') }}
         </button>
       </div>
     </div>
