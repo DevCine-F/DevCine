@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
 import BatchShowtimeDrawer from "@/components/admin/BatchShowtimeDrawer.vue";
 
@@ -202,9 +202,19 @@ const closeDrawer = () => {
   showtimeDetail.value = null;
 };
 
-// Vạch thời gian hiện tại + cửa sổ timeline giờ do useShowtimes quản lý (co giãn theo giờ hoạt động rạp).
+const handleShowtimesUpdated = async () => {
+  if (selectedCinema.value) {
+    await loadCinemaDetail(selectedCinema.value);
+  }
+};
+
 onMounted(() => {
   fetchCinemas();
+  window.addEventListener('showtimes-updated', handleShowtimesUpdated);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('showtimes-updated', handleShowtimesUpdated);
 });
 
 </script>
@@ -434,6 +444,7 @@ onMounted(() => {
     <ShowtimeDrawer
       :is-open="showAddShowtimeDrawer"
       :cinema-id="selectedCinema?.id"
+      :cinema="selectedCinema"
       :selected-date="selectedDate"
       @close="showAddShowtimeDrawer = false"
       @saved="() => loadCinemaDetail(selectedCinema)"

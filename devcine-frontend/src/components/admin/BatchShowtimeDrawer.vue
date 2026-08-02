@@ -31,7 +31,8 @@ const movies = ref([]);
 const formats = ref([]);
 // Cây cơ sở→phòng cục bộ: tự nạp rooms cho các rạp chưa có halls (danh sách nạp lười).
 const localCinemas = ref([]);
-const newTime = ref('');
+const newHour = ref('');
+const newMinute = ref('');
 const preview = ref(null);   // { toCreate, createdCount, skipped: [] }
 const isBusy = ref(false);
 
@@ -99,7 +100,7 @@ const buildCinemaTree = async () => {
   }));
 };
 
-watch(() => form.movieId, () => { form.formatId = ''; });
+
 
 watch(() => props.isOpen, (open) => {
   if (open) {
@@ -146,11 +147,12 @@ const toggleDay = (d) => {
 };
 
 const addTime = () => {
-  const t = (newTime.value || '').trim();
-  if (!t) return;
+  if (!newHour.value || !newMinute.value) return;
+  const t = `${newHour.value}:${newMinute.value}`;
   if (!form.startTimes.includes(t)) form.startTimes.push(t);
   form.startTimes.sort();
-  newTime.value = '';
+  newHour.value = '';
+  newMinute.value = '';
 };
 const removeTime = (t) => { form.startTimes = form.startTimes.filter(x => x !== t); };
 
@@ -203,9 +205,8 @@ const autoGenerateShifts = () => {
   const totalMins = duration + turnaround;
 
   let startMin = 8 * 60; // 08:00
-  if (newTime.value) {
-    const [h, m] = newTime.value.split(':');
-    startMin = parseInt(h) * 60 + parseInt(m);
+  if (newHour.value && newMinute.value) {
+    startMin = parseInt(newHour.value) * 60 + parseInt(newMinute.value);
   } else if (form.startTimes.length > 0) {
     const [h, m] = form.startTimes[0].split(':');
     startMin = parseInt(h) * 60 + parseInt(m);
@@ -224,9 +225,53 @@ const autoGenerateShifts = () => {
   
   const allSet = new Set([...form.startTimes, ...generated]);
   form.startTimes = Array.from(allSet).sort();
-  newTime.value = '';
+  newHour.value = '';
+  newMinute.value = '';
   fieldErrors.startTimes = '';
 };
+
+const hourOptions = computed(() => {
+  let openH = 24, closeH = -1;
+  const selectedCins = props.cinemas.filter(c => c.halls?.some(h => form.roomIds.includes(h.id)));
+  
+  if (selectedCins.length === 0) {
+    openH = 8; closeH = 23;
+  } else {
+    selectedCins.forEach(c => {
+      let oh = 8, ch = 23;
+      if (c.openingTime) oh = parseInt(c.openingTime.split(':')[0]);
+      if (c.closingTime) ch = parseInt(c.closingTime.split(':')[0]);
+      if (oh < openH) openH = oh;
+      
+      // If closingTime is smaller than openingTime, it means it crosses midnight
+      if (ch < oh) ch += 24; 
+      if (ch > closeH) closeH = ch;
+    });
+    if (closeH >= 24) closeH -= 24; // map back to 0-23
+  }
+
+  const hours = [];
+  let h = openH;
+  while (true) {
+    hours.push(h);
+    if (h === closeH) break;
+    h = (h + 1) % 24;
+    if (hours.length >= 24) break;
+  }
+
+  return hours.map(h => {
+    const val = h.toString().padStart(2, '0');
+    return { value: val, label: val, disabled: false };
+  });
+});
+
+const minuteOptions = computed(() => {
+  return Array.from({ length: 12 }, (_, i) => {
+    const minVal = i * 5;
+    const val = minVal.toString().padStart(2, '0');
+    return { value: val, label: val, disabled: false };
+  });
+});
 
 const buildPayload = (dryRun, force = false) => {
   const today = new Date();
@@ -365,6 +410,7 @@ const handleCreate = async () => {
           <div ref="movieField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>
             <CustomSelect v-model="form.movieId" :options="movieOptions" :searchable="true" placeholder="-- Chọn phim --"
+              @update:modelValue="() => { form.formatId = ''; fieldErrors.movieId = ''; }"
               :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
             <p v-if="fieldErrors.movieId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.movieId }}</p>
           </div>
@@ -457,10 +503,9 @@ const handleCreate = async () => {
             </div>
           </div>
           <div class="flex gap-2">
-            <input type="time" v-model="newTime" @keyup.enter="addTime"
-              :class="fieldErrors.startTimes ? 'border-red-500/60' : 'border-white/10'"
-              class="flex-1 bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-            <button type="button" @click="addTime" class="px-5 rounded-xl bg-primary/20 border border-primary/40 text-primary font-bold text-xs uppercase tracking-widest hover:bg-primary/30 transition-all">Thêm</button>
+            <CustomSelect v-model="newHour" :options="hourOptions" placeholder="Giờ" class="flex-1 min-w-0" />
+            <CustomSelect v-model="newMinute" :options="minuteOptions" placeholder="Phút" class="flex-1 min-w-0" />
+            <button type="button" @click="addTime" class="px-5 rounded-xl bg-primary/20 border border-primary/40 text-primary font-bold text-xs uppercase tracking-widest hover:bg-primary/30 transition-all shrink-0">Thêm</button>
           </div>
           <p v-if="fieldErrors.startTimes" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.startTimes }}</p>
           <div v-if="form.startTimes.length" class="flex flex-wrap gap-2 mt-3">

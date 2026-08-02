@@ -13,6 +13,7 @@ const confirm = useConfirmStore();
 const props = defineProps({
   isOpen: Boolean,
   cinemaId: Number,
+  cinema: Object,
   selectedDate: String,
   editData: {
     type: Object,
@@ -100,9 +101,32 @@ const currentHour = computed(() => todayCheck.value ? new Date().getHours() : -1
 const currentMinute = computed(() => todayCheck.value ? new Date().getMinutes() : -1);
 
 const hourOptions = computed(() => {
-  return Array.from({ length: 24 }, (_, i) => {
-    const val = i.toString().padStart(2, '0');
-    return { value: val, label: val, disabled: i < currentHour.value };
+  let openH = 8, closeH = 23;
+  if (props.cinema) {
+    if (props.cinema.openingTime) openH = parseInt(props.cinema.openingTime.split(':')[0]);
+    if (props.cinema.closingTime) closeH = parseInt(props.cinema.closingTime.split(':')[0]);
+  }
+
+  const hours = [];
+  let h = openH;
+  while (true) {
+    hours.push(h);
+    if (h === closeH) break;
+    h = (h + 1) % 24;
+    if (hours.length >= 24) break;
+  }
+
+  return hours.map(h => {
+    const val = h.toString().padStart(2, '0');
+    let disabled = false;
+    if (todayCheck.value) {
+      if (h >= openH) {
+         disabled = h < currentHour.value;
+      } else {
+         disabled = false; // Next day hours are never past
+      }
+    }
+    return { value: val, label: val, disabled };
   }).filter(opt => !opt.disabled);
 });
 
@@ -157,15 +181,7 @@ const fetchShowtimes = async () => {
   }
 };
 
-watch(() => form.movieId, () => {
-  form.formatId = '';
-  fieldErrors.movieId = '';
-});
 
-watch(() => form.roomId, () => { 
-  form.formatId = '';
-  fieldErrors.roomId = ''; 
-});
 
 watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
 watch(() => [form.startHour, form.startMinute], () => { fieldErrors.time = ''; });
@@ -452,6 +468,7 @@ const handleSave = async () => {
             v-model="form.movieId"
             :options="movieOptions"
             :searchable="true"
+            @update:modelValue="() => { form.formatId = ''; fieldErrors.movieId = ''; }"
             :disabled="isLocked"
             placeholder="-- Chọn Phim --"
             :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
@@ -464,6 +481,7 @@ const handleSave = async () => {
           <CustomSelect
             v-model="form.roomId"
             :options="roomOptions"
+            @update:modelValue="() => { form.formatId = ''; fieldErrors.roomId = ''; }"
             :disabled="isLocked"
             placeholder="-- Chọn Phòng chiếu --"
             :class="fieldErrors.roomId ? 'rounded-xl ring-1 ring-red-500/60' : ''"

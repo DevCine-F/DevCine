@@ -218,6 +218,7 @@ const onEditSaved = () => {
   <ShowtimeDrawer
     :is-open="isEditing"
     :cinema-id="cinema?.id"
+    :cinema="cinema"
     :selected-date="detail ? fmtDate(detail.startTime) : ''"
     :edit-data="detail"
     @close="isEditing = false"

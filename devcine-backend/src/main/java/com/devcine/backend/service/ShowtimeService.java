@@ -261,14 +261,10 @@ public class ShowtimeService {
             throw new IllegalStateException("Phòng chiếu đã có lịch trong khung giờ này (Bao gồm thời gian dọn dẹp). Vui lòng chọn giờ khác.");
         }
 
-        // RULE B — cảnh báo + xác nhận: suất kết thúc quá giờ đóng cửa (không chặn, chờ force).
-        if (endPos > win[1] && !request.isForce()) {
-            return com.devcine.backend.dto.response.ShowtimeCreateResult.builder()
-                    .requiresConfirmation(true)
-                    .endTime(fmtMin(endPos))
-                    .message("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
-                            + fmtMin(win[1]) + "). Bạn có chắc muốn tạo suất khuya này?")
-                    .build();
+        // RULE B — chặn cứng: suất kết thúc quá giờ đóng cửa.
+        if (endPos > win[1]) {
+            throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
+                            + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
         }
 
         Showtime showtime = Showtime.builder()
@@ -464,6 +460,17 @@ public class ShowtimeService {
         if (showtimeRepository.hasConflictExcluding(targetRoom.getId(), targetStart, targetEnd, id)) {
             throw new IllegalStateException(
                     "Phòng chiếu đã có lịch trong khung giờ này (gồm thời gian dọn dẹp). Vui lòng chọn giờ/phòng khác.");
+        }
+
+        int[] win = cinemaWindow(targetRoom.getCinema());
+        int startPos = posOf(targetStart.toLocalTime(), win[0]);
+        int endPos = startPos + duration + turnaroundOf(targetRoom);
+        if (startPos < win[0] || startPos >= win[1]) {
+            throw new IllegalArgumentException("Suất chiếu bắt đầu ngoài giờ hoạt động của rạp. Vui lòng chọn giờ khác.");
+        }
+        if (endPos > win[1]) {
+            throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
+                            + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
         }
 
         showtime.setRoom(targetRoom);
