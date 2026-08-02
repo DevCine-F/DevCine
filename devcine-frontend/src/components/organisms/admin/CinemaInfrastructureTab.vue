@@ -23,7 +23,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
     <button
       v-if="canManage"
       @click="$emit('add-room')"
-      class="bg-primary/10 text-primary px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2"
+      class="bg-primary/10 text-primary px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2"
     >
       <span class="material-symbols-outlined text-sm font-bold"
         >add</span
@@ -62,7 +62,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
               {{ hall.name }}
             </h4>
             <span
-              class="text-[9px] font-black text-primary uppercase tracking-[0.2em] px-2 py-1 bg-primary/10 rounded-md"
+              class="text-[9px] font-bold text-primary uppercase tracking-[0.2em] px-2 py-1 bg-primary/10 rounded-md"
               >{{ hall.type }}</span
             >
           </div>
@@ -73,7 +73,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
               ? 'text-green-500'
               : 'text-orange-500'
           "
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/20 text-[9px] font-black uppercase tracking-widest border border-white/5"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/20 text-[9px] font-bold uppercase tracking-widest border border-white/5"
         >
           <span
             class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"
@@ -91,7 +91,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
           >
             Kích thước
           </p>
-          <p class="text-lg font-black text-on-surface">
+          <p class="text-lg font-bold text-on-surface">
             {{ hall.rows }}x{{ hall.cols }} Matrix
           </p>
         </div>
@@ -103,7 +103,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
           >
             Tổng số ghế
           </p>
-          <p class="text-lg font-black text-on-surface">
+          <p class="text-lg font-bold text-on-surface">
             {{ hall.rows * hall.cols }} Ghế
           </p>
         </div>
@@ -112,7 +112,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
       <div class="flex gap-3">
         <button
           @click="$emit('open-hall', hall)"
-          class="flex-grow py-3 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-primary/10 hover:brightness-110"
+          class="flex-grow py-3 bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-primary/10 hover:brightness-110"
         >
           Xem Chi tiết & Sơ đồ ghế
         </button>
