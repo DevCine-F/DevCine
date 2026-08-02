@@ -52,10 +52,17 @@ const {
 
 // Xác nhận xoá phòng
 const roomToDelete = ref(null);
+const isDeletingRoom = ref(false);
 const confirmDeleteRoom = (hall) => { roomToDelete.value = hall; };
 const handleConfirmDelete = async () => {
-  if (roomToDelete.value) await deleteRoom(roomToDelete.value);
-  roomToDelete.value = null;
+  if (isDeletingRoom.value) return;
+  isDeletingRoom.value = true;
+  try {
+    if (roomToDelete.value) await deleteRoom(roomToDelete.value);
+  } finally {
+    roomToDelete.value = null;
+    isDeletingRoom.value = false;
+  }
 };
 
 const {
@@ -405,8 +412,8 @@ onMounted(() => {
           Phòng <span class="font-bold text-on-surface">{{ roomToDelete.name }}</span> và toàn bộ ghế của phòng sẽ bị xoá. Thao tác không thể hoàn tác.
         </p>
         <div class="flex gap-3">
-          <button @click="roomToDelete = null" class="flex-1 px-4 py-3 rounded-xl border border-white/10 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Huỷ</button>
-          <button @click="handleConfirmDelete" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all">Xoá</button>
+          <button @click="roomToDelete = null" :disabled="isDeletingRoom" class="flex-1 px-4 py-3 rounded-xl border border-white/10 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Huỷ</button>
+          <button @click="handleConfirmDelete" :disabled="isDeletingRoom" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed">{{ isDeletingRoom ? 'Đang xoá...' : 'Xoá' }}</button>
         </div>
       </div>
     </div>

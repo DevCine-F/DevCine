@@ -154,17 +154,20 @@ public class SeatService {
             }
         }
         
-        List<Seat> seatsToSave = new java.util.ArrayList<>();
+        List<Seat> seatsToInsert = new java.util.ArrayList<>();
+        List<Seat> seatsToUpdate = new java.util.ArrayList<>();
         for (int r = 0; r < rows; r++) {
             String rowChar = String.valueOf((char) ('A' + r));
             for (int c = 0; c < cols; c++) {
                 String key = rowChar + "_" + (c + 1);
                 Seat seat = existingMap.remove(key);
+                boolean isNew = false;
                 if (seat == null) {
                     seat = new Seat();
                     seat.setRoom(room);
                     seat.setRowChar(rowChar);
                     seat.setColNum(c + 1);
+                    isNew = true;
                 }
                 seat.setGridRow(r);
                 seat.setGridCol(c);
@@ -173,16 +176,46 @@ public class SeatService {
                 seat.setSeatStatus("AVAILABLE");
                 seat.setCustomLabel(false);
                 seat.setIsActive(true);
-                seatsToSave.add(seat);
+                
+                if (isNew) {
+                    seatsToInsert.add(seat);
+                } else {
+                    seatsToUpdate.add(seat);
+                }
             }
         }
         
         for (Seat remaining : existingMap.values()) {
             remaining.setIsActive(false);
-            seatsToSave.add(remaining);
+            seatsToUpdate.add(remaining);
         }
         
-        seatRepository.saveAll(seatsToSave);
+        if (!seatsToInsert.isEmpty()) {
+            String sqlInsert = "INSERT INTO seats (room_id, row_char, col_num, seat_type_id, is_active, label, custom_label, seat_status, grid_row, grid_col) " +
+                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            jdbcTemplate.batchUpdate(sqlInsert, new org.springframework.jdbc.core.BatchPreparedStatementSetter() {
+                @Override
+                public void setValues(java.sql.PreparedStatement ps, int i) throws java.sql.SQLException {
+                    Seat s = seatsToInsert.get(i);
+                    ps.setInt(1, s.getRoom().getId());
+                    ps.setString(2, s.getRowChar());
+                    ps.setInt(3, s.getColNum());
+                    ps.setInt(4, s.getSeatType().getId());
+                    ps.setBoolean(5, s.getIsActive());
+                    ps.setString(6, s.getLabel());
+                    ps.setBoolean(7, s.getCustomLabel());
+                    ps.setString(8, s.getSeatStatus());
+                    if (s.getGridRow() != null) ps.setInt(9, s.getGridRow()); else ps.setNull(9, java.sql.Types.INTEGER);
+                    if (s.getGridCol() != null) ps.setInt(10, s.getGridCol()); else ps.setNull(10, java.sql.Types.INTEGER);
+                }
+                @Override
+                public int getBatchSize() { return seatsToInsert.size(); }
+            });
+        }
+        
+        if (!seatsToUpdate.isEmpty()) {
+            seatRepository.saveAll(seatsToUpdate);
+        }
     }
 
     @Transactional

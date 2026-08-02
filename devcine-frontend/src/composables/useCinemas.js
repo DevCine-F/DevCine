@@ -208,19 +208,22 @@ export function useCinemas() {
 
   const submitRoom = async (payload) => {
     if (!selectedCinema.value) return;
+    const { onSuccess, onError, ...roomData } = payload;
     try {
       if (roomModalMode.value === 'edit' && editingRoom.value) {
-        await axios.put(`/rooms/${editingRoom.value.id}`, payload);
-        toast.success(`Đã cập nhật phòng "${payload.name}"`);
+        await axios.put(`/rooms/${editingRoom.value.id}`, roomData);
+        toast.success(`Đã cập nhật phòng "${roomData.name}"`);
       } else {
-        await axios.post(`/rooms/cinema/${selectedCinema.value.id}`, payload);
-        toast.success(`Đã thêm phòng "${payload.name}"`);
+        await axios.post(`/rooms/cinema/${selectedCinema.value.id}`, roomData);
+        toast.success(`Đã thêm phòng "${roomData.name}"`);
       }
       showRoomModal.value = false;
       await loadCinemaDetail(selectedCinema.value);   // refresh chi tiết rạp đang chọn
+      if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Error saving room:", error);
       toast.error(friendlyError(error, "Lưu phòng thất bại."));
+      if (onError) onError();
     }
   };
 

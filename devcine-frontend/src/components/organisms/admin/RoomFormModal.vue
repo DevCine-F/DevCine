@@ -131,22 +131,24 @@ const validateTurnaround = () => {
 
 const validateAll = () => [validateName(), validateRow(), validateCol(), validateTurnaround()].every(Boolean)
 
-const handleSubmit = async () => {
+const handleSubmit = () => {
   if (!validateAll() || isDuplicateName.value) return
   isSubmitting.value = true
-  try {
-    emit('submit', {
-      name: form.name,
-      type: form.type,
-      status: form.status,
-      turnaroundTimeMins: Number(form.turnaroundTimeMins),
-      matrixRow: Number(form.matrixRow),
-      matrixCol: Number(form.matrixCol)
-    })
-    await new Promise(r => setTimeout(r, 1500))
-  } finally {
-    isSubmitting.value = false
-  }
+  
+  emit('submit', {
+    name: form.name,
+    type: form.type,
+    status: form.status,
+    turnaroundTimeMins: Number(form.turnaroundTimeMins),
+    matrixRow: Number(form.matrixRow),
+    matrixCol: Number(form.matrixCol),
+    onSuccess: () => {
+      isSubmitting.value = false
+    },
+    onError: () => {
+      isSubmitting.value = false
+    }
+  })
 }
 </script>
 

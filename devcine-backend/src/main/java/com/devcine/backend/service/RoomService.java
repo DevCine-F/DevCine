@@ -11,6 +11,7 @@ import com.devcine.backend.repository.ShowtimeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Set;
@@ -109,7 +110,12 @@ public class RoomService {
                 .matrixRow(req.getMatrixRow())
                 .matrixCol(req.getMatrixCol())
                 .build();
-        room = roomRepository.save(room);
+        
+        try {
+            room = roomRepository.save(room);
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Phòng chiếu này đang được tạo hoặc đã tồn tại");
+        }
 
         // Tự sinh lưới ghế mặc định để phòng dùng được ngay
         seatService.generateDefaultSeats(room.getId(), req.getMatrixRow(), req.getMatrixCol());
