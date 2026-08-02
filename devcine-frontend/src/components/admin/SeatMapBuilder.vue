@@ -378,10 +378,11 @@ onUnmounted(() => {
   <div v-else class="flex gap-8 flex-grow overflow-hidden h-full">
     <!-- Toolbar / Sidebar -->
     <aside class="w-80 space-y-6 flex-shrink-0 overflow-y-auto pr-2 pb-10 no-scrollbar relative z-20">
-      <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
-        <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6 flex items-center gap-2">
-            <span class="material-symbols-outlined text-sm">grid_on</span> Cấu hình Ma trận
+      <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl space-y-6">
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">tune</span> Cấu hình & Thống kê
         </h3>
+        
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Hàng (Rows)</label>
@@ -390,6 +391,26 @@ onUnmounted(() => {
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Cột (Cols)</label>
             <input v-model.number="cols" @change="onDimensionChange" type="number" min="1" max="25" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center p-4 bg-black/40 rounded-xl border border-white/5">
+          <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Tổng sức chứa</span>
+          <span class="text-base font-black text-primary">{{ totalSeats }} GHẾ</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
+            <span class="text-[8px] font-bold text-primary opacity-70 uppercase tracking-widest">VIP</span>
+            <span class="text-xs font-black">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</span>
+          </div>
+          <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
+            <span class="text-[8px] font-bold text-pink-400 opacity-70 uppercase tracking-widest">Đôi</span>
+            <span class="text-xs font-black">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</span>
+          </div>
+          <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
+            <span class="text-[8px] font-bold text-red-400 opacity-70 uppercase tracking-widest">Khóa</span>
+            <span class="text-xs font-black">{{ maintenanceCount }}</span>
           </div>
         </div>
       </div>
@@ -416,33 +437,6 @@ onUnmounted(() => {
           <span class="material-symbols-outlined text-[13px] text-primary/70">lightbulb</span>
           Nhấp đúp (hoặc chuột phải) vào một ghế để sửa tên/số ghế thủ công.
         </p>
-      </div>
-
-      <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
-        <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6 flex items-center gap-2">
-          <span class="material-symbols-outlined text-sm">bar_chart</span>
-          Thông số Phòng chiếu
-        </h3>
-        <div class="space-y-3">
-          <div class="flex justify-between items-center p-4 bg-black/40 rounded-xl border border-white/5">
-            <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Sức chứa</span>
-            <span class="text-base font-black text-primary">{{ totalSeats }} ghế</span>
-          </div>
-          <div class="grid grid-cols-3 gap-3">
-            <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
-              <p class="text-[8px] font-bold text-primary opacity-70 uppercase tracking-widest mb-1">VIP</p>
-              <p class="text-sm font-black">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</p>
-            </div>
-            <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
-              <p class="text-[8px] font-bold text-pink-400 opacity-70 uppercase tracking-widest mb-1">Double</p>
-              <p class="text-sm font-black">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</p>
-            </div>
-            <div class="p-4 bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
-              <p class="text-[8px] font-bold text-red-400 opacity-70 uppercase tracking-widest mb-1">Bảo trì</p>
-              <p class="text-sm font-black">{{ maintenanceCount }}</p>
-            </div>
-          </div>
-        </div>
       </div>
     </aside>
 
