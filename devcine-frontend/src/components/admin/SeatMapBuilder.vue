@@ -403,7 +403,7 @@ onUnmounted(() => {
             { id: 'standard', label: 'Ghế Thường', icon: 'chair', color: 'text-slate-400' },
             { id: 'vip', label: 'Ghế VIP', icon: 'diamond', color: 'text-red-500' },
             { id: 'double', label: 'Ghế Đôi', icon: 'favorite', color: 'text-purple-400' },
-            { id: 'aisle', label: 'Lối đi', icon: 'pave_list', color: 'text-blue-400' },
+            { id: 'aisle', label: 'Lối đi', icon: 'route', color: 'text-sky-400' },
             { id: 'maintenance', label: 'Bảo trì / Khóa', icon: 'build', color: 'text-red-400' },
             { id: 'remove', label: 'Xóa ô', icon: 'ink_eraser', color: 'text-orange-500' }
           ]" :key="tool.id" @click="toggleTool(tool.id)" :class="getToolClass(tool.id)" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-left group relative overflow-hidden">
