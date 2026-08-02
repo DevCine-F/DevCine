@@ -91,8 +91,32 @@ const upcomingTooltip = computed(() => {
   return "";
 });
 
+const hasShowtimes = ref(false);
+
+watch(() => props.open, async (isOpen) => {
+  hasShowtimes.value = false;
+  if (isOpen && props.isEditing && props.movieData?.id) {
+    try {
+      const res = await axios.get(`/showtimes/movie/${props.movieData.id}`);
+      let allShows = [];
+      if (Array.isArray(res.data)) {
+        res.data.forEach(cinema => {
+          if (cinema.showtimesByDate) {
+            Object.values(cinema.showtimesByDate).forEach(showsArray => {
+              if (Array.isArray(showsArray)) allShows.push(...showsArray);
+            });
+          }
+        });
+      }
+      hasShowtimes.value = allShows.length > 0;
+    } catch (error) {
+      console.error("Lỗi khi fetch lịch chiếu của phim:", error);
+    }
+  }
+});
+
 const isArchivedDisabled = computed(() => {
-  return props.isEditing && props.movieData?.hasActiveShowtimes;
+  return props.isEditing && hasShowtimes.value;
 });
 
 const archivedTooltip = computed(() => {
@@ -359,7 +383,7 @@ const clearErr = (key) => {
 };
 
 // ===== Lưu =====
-const handleSave = () => {
+const handleSave = async () => {
   const m = newMovie.value;
   const e = {};
 
@@ -436,6 +460,67 @@ const handleSave = () => {
     .split(",").map((s) => s.trim()).filter(Boolean).join(", ");
   const formattedStartDate = newMovie.value.startDate ? newMovie.value.startDate.split("T")[0] : null;
   const formattedEndDate = newMovie.value.endDate ? newMovie.value.endDate.split("T")[0] : null;
+
+  // 2. REVERSE GUARDRAIL (Check showtimes vs dates)
+  if (props.isEditing && props.movieData?.hasActiveShowtimes && formattedStartDate) {
+    try {
+      const res = await axios.get(`/showtimes/movie/${m.id}`);
+      let allShows = [];
+      if (Array.isArray(res.data)) {
+        res.data.forEach(cinema => {
+          if (cinema.showtimesByDate) {
+            Object.values(cinema.showtimesByDate).forEach(showsArray => {
+              if (Array.isArray(showsArray)) {
+                allShows.push(...showsArray);
+              }
+            });
+          }
+        });
+      }
+      
+      if (allShows.length > 0) {
+        const timestamps = allShows.map(s => new Date(s.startTime).getTime());
+        const earliest = new Date(Math.min(...timestamps));
+        const latest = new Date(Math.max(...timestamps));
+
+        const newStartDate = new Date(formattedStartDate);
+        newStartDate.setHours(0,0,0,0);
+        earliest.setHours(0,0,0,0);
+
+        if (newStartDate > earliest) {
+          toast.error(`Không thể dời ngày khởi chiếu thành ${formattedStartDate} vì phim đã có lịch chiếu vào ngày ${earliest.toLocaleDateString('vi-VN')}! Vui lòng xóa/điều chỉnh các suất chiếu trước.`);
+          return;
+        }
+
+        if (formattedEndDate) {
+          const newEndDate = new Date(formattedEndDate);
+          newEndDate.setHours(0,0,0,0);
+          latest.setHours(0,0,0,0);
+          if (newEndDate < latest) {
+            toast.error(`Không thể chỉnh ngày kết thúc thành ${formattedEndDate} vì phim vẫn còn lịch chiếu vào ngày ${latest.toLocaleDateString('vi-VN')}!`);
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Lỗi khi kiểm tra lịch chiếu của phim. Không thể cập nhật.");
+      return;
+    }
+  }
+
+  // AUTO-COMPUTE STATUS SAU KHI VALIDATE HỢP LỆ
+  if (props.isEditing && newMovie.value.status !== 'archived') {
+    const start = new Date(formattedStartDate);
+    start.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (start > today) {
+      newMovie.value.status = 'upcoming';
+    } else {
+      newMovie.value.status = 'active';
+    }
+  }
   
   const payload = {
     ...newMovie.value,
@@ -599,7 +684,8 @@ const handleSave = () => {
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày khởi chiếu <span class="text-red-500">*</span></label>
-                <input v-model="newMovie.startDate" @input="clearErr('dates')" type="date" :min="isEditing ? undefined : todayStr" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20'" />
+                <input v-model="newMovie.startDate" @input="clearErr('dates')" type="date" :min="isEditing ? undefined : todayStr" :disabled="hasShowtimes" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="[ (errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20', hasShowtimes ? 'opacity-50 cursor-not-allowed bg-slate-800/50 pointer-events-none' : '' ]" />
+                <p v-if="hasShowtimes" class="text-xs text-amber-400/80 mt-1.5 flex items-center gap-1 font-medium">Phim đang có lịch chiếu hoạt động, không thể thay đổi ngày khởi chiếu.</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày kết thúc (Dự kiến) <span class="text-red-500">*</span></label>

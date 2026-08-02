@@ -34,7 +34,9 @@ const handleAdd = async () => {
 const handleEdit = async (movieSummary) => {
   try {
     await mm.fetchCategories();
-    formMovieData.value = await mm.getMovieDetail(movieSummary.id);
+    const detail = await mm.getMovieDetail(movieSummary.id);
+    detail.hasActiveShowtimes = movieSummary.hasActiveShowtimes;
+    formMovieData.value = detail;
     isEditing.value = true;
     showDetailModal.value = false;
     showFormModal.value = true;

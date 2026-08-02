@@ -172,6 +172,7 @@ const handleDeleteShowtime = async () => {
   try {
     await api.delete(`/showtimes/${st.id}`);
     toast.success("Đã xoá suất chiếu.");
+    window.dispatchEvent(new Event('showtimes-updated'));
     closeDrawer();
     await loadCinemaDetail(selectedCinema.value);
   } catch (e) {

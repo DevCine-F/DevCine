@@ -50,7 +50,11 @@ const weekDays = [
   { value: 7, label: 'CN' }
 ];
 
-const movieOptions = computed(() => movies.value.map(m => ({ value: m.id, label: m.title || m.name })));
+const movieOptions = computed(() => {
+  return movies.value
+    .filter(m => m.status === 'active' || m.status === 'upcoming')
+    .map(m => ({ value: m.id, label: m.title || m.name }))
+});
 
 // Định dạng lọc theo phim đã chọn (giống ShowtimeDrawer)
 const formatOptions = computed(() => {
@@ -188,9 +192,37 @@ const buildPayload = (dryRun, force = false) => ({
   force
 });
 
+const validateMovieDateRange = () => {
+  const selectedMovie = movies.value.find(m => m.id === form.movieId);
+  if (!selectedMovie) return false;
+  
+  const startDate = new Date(selectedMovie.startDate);
+  startDate.setHours(0,0,0,0);
+  
+  const batchStart = new Date(form.dateRange.start);
+  batchStart.setHours(0,0,0,0);
+  
+  const batchEnd = new Date(form.dateRange.end);
+  batchEnd.setHours(23,59,59,999);
+
+  let isOutOfRange = batchStart < startDate;
+  if (selectedMovie.endDate) {
+    const endDate = new Date(selectedMovie.endDate);
+    endDate.setHours(23,59,59,999);
+    if (batchEnd > endDate) isOutOfRange = true;
+  }
+
+  if (isOutOfRange) {
+    toast.error(`Khoảng ngày tạo lịch nằm ngoài khoảng thời gian khởi chiếu/kết thúc của phim '${selectedMovie.title}'!`);
+    return false;
+  }
+  return true;
+};
+
 const runPreview = async () => {
   const badField = validate();
   if (badField) { focusFirstError(badField); return; }
+  if (!validateMovieDateRange()) return;
   isBusy.value = true;
   try {
     const { data } = await api.post('/showtimes/batch', buildPayload(true));
@@ -220,6 +252,7 @@ const runCreate = async (force) => {
   }
   toast.success(`Đã tạo ${data.createdCount} suất chiếu` +
     (data.skipped?.length ? `, bỏ qua ${data.skipped.length} suất.` : '.'));
+  window.dispatchEvent(new Event('showtimes-updated'));
   emit('saved');
   emit('close');
 };
@@ -227,6 +260,7 @@ const runCreate = async (force) => {
 const handleCreate = async () => {
   const badField = validate();
   if (badField) { focusFirstError(badField); return; }
+  if (!validateMovieDateRange()) return;
   isBusy.value = true;
   try {
     await runCreate(false);

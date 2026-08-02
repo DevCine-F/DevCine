@@ -1,4 +1,4 @@
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import axios from "@/api/axios";
 import { useToastStore } from "@/stores/toast";
 import { friendlyError } from "@/utils/friendlyError";
@@ -325,6 +325,8 @@ export function useMovieManagement() {
       await fetchMovies({ silent: true });
       toast.success(payload?.title ? `Phim "${payload.title}" đã được thêm vào hệ thống.` : "Thêm phim mới thành công!");
     }
+    window.dispatchEvent(new Event('movies-updated'));
+    window.dispatchEvent(new Event('showtimes-updated'));
   };
 
   /** Đổi nhanh trạng thái 1 phim ngay trên dòng (optimistic + validate nghiệp vụ phía BE). */
@@ -370,11 +372,23 @@ export function useMovieManagement() {
     } else {
       toast.error(blocked[0] || "Không có phim nào được cập nhật.");
     }
-    // Nhắc nhẹ (không chặn): có phim vừa bật ĐANG CHIẾU nhưng chưa có suất chiếu nào.
+    // Nhắc nhở (không chặn): có phim vừa bật ĐANG CHIẾU nhưng chưa có suất chiếu nào.
     if ((res.data?.noShowtime ?? 0) > 0) {
       toast.warning("Đã chuyển trạng thái phim. Nhớ cấu hình thêm suất chiếu cho phim nhé!");
     }
   };
+
+  const handleShowtimesUpdated = () => {
+    fetchMovies({ silent: true });
+  };
+
+  onMounted(() => {
+    window.addEventListener('showtimes-updated', handleShowtimesUpdated);
+  });
+
+  onUnmounted(() => {
+    window.removeEventListener('showtimes-updated', handleShowtimesUpdated);
+  });
 
   const bulkDelete = async () => {
     const ids = [...selectedIds.value];

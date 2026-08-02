@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { useToastStore } from "@/stores/toast";
 
 const props = defineProps({
   cinema: {
@@ -78,6 +79,21 @@ const LABEL_COL_PX = 192 // cột "Room \ Time" (w-48)
 const gridTemplate = computed(() => `repeat(${props.gridCols}, minmax(0, 1fr))`)
 const gridMinWidth = computed(() => `${props.gridCols * PX_PER_COL}px`)
 const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER_COL}px`)
+
+const toast = useToastStore()
+
+const isShowtimeLocked = (st) => {
+  return (st.soldSeats || 0) + (st.heldSeats || 0) > 0 || st.reserved > 0;
+}
+
+const handleDragStart = (event, show) => {
+  if (isShowtimeLocked(show)) {
+    event.preventDefault();
+    toast.warning("Suất chiếu đã có khách đặt/bán vé, không thể di chuyển giờ!");
+    return;
+  }
+  emit('dragstart', event, show);
+}
 </script>
 
 <template>
@@ -144,7 +160,7 @@ const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER
           class="flex border-b border-outline-variant/10 bg-[#0b111e] flex-shrink-0 sticky top-0 z-40"
         >
           <div
-            class="w-48 flex-shrink-0 p-4 border-r border-outline-variant/10 flex items-center justify-center font-black text-primary uppercase tracking-[0.2em] text-[8px] italic bg-[#0b111e] sticky left-0 z-50"
+            class="w-48 h-full flex-shrink-0 p-4 border-r border-[#1e293b]/60 flex items-center justify-center font-black text-primary uppercase tracking-[0.2em] text-[8px] italic bg-[#0b111e] sticky left-0 z-40"
           >
             Room \ Time
           </div>
@@ -180,7 +196,7 @@ const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER
         <!-- Current Time Indicator -->
         <div
           v-if="showNow"
-          class="absolute top-10 bottom-0 left-48 right-0 pointer-events-none z-30"
+          class="absolute top-10 bottom-0 left-48 right-0 pointer-events-none z-10"
         >
           <div
             class="absolute top-0 bottom-0 w-[1px] bg-primary/80"
@@ -197,7 +213,7 @@ const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER
           >
             <!-- Hall Labels (Sticky Column) -->
             <div
-              class="w-48 flex-shrink-0 p-5 border-r border-outline-variant/10 flex items-center gap-3 bg-[#0b111e] sticky left-0 z-20 self-stretch"
+              class="w-48 flex-shrink-0 p-5 border-r border-[#1e293b]/60 flex items-center gap-3 bg-[#0b111e] sticky left-0 z-30 self-stretch"
             >
               <div
                 class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20"
@@ -233,8 +249,9 @@ const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER
                   (s) => s.roomId === hall.id && s.date === selectedDate
                 )"
                 :key="show.id"
-                draggable="true"
-                @dragstart="$emit('dragstart', $event, show)"
+                :draggable="!isShowtimeLocked(show)"
+                @dragstart="handleDragStart($event, show)"
+                :title="isShowtimeLocked(show) ? 'Suất chiếu đã có khách đặt/bán vé, không thể di chuyển giờ!' : 'Kéo thả để đổi giờ chiếu'"
                 :style="{
                   ...getGridStyle(show.startTime, show.duration),
                   backgroundColor: show.color + '33',
@@ -245,15 +262,16 @@ const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER
                       : show.color + '66',
                 }"
                 @click="$emit('open-showtime', show)"
-                class="relative h-[76px] mx-0.5 border rounded-xl p-2.5 cursor-pointer group/card transition-all duration-300 hover:z-30 hover:scale-[1.02] hover:brightness-125 shadow-xl flex flex-col justify-between"
+                class="relative h-[76px] mx-0.5 border rounded-xl p-2.5 group/card transition-all duration-300 hover:z-30 hover:scale-[1.02] hover:brightness-125 shadow-xl flex flex-col justify-between"
                 :class="{
-                  'ring-2 ring-red-500 ring-inset animate-pulse':
-                    checkConflict(hall.id, show) ||
-                    checkFormatMismatch(hall, show.format),
+                  'ring-2 ring-red-500 ring-inset animate-pulse': checkConflict(hall.id, show) || checkFormatMismatch(hall, show.format),
+                  'cursor-not-allowed opacity-80': isShowtimeLocked(show),
+                  'cursor-pointer': !isShowtimeLocked(show)
                 }"
               >
                 <div class="flex justify-between items-start">
-                  <p class="text-[12px] font-bold font-sans text-white leading-tight truncate tracking-wide flex-1 pr-1">
+                  <p class="text-[12px] font-bold font-sans text-white leading-tight truncate tracking-wide flex-1 pr-1 flex items-center gap-1">
+                    <span v-if="isShowtimeLocked(show)" class="text-[10px]">🔒</span>
                     {{ show.movie }}
                   </p>
                   <div class="flex items-center gap-1 shrink-0">

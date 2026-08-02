@@ -39,7 +39,9 @@ const clearErrors = () => Object.keys(fieldErrors).forEach(k => { fieldErrors[k]
 
 // Computed properties for CustomSelect options format
 const movieOptions = computed(() => {
-  return movies.value.map(m => ({ value: m.id, label: m.title || m.name }));
+  return movies.value
+    .filter(m => m.status === 'active' || m.status === 'upcoming')
+    .map(m => ({ value: m.id, label: m.title || m.name }));
 });
 
 const roomOptions = computed(() => {
@@ -161,25 +163,47 @@ const submit = async (formattedStartTime, force) => {
     force
   });
   // BE trả requiresConfirmation khi suất kết thúc quá giờ đóng cửa → hỏi rồi gửi lại force.
-  if (data?.requiresConfirmation) {
-    const ok = await confirm.show({
-      title: 'Suất chiếu khuya',
-      message: data.message || 'Suất chiếu kết thúc sau giờ đóng cửa. Vẫn tạo?',
-      confirmText: 'Vẫn tạo',
-      cancelText: 'Huỷ',
-      tone: 'primary',
-    });
-    if (ok) return submit(formattedStartTime, true);
-    return;
-  }
-  toast.success('Đã thêm suất chiếu.');
-  emit('saved');
-  emit('close');
+    if (data?.requiresConfirmation) {
+      const ok = await confirm.show({
+        title: 'Suất chiếu khuya',
+        message: 'Suất chiếu kết thúc sau giờ đóng cửa rạp. Bạn có chắc chắn muốn tạo?',
+        confirmText: 'Vẫn tạo',
+        cancelText: 'Hủy'
+      });
+      if (ok) return submit(formattedStartTime, true);
+      return;
+    }
+    toast.success('Đã thêm suất chiếu.');
+    window.dispatchEvent(new Event('showtimes-updated'));
+    emit('saved');
+    emit('close');
 };
 
 const handleSave = async () => {
   const badField = validate();
   if (badField) { focusFirstError(badField); return; }
+
+  const selectedMovie = movies.value.find(m => m.id === form.movieId);
+  if (selectedMovie) {
+    const year = new Date().getFullYear();
+    const [day, month] = props.selectedDate.split('/');
+    const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
+    
+    const startDate = new Date(selectedMovie.startDate);
+    startDate.setHours(0,0,0,0);
+    
+    let isOutOfRange = showDate < startDate;
+    if (selectedMovie.endDate) {
+      const endDate = new Date(selectedMovie.endDate);
+      endDate.setHours(23,59,59,999);
+      if (showDate > endDate) isOutOfRange = true;
+    }
+
+    if (isOutOfRange) {
+      toast.error(`Ngày chiếu ${props.selectedDate}/${year} nằm ngoài khoảng thời gian khởi chiếu/kết thúc của phim '${selectedMovie.title}'!`);
+      return;
+    }
+  }
 
   try {
     const year = new Date().getFullYear();

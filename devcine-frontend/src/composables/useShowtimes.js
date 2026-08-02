@@ -217,6 +217,7 @@ export function useShowtimes(selectedCinema) {
         show.fullDateTime = localIsoString;
       }
       toast.success("Lịch chiếu đã được xuất bản thành công vào Database!");
+      window.dispatchEvent(new Event('showtimes-updated'));
     } catch (err) {
       console.error(err);
       toast.error(friendlyError(err, "Có lỗi xảy ra khi lưu lịch chiếu!"));
