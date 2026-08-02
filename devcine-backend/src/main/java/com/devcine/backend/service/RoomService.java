@@ -122,7 +122,6 @@ public class RoomService {
         roomRepository.save(room);
 
         if (matrixChanged) {
-            seatRepository.deleteByRoomId(roomId);
             seatService.generateDefaultSeats(roomId, req.getMatrixRow(), req.getMatrixCol());
         }
         return RoomResponse.fromEntity(room);

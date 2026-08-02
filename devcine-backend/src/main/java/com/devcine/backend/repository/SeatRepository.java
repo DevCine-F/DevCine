@@ -14,6 +14,8 @@ import java.util.List;
 public interface SeatRepository extends JpaRepository<Seat, Integer> {
     @Query("SELECT s FROM Seat s JOIN FETCH s.seatType WHERE s.room.id = :roomId AND s.isActive = true")
     List<Seat> findByRoomIdAndIsActiveTrue(@Param("roomId") Integer roomId);
+    
+    List<Seat> findByRoomId(Integer roomId);
 
     // Đếm ghế BÁN ĐƯỢC theo phòng (active + không bảo trì/khóa) cho nhiều phòng một lần → tránh N+1.
     // Trả [roomId, count].

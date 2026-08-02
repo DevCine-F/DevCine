@@ -140,39 +140,49 @@ public class SeatService {
      */
     @Transactional
     public void generateDefaultSeats(Integer roomId, int rows, int cols) {
+        Room room = roomRepository.findById(roomId).orElseThrow();
         SeatType normal = seatTypeRepository.findAll().stream()
                 .filter(t -> "NORMAL".equalsIgnoreCase(t.getName()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Chưa cấu hình loại ghế NORMAL trong hệ thống"));
-        int seatTypeId = normal.getId();
-
-        List<Object[]> cells = new java.util.ArrayList<>();
+                .orElseThrow(() -> new IllegalStateException("Chưa cấu hình loại ghế NORMAL"));
+                
+        List<Seat> existingList = seatRepository.findByRoomId(roomId);
+        java.util.Map<String, Seat> existingMap = new java.util.HashMap<>();
+        if (existingList != null) {
+            for (Seat s : existingList) {
+                existingMap.put(s.getRowChar() + "_" + s.getColNum(), s);
+            }
+        }
+        
+        List<Seat> seatsToSave = new java.util.ArrayList<>();
         for (int r = 0; r < rows; r++) {
             String rowChar = String.valueOf((char) ('A' + r));
             for (int c = 0; c < cols; c++) {
-                cells.add(new Object[]{roomId, rowChar, c + 1, r, c, seatTypeId, rowChar + (c + 1)});
+                String key = rowChar + "_" + (c + 1);
+                Seat seat = existingMap.remove(key);
+                if (seat == null) {
+                    seat = new Seat();
+                    seat.setRoom(room);
+                    seat.setRowChar(rowChar);
+                    seat.setColNum(c + 1);
+                }
+                seat.setGridRow(r);
+                seat.setGridCol(c);
+                seat.setSeatType(normal);
+                seat.setLabel(rowChar + (c + 1));
+                seat.setSeatStatus("AVAILABLE");
+                seat.setCustomLabel(false);
+                seat.setIsActive(true);
+                seatsToSave.add(seat);
             }
         }
-
-        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, custom_label, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', false, true)";
-        jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
-            @Override
-            public void setValues(PreparedStatement ps, int i) throws SQLException {
-                Object[] d = cells.get(i);
-                ps.setInt(1, (int) d[0]);
-                ps.setString(2, (String) d[1]);
-                ps.setInt(3, (int) d[2]);
-                ps.setInt(4, (int) d[3]);
-                ps.setInt(5, (int) d[4]);
-                ps.setInt(6, (int) d[5]);
-                ps.setString(7, (String) d[6]);
-            }
-
-            @Override
-            public int getBatchSize() {
-                return cells.size();
-            }
-        });
+        
+        for (Seat remaining : existingMap.values()) {
+            remaining.setIsActive(false);
+            seatsToSave.add(remaining);
+        }
+        
+        seatRepository.saveAll(seatsToSave);
     }
 
     @Transactional
@@ -184,51 +194,60 @@ public class SeatService {
         room.setMatrixCol(request.getMatrixCol());
         roomRepository.save(room);
 
-        seatRepository.deactivateByRoomId(roomId);
-
         java.util.Map<String, SeatType> seatTypeMap = seatTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(SeatType::getName, type -> type));
 
-        List<com.devcine.backend.dto.request.SeatLayoutRequest.SeatDefinition> seatDefs = request.getSeats();
-        String sql = "INSERT INTO seats (room_id, row_char, col_num, grid_row, grid_col, seat_type_id, label, seat_status, custom_label, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        List<Seat> existingList = seatRepository.findByRoomId(roomId);
+        java.util.Map<String, Seat> existingMap = new java.util.HashMap<>();
+        if (existingList != null) {
+            for (Seat s : existingList) {
+                existingMap.put(s.getRowChar() + "_" + s.getColNum(), s);
+            }
+        }
 
-        jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
-            @Override
-            public void setValues(PreparedStatement ps, int i) throws SQLException {
-                var def = seatDefs.get(i);
-                String backendType = def.getType().toUpperCase();
-                if ("STANDARD".equals(backendType)) backendType = "NORMAL";
-                else if ("DOUBLE".equals(backendType)) backendType = "SWEETBOX";
+        List<Seat> seatsToSave = new java.util.ArrayList<>();
+        for (var def : request.getSeats()) {
+            String backendType = def.getType().toUpperCase();
+            if ("STANDARD".equals(backendType)) backendType = "NORMAL";
+            else if ("DOUBLE".equals(backendType)) backendType = "SWEETBOX";
 
-                String finalBackendType = backendType;
-                SeatType seatType = seatTypeMap.get(finalBackendType);
-                if (seatType == null) {
-                    throw new RuntimeException("SeatType not found: " + finalBackendType);
-                }
-
-                String label = (def.getLabel() != null && !def.getLabel().isBlank())
-                        ? def.getLabel()
-                        : (def.getRowChar() + def.getColNum());
-                String seatStatus = (def.getStatus() != null && !def.getStatus().isBlank())
-                        ? def.getStatus().toUpperCase()
-                        : "AVAILABLE";
-
-                ps.setInt(1, roomId);
-                ps.setString(2, def.getRowChar());
-                ps.setInt(3, def.getColNum());
-                ps.setInt(4, def.getGridRow());
-                ps.setInt(5, def.getGridCol());
-                ps.setInt(6, seatType.getId());
-                ps.setString(7, label);
-                ps.setString(8, seatStatus);
-                ps.setBoolean(9, Boolean.TRUE.equals(def.getCustom()));
-                ps.setBoolean(10, true);
+            SeatType seatType = seatTypeMap.get(backendType);
+            if (seatType == null) {
+                throw new RuntimeException("SeatType not found: " + backendType);
             }
 
-            @Override
-            public int getBatchSize() {
-                return seatDefs.size();
+            String label = (def.getLabel() != null && !def.getLabel().isBlank())
+                    ? def.getLabel()
+                    : (def.getRowChar() + def.getColNum());
+            String seatStatus = (def.getStatus() != null && !def.getStatus().isBlank())
+                    ? def.getStatus().toUpperCase()
+                    : "AVAILABLE";
+
+            String key = def.getRowChar() + "_" + def.getColNum();
+            Seat seat = existingMap.remove(key);
+            if (seat == null) {
+                seat = new Seat();
+                seat.setRoom(room);
+                seat.setRowChar(def.getRowChar());
+                seat.setColNum(def.getColNum());
             }
-        });
+
+            seat.setGridRow(def.getGridRow());
+            seat.setGridCol(def.getGridCol());
+            seat.setSeatType(seatType);
+            seat.setLabel(label);
+            seat.setSeatStatus(seatStatus);
+            seat.setCustomLabel(Boolean.TRUE.equals(def.getCustom()));
+            seat.setIsActive(true);
+
+            seatsToSave.add(seat);
+        }
+
+        for (Seat remaining : existingMap.values()) {
+            remaining.setIsActive(false);
+            seatsToSave.add(remaining);
+        }
+
+        seatRepository.saveAll(seatsToSave);
     }
 }
