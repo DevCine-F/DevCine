@@ -64,3 +64,10 @@ Xem memory `devcine-progress.md` Ä‘á»ƒ biáº¿t Ä‘Ã£ xong gÃ¬ vÃ  cÃ²n láº¡i gÃ¬.
 
 Commit 2 pháº§n EN/VI. **TUYá»†T Äá»I khÃ´ng thÃªm Co-Authored-By.**
 Remote: `DevCine-F` (frontend) / `DevCine` (backend).
+
+## L?ch s? Refactor (02/08/2026) - QUY CHU?N MÀN HÌNH POS BÁN VÉ
+- **B? c?c Card Phim**: Tuân th? "GOM NHÓM 2 C?P". C?p 1: Phim. C?p 2: Ğ?nh d?ng & Phòng chi?u (VD: 2D PH? Ğ? • PHÒNG 223). B?T BU?C t? d?ng chu?n hóa ti?n t? "PHÒNG" n?u API tr? v? s?.
+- **X? lı D? li?u**: st.movie là String, st.duration là s? (gán tr?c ti?p). KHÔNG G?I API /api/admin/movies trong màn POS tránh 404 làm s?p trang. T? d?ng fallback d? li?u.
+- **Múi gi? & Chu?i Ngày**: Luôn dùng helper parseToDate(st) (thay kho?ng tr?ng b?ng 'T'). So sánh ngày b?ng getLocalYmd() (chu?n múi gi? d?a phuong), TUY?T Ğ?I KHÔNG dùng .toISOString().
+- **UI/UX Dropdown**: Gi? n?n trong su?t g-transparent, hover d?i xám nh? hover:bg-white/10, ch? 	ext-amber-400. Không dùng g-amber-500/10. Nút gi? chi?u d?ng Pill, tang d?n.
+- **Strict Isolation**: Ch? s?a dúng file ch? d?nh, không t? ı s?a helper/API chung. Ğ?m b?o ite build xanh 100%.

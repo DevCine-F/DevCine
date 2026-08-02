@@ -139,3 +139,10 @@ PhÃ¢n trang: `data: { content, page, size, totalElements, totalPages }`.
 - `RULES.md` â€” quy táº¯c báº¯t buá»™c.
 - `docs/` â€” `ARCHITECTURE.md`, `DATABASE.md`, `API_CONTRACTS.md`, `CRITICAL_PATHS.md`, `SECURITY.md`.
 - `docs/bao-cao/Bao_cao_thong_ke_DevCine.docx` â€” bÃ¡o cÃ¡o thá»‘ng kÃª & phÃ¢n tÃ­ch tiáº¿n Ä‘á»™ (sinh bá»Ÿi `generate_report.py`).
+
+## L?ch s? Refactor (02/08/2026) - QUY CHU?N MÀN HÌNH POS BÁN VÉ
+- **B? c?c Card Phim**: Tuân th? "GOM NHÓM 2 C?P". C?p 1: Phim. C?p 2: Ð?nh d?ng & Phòng chi?u (VD: 2D PH? Ð? • PHÒNG 223). B?T BU?C t? d?ng chu?n hóa ti?n t? "PHÒNG" n?u API tr? v? s?.
+- **X? lý D? li?u**: st.movie là String, st.duration là s? (gán tr?c ti?p). KHÔNG G?I API /api/admin/movies trong màn POS tránh 404 làm s?p trang. T? d?ng fallback d? li?u.
+- **Múi gi? & Chu?i Ngày**: Luôn dùng helper parseToDate(st) (thay kho?ng tr?ng b?ng 'T'). So sánh ngày b?ng getLocalYmd() (chu?n múi gi? d?a phuong), TUY?T Ð?I KHÔNG dùng .toISOString().
+- **UI/UX Dropdown**: Gi? n?n trong su?t g-transparent, hover d?i xám nh? hover:bg-white/10, ch? 	ext-amber-400. Không dùng g-amber-500/10. Nút gi? chi?u d?ng Pill, tang d?n.
+- **Strict Isolation**: Ch? s?a dúng file ch? d?nh, không t? ý s?a helper/API chung. Ð?m b?o ite build xanh 100%.
