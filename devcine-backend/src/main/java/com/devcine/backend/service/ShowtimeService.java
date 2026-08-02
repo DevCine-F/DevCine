@@ -585,11 +585,24 @@ public class ShowtimeService {
         List<Showtime> futureShows = showtimeRepository.findFutureShowtimesByCinema(cinema.getId(), LocalDateTime.now());
         int violations = 0;
         for (Showtime s : futureShows) {
-            int startPos = posOf(s.getStartTime().toLocalTime(), openMin);
-            int duration = s.getMovie().getDurationMins() != null ? s.getMovie().getDurationMins() : 120;
-            int turnaround = turnaroundOf(s.getRoom());
-            int endPos = startPos + duration + turnaround;
-            if (startPos < openMin || endPos > closeMin) {
+            int sStart = s.getStartTime().getHour() * 60 + s.getStartTime().getMinute();
+            int sEnd = s.getEndTime().getHour() * 60 + s.getEndTime().getMinute();
+
+            if (sStart < openMin) {
+                sStart += 1440;
+            }
+            if (sEnd < openMin || sEnd < sStart) {
+                sEnd += 1440;
+            }
+
+            if (sStart < openMin || sEnd > closeMin) {
+                System.out.println("VIOLATION - Showtime ID: " + s.getId() + 
+                    " | Start: " + s.getStartTime() + 
+                    " | End: " + s.getEndTime() + 
+                    " | sStart: " + sStart + 
+                    " | sEnd: " + sEnd + 
+                    " | openMin: " + openMin + 
+                    " | closeMin: " + closeMin);
                 violations++;
             }
         }

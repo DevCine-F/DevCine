@@ -37,28 +37,31 @@ public class RoomMigrationRunner implements CommandLineRunner {
         List<Cinema> cinemas = cinemaRepository.findAll();
         for (Cinema cinema : cinemas) {
             List<Room> rooms = roomRepository.findByCinemaId(cinema.getId());
-            
-            // Tìm hoặc tạo Room 1
-            Room room1 = getRoomByIndex(rooms, 0, cinema);
+            // Tìm hoặc tạo các phòng theo TÊN để tránh vi phạm Unique Constraint
+            Room room1 = getOrCreateRoomByName(rooms, "Phòng 01 - Standard", cinema);
             updateRoom(room1, "Phòng 01 - Standard", "STANDARD", 10, 16);
             upsertSeats(room1, 10, 16, 4, 9, normalType, vipType, sweetboxType);
 
-            // Tìm hoặc tạo Room 2
-            Room room2 = getRoomByIndex(rooms, 1, cinema);
+            Room room2 = getOrCreateRoomByName(rooms, "Phòng 02 - Superplex", cinema);
             updateRoom(room2, "Phòng 02 - Superplex", "SUPERPLEX", 10, 16);
             upsertSeats(room2, 10, 16, 3, 9, normalType, vipType, sweetboxType);
 
-            // Tìm hoặc tạo Room 3
-            Room room3 = getRoomByIndex(rooms, 2, cinema);
+            Room room3 = getOrCreateRoomByName(rooms, "Phòng 03 - Cine Comfort", cinema);
             updateRoom(room3, "Phòng 03 - Cine Comfort", "CINE_COMFORT", 8, 10);
             upsertSeats(room3, 8, 10, 2, 8, normalType, vipType, sweetboxType);
             
-            // Xóa hoặc set Maintenance cho các phòng dư thừa (> 3)
-            if (rooms.size() > 3) {
-                for (int i = 3; i < rooms.size(); i++) {
-                    Room extra = rooms.get(i);
-                    extra.setStatus("Maintenance");
-                    roomRepository.save(extra);
+            // Xóa hoặc set Maintenance cho các phòng dư thừa
+            for (Room r : rooms) {
+                String n = r.getName();
+                if (n != null && !n.equals("Phòng 01 - Standard") 
+                              && !n.equals("Phòng 02 - Superplex") 
+                              && !n.equals("Phòng 03 - Cine Comfort")) {
+                    r.setStatus("Maintenance");
+                    try {
+                        roomRepository.save(r);
+                    } catch (Exception e) {
+                        System.err.println("Không thể cập nhật trạng thái phòng dư thừa: " + e.getMessage());
+                    }
                 }
             }
         }
@@ -72,13 +75,31 @@ public class RoomMigrationRunner implements CommandLineRunner {
                 .orElseGet(() -> seatTypeRepository.save(SeatType.builder().name(name).build()));
     }
 
-    private Room getRoomByIndex(List<Room> rooms, int index, Cinema cinema) {
-        if (index < rooms.size()) {
-            return rooms.get(index);
+    private Room getOrCreateRoomByName(List<Room> rooms, String targetName, Cinema cinema) {
+        // 1. Tìm đúng phòng theo tên
+        for (Room r : rooms) {
+            if (targetName.equals(r.getName())) {
+                return r;
+            }
         }
+        
+        // 2. Nếu không tìm thấy, tái chế một phòng rác (không phải 3 phòng chuẩn)
+        for (Room r : rooms) {
+            String n = r.getName();
+            if (n != null && !n.equals("Phòng 01 - Standard") 
+                          && !n.equals("Phòng 02 - Superplex") 
+                          && !n.equals("Phòng 03 - Cine Comfort")) {
+                r.setName(targetName);
+                return r;
+            }
+        }
+        
+        // 3. Nếu không còn phòng rác nào, tạo mới
         Room newRoom = new Room();
         newRoom.setCinema(cinema);
         newRoom.setTurnaroundTimeMins(15);
+        newRoom.setName(targetName);
+        rooms.add(newRoom);
         return roomRepository.save(newRoom);
     }
 
