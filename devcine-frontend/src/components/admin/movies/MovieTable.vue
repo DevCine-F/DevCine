@@ -43,6 +43,40 @@ const openStatusMenuId = ref(null);
 const toggleStatusMenu = (id) => {
   openStatusMenuId.value = openStatusMenuId.value === id ? null : id;
 };
+
+const isOptionDisabled = (movie, optValue) => {
+  if (optValue === "upcoming") {
+     const startStr = movie.startDate || movie.releaseDate;
+     if (startStr) {
+       const start = new Date(startStr);
+       start.setHours(0, 0, 0, 0);
+       const today = new Date();
+       today.setHours(0, 0, 0, 0);
+       if (start <= today) return true;
+     }
+  }
+  if (optValue === "archived" && movie.hasActiveShowtimes) {
+    return true;
+  }
+  return false;
+};
+
+const getOptionTooltip = (movie, optValue) => {
+  if (optValue === "upcoming") {
+     const startStr = movie.startDate || movie.releaseDate;
+     if (startStr) {
+       const start = new Date(startStr);
+       start.setHours(0, 0, 0, 0);
+       const today = new Date();
+       today.setHours(0, 0, 0, 0);
+       if (start <= today) return "Không thể chọn do Ngày khởi chiếu đã/đang diễn ra";
+     }
+  }
+  if (optValue === "archived" && movie.hasActiveShowtimes) {
+    return "Không thể Lưu trữ do phim đang có suất chiếu chưa hoàn tất";
+  }
+  return "";
+};
 const pickStatus = (movie, status) => {
   openStatusMenuId.value = null;
   if (status !== movie.status) emit("quick-status", { movie, status });
@@ -258,9 +292,14 @@ const statusBadgeClass = (status) =>
               <button
                 v-for="opt in STATUS_OPTIONS"
                 :key="opt.value"
-                @click="pickStatus(movie, opt.value)"
-                class="w-full text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/10 transition-colors"
-                :class="opt.value === movie.status ? 'text-primary' : 'text-on-surface-variant'"
+                @click="!isOptionDisabled(movie, opt.value) && pickStatus(movie, opt.value)"
+                :disabled="isOptionDisabled(movie, opt.value)"
+                :title="getOptionTooltip(movie, opt.value)"
+                class="w-full text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                :class="[
+                  opt.value === movie.status ? 'text-primary' : 'text-on-surface-variant',
+                  !isOptionDisabled(movie, opt.value) ? 'hover:bg-primary/10' : ''
+                ]"
               >
                 {{ opt.label }}
               </button>

@@ -74,6 +74,32 @@ watch(
   },
 );
 
+const isUpcomingDisabled = computed(() => {
+  const startStr = newMovie.value.startDate;
+  if (startStr) {
+     const start = new Date(startStr);
+     start.setHours(0, 0, 0, 0);
+     const today = new Date();
+     today.setHours(0, 0, 0, 0);
+     if (start <= today) return true;
+  }
+  return false;
+});
+
+const upcomingTooltip = computed(() => {
+  if (isUpcomingDisabled.value) return "Không thể chọn do Ngày khởi chiếu đã/đang diễn ra";
+  return "";
+});
+
+const isArchivedDisabled = computed(() => {
+  return props.isEditing && props.movieData?.hasActiveShowtimes;
+});
+
+const archivedTooltip = computed(() => {
+  if (isArchivedDisabled.value) return "Không thể Lưu trữ do phim đang có suất chiếu chưa hoàn tất";
+  return "";
+});
+
 const computeMovieStatus = (startDateStr, endDateStr) => {
   if (!startDateStr) return "upcoming";
   const today = new Date();
@@ -565,8 +591,8 @@ const handleSave = () => {
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trạng thái</label>
                 <select v-model="newMovie.status" @change="handleStatusChange" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
                   <option value="active">Đang chiếu</option>
-                  <option value="upcoming">Sắp chiếu</option>
-                  <option value="archived">Ngừng chiếu</option>
+                  <option value="upcoming" :disabled="isUpcomingDisabled" :title="upcomingTooltip">Sắp chiếu</option>
+                  <option value="archived" :disabled="isArchivedDisabled" :title="archivedTooltip">Ngừng chiếu</option>
                 </select>
               </div>
             </div>
