@@ -9,6 +9,7 @@ import com.devcine.backend.repository.RoomRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.service.CinemaService;
 import com.devcine.backend.service.LocationService;
+import com.devcine.backend.service.ShowtimeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class CinemaServiceImpl implements CinemaService {
     private final StaffRepository staffRepository;
     private final RoomRepository roomRepository;
     private final LocationService locationService;
+    private final ShowtimeService showtimeService;
 
     // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ qua API)
     private static final Set<String> ALLOWED_TYPES = Set.of("STANDARD", "SUPERPLEX", "CINE_COMFORT");
@@ -200,9 +202,15 @@ public class CinemaServiceImpl implements CinemaService {
         if (request.getLongitude() != null) cinema.setLongitude(request.getLongitude());
         if (request.getAmenities() != null) cinema.setAmenities(request.getAmenities());
         if (request.getStatus() != null) cinema.setStatus(request.getStatus());
+        
         // Giờ hoạt động: chỉ ghi đè khi request có gửi (tránh form cũ làm mất dữ liệu).
-        if (request.getOpeningTime() != null) cinema.setOpeningTime(parseTime(request.getOpeningTime()));
-        if (request.getClosingTime() != null) cinema.setClosingTime(parseTime(request.getClosingTime()));
+        if (request.getOpeningTime() != null || request.getClosingTime() != null) {
+            java.time.LocalTime newOpen = request.getOpeningTime() != null ? parseTime(request.getOpeningTime()) : cinema.getOpeningTime();
+            java.time.LocalTime newClose = request.getClosingTime() != null ? parseTime(request.getClosingTime()) : cinema.getClosingTime();
+            showtimeService.validateCinemaHoursUpdate(cinema, newOpen, newClose);
+            cinema.setOpeningTime(newOpen);
+            cinema.setClosingTime(newClose);
+        }
 
         if (request.getManagerId() != null) {
             Staff manager = staffRepository.findById(request.getManagerId())

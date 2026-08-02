@@ -566,4 +566,29 @@ public class ShowtimeService {
         int m = ((min % 1440) + 1440) % 1440;
         return String.format("%02d:%02d", m / 60, m % 60);
     }
+
+    /** Validate xem giờ mở/đóng mới có làm "tàng hình" suất chiếu chưa kết thúc nào không */
+    public void validateCinemaHoursUpdate(Cinema cinema, java.time.LocalTime newOpen, java.time.LocalTime newClose) {
+        if (newOpen == null || newClose == null) return;
+        
+        int openMin = newOpen.getHour() * 60 + newOpen.getMinute();
+        int closeMin = newClose.getHour() * 60 + newClose.getMinute();
+        if (closeMin <= openMin) closeMin += 1440;
+        
+        List<Showtime> futureShows = showtimeRepository.findFutureShowtimesByCinema(cinema.getId(), LocalDateTime.now());
+        int violations = 0;
+        for (Showtime s : futureShows) {
+            int startPos = posOf(s.getStartTime().toLocalTime(), openMin);
+            int duration = s.getMovie().getDurationMins() != null ? s.getMovie().getDurationMins() : 120;
+            int turnaround = turnaroundOf(s.getRoom());
+            int endPos = startPos + duration + turnaround;
+            if (startPos < openMin || endPos > closeMin) {
+                violations++;
+            }
+        }
+        
+        if (violations > 0) {
+            throw new IllegalArgumentException("Không thể đổi giờ hoạt động! Đang có " + violations + " suất chiếu chưa kết thúc nằm ngoài khung giờ mới. Vui lòng hủy hoặc dời lịch các suất chiếu này trước!");
+        }
+    }
 }

@@ -46,6 +46,10 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "ORDER BY s.startTime ASC")
     List<Showtime> findByCinemaId(@Param("cinemaId") Integer cinemaId);
 
+    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r " +
+           "WHERE r.cinema.id = :cinemaId AND s.endTime >= :now")
+    List<Showtime> findFutureShowtimesByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
+
     @Query("SELECT COUNT(s) > 0 FROM Showtime s WHERE s.room.id = :roomId " +
            "AND s.startTime < :endTime AND s.endTime > :startTime")
     boolean hasConflict(@Param("roomId") Integer roomId,

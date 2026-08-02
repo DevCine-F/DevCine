@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import axios from "@/api/axios";
+import { useToastStore } from "@/stores/toast";
 
 export function useCinemaConfig(selectedCinema) {
   const API_BASE_URL = "/v1/cinemas";
@@ -140,6 +141,8 @@ export function useCinemaConfig(selectedCinema) {
     const c = selectedCinema.value;
     if (!c) return;
     configError.hours = "";
+    const oldOpen = c.openingTime;
+    const oldClose = c.closingTime;
     if (!configHours.openTime || !configHours.closeTime) {
       configError.hours = "Vui lòng nhập đủ giờ mở và giờ đóng cửa.";
       return;
@@ -175,6 +178,12 @@ export function useCinemaConfig(selectedCinema) {
       configError.hours = e?.response?.data?.message
         || "Lưu giờ hoạt động thất bại — kiểm tra định dạng HH:mm.";
       console.error("[Config] Lưu giờ hoạt động thất bại:", e);
+      // Rollback UI
+      configHours.openTime = oldOpen || "08:00";
+      configHours.closeTime = oldClose || "23:30";
+      
+      const toast = useToastStore();
+      toast.error(configError.hours);
     } finally {
       configSaving.hours = false;
     }
