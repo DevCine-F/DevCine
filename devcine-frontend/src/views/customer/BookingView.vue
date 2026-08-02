@@ -544,7 +544,7 @@ const getBookingSeatClass = (seat) => {
   // Ghế bảo trì/khóa: nền đỏ mờ, gạch chéo, không click được
   if (isSeatMaintenance(seat)) {
     const sizeClass = type === 'SWEETBOX' ? `${doubleSize} rounded-xl` : `${standardSize} rounded-lg`;
-    return `${baseClasses} ${sizeClass} bg-red-950/40 border border-dashed border-red-500/40 text-red-400/50 cursor-not-allowed pointer-events-none`;
+    return `${baseClasses} ${sizeClass} bg-surface-container-highest border border-white/10 text-red-500 cursor-not-allowed pointer-events-none opacity-60`;
   }
 
   if (!isAvailable) {
@@ -755,7 +755,7 @@ const proceedToPayment = async () => {
                   <template v-if="getSeatAt(row - 1, col - 1)">
                     <div @click="handleSeatClick(getSeatAt(row - 1, col - 1))"
                          :class="getBookingSeatClass(getSeatAt(row - 1, col - 1))"
-                         :title="isSeatMaintenance(getSeatAt(row - 1, col - 1)) ? 'Ghế đang bảo trì' : seatLabel(getSeatAt(row - 1, col - 1))">
+                         :title="isSeatMaintenance(getSeatAt(row - 1, col - 1)) ? 'Ghế bảo trì' : seatLabel(getSeatAt(row - 1, col - 1))">
                       <span v-if="isSeatMaintenance(getSeatAt(row - 1, col - 1))" class="material-symbols-outlined text-sm">build</span>
                       <template v-else>{{ seatLabel(getSeatAt(row - 1, col - 1)) }}</template>
                     </div>
@@ -797,6 +797,12 @@ const proceedToPayment = async () => {
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-lg bg-surface-container-high border border-white/5 opacity-50"></div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Đã đặt</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500 opacity-60">
+                <span class="material-symbols-outlined text-sm">build</span>
+              </div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Ghế bảo trì</span>
             </div>
           </div>
 

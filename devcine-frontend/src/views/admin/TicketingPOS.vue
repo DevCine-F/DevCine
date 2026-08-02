@@ -910,7 +910,7 @@ const seatClass = (seat) => {
   const base = 'w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-bold border transition-all leading-none'
   if (!seat) return ''
   // Ghế khóa vật lý (bảo trì/khóa) → không bán được ở quầy
-  if (isSeatMaintenance(seat)) return `${base} bg-red-950/40 border-dashed border-red-500/40 text-red-400/50 cursor-not-allowed`
+  if (isSeatMaintenance(seat)) return `${base} bg-surface-container-highest border border-white/10 text-red-500 cursor-not-allowed opacity-60`
   if (seat.status === 'SOLD') return `${base} bg-surface-container-high border-white/5 text-on-surface-variant/20 cursor-not-allowed opacity-40`
   if (seat.status === 'HOLD') return `${base} bg-yellow-500/10 border-yellow-500/30 text-yellow-500/60 cursor-not-allowed`
   // Ghế đang bị quầy khác / khách online giữ real-time → khóa xám, không cho click
@@ -1712,7 +1712,7 @@ onUnmounted(() => {
                 <template v-for="col in seatData.matrixCol" :key="col">
                   <div v-if="seatAt(row - 1, col - 1)" :class="seatClass(seatAt(row - 1, col - 1))"
                        @click="toggleSeat(seatAt(row - 1, col - 1))"
-                       :title="isSeatMaintenance(seatAt(row - 1, col - 1)) ? 'Ghế đang bảo trì' : seatLabel(seatAt(row - 1, col - 1))">
+                       :title="isSeatMaintenance(seatAt(row - 1, col - 1)) ? 'Ghế bảo trì' : seatLabel(seatAt(row - 1, col - 1))">
                     <span v-if="isSeatMaintenance(seatAt(row - 1, col - 1))" class="material-symbols-outlined text-[13px]">build</span>
                     <template v-else>{{ seatLabel(seatAt(row - 1, col - 1)) }}</template>
                   </div>
@@ -1729,6 +1729,7 @@ onUnmounted(() => {
               <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-red-900/40 border border-red-500/40"></span>VIP</span>
               <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-purple-900/40 border border-purple-500/40"></span>Sweetbox</span>
               <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-surface-container-high opacity-40"></span>Đã bán</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 flex items-center justify-center rounded bg-surface-container-highest border border-white/10 text-red-500 opacity-60"><span class="material-symbols-outlined text-[8px]">build</span></span>Ghế bảo trì</span>
             </div>
             <AppButton @click="currentStep = 3" :disabled="selectedSeats.length === 0">3. Xác nhận vé</AppButton>
           </div>
