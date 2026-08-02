@@ -386,31 +386,31 @@ onUnmounted(() => {
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Hàng (Rows)</label>
-            <input v-model.number="rows" @change="onDimensionChange" type="number" min="1" max="26" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
+            <input v-model.number="rows" @change="onDimensionChange" type="number" min="1" max="26" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all font-headline">
           </div>
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Cột (Cols)</label>
-            <input v-model.number="cols" @change="onDimensionChange" type="number" min="1" max="25" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all">
+            <input v-model.number="cols" @change="onDimensionChange" type="number" min="1" max="25" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all font-headline">
           </div>
         </div>
 
         <div class="flex justify-between items-center p-4 bg-black/40 rounded-xl border border-white/5">
           <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Tổng sức chứa</span>
-          <span class="text-base font-black text-primary">{{ totalSeats }} GHẾ</span>
+          <span class="text-base font-black text-primary font-headline">{{ totalSeats }} GHẾ</span>
         </div>
 
         <div class="flex items-center gap-2">
           <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
             <span class="text-[8px] font-bold text-primary opacity-70 uppercase tracking-widest">VIP</span>
-            <span class="text-xs font-black">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</span>
+            <span class="text-xs font-black font-headline">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</span>
           </div>
           <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
             <span class="text-[8px] font-bold text-pink-400 opacity-70 uppercase tracking-widest">Đôi</span>
-            <span class="text-xs font-black">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</span>
+            <span class="text-xs font-black font-headline">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</span>
           </div>
           <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
             <span class="text-[8px] font-bold text-red-400 opacity-70 uppercase tracking-widest">Khóa</span>
-            <span class="text-xs font-black">{{ maintenanceCount }}</span>
+            <span class="text-xs font-black font-headline">{{ maintenanceCount }}</span>
           </div>
         </div>
       </div>
