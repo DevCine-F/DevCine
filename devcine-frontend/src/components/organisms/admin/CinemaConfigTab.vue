@@ -164,7 +164,7 @@ watch(() => props.cinema, (newCinema) => {
     </div>
 
     <!-- Section 3: Thời gian dọn phòng -->
-    <div class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden transition-all duration-300"
+    <div v-if="false" class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden transition-all duration-300"
       :class="openSections.cleaning ? 'shadow-lg shadow-orange-500/5 border-orange-500/20' : ''">
       <button @click="toggleSection('cleaning')"
         class="w-full flex items-center gap-4 px-6 py-5 hover:bg-orange-500/5 transition-all duration-200 group">
@@ -211,7 +211,7 @@ watch(() => props.cinema, (newCinema) => {
     </div>
 
     <!-- Section 4: Loại ghế & Giá mặc định -->
-    <div class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden transition-all duration-300"
+    <div v-if="false" class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden transition-all duration-300"
       :class="openSections.seats ? 'shadow-lg shadow-pink-500/5 border-pink-500/20' : ''">
       <button @click="toggleSection('seats')"
         class="w-full flex items-center gap-4 px-6 py-5 hover:bg-pink-500/5 transition-all duration-200 group">
@@ -273,7 +273,7 @@ watch(() => props.cinema, (newCinema) => {
     </div>
 
     <!-- Section 5: Định dạng chiếu -->
-    <div class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden transition-all duration-300"
+    <div v-if="false" class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden transition-all duration-300"
       :class="openSections.formats ? 'shadow-lg shadow-purple-500/5 border-purple-500/20' : ''">
       <button @click="toggleSection('formats')"
         class="w-full flex items-center gap-4 px-6 py-5 hover:bg-purple-500/5 transition-all duration-200 group">
