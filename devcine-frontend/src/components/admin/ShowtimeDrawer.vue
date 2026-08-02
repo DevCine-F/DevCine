@@ -78,19 +78,18 @@ const formatOptions = computed(() => {
   return supportedFormats.map(f => ({ value: f.id, label: f.name }));
 });
 
-const currentHour = computed(() => {
-  if (!props.selectedDate) return -1;
+const todayCheck = computed(() => {
+  if (!props.selectedDate) return false;
   const year = new Date().getFullYear();
   const [day, month] = props.selectedDate.split('/');
   const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
   const today = new Date();
   today.setHours(0,0,0,0);
-  
-  if (showDate.getTime() === today.getTime()) {
-    return new Date().getHours();
-  }
-  return -1;
+  return showDate.getTime() === today.getTime();
 });
+
+const currentHour = computed(() => todayCheck.value ? new Date().getHours() : -1);
+const currentMinute = computed(() => todayCheck.value ? new Date().getMinutes() : -1);
 
 const hourOptions = computed(() => {
   return Array.from({ length: 24 }, (_, i) => {
@@ -99,9 +98,16 @@ const hourOptions = computed(() => {
   }).filter(opt => !opt.disabled);
 });
 
-const minuteOptions = Array.from({ length: 12 }, (_, i) => {
-  const val = (i * 5).toString().padStart(2, '0');
-  return { value: val, label: val };
+const minuteOptions = computed(() => {
+  return Array.from({ length: 12 }, (_, i) => {
+    const minVal = i * 5;
+    const val = minVal.toString().padStart(2, '0');
+    let disabled = false;
+    if (currentHour.value !== -1 && form.startHour === currentHour.value.toString().padStart(2, '0')) {
+      disabled = minVal < currentMinute.value;
+    }
+    return { value: val, label: val, disabled };
+  }).filter(opt => !opt.disabled);
 });
 
 const fetchOptions = async () => {
@@ -373,6 +379,13 @@ const handleSave = async () => {
     const year = new Date().getFullYear();
     const [day, month] = props.selectedDate.split('/');
     const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
+
+    const selectedDateTime = new Date(`${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`);
+    const now = new Date();
+    if (selectedDateTime < now) {
+      toast.error('Không thể tạo hoặc sửa suất chiếu ở thời gian đã trôi qua!');
+      return;
+    }
     
     const startDate = new Date(selectedMovie.startDate);
     startDate.setHours(0,0,0,0);
@@ -422,7 +435,7 @@ const handleSave = async () => {
 
         <div v-if="isLocked" class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center gap-3">
           <span class="material-symbols-outlined text-amber-400">lock</span>
-          <p class="text-[11px] text-amber-400 font-bold">🔒 Suất chiếu đã có vé đặt, không thể thay đổi thời gian/phòng chiếu.</p>
+          <p class="text-[11px] text-amber-400 font-bold">Suất chiếu đã có vé đặt, không thể thay đổi thời gian/phòng chiếu.</p>
         </div>
 
         <div ref="movieField">
