@@ -8,7 +8,7 @@ import { friendlyError } from '@/utils/friendlyError'
 
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
 
-const lateBookingMinutes = ref(15)
+const lateBookingMinutes = ref(10)
 
 const getTodayYmd = () => {
   const d = new Date()
