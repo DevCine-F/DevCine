@@ -1,6 +1,7 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import SeatMapBuilder from '@/components/admin/SeatMapBuilder.vue'
+import ShowtimeDrawer from '@/components/admin/ShowtimeDrawer.vue'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -41,6 +42,13 @@ const soldPct = computed(() => (total.value > 0 ? Math.round(((props.detail?.sol
 
 const roomGeom = computed(() =>
   props.cinema?.halls?.find(h => h.id === props.detail?.roomId) || null)
+
+const isEditing = ref(false)
+
+const onEditSaved = () => {
+  isEditing.value = false;
+  // Parent will automatically reload data due to 'showtimes-updated' event.
+}
 </script>
 
 <template>
@@ -177,25 +185,44 @@ const roomGeom = computed(() =>
 
       <!-- Footer -->
       <div v-if="detail" class="p-6 border-t border-outline-variant/10 bg-surface-container">
-        <button
-          v-if="reserved === 0"
-          @click="$emit('delete')"
-          class="w-full py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 text-[11px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
-        >
-          <span class="material-symbols-outlined text-[16px]">delete</span> Xoá suất chiếu
-        </button>
-        <div
-          v-else
-          class="w-full py-3 rounded-xl border border-white/10 bg-black/20 text-white/50 text-[10px] font-bold uppercase tracking-widest text-center flex flex-col items-center justify-center gap-0.5"
-        >
-          <div class="flex items-center gap-1.5 text-amber-400">
-            <span class="material-symbols-outlined text-[16px]">lock</span> Không thể xoá
+        <div class="flex gap-4">
+          <button
+            @click="isEditing = true"
+            class="flex-1 py-3 rounded-xl border border-white/10 bg-white/5 text-white text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+          >
+            <span class="material-symbols-outlined text-[16px]">edit</span> Sửa
+          </button>
+          
+          <button
+            v-if="reserved === 0"
+            @click="$emit('delete')"
+            class="flex-1 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 text-[11px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
+          >
+            <span class="material-symbols-outlined text-[16px]">delete</span> Xoá
+          </button>
+          <div
+            v-else
+            class="flex-1 py-3 rounded-xl border border-white/10 bg-black/20 text-white/50 text-[10px] font-bold uppercase tracking-widest text-center flex flex-col items-center justify-center gap-0.5"
+          >
+            <div class="flex items-center gap-1.5 text-amber-400">
+              <span class="material-symbols-outlined text-[16px]">lock</span> Khóa sửa đổi
+            </div>
+            <span class="text-[9px] font-medium text-white/30 normal-case tracking-normal">Vé đã bán/đặt</span>
           </div>
-          <span class="text-[9px] font-medium text-white/30 normal-case tracking-normal">Đã có {{ reserved }} vé bán/giữ — cần hoàn/huỷ vé trước</span>
         </div>
       </div>
     </div>
   </Transition>
+
+  <!-- Showtime Edit Drawer -->
+  <ShowtimeDrawer
+    :is-open="isEditing"
+    :cinema-id="cinema?.id"
+    :selected-date="detail ? fmtDate(detail.startTime) : ''"
+    :edit-data="detail"
+    @close="isEditing = false"
+    @saved="onEditSaved"
+  />
 
   <!-- Seat Map ReadOnly Modal -->
   <Transition name="fade">

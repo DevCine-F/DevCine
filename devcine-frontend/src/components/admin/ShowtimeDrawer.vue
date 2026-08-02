@@ -13,7 +13,11 @@ const confirm = useConfirmStore();
 const props = defineProps({
   isOpen: Boolean,
   cinemaId: Number,
-  selectedDate: String
+  selectedDate: String,
+  editData: {
+    type: Object,
+    default: null
+  }
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -158,12 +162,28 @@ watch(() => props.isOpen, (newVal) => {
     fetchRooms(props.cinemaId);
     fetchShowtimes();
     clearErrors();
-    form.movieId = '';
-    form.roomId = '';
-    form.formatId = '';
-    form.startHour = '';
-    form.startMinute = '';
+    if (props.editData) {
+      form.movieId = props.editData.movieId || props.editData.movie?.id || '';
+      form.roomId = props.editData.roomId || props.editData.room?.id || '';
+      form.formatId = props.editData.formatId || props.editData.format?.id || '';
+      if (props.editData.startTime) {
+        const st = new Date(props.editData.startTime);
+        form.startHour = st.getHours().toString().padStart(2, '0');
+        form.startMinute = st.getMinutes().toString().padStart(2, '0');
+      }
+    } else {
+      form.movieId = '';
+      form.roomId = '';
+      form.formatId = '';
+      form.startHour = '';
+      form.startMinute = '';
+    }
   }
+});
+
+const isLocked = computed(() => {
+  if (!props.editData) return false;
+  return (props.editData.soldSeats || 0) > 0 || (props.editData.reserved || 0) > 0 || (props.editData.heldSeats || 0) > 0;
 });
 
 const pricePreview = computed(() => {
@@ -230,16 +250,15 @@ const suggestedSlots = computed(() => {
   const totalMins = duration + turnaround;
 
   const roomShows = existingShowtimes.value
-    .filter(s => s.roomName === room.name || s.roomId === room.id)
+    .filter(s => String(s.roomId || s.room?.id) === String(form.roomId))
     .map(s => {
       const st = new Date(s.startTime);
       const et = new Date(s.endTime);
       return { 
-        start: st.getHours() * 60 + st.getMinutes(), 
-        end: et.getHours() * 60 + et.getMinutes() + turnaround 
+        existStart: st.getHours() * 60 + st.getMinutes(), 
+        existEnd: et.getHours() * 60 + et.getMinutes() + turnaround 
       };
-    })
-    .sort((a, b) => a.start - b.start);
+    });
 
   const slots = [];
   const startDay = 8 * 60; 
@@ -254,23 +273,31 @@ const suggestedSlots = computed(() => {
   
   currentMin = Math.ceil(currentMin / 5) * 5;
 
-  for (const show of roomShows) {
-    if (currentMin + totalMins <= show.start) {
-      slots.push(currentMin);
-    }
-    currentMin = Math.max(currentMin, show.end);
-    currentMin = Math.ceil(currentMin / 5) * 5;
+  const potentialStarts = [...roomShows.map(s => Math.ceil(s.existEnd / 5) * 5)];
+  for (let m = currentMin; m <= endDay - totalMins; m += 30) {
+    potentialStarts.push(m);
   }
-  
-  if (currentMin + totalMins <= endDay) {
-    slots.push(currentMin);
+  potentialStarts.sort((a, b) => a - b);
+
+  for (const propStart of potentialStarts) {
+    if (propStart < currentMin) continue;
+    const propEnd = propStart + totalMins;
+    if (propEnd > endDay) continue;
+
+    const hasConflict = roomShows.some(s => (propStart < s.existEnd && propEnd > s.existStart));
+    if (!hasConflict) {
+      slots.push(propStart);
+    }
   }
 
-  return slots.slice(0, 4).map(mins => {
+  const formattedSlots = slots.map(mins => {
     const h = Math.floor(mins / 60).toString().padStart(2, '0');
     const m = (mins % 60).toString().padStart(2, '0');
     return `${h}:${m}`;
   });
+
+  const uniqueSlots = [...new Set(formattedSlots)];
+  return uniqueSlots.slice(0, 4);
 });
 
 const selectSlot = (timeStr) => {
@@ -303,27 +330,38 @@ const focusFirstError = async (fieldRef) => {
 };
 
 const submit = async (formattedStartTime, force) => {
-  const { data } = await api.post('/showtimes', {
+  const payload = {
     movieId: parseInt(form.movieId),
     roomId: parseInt(form.roomId),
     formatId: parseInt(form.formatId),
     startTime: formattedStartTime,
     force
-  });
-    if (data?.requiresConfirmation) {
-      const ok = await confirm.show({
-        title: 'Suất chiếu khuya',
-        message: 'Suất chiếu kết thúc sau giờ đóng cửa rạp. Bạn có chắc chắn muốn tạo?',
-        confirmText: 'Vẫn tạo',
-        cancelText: 'Hủy'
-      });
-      if (ok) return submit(formattedStartTime, true);
-      return;
-    }
-    toast.success('Đã thêm suất chiếu.');
-    window.dispatchEvent(new Event('showtimes-updated'));
-    emit('saved');
-    emit('close');
+  };
+
+  let data;
+  if (props.editData) {
+    const res = await api.patch(`/showtimes/${props.editData.id}`, payload);
+    data = res.data;
+  } else {
+    const res = await api.post('/showtimes', payload);
+    data = res.data;
+  }
+
+  if (data?.requiresConfirmation) {
+    const ok = await confirm.show({
+      title: 'Suất chiếu khuya',
+      message: 'Suất chiếu kết thúc sau giờ đóng cửa rạp. Bạn có chắc chắn muốn tạo/cập nhật?',
+      confirmText: 'Vẫn lưu',
+      cancelText: 'Hủy'
+    });
+    if (ok) return submit(formattedStartTime, true);
+    return;
+  }
+  
+  toast.success(props.editData ? 'Đã cập nhật suất chiếu.' : 'Đã thêm suất chiếu.');
+  window.dispatchEvent(new Event('showtimes-updated'));
+  emit('saved');
+  emit('close');
 };
 
 const handleSave = async () => {
@@ -372,8 +410,8 @@ const handleSave = async () => {
     <div v-if="isOpen" class="fixed inset-y-0 right-0 w-[450px] bg-surface-container border-l border-white/10 shadow-2xl z-[150] flex flex-col">
       <div class="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-black/20">
         <div>
-          <h2 class="text-xl font-black text-white uppercase tracking-widest font-headline">Thêm suất chiếu</h2>
-          <p class="text-xs text-white/50 mt-1 uppercase tracking-widest">Tạo lịch chiếu mới</p>
+          <h2 class="text-xl font-black text-white uppercase tracking-widest font-headline">{{ editData ? 'Sửa suất chiếu' : 'Thêm suất chiếu' }}</h2>
+          <p class="text-xs text-white/50 mt-1 uppercase tracking-widest">{{ editData ? 'Cập nhật thông tin suất chiếu' : 'Tạo lịch chiếu mới' }}</p>
         </div>
         <button @click="emit('close')" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all border border-white/10">
           <span class="material-symbols-outlined text-white/70">close</span>
@@ -382,12 +420,18 @@ const handleSave = async () => {
 
       <div class="flex-1 overflow-y-auto p-8 space-y-6">
 
+        <div v-if="isLocked" class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center gap-3">
+          <span class="material-symbols-outlined text-amber-400">lock</span>
+          <p class="text-[11px] text-amber-400 font-bold">🔒 Suất chiếu đã có vé đặt, không thể thay đổi thời gian/phòng chiếu.</p>
+        </div>
+
         <div ref="movieField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>
           <CustomSelect
             v-model="form.movieId"
             :options="movieOptions"
             :searchable="true"
+            :disabled="isLocked"
             placeholder="-- Chọn Phim --"
             :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
           />
@@ -399,6 +443,7 @@ const handleSave = async () => {
           <CustomSelect
             v-model="form.roomId"
             :options="roomOptions"
+            :disabled="isLocked"
             placeholder="-- Chọn Phòng chiếu --"
             :class="fieldErrors.roomId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
           />
@@ -410,6 +455,7 @@ const handleSave = async () => {
           <CustomSelect
             v-model="form.formatId"
             :options="formatOptions"
+            :disabled="isLocked"
             placeholder="-- Chọn Định dạng --"
             :class="fieldErrors.formatId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
           />
@@ -443,6 +489,7 @@ const handleSave = async () => {
               <CustomSelect
                 v-model="form.startHour"
                 :options="hourOptions"
+                :disabled="isLocked"
                 placeholder="Giờ"
                 :class="fieldErrors.time ? 'rounded-xl ring-1 ring-red-500/60' : ''"
               />
@@ -451,6 +498,7 @@ const handleSave = async () => {
               <CustomSelect
                 v-model="form.startMinute"
                 :options="minuteOptions"
+                :disabled="isLocked"
                 placeholder="Phút"
                 :class="fieldErrors.time ? 'rounded-xl ring-1 ring-red-500/60' : ''"
               />
@@ -479,7 +527,7 @@ const handleSave = async () => {
           Hủy
         </button>
         <button @click="handleSave" class="flex-1 py-3 rounded-xl bg-primary hover:brightness-110 text-on-primary font-bold uppercase tracking-widest text-xs shadow-lg shadow-primary/20 transition-all">
-          Lưu Suất Chiếu
+          {{ editData ? 'Lưu Thay Đổi' : 'Lưu Suất Chiếu' }}
         </button>
       </div>
     </div>
