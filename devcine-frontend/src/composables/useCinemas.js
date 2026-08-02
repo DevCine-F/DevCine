@@ -199,7 +199,12 @@ export function useCinemas() {
   const editingRoom = ref(null);
 
   const openAddRoom = () => { roomModalMode.value = 'create'; editingRoom.value = null; showRoomModal.value = true; };
-  const openEditRoom = (hall) => { roomModalMode.value = 'edit'; editingRoom.value = hall; showRoomModal.value = true; };
+  const openEditRoom = (hall) => { 
+    roomModalMode.value = 'edit'; 
+    const hasShows = selectedCinema.value?.shows?.some(s => s.roomId === hall.id) || false;
+    editingRoom.value = { ...hall, hasShowtimes: hasShows }; 
+    showRoomModal.value = true; 
+  };
 
   const submitRoom = async (payload) => {
     if (!selectedCinema.value) return;

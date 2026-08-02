@@ -293,14 +293,15 @@ onMounted(() => {
         </div>
       </header>
 
-      <CinemaStatsBar :stats="selectedCinema.stats" />
+      <!-- Đã tạm ẩn Stat Cards thống kê theo yêu cầu -->
+      <!-- <CinemaStatsBar :stats="selectedCinema.stats" /> -->
 
       <div
         v-if="!viewingHall"
         class="bg-surface-container-low border border-outline-variant/10 rounded-3xl overflow-hidden shadow-2xl"
       >
         <CinemaTabBar 
-          :tabs="tabs" 
+          :tabs="tabs.filter(t => !['staff', 'analytics'].includes(t.id))" 
           :active-tab="activeTab" 
           @update:activeTab="(id) => activeTab = id" 
         />

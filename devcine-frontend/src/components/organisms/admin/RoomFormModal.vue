@@ -9,15 +9,17 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit'])
 
-  // Bắt mã hạng phòng chuẩn Lotte (đồng bộ ALLOWED_TYPES ở RoomService backend)
-  const ROOM_TYPES = [
-    { value: 'STANDARD', label: 'Standard' },
-    { value: 'SUPERPLEX', label: 'Superplex' },
-    { value: 'CINE_COMFORT', label: 'Cine Comfort' }
-  ]
-  
-  const form = reactive({ name: '', type: 'STANDARD', status: 'Active', turnaroundTimeMins: 15, matrixRow: 8, matrixCol: 10 })
+// Bắt mã hạng phòng chuẩn Lotte (đồng bộ ALLOWED_TYPES ở RoomService backend)
+const ROOM_TYPES = [
+  { value: 'STANDARD', label: 'Standard' },
+  { value: 'SUPERPLEX', label: 'Superplex' },
+  { value: 'CINE_COMFORT', label: 'Cine Comfort' }
+]
+
+const form = reactive({ name: '', type: 'STANDARD', status: 'Active', turnaroundTimeMins: 15, matrixRow: 10, matrixCol: 16 })
 const errors = reactive({})
+
+const hasShowtimes = computed(() => props.mode === 'edit' && props.initial?.hasShowtimes)
 
 // Nạp dữ liệu mỗi khi mở modal
 watch(() => props.show, (open) => {
@@ -26,17 +28,41 @@ watch(() => props.show, (open) => {
   if (props.mode === 'edit' && props.initial) {
     form.name = props.initial.name || ''
     form.type = props.initial.type || 'STANDARD'
-    form.status = props.initial.status === 'Maintenance' ? 'Maintenance' : 'Active'
+    form.status = props.initial.status === 'Maintenance' || props.initial.status === 'Inactive' ? 'Maintenance' : 'Active'
     form.turnaroundTimeMins = props.initial.turnaroundTimeMins ?? 15
-    form.matrixRow = props.initial.rows ?? props.initial.matrixRow ?? 8
-    form.matrixCol = props.initial.cols ?? props.initial.matrixCol ?? 10
+    form.matrixRow = props.initial.rows ?? props.initial.matrixRow ?? 10
+    form.matrixCol = props.initial.cols ?? props.initial.matrixCol ?? 16
   } else {
     form.name = ''; form.type = 'STANDARD'; form.status = 'Active'
-    form.turnaroundTimeMins = 15; form.matrixRow = 8; form.matrixCol = 10
+    form.turnaroundTimeMins = 15; form.matrixRow = 10; form.matrixCol = 16
   }
 })
 
-const totalSeats = computed(() => (Number(form.matrixRow) || 0) * (Number(form.matrixCol) || 0))
+// Smart Naming Feature
+watch(() => form.type, (newType) => {
+  const t = ROOM_TYPES.find(x => x.value === newType)
+  if (!t) return
+  const match = form.name.match(/^Phòng (\d+)/i)
+  const stt = match ? match[1] : '01'
+  
+  if (!form.name || form.name.match(/^Phòng \d+( - .*)?$/i)) {
+    form.name = `Phòng ${stt} - ${t.label}`
+    validateName()
+  }
+})
+
+const setRoomName = (base) => {
+  const t = ROOM_TYPES.find(x => x.value === form.type)?.label || ''
+  form.name = `${base} - ${t}`
+  validateName()
+}
+
+const appendRoomType = () => {
+  const t = ROOM_TYPES.find(x => x.value === form.type)?.label || ''
+  const base = form.name.split(' - ')[0] || 'Phòng 01'
+  form.name = `${base} - ${t}`
+  validateName()
+}
 
 const validateName = () => {
   const v = (form.name || '').trim().replace(/\s+/g, ' ')
@@ -48,19 +74,19 @@ const validateName = () => {
 }
 const validateRow = () => {
   const n = Number(form.matrixRow)
-  if (!Number.isInteger(n) || n < 1 || n > 26) errors.matrixRow = 'Số hàng từ 1 đến 26 (A–Z)'
+  if (!Number.isInteger(n) || n < 5 || n > 20) errors.matrixRow = 'Số hàng phải từ 5 đến 20'
   else errors.matrixRow = ''
   return !errors.matrixRow
 }
 const validateCol = () => {
   const n = Number(form.matrixCol)
-  if (!Number.isInteger(n) || n < 1 || n > 50) errors.matrixCol = 'Số cột từ 1 đến 50'
+  if (!Number.isInteger(n) || n < 5 || n > 30) errors.matrixCol = 'Số cột phải từ 5 đến 30'
   else errors.matrixCol = ''
   return !errors.matrixCol
 }
 const validateTurnaround = () => {
   const n = Number(form.turnaroundTimeMins)
-  if (!Number.isInteger(n) || n < 0 || n > 120) errors.turnaroundTimeMins = 'Thời gian dọn từ 0 đến 120 phút'
+  if (!Number.isInteger(n) || n < 10 || n > 60) errors.turnaroundTimeMins = 'Thời gian dọn phải từ 10 đến 60 phút'
   else errors.turnaroundTimeMins = ''
   return !errors.turnaroundTimeMins
 }
@@ -102,14 +128,22 @@ const handleSubmit = () => {
           <input v-model="form.name" @blur="validateName" type="text" placeholder="VD: Phòng 01"
             :class="errors.name ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
             class="w-full bg-black/20 border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 outline-none transition-all placeholder-white/20">
-          <p v-if="errors.name" class="text-red-400 text-xs">{{ errors.name }}</p>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <button type="button" @click="setRoomName('Phòng 01')" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng 01 ]</button>
+            <button type="button" @click="setRoomName('Phòng 02')" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng 02 ]</button>
+            <button type="button" @click="setRoomName('Phòng 03')" class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[10px] font-medium transition-colors">[ Phòng 03 ]</button>
+            <button type="button" @click="appendRoomType" class="px-3 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 text-[10px] font-medium transition-colors">[ + Tên loại phòng ]</button>
+          </div>
+          <p v-if="errors.name" class="text-red-400 text-xs mt-1">{{ errors.name }}</p>
         </div>
 
         <div class="grid grid-cols-2 gap-5">
           <!-- Loại phòng -->
             <div class="space-y-1.5">
               <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Loại phòng</label>
-              <select v-model="form.type" class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all appearance-none cursor-pointer">
+              <select v-model="form.type" :disabled="hasShowtimes" 
+                :class="hasShowtimes ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'"
+                class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all appearance-none">
                 <option v-for="t in ROOM_TYPES" :key="t.value" :value="t.value" class="bg-surface-container-high text-white">{{ t.label }}</option>
               </select>
             </div>
@@ -125,32 +159,27 @@ const handleSubmit = () => {
           <!-- Số hàng -->
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Số hàng ghế (A–Z) <span class="text-red-500">*</span></label>
-            <input v-model.number="form.matrixRow" @blur="validateRow" type="number" min="1" max="26"
-              :class="errors.matrixRow ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
+            <input v-model.number="form.matrixRow" @blur="validateRow" type="number" min="5" max="20" :disabled="hasShowtimes"
+              :class="[errors.matrixRow ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50', hasShowtimes ? 'opacity-50 cursor-not-allowed' : '']"
               class="w-full bg-black/20 border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 outline-none transition-all">
             <p v-if="errors.matrixRow" class="text-red-400 text-xs">{{ errors.matrixRow }}</p>
           </div>
           <!-- Số cột -->
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Số cột ghế <span class="text-red-500">*</span></label>
-            <input v-model.number="form.matrixCol" @blur="validateCol" type="number" min="1" max="50"
-              :class="errors.matrixCol ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
+            <input v-model.number="form.matrixCol" @blur="validateCol" type="number" min="5" max="30" :disabled="hasShowtimes"
+              :class="[errors.matrixCol ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50', hasShowtimes ? 'opacity-50 cursor-not-allowed' : '']"
               class="w-full bg-black/20 border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 outline-none transition-all">
             <p v-if="errors.matrixCol" class="text-red-400 text-xs">{{ errors.matrixCol }}</p>
           </div>
 
           <!-- Thời gian dọn -->
-          <div class="space-y-1.5">
+          <div class="space-y-1.5 col-span-2">
             <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Thời gian dọn (phút)</label>
-            <input v-model.number="form.turnaroundTimeMins" @blur="validateTurnaround" type="number" min="0" max="120"
+            <input v-model.number="form.turnaroundTimeMins" @blur="validateTurnaround" type="number" min="10" max="60"
               :class="errors.turnaroundTimeMins ? '!border-red-500 focus:!ring-red-500/40' : 'border-white/10 focus:border-primary/50 focus:ring-primary/50'"
               class="w-full bg-black/20 border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 outline-none transition-all">
             <p v-if="errors.turnaroundTimeMins" class="text-red-400 text-xs">{{ errors.turnaroundTimeMins }}</p>
-          </div>
-          <!-- Tổng ghế -->
-          <div class="space-y-1.5">
-            <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Tổng số ghế</label>
-            <div class="w-full bg-black/10 border border-white/5 rounded-xl px-4 py-3 text-sm font-black text-primary">{{ totalSeats }} ghế</div>
           </div>
         </div>
 

@@ -57,6 +57,9 @@ public class RoomService {
     /** Chuẩn hoá + validate; id null khi tạo mới, khác null khi cập nhật. */
     private void normalizeAndValidate(RoomRequest req, Integer cinemaId, Integer id) {
         req.setName(clean(req.getName()));
+        if (req.getName() == null) {
+            throw new IllegalArgumentException("Tên phòng không được để trống");
+        }
         if (req.getType() != null && !ALLOWED_TYPES.contains(req.getType())) {
             throw new IllegalArgumentException("Loại phòng không hợp lệ");
         }
@@ -68,6 +71,19 @@ public class RoomService {
                 : roomRepository.existsByCinema_IdAndNameIgnoreCaseAndIdNot(cinemaId, req.getName(), id);
         if (dup) {
             throw new IllegalArgumentException("Tên phòng đã tồn tại trong cụm rạp này");
+        }
+        
+        if (req.getTurnaroundTimeMins() != null) {
+            if (req.getTurnaroundTimeMins() < 10 || req.getTurnaroundTimeMins() > 60) {
+                throw new IllegalArgumentException("Thời gian dọn phòng phải từ 10 đến 60 phút");
+            }
+        }
+        
+        if (req.getMatrixRow() == null || req.getMatrixRow() < 5 || req.getMatrixRow() > 20) {
+            throw new IllegalArgumentException("Số hàng ghế phải từ 5 đến 20");
+        }
+        if (req.getMatrixCol() == null || req.getMatrixCol() < 5 || req.getMatrixCol() > 30) {
+            throw new IllegalArgumentException("Số cột ghế phải từ 5 đến 30");
         }
     }
 
@@ -112,11 +128,34 @@ public class RoomService {
         if (matrixChanged && showtimeRepository.existsByRoom_Id(roomId)) {
             throw new IllegalArgumentException("Phòng đã có suất chiếu, không thể đổi kích thước ma trận ghế");
         }
+        
+        boolean isGoingToMaintenance = req.getStatus() != null 
+                && (req.getStatus().equalsIgnoreCase("MAINTENANCE") || req.getStatus().equalsIgnoreCase("INACTIVE"))
+                && !req.getStatus().equalsIgnoreCase(room.getStatus());
+                
+        if (isGoingToMaintenance) {
+            long activeShowtimes = showtimeRepository.countByRoomIdAndEndTimeAfter(roomId, java.time.LocalDateTime.now());
+            if (activeShowtimes > 0) {
+                throw new IllegalArgumentException("Không thể bảo trì! Phòng đang có " + activeShowtimes + " suất chiếu chưa kết thúc (bao gồm các suất chiếu hôm nay).");
+            }
+        }
+                
+        boolean typeChanged = req.getType() != null && !req.getType().equalsIgnoreCase(room.getType());
+        if (typeChanged) {
+            long futureShowtimes = showtimeRepository.countByRoomIdAndEndTimeAfter(roomId, java.time.LocalDateTime.now());
+            if (futureShowtimes > 0) {
+                throw new IllegalArgumentException("Không thể đổi loại phòng khi đang có " + futureShowtimes + " suất chiếu chưa diễn ra!");
+            }
+        }
 
         room.setName(req.getName());
         if (req.getType() != null) room.setType(req.getType());
         if (req.getStatus() != null) room.setStatus(req.getStatus());
-        if (req.getTurnaroundTimeMins() != null) room.setTurnaroundTimeMins(req.getTurnaroundTimeMins());
+        if (req.getTurnaroundTimeMins() != null) {
+            room.setTurnaroundTimeMins(req.getTurnaroundTimeMins());
+        } else {
+            room.setTurnaroundTimeMins(15);
+        }
         room.setMatrixRow(req.getMatrixRow());
         room.setMatrixCol(req.getMatrixCol());
         roomRepository.save(room);

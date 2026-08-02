@@ -391,7 +391,7 @@ const handleCreate = async () => {
                 <span class="text-[10px] text-white/40 uppercase tracking-widest">{{ c.city }}</span>
               </label>
               <div v-if="c.halls?.length" class="flex flex-wrap gap-2 pl-6">
-                <button v-for="h in c.halls" :key="h.id" type="button" @click="toggleRoom(h.id)"
+                <button v-for="h in c.halls.filter(r => r.status === 'Active')" :key="h.id" type="button" @click="toggleRoom(h.id)"
                   :class="form.roomIds.includes(h.id)
                     ? 'bg-primary/20 border-primary text-primary'
                     : 'bg-white/5 border-white/10 text-white/60'"

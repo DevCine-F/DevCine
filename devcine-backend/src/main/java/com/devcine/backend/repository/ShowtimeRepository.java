@@ -109,6 +109,14 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     @Query("SELECT COUNT(s) FROM Showtime s WHERE s.movie.id = :movieId AND s.startTime > :now")
     long countFutureByMovieId(@Param("movieId") Integer movieId, @Param("now") LocalDateTime now);
 
+    /** Số suất chiếu của 1 phòng chiếu tính từ thời điểm hiện tại trở đi (đang chiếu hoặc sắp chiếu). */
+    @Query("SELECT COUNT(s) FROM Showtime s WHERE s.room.id = :roomId AND s.endTime >= :now AND s.status <> 'Cancelled'")
+    long countByRoomIdAndEndTimeAfter(@Param("roomId") Integer roomId, @Param("now") LocalDateTime now);
+
+    /** Số suất chiếu CÒN HOẠT ĐỘNG của 1 phòng chiếu (chỉ tính tương lai chưa diễn ra) */
+    @Query("SELECT COUNT(s) FROM Showtime s WHERE s.room.id = :roomId AND s.startTime > :now AND s.status <> 'Cancelled'")
+    long countFutureByRoomId(@Param("roomId") Integer roomId, @Param("now") LocalDateTime now);
+
     /** Sức chứa của các suất ĐÃ diễn ra (startTime <= now) — mẫu số cho tỷ lệ lấp đầy. */
     @Query("SELECT COALESCE(SUM(r.matrixRow * r.matrixCol), 0) FROM Showtime s JOIN s.room r " +
            "WHERE s.movie.id = :movieId AND s.startTime <= :now")

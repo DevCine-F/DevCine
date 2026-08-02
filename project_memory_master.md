@@ -44,3 +44,19 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 ### 8. Bảo toàn Dữ Liệu Sơ Đồ Ghế Hiện Hữu (Seat Map Preservation Rule)
 - **Bảo vệ tùy biến sơ đồ:** Bổ sung cơ chế Blocking Logic ở luồng Seed/Upsert sơ đồ ghế của Backend (DataSeeder/RoomMigrationRunner).
 - **Bỏ qua (SKIP):** Nếu truy vấn Database xác định phòng chiếu ĐÃ CÓ dữ liệu ghế, hệ thống sẽ tự động BỎ QUA việc tạo/upsert ghế mặc định. Tuyệt đối không reset, không xóa, không ghi đè sơ đồ ghế đã được Admin thiết lập/tùy biến.
+
+### 9. Bộ Validate Chặt Chẽ Trong Quản Lý Phòng Chiếu (Strict Room Management Validation)
+- **Kiểm soát Trạng thái Bảo trì (`MAINTENANCE` / `INACTIVE`):**
+  - Chặn chuyển đổi trạng thái sang bảo trì nếu phòng đang có suất chiếu chưa kết thúc (kiểm tra bằng Query `end_time >= NOW()`). Backend Throw 400 Bad Request để khóa giao dịch.
+  - Ngay cả khi tạo/sửa suất chiếu, Dropdown Chọn phòng ở Drawer cũng chỉ load những phòng đạt trạng thái `.filter(r => r.status === 'Active')`.
+- **Khóa cứng (Disabled) Thuộc tính Kích thước & Loại phòng:** Hệ thống sẽ disabled và chặn API sửa Loại phòng, Số hàng và Số cột của phòng chiếu nếu phòng đó ĐÃ TỪNG có suất chiếu (Showtime > 0).
+- **Smart Naming & UX Tối ưu:** 
+  - Gợi ý tên phòng tự động theo định dạng: `Phòng {STT} - {Loại phòng}`. 
+  - Bổ sung hệ thống Chip bấm nhanh `[ Phòng 01 ]`, `[ Phòng 02 ]` dưới input.
+  - Xóa bỏ ô nhập tĩnh "Tổng số ghế" khỏi Modal vì sức chứa đã được quản lý linh hoạt, chuẩn xác bên Sơ đồ ghế.
+- **Thời gian Dọn Phòng (`turnaround_time_mins`):** Ràng buộc validate giới hạn giá trị từ 10 - 60 phút (Mặc định 15 phút), được tích hợp tự động vào Backend để cộng thêm thời gian giãn cách giữa các suất chiếu.
+
+### 10. Tạm Ẩn Giao Diện Phục Vụ Review Lượt 1 (Phase 1 Review Adjustments)
+- **UI Tối giản:** Sử dụng inline-filter và comment-out để tạm ẩn các Component/Tính năng chưa cần thiết trên màn hình Chi tiết Cụm Rạp (Cinema Detail / Manager).
+- Các thành phần bị ẩn: Khung thống kê 4 chỉ số (CinemaStatsBar) và 2 tab quản trị chuyên sâu (`Nhân sự`, `Phân tích`).
+- **Quy tắc cô lập:** Tuyệt đối chỉ ẩn ở giao diện `<template>`, bảo tồn 100% logic bên dưới thẻ `<script>` để có thể khôi phục ngay lập tức sau đợt review.

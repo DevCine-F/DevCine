@@ -51,7 +51,9 @@ const movieOptions = computed(() => {
 });
 
 const roomOptions = computed(() => {
-  return rooms.value.map(r => ({ value: r.id, label: r.name }));
+  return rooms.value
+    .filter(r => r.status === 'Active' || r.id === form.roomId)
+    .map(r => ({ value: r.id, label: r.name }));
 });
 
 const formatOptions = computed(() => {
