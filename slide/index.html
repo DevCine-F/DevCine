@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevCine — Báo cáo Đồ án Tốt nghiệp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
+  <link rel="stylesheet" href="css/deck.css" />
+</head>
+<body>
+
+  <!-- ===== GALAXY BACKGROUND ===== -->
+  <div class="galaxy" aria-hidden="true">
+    <div class="nebula"></div>
+    <div class="stars" id="stars"></div>
+    <div class="shooting" id="shooting"></div>
+  </div>
+
+  <!-- ===== CHROME ===== -->
+  <div class="progress" id="progress"></div>
+  <div class="hint" id="hint">
+    <span><kbd>←</kbd> <kbd>→</kbd> chuyển slide</span>
+    <span><kbd>F</kbd> toàn màn hình</span>
+    <span><kbd>Space</kbd> tiếp</span>
+  </div>
+  <button class="nav-arrow prev hide" id="prev" aria-label="Trước"><span class="material-symbols-outlined">chevron_left</span></button>
+  <button class="nav-arrow next" id="next" aria-label="Sau"><span class="material-symbols-outlined">chevron_right</span></button>
+  <div class="brand-tag"><span class="dot-gold"></span> DEVCINE</div>
+  <div class="counter"><b id="counter-now">01</b> / <span id="counter-total">08</span></div>
+  <div class="hud"><div class="dots" id="dots"></div></div>
+
+  <!-- ===== DECK ===== -->
+  <main class="deck">
+
+    <!-- ============ SLIDE 0 · COVER ============ -->
+    <section class="slide cover active">
+      <div class="glow-ring"></div>
+      <img src="assets/logo.png" alt="DevCine" class="logo" data-stagger />
+      <div class="subtitle" data-stagger>Website Quản lý Rạp chiếu phim &amp; Đặt vé trực tuyến</div>
+      <div class="chips" data-stagger style="justify-content:center; margin-top:26px;">
+        <span class="chip gold"><span class="material-symbols-outlined" style="font-size:18px">bolt</span> Spring Boot 4 · Vue 3.5</span>
+        <span class="chip blue"><span class="material-symbols-outlined" style="font-size:18px">payments</span> VNPAY · QR Ticket</span>
+        <span class="chip"><span class="material-symbols-outlined" style="font-size:18px">verified</span> Hoàn thành ~95%</span>
+      </div>
+      <div class="meta-line" data-stagger>Đồ án Tốt nghiệp · Chuyên ngành Phát triển phần mềm · FPT Polytechnic · 2026</div>
+    </section>
+
+    <!-- ============ SLIDE 1 · GIỚI THIỆU ĐỀ TÀI ============ -->
+    <section class="slide">
+      <div class="section-num">01</div>
+      <div class="eyebrow" data-stagger>Phần 1 — Giới thiệu đề tài</div>
+      <h1 class="title" data-stagger>Đặt vé điện ảnh<br><span class="gold">trong kỷ nguyên số</span></h1>
+      <div class="split">
+        <div>
+          <p class="lead" data-stagger>
+            <strong>DevCine</strong> là hệ thống fullstack quản lý rạp chiếu phim &amp; đặt vé trực tuyến,
+            giải bài toán vận hành rạp đa kênh — từ khách online đến quầy POS.
+          </p>
+          <ul class="bullets">
+            <li data-stagger><span class="ic material-symbols-outlined">person</span>
+              <span class="txt"><b>Khách hàng:</b> duyệt phim → chọn ghế + combo F&amp;B → áp voucher → thanh toán VNPAY → nhận vé QR.</span></li>
+            <li data-stagger><span class="ic material-symbols-outlined">point_of_sale</span>
+              <span class="txt"><b>Nhân viên:</b> bán vé tại quầy (POS), quét QR check-in, bàn giao ca đối soát tiền.</span></li>
+            <li data-stagger><span class="ic material-symbols-outlined">admin_panel_settings</span>
+              <span class="txt"><b>Quản lý:</b> điều phối lịch chiếu, định giá, khuyến mãi, phân quyền, dashboard.</span></li>
+          </ul>
+        </div>
+        <div class="grid cols-2" style="align-content:center">
+          <div class="stat glass" data-stagger><div class="num">31</div><div class="lbl">Controller (BE)</div></div>
+          <div class="stat glass" data-stagger><div class="num">37</div><div class="lbl">Entity dữ liệu</div></div>
+          <div class="stat glass" data-stagger><div class="num">21</div><div class="lbl">Service nghiệp vụ</div></div>
+          <div class="stat glass" data-stagger><div class="num">43</div><div class="lbl">Màn hình (Khách+Admin)</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SLIDE 2 · PHÂN TÍCH ĐỀ TÀI ============ -->
+    <section class="slide">
+      <div class="section-num">02</div>
+      <div class="eyebrow" data-stagger>Phần 2 — Phân tích đề tài</div>
+      <h1 class="title" data-stagger>Nghiệp vụ <span class="gold">&amp; kiến trúc</span></h1>
+
+      <div class="grid cols-3" data-stagger style="margin-top:6px">
+        <div class="card glass"><div class="ic-lg material-symbols-outlined">groups</div>
+          <h3>3 Tác nhân</h3><p>Khách hàng · Nhân viên (POS) · Quản lý — mỗi vai trò một tập Use Case &amp; ma trận quyền riêng.</p></div>
+        <div class="card glass"><div class="ic-lg accent-ic material-symbols-outlined">lan</div>
+          <h3>Realtime Seat Lock</h3><p>WebSocket/STOMP khóa ghế thời gian thực, chống đặt trùng giữa Online &amp; POS.</p></div>
+        <div class="card glass"><div class="ic-lg material-symbols-outlined">schema</div>
+          <h3>Thực thể lõi</h3><p>User · Movie · Showtime · Room · Seat · Booking · FnbItem · Voucher · Promotion · AuditLog.</p></div>
+      </div>
+
+      <div class="eyebrow" data-stagger style="margin-top:30px; color:var(--accent)"><span></span>Luồng đặt vé trực tuyến (xương sống)</div>
+      <div class="flow">
+        <div class="step glass" data-stagger><span class="ic material-symbols-outlined">event_seat</span><div class="n">01</div><div class="t">Chọn ghế</div></div>
+        <span class="arrow material-symbols-outlined">arrow_forward</span>
+        <div class="step glass" data-stagger><span class="ic material-symbols-outlined">timer</span><div class="n">02</div><div class="t">Hold 10 phút</div></div>
+        <span class="arrow material-symbols-outlined">arrow_forward</span>
+        <div class="step glass" data-stagger><span class="ic material-symbols-outlined">calculate</span><div class="n">03</div><div class="t">Tính giá server</div></div>
+        <span class="arrow material-symbols-outlined">arrow_forward</span>
+        <div class="step glass" data-stagger><span class="ic material-symbols-outlined">payments</span><div class="n">04</div><div class="t">VNPAY</div></div>
+        <span class="arrow material-symbols-outlined">arrow_forward</span>
+        <div class="step glass" data-stagger><span class="ic material-symbols-outlined">stars</span><div class="n">05</div><div class="t">Tích điểm Loyalty</div></div>
+        <span class="arrow material-symbols-outlined">arrow_forward</span>
+        <div class="step glass" data-stagger><span class="ic material-symbols-outlined">qr_code_2</span><div class="n">06</div><div class="t">Vé QR</div></div>
+      </div>
+    </section>
+
+    <!-- ============ SLIDE 3 · THIẾT KẾ GIAO DIỆN ============ -->
+    <section class="slide">
+      <div class="section-num">03</div>
+      <div class="eyebrow" data-stagger>Phần 3 — Thiết kế giao diện</div>
+      <h1 class="title" data-stagger>Design System <span class="gold">"Bầu trời điện ảnh"</span></h1>
+
+      <div class="split">
+        <div>
+          <p class="lead" data-stagger>Triết lý UI: nền vũ trụ tối sang trọng, điểm nhấn vàng gold điện ảnh &amp; ánh xanh băng — Glassmorphism iOS Dark Acrylic.</p>
+          <div class="swatches" data-stagger>
+            <div class="sw"><div class="chip-color" style="background:#f5c518"></div><div class="meta"><b>Primary</b><code>#f5c518</code></div></div>
+            <div class="sw"><div class="chip-color" style="background:#131313"></div><div class="meta"><b>Surface</b><code>#131313</code></div></div>
+            <div class="sw"><div class="chip-color" style="background:#49dbff"></div><div class="meta"><b>Accent</b><code>#49dbff</code></div></div>
+            <div class="sw"><div class="chip-color" style="background:#d1c5ac"></div><div class="meta"><b>Variant</b><code>#d1c5ac</code></div></div>
+          </div>
+          <div class="chips" data-stagger>
+            <span class="chip gold"><span class="material-symbols-outlined" style="font-size:18px">title</span> Montserrat — Tiêu đề</span>
+            <span class="chip"><span class="material-symbols-outlined" style="font-size:18px">text_fields</span> Be Vietnam Pro — Nội dung</span>
+          </div>
+        </div>
+        <div class="grid cols-2" style="align-content:center">
+          <div class="card glass" data-stagger><div class="ic-lg material-symbols-outlined">dark_mode</div><h3>Light / Dark</h3><p>Song song 2 theme, chuyển đổi qua biến CSS <code>:root.light</code>.</p></div>
+          <div class="card glass" data-stagger><div class="ic-lg accent-ic material-symbols-outlined">blur_on</div><h3>Glassmorphism</h3><p>Thẻ kính blur 24px, viền bevel 3D, vệt sáng chạy viền.</p></div>
+          <div class="card glass" data-stagger><div class="ic-lg material-symbols-outlined">check_circle</div><h3>4 trạng thái</h3><p>Loading · Empty · Error (toast) · Success — bắt buộc mọi màn.</p></div>
+          <div class="card glass" data-stagger><div class="ic-lg accent-ic material-symbols-outlined">devices</div><h3>Responsive</h3><p>Vue 3.5 + Tailwind 4 + Atomic components, mobile-first.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SLIDE 4 · KIỂM THỬ ============ -->
+    <section class="slide">
+      <div class="section-num">04</div>
+      <div class="eyebrow" data-stagger>Phần 4 — Kiểm thử</div>
+      <h1 class="title" data-stagger>Chất lượng <span class="gold">&amp; độ tin cậy</span></h1>
+      <p class="lead" data-stagger>Các case trọng yếu &amp; bug thật đã xử lý trong quá trình phát triển.</p>
+
+      <div class="rows">
+        <div class="row glass" data-stagger>
+          <span class="tag perf">CONCURRENCY</span>
+          <div class="desc"><b>Chống đặt trùng ghế:</b> giữ ghế 10 phút + tự nhả khi quá hạn + Realtime Lock (STOMP) đồng bộ Online ↔ POS.</div>
+        </div>
+        <div class="row glass" data-stagger>
+          <span class="tag perf">HIỆU NĂNG</span>
+          <div class="desc"><b>Chống N+1 query:</b> áp <code>@EntityGraph</code>/JOIN FETCH toàn hệ thống; sửa N+1 trong <code>getBookingHistory</code>.</div>
+        </div>
+        <div class="row glass" data-stagger>
+          <span class="tag fixed">BUG FIXED</span>
+          <div class="desc"><b>Voucher giảm giá 2 lần ở VNPAY:</b> tách bạch <code>finalPrice</code> khỏi <code>totalPrice</code> để tính đúng số tiền thanh toán.</div>
+        </div>
+        <div class="row glass" data-stagger>
+          <span class="tag fixed">BUG FIXED</span>
+          <div class="desc"><b>"403 che 500":</b> thiếu <code>@ControllerAdvice</code> khiến Spring Security trả 403 — chuẩn hóa <code>ApiResponse&lt;T&gt;</code> phủ toàn bộ controller.</div>
+        </div>
+        <div class="row glass" data-stagger>
+          <span class="tag sec">BẢO MẬT</span>
+          <div class="desc"><b>Audit Log + Phân quyền:</b> ghi mọi thao tác ADMIN/STAFF; <code>@PreAuthorize</code> + ma trận DB; Dashboard <b>fail-closed</b> theo cơ sở.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SLIDE 5 · TỔNG KẾT ============ -->
+    <section class="slide">
+      <div class="section-num">05</div>
+      <div class="eyebrow" data-stagger>Phần 5 — Tổng kết &amp; Đánh giá</div>
+      <h1 class="title" data-stagger>Thành quả <span class="gold">&amp; tương lai</span></h1>
+
+      <div class="split reverse">
+        <div class="grid cols-2" style="align-content:center">
+          <div class="stat glass" data-stagger><div class="num">~95%</div><div class="lbl">Mức hoàn thành</div></div>
+          <div class="stat glass" data-stagger><div class="num">E2E</div><div class="lbl">Vòng đời vé chạy thật</div></div>
+        </div>
+        <div>
+          <div class="eyebrow" data-stagger style="color:var(--accent)"><span></span>Khó khăn &amp; cách giải</div>
+          <ul class="bullets" style="margin-top:16px">
+            <li data-stagger><span class="ic material-symbols-outlined">lock_clock</span><span class="txt">Seat concurrency → hold + timeout + realtime lock.</span></li>
+            <li data-stagger><span class="ic material-symbols-outlined">speed</span><span class="txt">N+1 query → <code>@EntityGraph</code> / JOIN FETCH.</span></li>
+            <li data-stagger><span class="ic material-symbols-outlined">shield</span><span class="txt">Tách secret VNPAY khỏi source, chuẩn hóa response envelope.</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="eyebrow" data-stagger style="margin-top:26px">Hướng phát triển</div>
+      <div class="future">
+        <div class="f glass" data-stagger><span class="ic material-symbols-outlined">smartphone</span> Mobile App (React Native / Flutter)</div>
+        <div class="f glass" data-stagger><span class="ic material-symbols-outlined">account_balance_wallet</span> Thêm cổng thanh toán MoMo / ZaloPay</div>
+        <div class="f glass" data-stagger><span class="ic material-symbols-outlined">recommend</span> Recommendation System gợi ý phim</div>
+        <div class="f glass" data-stagger><span class="ic material-symbols-outlined">campaign</span> Marketing tự động (SMS/Email voucher)</div>
+      </div>
+    </section>
+
+    <!-- ============ SLIDE 6 · DEMO SẢN PHẨM ============ -->
+    <section class="slide">
+      <div class="section-num">06</div>
+      <div class="eyebrow" data-stagger>Phần 6 — Demo sản phẩm</div>
+      <h1 class="title" data-stagger>Trải nghiệm <span class="gold">sản phẩm thực tế</span></h1>
+      <p class="lead" data-stagger>Hành trình demo end-to-end, từ khách hàng online đến vận hành tại quầy.</p>
+
+      <div class="demo-grid">
+        <div class="demo-node glass" data-stagger><span class="ic material-symbols-outlined">home</span>Trang chủ Galaxy</div>
+        <div class="demo-node glass" data-stagger><span class="ic material-symbols-outlined">movie</span>Chi tiết phim + Trailer</div>
+        <div class="demo-node glass" data-stagger><span class="ic material-symbols-outlined">event_seat</span>Chọn ghế Realtime</div>
+        <div class="demo-node glass" data-stagger><span class="ic material-symbols-outlined">lunch_dining</span>Combo F&amp;B</div>
+        <div class="demo-node glass" data-stagger><span class="ic material-symbols-outlined">payments</span>Thanh toán VNPAY</div>
+        <div class="demo-node glass blue" data-stagger><span class="ic material-symbols-outlined">confirmation_number</span>Vé QR</div>
+        <div class="demo-node glass blue" data-stagger><span class="ic material-symbols-outlined">point_of_sale</span>POS bán vé</div>
+        <div class="demo-node glass blue" data-stagger><span class="ic material-symbols-outlined">qr_code_scanner</span>Check-in QR</div>
+        <div class="demo-node glass blue" data-stagger><span class="ic material-symbols-outlined">dashboard</span>Dashboard</div>
+        <div class="demo-node glass blue" data-stagger><span class="ic material-symbols-outlined">sell</span>Pricing Engine</div>
+      </div>
+
+      <div class="chips" data-stagger style="margin-top:26px; justify-content:center">
+        <span class="chip gold"><span class="material-symbols-outlined" style="font-size:18px">play_circle</span> Mời hội đồng theo dõi phần demo trực tiếp</span>
+      </div>
+    </section>
+
+    <!-- ============ SLIDE 7 · CẢM ƠN (placeholder điền sau) ============ -->
+    <section class="slide cover">
+      <div class="glow-ring"></div>
+      <img src="assets/logo.png" alt="DevCine" class="logo" data-stagger style="width:clamp(220px,26vw,360px)" />
+      <h1 class="title" data-stagger style="margin-top:10px">Trân trọng <span class="gold">cảm ơn!</span></h1>
+      <p class="lead" data-stagger style="text-align:center">Cảm ơn Quý Thầy/Cô và Hội đồng đã lắng nghe phần trình bày.</p>
+
+      <div class="grid cols-2" data-stagger style="margin-top:28px; max-width:760px; width:100%">
+        <div class="ph">👨‍🏫 <b>Giảng viên hướng dẫn:</b><br>________________________</div>
+        <div class="ph">👥 <b>Nhóm thực hiện:</b><br>________________________</div>
+        <div class="ph">🎓 <b>Thành viên 1:</b> _______ — MSV: _______</div>
+        <div class="ph">🎓 <b>Thành viên 2:</b> _______ — MSV: _______</div>
+        <div class="ph">🎓 <b>Thành viên 3:</b> _______ — MSV: _______</div>
+        <div class="ph">🎓 <b>Thành viên 4:</b> _______ — MSV: _______</div>
+      </div>
+      <div class="brand-tag" style="position:static; margin-top:26px"><span class="dot-gold"></span> DEVCINE · FPT POLYTECHNIC · 2026</div>
+    </section>
+
+  </main>
+
+  <script src="js/deck.js"></script>
+</body>
+</html>
