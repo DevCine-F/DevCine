@@ -56,9 +56,16 @@ watch(
     errors.value = {};
     if (props.isEditing && props.movieData) {
       const m = props.movieData;
-      newMovie.value = { ...m, duration: m.durationMins ? m.durationMins.toString() : "" };
+      newMovie.value = { 
+        ...m, 
+        duration: m.durationMins != null ? m.durationMins.toString() : "",
+        startDate: m.startDate ? m.startDate.split("T")[0] : "",
+        endDate: m.endDate ? m.endDate.split("T")[0] : ""
+      };
       selectedGenres.value = m.genres ? [...m.genres] : [];
-      selectedFormats.value = m.supportedFormats ? m.supportedFormats.split(", ") : [];
+      selectedFormats.value = m.supportedFormats 
+        ? m.supportedFormats.split(",").map(s => s.trim()).filter(Boolean) 
+        : [];
     } else {
       newMovie.value = blankMovie();
       selectedGenres.value = [];
@@ -251,8 +258,14 @@ const isFormInvalid = computed(() => {
   if (selectedFormats.value.length === 0) return true;
   if (!m.startDate || !m.endDate) return true;
   if (!m.posterUrl) return true; // poster bắt buộc
-  if ((m.description || "").trim().length < 50) return true; // tóm tắt ≥ 50 ký tự
-  if (m.showOnBanner && !m.bannerUrl) return true; // bật banner trang chủ -> cần ảnh banner
+  
+  if (!props.isEditing) {
+    if ((m.description || "").trim().length < 50) return true;
+    if (m.showOnBanner && !m.bannerUrl) return true;
+    if (trailerError.value || synopsisError.value) return true;
+  } else {
+    if ((m.description || "").trim().length === 0) return true;
+  }
   return false;
 });
 
@@ -283,7 +296,9 @@ const handleSave = () => {
   if (m.productionYear) { if (yearError.value) e.productionYear = yearError.value; }
   else e.productionYear = "Vui lòng nhập năm sản xuất.";
 
-  if ((m.trailerUrl || "").trim()) { if (trailerError.value) e.trailerUrl = trailerError.value; }
+  if ((m.trailerUrl || "").trim()) { 
+    if (!props.isEditing && trailerError.value) e.trailerUrl = trailerError.value; 
+  }
   else e.trailerUrl = "Vui lòng nhập đường dẫn Trailer.";
 
   if (selectedGenres.value.length === 0) e.genres = "Vui lòng chọn ít nhất 1 thể loại phim.";
@@ -296,10 +311,15 @@ const handleSave = () => {
 
   // Media & mô tả (bắt buộc).
   if (!m.posterUrl) e.poster = "Vui lòng tải lên ảnh Poster.";
-  if (m.showOnBanner && !m.bannerUrl) e.banner = "Đang bật hiển thị Banner trang chủ — vui lòng tải ảnh Banner.";
+  
   const desc = (m.description || "").trim();
-  if (desc.length === 0) e.description = "Vui lòng nhập tóm tắt nội dung.";
-  else if (synopsisError.value) e.description = synopsisError.value;
+  if (!props.isEditing) {
+    if (m.showOnBanner && !m.bannerUrl) e.banner = "Đang bật hiển thị Banner trang chủ — vui lòng tải ảnh Banner.";
+    if (desc.length === 0) e.description = "Vui lòng nhập tóm tắt nội dung.";
+    else if (synopsisError.value) e.description = synopsisError.value;
+  } else {
+    if (desc.length === 0) e.description = "Vui lòng nhập tóm tắt nội dung.";
+  }
 
   errors.value = e;
   if (Object.keys(e).length) {
