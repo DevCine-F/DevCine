@@ -150,18 +150,10 @@ const toggleFormat = (format) => {
   const index = selectedFormats.value.indexOf(format);
   if (index === -1) {
     selectedFormats.value.push(format);
-    // Chưa có định dạng chiếu chính hợp lệ -> gán luôn cái vừa tick.
-    if (!selectedFormats.value.includes(newMovie.value.format)) newMovie.value.format = format;
   } else {
     selectedFormats.value.splice(index, 1);
-    // Bỏ tick định dạng đang là "chiếu chính" -> tự chọn lại cái đầu còn lại (hoặc rỗng).
-    if (newMovie.value.format === format) newMovie.value.format = selectedFormats.value[0] || "";
   }
   clearErr("formats");
-};
-// Định dạng chiếu chính CHỈ được chọn trong số định dạng hỗ trợ (ràng buộc chéo).
-const selectMainFormat = (fmt) => {
-  if (selectedFormats.value.includes(fmt)) { newMovie.value.format = fmt; clearErr("formats"); }
 };
 
 // Đạo diễn: chỉ cho chữ (kể cả có dấu), khoảng trắng, dấu chấm & gạch nối; chặn số/ký tự đặc biệt; tối đa 100.
@@ -249,7 +241,7 @@ const isFormInvalid = computed(() => {
   // Giá trị sai định dạng/ngưỡng → luôn chặn.
   if (!m.title || m.title.trim().length < 2 || m.title.trim().length > 150) return true;
   if (!m.trailerUrl || !m.trailerUrl.trim()) return true;
-  if (durationError.value || yearError.value || trailerError.value || priceError.value) return true;
+  if (durationError.value || yearError.value || trailerError.value) return true;
   if (dateError.value || synopsisError.value) return true;
 
   // Bắt buộc điền — áp cho cả tạo mới & sửa.
@@ -257,7 +249,6 @@ const isFormInvalid = computed(() => {
   if (!m.productionYear) return true;
   if (selectedGenres.value.length === 0) return true;
   if (selectedFormats.value.length === 0) return true;
-  if (!selectedFormats.value.includes(m.format)) return true; // định dạng chính phải nằm trong hỗ trợ
   if (!m.startDate || !m.endDate) return true;
   if (!m.posterUrl) return true; // poster bắt buộc
   if ((m.description || "").trim().length < 50) return true; // tóm tắt ≥ 50 ký tự
@@ -297,7 +288,6 @@ const handleSave = () => {
 
   if (selectedGenres.value.length === 0) e.genres = "Vui lòng chọn ít nhất 1 thể loại phim.";
   if (selectedFormats.value.length === 0) e.formats = "Vui lòng chọn ít nhất 1 định dạng hỗ trợ.";
-  else if (!selectedFormats.value.includes(m.format)) e.formats = "Vui lòng chọn Định dạng chiếu chính (nằm trong Định dạng hỗ trợ).";
 
   // Ngày: bắt buộc + ràng buộc logic (riêng "≥ hôm nay" chỉ áp khi tạo mới, xử lý trong dateError).
   if (!m.startDate) e.dates = "Vui lòng chọn ngày khởi chiếu.";
@@ -324,7 +314,7 @@ const handleSave = () => {
     castMembers: normalizedCast,
     durationMins: parseInt(newMovie.value.duration) || null,
     genres: selectedGenres.value,
-    format: newMovie.value.format || "2D",
+    format: selectedFormats.value[0] || "2D",
     supportedFormats: selectedFormats.value.join(", "),
     rating: newMovie.value.rating || "5.0",
     releaseDate: newMovie.value.releaseDate || new Date().toISOString().split("T")[0],
@@ -395,7 +385,7 @@ const handleSave = () => {
             <div class="grid grid-cols-3 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Quốc gia</label>
-                <select v-model="newMovie.country" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3.5 px-6 text-on-surface transition-all outline-none rounded-t-lg appearance-none">
+                <select v-model="newMovie.country" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
                   <option>Mỹ</option><option>Nhật Bản</option><option>Hàn Quốc</option><option>Việt Nam</option><option>Pháp</option><option>Anh</option>
                 </select>
               </div>
@@ -406,13 +396,13 @@ const handleSave = () => {
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngôn ngữ gốc</label>
-                <select v-model="newMovie.originalLanguage" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3.5 px-6 text-on-surface transition-all outline-none rounded-t-lg appearance-none">
+                <select v-model="newMovie.originalLanguage" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
                   <option>Tiếng Anh</option><option>Tiếng Hàn</option><option>Tiếng Nhật</option><option>Tiếng Việt</option><option>Tiếng Pháp</option>
                 </select>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Loại hình hiển thị</label>
-                <select v-model="newMovie.versionType" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3.5 px-6 text-on-surface transition-all outline-none rounded-t-lg appearance-none">
+                <select v-model="newMovie.versionType" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
                   <option>Phụ đề Tiếng Việt</option><option>Thuyết minh Tiếng Việt</option><option>Lồng tiếng Tiếng Việt</option><option>Bản gốc (No Sub)</option>
                 </select>
               </div>
@@ -446,29 +436,12 @@ const handleSave = () => {
               <p v-if="errors.genres" class="text-[10px] text-red-400 font-bold px-1">{{ errors.genres }}</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-6">
-              <div class="space-y-4">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Định dạng hỗ trợ (Tick chọn nhiều) <span class="text-red-500">*</span></label>
-                <div class="flex flex-wrap gap-2">
-                  <button v-for="fmt in availableFormats" :key="fmt" type="button" @click="toggleFormat(fmt)" :class="selectedFormats.includes(fmt) ? 'bg-primary text-on-primary' : 'bg-surface-container-high/50 text-on-surface-variant'" class="px-4 py-2 rounded-full border border-outline-variant/10 text-[9px] font-bold uppercase tracking-widest transition-all min-w-[60px]">{{ fmt }}</button>
-                </div>
-                <p v-if="errors.formats" class="text-[10px] text-red-400 font-bold">{{ errors.formats }}</p>
+            <div class="space-y-4">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Định dạng hỗ trợ (Tick chọn nhiều) <span class="text-red-500">*</span></label>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="fmt in availableFormats" :key="fmt.id || fmt" type="button" @click="toggleFormat(fmt.name || fmt)" :class="selectedFormats.includes(fmt.name || fmt) ? 'bg-primary text-on-primary' : 'text-gray-300 bg-surface-container-high/60 hover:text-white hover:border-primary/50 border border-outline-variant/10'" class="px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest transition-all min-w-[60px]">{{ fmt.name || fmt }}</button>
               </div>
-              <div class="space-y-4">
-                <label class="flex flex-col text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">
-                  <span>Định dạng chiếu chính (Chọn một)</span>
-                  <span class="normal-case font-normal text-on-surface-variant/50 mt-0.5">Chỉ trong định dạng hỗ trợ</span>
-                </label>
-                <div class="flex flex-wrap gap-2">
-                  <button v-for="fmt in availableFormats" :key="fmt" type="button"
-                    @click="selectMainFormat(fmt)"
-                    :disabled="!selectedFormats.includes(fmt)"
-                    :class="newMovie.format === fmt
-                      ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20'
-                      : (selectedFormats.includes(fmt) ? 'bg-surface-container-high/50 text-on-surface-variant hover:border-primary/50' : 'bg-surface-container-high/20 text-on-surface-variant/30 cursor-not-allowed')"
-                    class="px-4 py-2 rounded-full border border-outline-variant/10 text-[9px] font-black uppercase tracking-widest transition-all min-w-[60px]">{{ fmt }}</button>
-                </div>
-              </div>
+              <p v-if="errors.formats" class="text-[10px] text-red-400 font-bold">{{ errors.formats }}</p>
             </div>
           </section>
 
@@ -480,13 +453,13 @@ const handleSave = () => {
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Phân loại độ tuổi</label>
-                <select v-model="newMovie.ageRating" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3.5 px-6 text-on-surface transition-all outline-none rounded-t-lg appearance-none">
+                <select v-model="newMovie.ageRating" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
                   <option v-for="rating in availableAgeRatings" :key="rating.code" :value="rating.code">{{ rating.code }} ({{ rating.name }})</option>
                 </select>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Trạng thái</label>
-                <select v-model="newMovie.status" class="w-full bg-surface-container-high border-b border-outline-variant/20 focus:border-primary text-sm py-3.5 px-6 text-on-surface transition-all outline-none rounded-t-lg appearance-none">
+                <select v-model="newMovie.status" class="w-full bg-[#222222] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none">
                   <option value="active">Đang chiếu</option>
                   <option value="upcoming">Sắp chiếu</option>
                   <option value="archived">Ngừng chiếu</option>

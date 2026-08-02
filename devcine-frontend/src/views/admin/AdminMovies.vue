@@ -24,7 +24,8 @@ const showDetailModal = ref(false);
 const detailMovie = ref(null);
 
 // ===== Handlers =====
-const handleAdd = () => {
+const handleAdd = async () => {
+  await mm.fetchCategories();
   isEditing.value = false;
   formMovieData.value = null;
   showFormModal.value = true;
@@ -32,6 +33,7 @@ const handleAdd = () => {
 
 const handleEdit = async (movieSummary) => {
   try {
+    await mm.fetchCategories();
     formMovieData.value = await mm.getMovieDetail(movieSummary.id);
     isEditing.value = true;
     showDetailModal.value = false;
