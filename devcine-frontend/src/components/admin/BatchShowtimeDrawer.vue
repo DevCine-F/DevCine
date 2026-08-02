@@ -66,7 +66,7 @@ const formatOptions = computed(() => {
   if (!supportedStr) return formats.value.map(f => ({ value: f.id, label: f.name }));
   const supported = supportedStr.split(',').map(s => s.trim().toUpperCase());
   return formats.value
-    .filter(f => supported.some(sup => f.name.toUpperCase().includes(sup)))
+    .filter(f => supported.some(sup => f.name.trim().toUpperCase().includes(sup)))
     .map(f => ({ value: f.id, label: f.name }));
 });
 

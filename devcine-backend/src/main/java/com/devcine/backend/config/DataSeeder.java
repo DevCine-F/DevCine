@@ -387,14 +387,53 @@ public class DataSeeder {
                 movieRepository.save(movie1);
                 movieRepository.save(movie2);
 
-                // Lotte chỉ có 2 định dạng chiếu: 2D (+0) và 3D (+30k). Không có IMAX (độc quyền CGV).
-                MovieFormat format1 = MovieFormat.builder().name("2D Phụ Đề").surcharge(BigDecimal.ZERO).build();
-                MovieFormat format2 = MovieFormat.builder().name("3D Lồng Tiếng").surcharge(new BigDecimal("30000")).build();
+                MovieFormat format1 = MovieFormat.builder().name("2D PHỤ ĐỀ").surcharge(BigDecimal.ZERO).build();
+                MovieFormat format2 = MovieFormat.builder().name("2D LỒNG TIẾNG").surcharge(BigDecimal.ZERO).build();
+                MovieFormat format3 = MovieFormat.builder().name("3D PHỤ ĐỀ").surcharge(new BigDecimal("30000")).build();
+                MovieFormat format4 = MovieFormat.builder().name("3D LỒNG TIẾNG").surcharge(new BigDecimal("30000")).build();
+                MovieFormat format5 = MovieFormat.builder().name("SUPERPLEX 2D").surcharge(new BigDecimal("20000")).build();
+                MovieFormat format6 = MovieFormat.builder().name("SUPERPLEX 3D").surcharge(new BigDecimal("50000")).build();
 
-                formatRepository.save(format1);
-                formatRepository.save(format2);
+                formatRepository.saveAll(List.of(format1, format2, format3, format4, format5, format6));
 
                 System.out.println("Đã thêm dữ liệu giả lập cho Cụm rạp, Phòng chiếu, Phim, và Định dạng thành công!");
+            }
+
+            // ======== FORMATS MIGRATION (IMAX -> SUPERPLEX) ========
+            boolean formatsMigrated = systemSettingRepository.findById("FORMATS_MIGRATION_SUPERPLEX").isPresent();
+            if (!formatsMigrated) {
+                List<MovieFormat> allFmts = formatRepository.findAll();
+                for (MovieFormat fmt : allFmts) {
+                    if (fmt.getName().equalsIgnoreCase("IMAX 2D") || fmt.getName().equalsIgnoreCase("IMAX")) {
+                        fmt.setName("SUPERPLEX 2D");
+                        formatRepository.save(fmt);
+                    } else if (fmt.getName().equalsIgnoreCase("IMAX 3D")) {
+                        fmt.setName("SUPERPLEX 3D");
+                        formatRepository.save(fmt);
+                    } else if (fmt.getName().equalsIgnoreCase("2D ATMOS")) {
+                        try {
+                            formatRepository.delete(fmt);
+                        } catch (Exception e) {
+                            System.out.println("Không thể xóa 2D ATMOS vì đang có suất chiếu/vé gắn với nó: " + e.getMessage());
+                        }
+                    }
+                }
+                
+                // Ensure all 6 formats exist
+                List<String> required = List.of("2D PHỤ ĐỀ", "2D LỒNG TIẾNG", "3D PHỤ ĐỀ", "3D LỒNG TIẾNG", "SUPERPLEX 2D", "SUPERPLEX 3D");
+                List<String> current = formatRepository.findAll().stream().map(MovieFormat::getName).map(String::toUpperCase).toList();
+                
+                for (String req : required) {
+                    if (!current.contains(req)) {
+                        BigDecimal surcharge = req.contains("3D") ? new BigDecimal("30000") : BigDecimal.ZERO;
+                        if (req.contains("SUPERPLEX 2D")) surcharge = new BigDecimal("20000");
+                        if (req.contains("SUPERPLEX 3D")) surcharge = new BigDecimal("50000");
+                        formatRepository.save(MovieFormat.builder().name(req).surcharge(surcharge).build());
+                    }
+                }
+                
+                systemSettingRepository.save(SystemSetting.builder().settingKey("FORMATS_MIGRATION_SUPERPLEX").settingValue("DONE").build());
+                System.out.println("Đã chạy migration chuẩn hóa định dạng phim (SUPERPLEX) thành công!");
             }
 
             if (seatTypeRepository.count() == 0) {

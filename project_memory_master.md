@@ -28,3 +28,7 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 ### 5. Tối Ưu Giao Diện Admin Sơ Đồ Ghế (Seat Map UI Refactoring)
 - **Đồng bộ hóa Visual:** Chuẩn hóa Icon công cụ "Lối đi" (Icon oute) và màu sắc (Cyan/Blue #38BDF8) đồng bộ 1:1 với bộ icon của các công cụ khác (Sofa, Kim cương, Trái tim, Cờ-lê, Cục tẩy).
 - **Tối ưu Layout Không gian:** Tái cấu trúc gộp chung 2 Card "Cấu hình ma trận" và "Thông số phòng chiếu" thành card **CẤU HÌNH & THỐNG KÊ** đặt trên cùng Sidebar (SeatMapBuilder.vue). Các chỉ số ghế được thiết kế dưới dạng Badges dàn ngang gọn gàng, giúp Admin bao quát toàn bộ thông số theo Real-time mà không cần cuộn trang (No-scroll UX).
+
+### 6. Quy chuẩn tính toán Sức chứa phòng chiếu (Capacity Rule)
+- **Công thức tính Sức chứa thực tế:** Ghế Đơn (NORMAL, VIP) = 1 sức chứa; Ghế Đôi (DOUBLE, SWEETBOX, COUPLE) = 2 sức chứa; Lối đi/Ô trống = 0.
+- **Áp dụng Real-time UI:** UI Sidebar trên trình chỉnh sửa sơ đồ ghế (SeatMapBuilder) tự động cập nhật sức chứa phòng chiếu ngay khi thêm/sửa/xóa hoặc đổi cấu trúc ma trận hàng/cột.

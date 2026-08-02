@@ -145,8 +145,15 @@ export function useShowtimes(selectedCinema) {
   };
 
   const checkFormatMismatch = (hall, format) => {
-    // Lotte chỉ có 2D/3D — chiếu được ở mọi hạng phòng nên không còn ràng buộc định dạng ↔ phòng.
-    return false;
+    if (!hall || !format) return false;
+    const roomType = hall.type?.trim().toUpperCase() || 'STANDARD';
+    const fn = (format.name || format).trim().toUpperCase();
+    if (roomType === 'SUPERPLEX') return false; // Supports everything
+    if (roomType === 'STANDARD' || roomType === 'CINE_COMFORT') {
+      const allowed = ['2D PHỤ ĐỀ', '2D LỒNG TIẾNG', '3D PHỤ ĐỀ', '3D LỒNG TIẾNG'];
+      return !allowed.includes(fn);
+    }
+    return true; // Mismatch if room type is unknown
   };
 
   const onDragStart = (event, show) => {

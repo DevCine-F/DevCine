@@ -93,11 +93,9 @@ public class RoomMigrationRunner implements CommandLineRunner {
 
     private void upsertSeats(Room room, int rows, int cols, int normalRows, int vipRows, SeatType normal, SeatType vip, SeatType sweetbox) {
         List<Seat> existingSeatsList = seatRepository.findByRoomId(room.getId());
-        java.util.Map<String, Seat> existingSeats = new java.util.HashMap<>();
-        if (existingSeatsList != null) {
-            for (Seat s : existingSeatsList) {
-                existingSeats.put(s.getRowChar() + "-" + s.getColNum(), s);
-            }
+        if (existingSeatsList != null && !existingSeatsList.isEmpty()) {
+            System.out.println("Bỏ qua việc tạo ghế cho phòng " + room.getName() + " vì đã có sơ đồ ghế.");
+            return;
         }
         
         List<Seat> seatsToSave = new ArrayList<>();
@@ -105,16 +103,10 @@ public class RoomMigrationRunner implements CommandLineRunner {
         for (int r = 1; r <= rows; r++) {
             String rowChar = String.valueOf((char) ('A' + r - 1));
             for (int c = 1; c <= cols; c++) {
-                String key = rowChar + "-" + c;
-                Seat seat = existingSeats.remove(key);
-                
-                if (seat == null) {
-                    seat = new Seat();
-                    seat.setRoom(room);
-                    seat.setRowChar(rowChar);
-                    seat.setColNum(c);
-                }
-                
+                Seat seat = new Seat();
+                seat.setRoom(room);
+                seat.setRowChar(rowChar);
+                seat.setColNum(c);
                 seat.setLabel(rowChar + String.format("%02d", c));
                 seat.setIsActive(true);
                 
@@ -123,14 +115,6 @@ public class RoomMigrationRunner implements CommandLineRunner {
                 else seat.setSeatType(sweetbox);
                 
                 seatsToSave.add(seat);
-            }
-        }
-        
-        // Deactivate remaining seats
-        for (Seat remaining : existingSeats.values()) {
-            if (remaining.getIsActive() != null && remaining.getIsActive()) {
-                remaining.setIsActive(false);
-                seatsToSave.add(remaining);
             }
         }
         

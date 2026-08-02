@@ -62,18 +62,24 @@ const formatOptions = computed(() => {
   if (!selectedMovie || !selectedRoom) return [];
 
   const movieSupportedStr = selectedMovie.supportedFormats || selectedMovie.format || "";
-  const roomType = (selectedRoom.type || "").toUpperCase();
+  const supportedList = movieSupportedStr.split(',').map(s => s.trim().toUpperCase());
 
   let supportedFormats = formats.value;
 
-  if (movieSupportedStr) {
-    const supportedList = movieSupportedStr.split(',').map(s => s.trim().toUpperCase());
-    supportedFormats = supportedFormats.filter(f => supportedList.some(sup => f.name.toUpperCase().includes(sup)));
+  if (supportedList.length > 0 && supportedList[0] !== "") {
+    supportedFormats = supportedFormats.filter(f => supportedList.some(sup => f.name.trim().toUpperCase().includes(sup)));
   }
 
-  if (roomType) {
-    supportedFormats = supportedFormats.filter(f => f.name.toUpperCase().includes(roomType));
-  }
+  const roomType = selectedRoom.type?.trim().toUpperCase() || 'STANDARD';
+  
+  supportedFormats = supportedFormats.filter(f => {
+    const fn = f.name.trim().toUpperCase();
+    if (roomType === 'SUPERPLEX') return true;
+    if (roomType === 'STANDARD' || roomType === 'CINE_COMFORT') {
+      return fn === '2D PHỤ ĐỀ' || fn === '2D LỒNG TIẾNG' || fn === '3D PHỤ ĐỀ' || fn === '3D LỒNG TIẾNG';
+    }
+    return false;
+  });
 
   return supportedFormats.map(f => ({ value: f.id, label: f.name }));
 });

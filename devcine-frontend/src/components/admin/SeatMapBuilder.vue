@@ -23,8 +23,14 @@ const isMouseDown = ref(false)
 const editingKey = ref(null)
 const editingLabel = ref('')
 
-const totalSeats = computed(() => {
-  return Object.values(seatMap).filter(s => s && s.type !== 'aisle' && s.type !== 'remove').length
+const totalSeatCapacity = computed(() => {
+  return Object.values(seatMap).reduce((total, s) => {
+    if (!s || s.type === 'aisle' || s.type === 'remove') return total;
+    if (['double', 'sweetbox', 'couple', 'DOUBLE', 'SWEETBOX', 'COUPLE'].includes(s.type)) {
+      return total + 2;
+    }
+    return total + 1;
+  }, 0);
 })
 
 const rowLetter = (r) => String.fromCharCode(65 + r)
@@ -263,15 +269,15 @@ onUnmounted(() => {
         <div class="flex items-center justify-center relative flex-shrink-0">
           <svg class="w-20 h-20 transform -rotate-90">
             <circle cx="40" cy="40" r="34" class="stroke-white/5" stroke-width="8" fill="none" />
-            <circle cx="40" cy="40" r="34" class="stroke-primary transition-all duration-1000" stroke-width="8" fill="none" stroke-dasharray="213.6" :stroke-dashoffset="213.6 - (213.6 * soldTickets / (totalSeats || 1))" stroke-linecap="round" />
+            <circle cx="40" cy="40" r="34" class="stroke-primary transition-all duration-1000" stroke-width="8" fill="none" stroke-dasharray="213.6" :stroke-dashoffset="213.6 - (213.6 * soldTickets / (totalSeatCapacity || 1))" stroke-linecap="round" />
           </svg>
           <div class="absolute inset-0 flex items-center justify-center">
-            <span class="text-base font-black text-white">{{ Math.round((soldTickets / (totalSeats || 1)) * 100) }}%</span>
+            <span class="text-base font-black text-white">{{ Math.round((soldTickets / (totalSeatCapacity || 1)) * 100) }}%</span>
           </div>
         </div>
         <div class="space-y-1">
           <h4 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Tỷ lệ lấp đầy</h4>
-          <p class="text-xs font-semibold text-white/60">Đã bán: <span class="font-bold text-white text-sm">{{ soldTickets }}</span> / {{ totalSeats }} ghế</p>
+          <p class="text-xs font-semibold text-white/60">Đã bán: <span class="font-bold text-white text-sm">{{ soldTickets }}</span> / {{ totalSeatCapacity }} ghế</p>
         </div>
       </div>
 
@@ -281,7 +287,7 @@ onUnmounted(() => {
         <div class="grid grid-cols-3 gap-4">
           <div class="text-center">
             <p class="text-[8px] font-bold text-white/40 uppercase mb-1">Ghế trống</p>
-            <p class="text-lg font-black text-white">{{ totalSeats - soldTickets }}</p>
+            <p class="text-lg font-black text-white">{{ totalSeatCapacity - soldTickets }}</p>
           </div>
           <div class="text-center border-x border-white/5">
             <p class="text-[8px] font-bold text-primary uppercase mb-1">Đã đặt</p>
@@ -396,20 +402,24 @@ onUnmounted(() => {
 
         <div class="flex justify-between items-center p-4 bg-black/40 rounded-xl border border-white/5">
           <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Tổng sức chứa</span>
-          <span class="text-base font-black text-primary font-headline">{{ totalSeats }} GHẾ</span>
+          <span class="text-base font-black text-primary font-headline">{{ totalSeatCapacity }} GHẾ</span>
         </div>
 
-        <div class="flex items-center gap-2">
-          <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
-            <span class="text-[8px] font-bold text-primary opacity-70 uppercase tracking-widest">VIP</span>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
+            <span class="text-[8px] font-bold text-slate-400 opacity-70 uppercase tracking-widest">Thường</span>
+            <span class="text-xs font-black font-headline">{{ Object.values(seatMap).filter(s => s?.type === 'standard').length }}</span>
+          </div>
+          <div class="px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
+            <span class="text-[8px] font-bold text-red-500 opacity-70 uppercase tracking-widest">VIP</span>
             <span class="text-xs font-black font-headline">{{ Object.values(seatMap).filter(s => s?.type === 'vip').length }}</span>
           </div>
-          <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
-            <span class="text-[8px] font-bold text-pink-400 opacity-70 uppercase tracking-widest">Đôi</span>
+          <div class="px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
+            <span class="text-[8px] font-bold text-purple-400 opacity-70 uppercase tracking-widest">Đôi</span>
             <span class="text-xs font-black font-headline">{{ Object.values(seatMap).filter(s => s?.type === 'double').length }}</span>
           </div>
-          <div class="flex-1 px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
-            <span class="text-[8px] font-bold text-red-400 opacity-70 uppercase tracking-widest">Khóa</span>
+          <div class="px-3 py-2 bg-black/40 rounded-lg border border-white/5 flex items-center justify-between">
+            <span class="text-[8px] font-bold text-amber-500 opacity-70 uppercase tracking-widest">Khóa</span>
             <span class="text-xs font-black font-headline">{{ maintenanceCount }}</span>
           </div>
         </div>
