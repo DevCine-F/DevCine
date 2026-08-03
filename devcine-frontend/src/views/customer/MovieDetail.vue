@@ -3,7 +3,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { useAuthStore } from '@/stores/auth'
 import { reviewApi } from '@/api/customer/index'
-import { onMounted, ref, computed, nextTick } from 'vue'
+import { onMounted, ref, computed, nextTick, watch } from 'vue'
 import api from '@/api/axios'
 import TrailerModal from '@/components/common/TrailerModal.vue'
 import { useToastStore } from '@/stores/toast'
@@ -211,10 +211,36 @@ onMounted(async () => {
   await Promise.all([
     fetchMovieData,
     store.fetchCities(),
-    store.fetchShowtimes(movieId, store.selectedCity),
     fetchReviews(movieId),
     fetchCinemas
   ])
+
+  const savedCity = localStorage.getItem('devcine_preferred_city') || ''
+  const savedCinemaId = localStorage.getItem('devcine_preferred_cinema_id') || ''
+
+  if (savedCity && store.cities.includes(savedCity)) {
+    store.selectedCity = savedCity
+  } else if (store.cities.length > 0) {
+    store.selectedCity = store.cities.includes('TP. Hồ Chí Minh') ? 'TP. Hồ Chí Minh' : store.cities[0]
+    localStorage.setItem('devcine_preferred_city', store.selectedCity)
+  }
+
+  if (savedCinemaId) {
+    const cinemaExists = allCinemas.value.find(c => c.id == savedCinemaId && c.city === store.selectedCity)
+    if (cinemaExists) {
+      selectedCinemaId.value = cinemaExists.id
+    }
+  }
+  
+  if (!selectedCinemaId.value) {
+    const cityCinemas = allCinemas.value.filter(c => c.city === store.selectedCity)
+    if (cityCinemas.length > 0) {
+      selectedCinemaId.value = cityCinemas[0].id
+      localStorage.setItem('devcine_preferred_cinema_id', selectedCinemaId.value)
+    }
+  }
+
+  await store.fetchShowtimes(movieId, store.selectedCity)
   
   if (uniqueDates.value.length > 0) {
      activeDateStr.value = uniqueDates.value[0]
@@ -230,12 +256,27 @@ onMounted(async () => {
 
 const onCityChange = async () => {
   const movieId = route.params.id || 1
-  selectedCinemaId.value = '' // đổi thành phố → reset bộ lọc rạp về "Tất cả rạp"
+  localStorage.setItem('devcine_preferred_city', store.selectedCity)
+  selectedCinemaId.value = ''
+  localStorage.removeItem('devcine_preferred_cinema_id')
+
+  const cityCinemas = allCinemas.value.filter(c => c.city === store.selectedCity)
+  if (cityCinemas.length > 0) {
+    selectedCinemaId.value = cityCinemas[0].id
+    localStorage.setItem('devcine_preferred_cinema_id', selectedCinemaId.value)
+  }
+
   await store.fetchShowtimes(movieId, store.selectedCity)
   if (uniqueDates.value.length > 0 && !uniqueDates.value.includes(activeDateStr.value)) {
      activeDateStr.value = uniqueDates.value[0]
   }
 }
+
+watch(selectedCinemaId, (newId) => {
+  if (newId) {
+    localStorage.setItem('devcine_preferred_cinema_id', newId)
+  }
+})
 
 const openTrailer = () => { showTrailer.value = true }
 

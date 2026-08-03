@@ -682,12 +682,17 @@ const proceedToPayment = async () => {
       <div class="mb-10 flex items-start justify-between gap-4">
         <div>
           <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">{{ stepMeta.title }}</h1>
-          <div class="flex items-center gap-4 text-on-surface-variant" v-if="currentStep === 1 && store.selectedShowtime">
-            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">location_on</span> {{ store.selectedShowtime.cinema?.cinemaName }}</span>
-            <span class="w-1 h-1 rounded-full bg-outline-variant"></span>
-            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">calendar_today</span> {{ new Date(store.selectedShowtime.startTime).toLocaleDateString() }}</span>
-            <span class="w-1 h-1 rounded-full bg-outline-variant"></span>
-            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">schedule</span> {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</span>
+          <div v-if="currentStep === 1 && store.selectedShowtime" class="mt-4 mb-2 bg-primary-container/10 border border-primary-container/30 rounded-xl p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3 text-on-surface font-bold text-sm md:text-base">
+              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container">location_on</span> Rạp: {{ store.selectedShowtime.cinema?.cinemaName }}</span>
+              <span class="hidden md:inline w-1.5 h-1.5 rounded-full bg-primary/40"></span>
+              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container">meeting_room</span> {{ store.selectedShowtime.roomName || 'Phòng chiếu' }}</span>
+              <span class="hidden md:inline w-1.5 h-1.5 rounded-full bg-primary/40"></span>
+              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container">schedule</span> Suất: {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }} - {{ new Date(store.selectedShowtime.startTime).toLocaleDateString() }}</span>
+            </div>
+            <button @click="goBack" class="flex-shrink-0 px-4 py-2 bg-surface-container-highest border border-outline-variant/30 text-primary-container font-bold text-[10px] uppercase tracking-widest rounded-lg hover:bg-white/5 transition-all flex items-center gap-1.5 w-fit">
+              <span class="material-symbols-outlined text-sm">sync</span> Đổi suất khác
+            </button>
           </div>
           <p v-else class="text-sm text-on-surface-variant">{{ stepMeta.desc }}</p>
         </div>
