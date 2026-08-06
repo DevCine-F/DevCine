@@ -10,6 +10,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 /**
  * Hỗ trợ "Hoá đơn chờ" tại POS: giải phóng (release) một booking đang giữ ghế (HOLD)
@@ -26,6 +30,7 @@ public class PosHoldService {
 
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Nhả ghế của một đơn chờ về AVAILABLE (đặt bookingSeat HOLD → EXPIRED, booking → CANCELLED).
@@ -43,6 +48,13 @@ public class PosHoldService {
         if ("CONFIRMED".equals(booking.getStatus())) {
             return "CONFIRMED";
         }
+        // Đã nhả trước đó (Idempotent) -> trả về thành công luôn, tránh loop/bắn WebSocket
+        if ("EXPIRED".equals(booking.getStatus()) || "CANCELLED".equals(booking.getStatus())) {
+            return "RELEASED";
+        }
+        if (!"HOLD".equals(booking.getStatus())) {
+            return booking.getStatus(); // Nếu khác HOLD thì không xử lý nhả ghế
+        }
 
         List<BookingSeat> seats = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId);
         for (BookingSeat bs : seats) {
@@ -56,6 +68,15 @@ public class PosHoldService {
         bookingRepository.save(booking);
 
         log.info("Đã nhả {} ghế của đơn chờ {} (booking #{}).", seats.size(), booking.getBookingCode(), bookingId);
+        
+        try {
+            List<Integer> seatIds = seats.stream().map(bs -> bs.getSeat().getId()).collect(Collectors.toList());
+            Object payload = Map.of("type", "SEAT_RELEASED", "seatIds", seatIds, "by", "");
+            messagingTemplate.convertAndSend("/topic/showtime/" + booking.getShowtime().getId(), payload);
+        } catch (Exception e) {
+            log.warn("Mạng WebSocket ngắt kết nối đột ngột khi releaseHold booking #{}: {}", bookingId, e.getMessage());
+        }
+
         return "RELEASED";
     }
 }

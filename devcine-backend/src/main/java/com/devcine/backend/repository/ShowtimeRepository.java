@@ -150,4 +150,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
             "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Movie> findMoviesWithShowtimes(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
                                         @Param("city") String city, @Param("q") String q, Pageable pageable);
+
+    @Query("SELECT DISTINCT s FROM Showtime s LEFT JOIN FETCH s.movie LEFT JOIN FETCH s.room r LEFT JOIN FETCH r.cinema LEFT JOIN FETCH s.format WHERE s.startTime >= :fromTime ORDER BY s.startTime ASC")
+    List<Showtime> findPOSShowtimesWithDetails(@Param("fromTime") LocalDateTime fromTime);
 }

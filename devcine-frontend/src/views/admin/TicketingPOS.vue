@@ -1,12 +1,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import { ticketingApi, settingsApi, approvalApi } from '@/api/admin/index'
+import { ticketingApi, settingsApi, approvalApi, bookingAdminApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
+
+const nowTs = ref(Date.now())
+let nowTimer = null
 
 const lateBookingMinutes = ref(10)
 
@@ -205,6 +208,9 @@ const stopSeatPolling = () => {
   seatRealtime.disconnect() // rời bước chọn ghế → nhả khóa của mình + ngắt WebSocket
 }
 
+import { usePosStore } from '@/stores/usePosStore'
+const posStore = usePosStore()
+
 // ===== Khóa ghế real-time (WebSocket/STOMP) — đồng bộ với quầy POS khác & khách online =====
 const seatRealtime = useSeatRealtime({
   by: 'Quầy POS',
@@ -228,33 +234,18 @@ const seatRealtime = useSeatRealtime({
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 
-// ===== Hoá đơn chờ (Hold Order / Pending List) — lưu localStorage để bền qua refresh =====
-const HELD_KEY = 'devcine_pos_held_orders'
-const HELD_SEQ_KEY = 'devcine_pos_hold_seq'
-const heldOrders = ref([])
+// ===== Hoá đơn chờ (Hold Order / Pending List) — dùng Pinia Store =====
 const showHeldPanel = ref(false)
-const loadHeldOrders = () => {
-  try { heldOrders.value = JSON.parse(localStorage.getItem(HELD_KEY) || '[]') } catch { heldOrders.value = [] }
-}
-const persistHeld = () => { try { localStorage.setItem(HELD_KEY, JSON.stringify(heldOrders.value)) } catch (_) {} }
-const nextHoldCode = () => {
-  const seq = parseInt(localStorage.getItem(HELD_SEQ_KEY) || '0', 10) + 1
-  localStorage.setItem(HELD_SEQ_KEY, String(seq))
-  return 'HOLD-' + String(seq).padStart(3, '0')
-}
 const canHoldOrder = computed(() => {
   if (saleMode.value === 'FNB') return selectedCombos.value.length > 0
   return !!selectedShowtime.value && selectedSeats.value.length > 0
 })
 const isHolding = ref(false)
+
 const holdCurrentOrder = async () => {
+  if (isHolding.value || isPaying.value) return
   if (!canHoldOrder.value) { showToast('Chưa có gì để giữ đơn (giỏ hàng đang trống).', 'error'); return }
-  // Giới hạn số đơn chờ cùng lúc để tránh treo rác bộ nhớ tạm
-  if (heldOrders.value.length >= HELD_MAX) {
-    showToast(`Tối đa ${HELD_MAX} đơn chờ cùng lúc. Hãy xử lý bớt đơn đang treo trước.`, 'error')
-    return
-  }
-  // Đơn CÓ VÉ → tạo HOLD trong DB để khoá ghế toàn hệ thống (online/quầy khác không chọn được)
+
   let bookingId = null
   if (saleMode.value === 'TICKET') {
     isHolding.value = true
@@ -267,38 +258,59 @@ const holdCurrentOrder = async () => {
       bookingId = data.bookingId
     } catch (err) {
       showToast(friendlyError(err, 'Không giữ được ghế (có thể vừa bị đặt).'), 'error')
+      isHolding.value = false
       return
     } finally {
       isHolding.value = false
     }
   }
-  const code = nextHoldCode()
-  heldOrders.value.unshift({
-    code,
-    createdAt: Date.now(),
+
+  const orderData = {
     mode: saleMode.value,
     bookingId,
-    // Lưu lại bước hiện tại để khi "Gọi lại" đưa thẳng về đúng màn hình (vd thanh toán)
     step: saleMode.value === 'FNB' ? fnbStep.value : currentStep.value,
     showtime: selectedShowtime.value ? JSON.parse(JSON.stringify(selectedShowtime.value)) : null,
     seats: JSON.parse(JSON.stringify(selectedSeats.value)),
     combos: JSON.parse(JSON.stringify(selectedCombos.value)),
     member: member.value ? JSON.parse(JSON.stringify(member.value)) : null,
-    // Số tiền GỐC trên biên lai tạm tính — KHÔNG lấy số tiền khách đưa đang gõ dở
     total: totalPrice.value,
-  })
-  // Huỷ/đóng luồng thanh toán đang mở (pop-up tiền mặt / QR) khi chuyển đơn sang chờ
-  showCashModal.value = false
-  showQrModal.value = false
-  cashGiven.value = 0
-  persistHeld()
-  showToast(saleMode.value === 'TICKET'
-    ? `Đã giữ đơn ${code}. Ghế đã được khoá trên toàn hệ thống.`
-    : `Đã giữ đơn ${code}. Gọi lại bất cứ lúc nào ở "Đơn chờ".`, 'success')
-  softReset()
+  }
+
+  const code = await posStore.holdOrder(orderData)
+  if (code) {
+    showCashModal.value = false
+    showQrModal.value = false
+    cashGiven.value = 0
+    showToast(saleMode.value === 'TICKET'
+      ? `Đã giữ đơn ${code}. Ghế đã được khoá trên toàn hệ thống.`
+      : `Đã giữ đơn ${code}. Gọi lại bất cứ lúc nào ở "Đơn chờ".`, 'success')
+    softReset()
+  }
 }
+
 const restoreHeldOrder = async (o) => {
-  // Đơn chờ F&B độc lập: khôi phục thẳng giỏ món, không cần suất/ghế
+  try {
+    const { data: availableFnbsResponse } = await ticketingApi.getCombos().catch(() => ({ data: { data: [] } }));
+    const availableFnbs = availableFnbsResponse?.data || [];
+    if (availableFnbs.length > 0) {
+      const availableMap = new Map(availableFnbs.map(f => [f.id, f]));
+      const validCombos = [];
+      const lostCombos = [];
+      for (const combo of (o.combos || [])) {
+        const item = availableMap.get(combo.id || combo.fnbItemId);
+        if (item && (item.is_available || item.isAvailable)) {
+          validCombos.push(combo);
+        } else {
+          lostCombos.push(combo.name);
+        }
+      }
+      if (lostCombos.length > 0) {
+        showToast(`Món ${lostCombos.join(', ')} đã tạm hết và được xóa khỏi đơn giữ.`, 'error');
+      }
+      o.combos = validCombos;
+    }
+  } catch (_) {}
+
   if (o.mode === 'FNB') {
     saleMode.value = 'FNB'
     selectedShowtime.value = null
@@ -306,35 +318,31 @@ const restoreHeldOrder = async (o) => {
     selectedCombos.value = o.combos || []
     member.value = o.member || null
     concessionSale.value = null
-    // Đưa về đúng bước đã giữ (vd đang ở màn thanh toán) thay vì bắt làm lại
     fnbStep.value = o.step || 1
     showHeldPanel.value = false
-    heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
-    persistHeld()
+    posStore.removeOrder(o.code)
     return
   }
-  // Vé phim: suất đã quá giờ → nhả ghế + bỏ đơn chờ (đơn đã vô dụng)
+  
   if (isPastShowtime(o.showtime)) {
     if (o.bookingId) { try { await ticketingApi.releaseHold(o.bookingId) } catch (_) {} }
-    heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
-    persistHeld()
+    posStore.removeOrder(o.code)
     showToast(`Suất chiếu của đơn ${o.code} đã quá giờ — đã huỷ đơn chờ và nhả ghế.`, 'error')
     return
   }
-  // Nhả HOLD của đơn này (ghế về AVAILABLE) trước khi tái dựng + kiểm tra ghế còn không.
-  // Đồng thời double-check: nếu đơn đã CONFIRMED (đã thanh toán) thì không cho gọi lại.
+  
   if (o.bookingId) {
     try {
       const { data } = await ticketingApi.releaseHold(o.bookingId)
       if (data.status === 'CONFIRMED') {
-        heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
-        persistHeld()
+        posStore.removeOrder(o.code)
         showHeldPanel.value = false
         showToast(`Đơn ${o.code} đã được thanh toán trước đó — không thể gọi lại.`, 'error')
         return
       }
-    } catch (_) { /* nhả lỗi: scheduler sẽ dọn; vẫn tiếp tục kiểm tra ghế thực tế */ }
+    } catch (_) { }
   }
+  
   saleMode.value = 'TICKET'
   selectedShowtime.value = o.showtime
   selectedCombos.value = o.combos || []
@@ -342,12 +350,12 @@ const restoreHeldOrder = async (o) => {
   showHeldPanel.value = false
   currentStep.value = 2
   isLoadingSeats.value = true
+  
   try {
     const { data } = await ticketingApi.getSeats(o.showtime.id)
     seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
     captureSeatMeta(data)
-    // Quét lại tính khả dụng theo thời gian thực: ghế đã bị bán trong lúc chờ sẽ bị loại,
-    // GIỮ LẠI phần bắp nước hợp lệ; chỉ phần vé trùng bị gỡ khỏi biên lai tạm tính.
+    
     const byId = new Map(seatData.value.seats.map(s => [s.seatId, s]))
     const restored = []; const lost = []
     for (const s of (o.seats || [])) {
@@ -361,29 +369,16 @@ const restoreHeldOrder = async (o) => {
     }
     if (restored.length) startHoldTimer()
     startSeatPolling()
-    // Mất ghế → buộc về bước chọn ghế để chọn lại; còn nguyên → về đúng bước đã giữ (vd thanh toán)
     currentStep.value = lost.length ? 2 : (o.step || 2)
   } catch (_) {
     showToast('Không tải được sơ đồ ghế của đơn chờ.', 'error')
   } finally {
     isLoadingSeats.value = false
   }
-  heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
-  persistHeld()
-}
-const deleteHeldOrder = (o) => {
-  // Đơn có vé → nhả ghế HOLD về AVAILABLE ngay theo thời gian thực
-  if (o.bookingId) { ticketingApi.releaseHold(o.bookingId).catch(() => {}) }
-  heldOrders.value = heldOrders.value.filter(x => x.code !== o.code)
-  persistHeld()
-  showToast(`Đã huỷ đơn chờ ${o.code}${o.bookingId ? ' — ghế được giải phóng' : ''}.`, 'success')
+  posStore.removeOrder(o.code)
 }
 
-// Cấu hình đơn chờ
-const HELD_MAX = 10                  // tối đa số đơn chờ cùng lúc / quầy
-const HELD_TICKET_TTL = HOLD_SECONDS // đơn chờ CÓ VÉ hết hạn sau 5 phút (giải phóng ghế)
-const nowTs = ref(Date.now())        // nhịp đồng hồ 1s để countdown/tuổi đơn cập nhật reactive
-let nowTimer = null
+const deleteHeldOrder = (o) => posStore.deleteHeldOrder(o)
 
 // 1. TRÍCH XUẤT NGUỒN DỮ LIỆU NGÀY CÓ LỊCH
 // Helper 1: Chuyển chuỗi bất kỳ sang Date Object chuẩn
@@ -696,6 +691,7 @@ const checkoutReady = () => {
 }
 
 const processConcessionPayment = async (method) => {
+  if (isHolding.value || isPaying.value) return
   if (selectedCombos.value.length === 0) { showToast('Chưa chọn món nào.', 'error'); return }
   paymentMethod.value = method
   isPaying.value = true
@@ -711,7 +707,11 @@ const processConcessionPayment = async (method) => {
     showQrModal.value = false
     fnbStep.value = 3
   } catch (err) {
-    showToast(friendlyError(err, 'Thanh toán thất bại.'), 'error')
+    if (err.response?.status === 400 && err.response?.data?.message) {
+      showToast(err.response.data.message, 'error')
+    } else {
+      showToast(friendlyError(err, 'Thanh toán thất bại.'), 'error')
+    }
   } finally {
     isPaying.value = false
   }
@@ -818,32 +818,48 @@ const newConcessionSale = () => {
   resetVoidState()
 }
 
+const unwrapData = (res) => {
+  if (!res || !res.data) return []
+  if (Array.isArray(res.data.data)) return res.data.data
+  if (Array.isArray(res.data)) return res.data
+  return []
+}
+
 const fetchData = async () => {
   isLoading.value = true
   error.value = ''
-  try {
-    const [stRes, cbRes] = await Promise.all([
-      ticketingApi.getShowtimes(),
-      ticketingApi.getCombos()
-    ])
-    showtimes.value = stRes.data.data ?? stRes.data
-    combos.value = cbRes.data.data ?? cbRes.data
-    
-    console.log("POS Raw Showtimes:", showtimes.value.length, "Available Dates:", availableDates.value)
-    console.log("DEBUG - Grouped Movies Value:", groupedMoviesWithShowtimes.value);
-    console.log("DEBUG - Sample Raw Showtime Item:", showtimes.value[0]);
-  } catch (err) {
-    // 401 (hết phiên) đã được interceptor axios xử lý tập trung (logout + về login),
-    // nên ở đây chỉ còn 403 (thiếu quyền) hoặc 500/mạng — KHÔNG đẩy về đăng nhập.
+  
+  const [stRes, cbRes] = await Promise.allSettled([
+    ticketingApi.getShowtimes(),
+    ticketingApi.getCombos()
+  ])
+  
+  if (stRes.status === 'fulfilled') {
+    showtimes.value = unwrapData(stRes.value)
+  } else {
+    const err = stRes.reason
     const status = err.response?.status
     if (status === 403) {
       error.value = 'Bạn không có quyền bán vé cho cụm rạp này.'
     } else {
       error.value = 'Không tải được dữ liệu bán vé. Vui lòng thử lại.'
     }
-  } finally {
-    isLoading.value = false
   }
+  
+  if (cbRes.status === 'fulfilled') {
+    combos.value = unwrapData(cbRes.value)
+  } else {
+    showToast('Tạm thời không tải được danh mục Bắp nước', 'warning')
+    combos.value = []
+  }
+
+  if (!error.value) {
+    console.log("POS Raw Showtimes:", showtimes.value.length, "Available Dates:", availableDates.value)
+    console.log("DEBUG - Grouped Movies Value:", groupedMoviesWithShowtimes.value);
+    console.log("DEBUG - Sample Raw Showtime Item:", showtimes.value[0]);
+  }
+  
+  isLoading.value = false
 }
 
 const selectShowtime = async (st) => {
@@ -1138,6 +1154,7 @@ const selectedOwnedVoucher = computed(() =>
 const selectVoucher = (v) => { voucherCodeInput.value = v.code; showVoucherDropdown.value = false }
 
 const processPayment = async (method) => {
+  if (isHolding.value || isPaying.value) return
   if (saleMode.value === 'FNB') return processConcessionPayment(method)
   if (selectedSeats.value.length === 0) {
     showToast('Chưa chọn ghế.', 'error')
@@ -1155,15 +1172,29 @@ const processPayment = async (method) => {
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method
     }
-    const { data } = await ticketingApi.pay(payload)
-    completedBooking.value = data
+    
+    if (method === 'TRANSFER') {
+      const holdRes = await ticketingApi.hold(payload)
+      const bookingId = holdRes.data.bookingId
+      await ticketingApi.mockWebhookSuccess(bookingId)
+      const bookingRes = await bookingAdminApi.detail(bookingId)
+      completedBooking.value = bookingRes.data.data ?? bookingRes.data
+    } else {
+      const { data } = await ticketingApi.pay(payload)
+      completedBooking.value = data
+    }
+    
     stopHoldTimer()
     stopSeatPolling()
     showCashModal.value = false
     showQrModal.value = false
     currentStep.value = 6
   } catch (err) {
-    showToast(friendlyError(err, 'Thanh toán thất bại (ghế có thể đã bán).'), 'error')
+    if (err.response?.status === 400 && err.response?.data?.message) {
+      showToast(err.response.data.message, 'error')
+    } else {
+      showToast(friendlyError(err, 'Thanh toán thất bại (ghế có thể đã bán).'), 'error')
+    }
   } finally {
     isPaying.value = false
   }
@@ -1487,15 +1518,21 @@ const resetPOS = () => {
   fetchData()
 }
 
+const handleGlobalKeydown = (e) => {
+  if (isHolding.value || isPaying.value) return
+  // Các phím tắt thu ngân có thể xử lý ở đây (ví dụ: F2, F4...)
+}
+
 onMounted(() => {
-  fetchData(); loadBankInfo(); loadHeldOrders()
-  // Nhịp 1s: cập nhật countdown/tuổi đơn chờ + tự dọn đơn hết giờ
-  nowTimer = setInterval(() => { nowTs.value = Date.now(); sweepExpiredHolds() }, 1000)
+  nowTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
+  fetchData(); loadBankInfo();
+  window.addEventListener('keydown', handleGlobalKeydown)
 })
 onUnmounted(() => {
+  if (nowTimer) clearInterval(nowTimer)
   stopHoldTimer()
   stopSeatPolling()
-  if (nowTimer) clearInterval(nowTimer)
+  window.removeEventListener('keydown', handleGlobalKeydown)
 })
 </script>
 
@@ -1567,11 +1604,12 @@ onUnmounted(() => {
         </button>
 
         <!-- Danh sách đơn chờ -->
-        <button @click="showHeldPanel = true"
-                class="relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/15 text-on-surface text-[11px] font-black uppercase tracking-wider hover:border-primary/40 transition-all">
-          <span class="material-symbols-outlined text-base">receipt_long</span> Đơn chờ
-          <span v-if="heldOrders.length" class="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-on-primary text-[10px] font-black flex items-center justify-center">{{ heldOrders.length }}</span>
-        </button>
+        <AppButton variant="outline" class="w-12 h-12 !p-0 shrink-0 relative" @click="showHeldPanel = true" title="Danh sách đơn chờ">
+                <span class="material-symbols-outlined">receipt_long</span>
+                <span v-if="posStore.heldOrders.length" class="absolute -top-2 -right-2 w-5 h-5 bg-primary text-on-primary text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-surface shadow-sm">
+                  {{ posStore.heldOrders.length }}
+                </span>
+              </AppButton>
 
         <AppButton variant="outline" @click="resetPOS">Hủy giao dịch</AppButton>
       </div>
@@ -2307,11 +2345,12 @@ onUnmounted(() => {
           </div>
           <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
             <AppButton variant="ghost" class="flex-1" @click="showCashModal = false">Hủy</AppButton>
-            <button v-if="canHoldOrder" @click="holdCurrentOrder" :disabled="isPaying || isHolding"
-                    class="flex items-center justify-center gap-1.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition-all disabled:opacity-40" title="Lưu đơn vào danh sách chờ (giữ số tiền gốc)">
-              <span class="material-symbols-outlined text-base">{{ isHolding ? 'progress_activity' : 'pause_circle' }}</span> {{ isHolding ? 'Đang giữ...' : 'Giữ đơn' }}
+            <button v-if="canHoldOrder" @click.stop.prevent="holdCurrentOrder" :disabled="isPaying || isHolding"
+                    class="flex items-center justify-center gap-1.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Lưu đơn vào danh sách chờ (giữ số tiền gốc)">
+              <span class="material-symbols-outlined text-base" :class="{'animate-spin': isHolding}">{{ isHolding ? 'progress_activity' : 'pause_circle' }}</span> {{ isHolding ? 'Đang xử lý...' : 'Giữ đơn' }}
             </button>
-            <AppButton variant="primary" class="flex-1" :disabled="!canConfirmCash || isPaying" @click="processPayment('CASH')">
+            <AppButton variant="primary" class="flex-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all" :disabled="!canConfirmCash || isPaying || isHolding" @click.stop.prevent="processPayment('CASH')">
+              <span v-if="isPaying" class="material-symbols-outlined text-base animate-spin mr-1 align-middle">progress_activity</span>
               {{ isPaying ? 'Đang xử lý...' : 'Xác nhận thanh toán' }}
             </AppButton>
           </div>
@@ -2356,7 +2395,8 @@ onUnmounted(() => {
 
           <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
             <AppButton variant="ghost" class="flex-1" @click="showQrModal = false">Hủy</AppButton>
-            <AppButton variant="primary" class="flex-1" :disabled="!cleanQrUrl || isPaying" @click="processPayment('TRANSFER')">
+            <AppButton variant="primary" class="flex-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all" :disabled="!cleanQrUrl || isPaying || isHolding" @click.stop.prevent="processPayment('TRANSFER')">
+              <span v-if="isPaying" class="material-symbols-outlined text-base animate-spin mr-1 align-middle">progress_activity</span>
               {{ isPaying ? 'Đang xử lý...' : 'Xác nhận đã chuyển khoản' }}
             </AppButton>
           </div>
@@ -2373,7 +2413,7 @@ onUnmounted(() => {
               <span class="material-symbols-outlined text-primary">receipt_long</span>
               <div>
                 <h3 class="text-base font-black uppercase italic tracking-tighter text-on-surface leading-none">Hoá đơn chờ</h3>
-                <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">{{ heldOrders.length }} đơn đang giữ</p>
+                <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">{{ posStore.heldOrders.length }} đơn đang giữ</p>
               </div>
             </div>
             <button @click="showHeldPanel = false" class="w-8 h-8 rounded-lg hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant">

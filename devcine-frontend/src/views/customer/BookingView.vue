@@ -46,6 +46,7 @@ const paymentMethod = ref('VNPAY')
 const currentStep = ref(1)
 const held = ref(false)      // đã giữ ghế (tạo đơn) cho lựa chọn hiện tại chưa
 const holding = ref(false)   // đang giữ ghế ở nền
+const isPaying = ref(false)  // đang xử lý thanh toán
 const steps = [
   { id: 1, label: 'Chọn ghế', icon: 'event_seat' },
   { id: 2, label: 'Combo', icon: 'fastfood' },
@@ -1051,11 +1052,15 @@ const proceedToPayment = async () => {
           <button
             v-else
             @click="proceedToPayment"
-            :disabled="store.selectedSeats.length === 0"
+            :disabled="store.selectedSeats.length === 0 || isPaying"
             class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-4 rounded-2xl font-headline font-extrabold text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 disabled:grayscale disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
           >
-            <span class="material-symbols-outlined text-xl">lock</span>
-            Xác nhận thanh toán
+            <svg v-if="isPaying" class="animate-spin -ml-1 mr-2 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span v-else class="material-symbols-outlined text-xl">lock</span>
+            {{ isPaying ? 'Đang xử lý...' : 'Xác nhận thanh toán' }}
           </button>
         </div>
       </div>

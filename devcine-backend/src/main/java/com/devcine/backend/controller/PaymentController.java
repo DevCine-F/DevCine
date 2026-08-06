@@ -175,4 +175,18 @@ public class PaymentController {
             return ResponseEntity.badRequest().body(response);
         }
     }
+
+    @PostMapping("/mock-webhook-success")
+    public ResponseEntity<?> mockWebhookSuccess(@RequestBody Map<String, Integer> payload) {
+        Integer bookingId = payload.get("bookingId");
+        if (bookingId == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Thiếu bookingId"));
+        }
+        try {
+            bookingService.completePayment(bookingId, "TRANSFER");
+            return ResponseEntity.ok(Map.of("message", "Xác nhận thanh toán giả lập thành công"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
 }

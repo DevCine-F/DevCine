@@ -16,6 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.devcine.backend.dto.request.FnbSelectionDTO;
+import com.devcine.backend.dto.request.PosCheckoutRequestDTO;
+
+import jakarta.validation.Valid;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -63,10 +66,8 @@ public class TicketingController {
         Integer myCinemaId = SecurityUtils.getCurrentUserCinemaId();
         boolean isAdmin = SecurityUtils.isAdmin();
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
-        List<Showtime> showtimes = showtimeRepository.findAll().stream()
-                .filter(s -> s.getStartTime() != null && !s.getStartTime().isBefore(startOfToday))
+        List<Showtime> showtimes = showtimeRepository.findPOSShowtimesWithDetails(startOfToday).stream()
                 .filter(s -> isAdmin || (myCinemaId != null && myCinemaId.equals(cinemaIdOfShowtime(s))))
-                .sorted(Comparator.comparing(Showtime::getStartTime))
                 .collect(Collectors.toList());
 
         List<Map<String, Object>> result = showtimes.stream().map(s -> Map.<String, Object>of(
@@ -232,23 +233,20 @@ public class TicketingController {
     // Không bọc @Transactional ở controller (createSale đã tự @Transactional) — tránh bug rollback-only che message.
     @PostMapping("/concession")
     @PreAuthorize("@perm.can('pos_ticketing', 'add')")
-    public ResponseEntity<?> concessionCheckout(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> concessionCheckout(@Valid @RequestBody PosCheckoutRequestDTO body) {
         try {
             // Cách ly cụm rạp: đơn F&B thuần được gán cố định cinema = cơ sở của nhân viên bán.
             Staff soldBy = currentStaffOrNull();
             Cinema cinema = soldBy != null ? soldBy.getCinema() : null;
             SecurityUtils.assertCinemaAccess(cinema != null ? cinema.getId() : null);
 
-            String paymentMethod = (String) body.getOrDefault("paymentMethod", "CASH");
-            Integer customerId = body.get("customerId") != null
-                    ? Integer.parseInt(body.get("customerId").toString()) : null;
+            String paymentMethod = body.getPaymentMethod() != null ? body.getPaymentMethod() : "CASH";
+            Integer customerId = body.getCustomerId();
 
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> fnbsRaw = (List<Map<String, Object>>) body.get("fnbs");
-            List<FnbSelectionDTO> fnbs = fnbsRaw == null ? List.of() : fnbsRaw.stream()
+            List<FnbSelectionDTO> fnbs = body.getFnbs() == null ? List.of() : body.getFnbs().stream()
                     .map(m -> FnbSelectionDTO.builder()
-                            .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
-                            .quantity(Integer.parseInt(m.get("quantity").toString()))
+                            .fnbItemId(m.getItemId())
+                            .quantity(m.getQuantity())
                             .build())
                     .collect(Collectors.toList());
 

@@ -1,5 +1,5 @@
 import { defineStore, acceptHMRUpdate } from 'pinia'
-import { bookingApi, seatApi, fnbApi, showtimeApi } from '../api/customer'
+import { bookingApi, seatApi, fnbApi, showtimeApi, paymentApi } from '../api/customer'
 import { useAuthStore } from './auth'
 
 export const useBookingStore = defineStore('booking', {
@@ -192,14 +192,18 @@ export const useBookingStore = defineStore('booking', {
     async confirmPayment(paymentMethod) {
       if (!this.bookingId) return false;
       try {
-        await bookingApi.completePayment(this.bookingId, paymentMethod);
+        if (paymentMethod === 'TRANSFER' || paymentMethod === 'VNPAY_MOCK') {
+          await paymentApi.mockWebhookSuccess(this.bookingId);
+        } else {
+          await bookingApi.completePayment(this.bookingId, paymentMethod);
+        }
         this.paymentMethod = paymentMethod;
         this.paidAt = new Date().toISOString();
         this.bookingStep = 4; // Success
         return true;
       } catch (err) {
         console.error('Payment failed', err);
-        return false;
+        throw err; // throw to let BookingView handle the 400 Expired Toast
       }
     },
     // Nhả đơn đang giữ ghế dưới DB (best-effort) — dùng khi hết giờ giữ chỗ

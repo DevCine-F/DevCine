@@ -37,6 +37,7 @@ export const bookingApi = {
 export const paymentApi = {
   createPayment: (amount, bookingId) => api.post('/payment/create_payment', null, { params: { amount, bookingId } }),
   vnpayReturn: (queryString) => api.get(`/payment/vnpay_return?${queryString}`),
+  mockWebhookSuccess: (bookingId) => api.post('/payment/mock-webhook-success', { bookingId })
 };
 
 export const voucherApi = {
