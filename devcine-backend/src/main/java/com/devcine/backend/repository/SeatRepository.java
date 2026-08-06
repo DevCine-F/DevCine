@@ -33,6 +33,6 @@ public interface SeatRepository extends JpaRepository<Seat, Integer> {
 
     // Xoá cứng toàn bộ ghế của một phòng (dùng khi xoá phòng)
     @Modifying
-    @Query("DELETE FROM Seat s WHERE s.room.id = :roomId")
+    @Query("UPDATE Seat s SET s.isActive = false WHERE s.room.id = :roomId")
     void deleteByRoomId(@Param("roomId") Integer roomId);
 }

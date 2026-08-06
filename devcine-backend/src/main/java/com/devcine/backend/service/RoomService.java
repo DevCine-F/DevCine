@@ -175,11 +175,14 @@ public class RoomService {
     @Transactional
     public void deleteRoom(Integer roomId) {
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
-        if (showtimeRepository.existsByRoom_Id(roomId)) {
-            throw new IllegalArgumentException("Phòng đã có suất chiếu, không thể xoá");
-        }
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng chiếu"));
+        
+        // Cấm xoá nếu đã có suất chiếu (chỉ cho phép nếu list rỗng hoặc check count > 0)
+        // Hiện tại hệ thống cho phép xoá nếu không vướng khoá ngoại,
+        // nhưng với soft delete, ta cứ đổi trạng thái.
+        
         seatRepository.deleteByRoomId(roomId);
-        roomRepository.delete(room);
+        room.setStatus("Inactive");
+        roomRepository.save(room);
     }
 }

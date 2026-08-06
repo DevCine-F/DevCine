@@ -274,9 +274,11 @@ public class MovieService {
         if (m == null) return;
         String reason = blockDeleteReason(id);
         if (reason != null) {
-            throw new IllegalStateException(reason);
+            throw new RuntimeException(reason);
         }
-        movieRepository.deleteById(id);
+        Movie movie = movieRepository.findById(id).orElseThrow();
+        movie.setStatus("archived");
+        movieRepository.save(movie);
         // Dọn banner theo phim để không còn banner mồ côi trỏ tới phim đã xoá.
         bannerSyncService.applyMovieFlag(id, false, null);
     }
@@ -403,7 +405,8 @@ public class MovieService {
                     blocked.add(m.getTitle());
                     continue;
                 }
-                movieRepository.deleteById(id);
+                m.setStatus("archived");
+                movieRepository.save(m);
                 bannerSyncService.applyMovieFlag(id, false, null); // dọn banner theo phim đã xoá
                 deleted++;
             }

@@ -80,7 +80,10 @@ public class FnbController {
     @PreAuthorize("@perm.can('fnb_menu','delete')")
     public ResponseEntity<?> deleteFnb(@PathVariable Integer id) {
         try {
-            fnbItemRepository.deleteById(id);
+            FnbItem item = fnbItemRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy F&B"));
+            item.setIsActive(false);
+            fnbItemRepository.save(item);
             return ResponseEntity.ok(ApiResponse.success("Đã xoá món F&B."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
