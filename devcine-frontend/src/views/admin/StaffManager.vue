@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { staffApi, cinemaListApi } from '@/api/admin/index'
 import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
@@ -38,10 +38,10 @@ const attempted = ref(false)
 const touch = (field) => { touched.value[field] = true }
 
 // ===== Validate realtime (mirror quy tắc backend) =====
-const RE_USERNAME = /^[a-zA-Z0-9._]{3,30}$/
+const RE_USERNAME = /^[a-z0-9_]{3,20}$/
 const RE_STAFFCODE = /^[A-Z0-9]{3,15}$/
 const RE_EMAIL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-const RE_PHONE = /^(0[35789])[0-9]{8}$/
+const RE_PHONE = /^(03|05|07|08|09)\d{8}$/
 const RE_NAME = /^[\p{L}\p{M} ]+$/u
 
 const errFullName = computed(() => {
@@ -55,13 +55,11 @@ const errUsername = computed(() => {
   if (editingId.value) return '' // username không sửa khi edit
   const s = form.value.username.trim()
   if (!s) return 'Vui lòng nhập tài khoản đăng nhập.'
-  if (!RE_USERNAME.test(s)) return '3–30 ký tự; chỉ chữ/số/dấu chấm/gạch dưới, không dấu, không khoảng trắng.'
+  if (!RE_USERNAME.test(s)) return '3–20 ký tự; chỉ chữ thường, số, gạch dưới, không dấu, không khoảng trắng.'
   return ''
 })
 const errStaffCode = computed(() => {
-  const s = form.value.staffCode.trim().toUpperCase()
-  if (!s) return '' // để trống -> hệ thống tự sinh
-  if (!RE_STAFFCODE.test(s)) return '3–15 ký tự, chỉ chữ IN HOA & số (VD: DC001).'
+  return ''
   return ''
 })
 const errEmail = computed(() => {
@@ -72,8 +70,8 @@ const errEmail = computed(() => {
 })
 const errPhone = computed(() => {
   const s = form.value.phone.trim()
-  if (!s) return '' // không bắt buộc
-  if (!RE_PHONE.test(s)) return 'Số điện thoại không hợp lệ (10 số, đầu 03/05/07/08/09).'
+  if (!s) return 'Vui lòng nhập số điện thoại.'
+  if (!RE_PHONE.test(s)) return 'Số điện thoại không hợp lệ (10 số, bắt đầu 03/05/07/08/09).'
   return ''
 })
 const errCinema = computed(() => form.value.cinemaId ? '' : 'Vui lòng chọn cơ sở làm việc.')
@@ -157,11 +155,24 @@ const countByCinema = computed(() => {
 // ===== Mở modal =====
 const resetValidationState = () => { touched.value = {}; attempted.value = false }
 
-const openAddModal = () => {
+const fetchNextCode = async () => {
+  if (editingId.value) return
+  try {
+    const res = await staffApi.getNextCode()
+    if (res.data?.success) {
+      form.value.staffCode = res.data.data
+    }
+  } catch (error) {
+    console.error('Lỗi khi lấy mã nhân viên:', error)
+  }
+}
+
+const openAddModal = async () => {
   editingId.value = null
   form.value = blankForm()
   resetValidationState()
   isModalOpen.value = true
+  await fetchNextCode()
 }
 
 const openEditModal = (person) => {
@@ -362,10 +373,10 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             </td>
             <td class="px-8 py-4 text-right">
               <div class="flex justify-end gap-2">
-                <button v-if="can('staff_management', 'edit')" @click="openEditModal(person)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" title="Sửa">
+                <button v-if="can('staff_management', 'edit')" @click="openEditModal(person)" :disabled="person.userId === auth.user?.id" :title="person.userId === auth.user?.id ? 'Không thể tự sửa tài khoản của chính mình' : 'Sửa'" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed">
                   <span class="material-symbols-outlined text-sm">edit</span>
                 </button>
-                <button v-if="can('staff_management', 'edit')" @click="toggleActive(person)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant" :title="person.isActive ? 'Tạm ngưng' : 'Kích hoạt'">
+                <button v-if="can('staff_management', 'edit')" @click="toggleActive(person)" :disabled="person.userId === auth.user?.id" :title="person.userId === auth.user?.id ? 'Không thể tự đổi trạng thái của chính mình' : (person.isActive ? 'Tạm ngưng' : 'Kích hoạt')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed">
                   <span class="material-symbols-outlined text-sm">{{ person.isActive ? 'toggle_on' : 'toggle_off' }}</span>
                 </button>
                 <span v-if="!can('staff_management','edit')" class="text-on-surface-variant/40 text-xs">—</span>
@@ -425,10 +436,8 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
           </div>
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã nhân viên</label>
-            <input v-model.trim="form.staffCode" @blur="touch('staffCode')" type="text" placeholder="VD: DC001"
-                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface uppercase"
-                   :class="showErr('staffCode', errStaffCode) ? 'border-red-500' : 'border-transparent'" />
-            <p v-if="showErr('staffCode', errStaffCode)" class="text-[11px] text-red-400 font-medium">{{ errStaffCode }}</p>
+            <input v-model.trim="form.staffCode" type="text" placeholder="Đang tạo mã..." disabled
+                   class="w-full bg-surface-container-high border text-sm rounded-lg py-2.5 px-4 text-on-surface uppercase border-transparent disabled:opacity-50 disabled:cursor-not-allowed font-bold" />
           </div>
 
           <div class="space-y-1.5">
@@ -439,7 +448,7 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             <p v-if="showErr('email', errEmail)" class="text-[11px] text-red-400 font-medium">{{ errEmail }}</p>
           </div>
           <div class="space-y-1.5">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số điện thoại</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số điện thoại <span class="text-red-500">*</span></label>
             <input v-model="form.phone" @blur="touch('phone')" type="text" placeholder="09xxxxxxxx"
                    class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
                    :class="showErr('phone', errPhone) ? 'border-red-500' : 'border-transparent'" />

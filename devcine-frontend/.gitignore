@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# One-off throwaway scripts
+fix_sidebar.cjs

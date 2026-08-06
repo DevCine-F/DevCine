@@ -5,6 +5,7 @@ import { useBookingStore } from '@/stores/booking'
 import { paymentApi } from '@/api/customer'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { formatComboTitle } from '@/utils/format'
 
 const route = useRoute()
 const store = useBookingStore()
@@ -131,10 +132,13 @@ const hasVoucher = computed(() => discount.value > 0)
             <span class="text-[#888] font-label text-xs flex-shrink-0">Combo / Đồ ăn</span>
             <span v-if="store.selectedFnbs.length === 0" class="text-white font-headline font-bold text-sm">Không có</span>
           </div>
-          <div v-if="store.selectedFnbs.length > 0" class="mt-2 space-y-1">
-            <div v-for="f in store.selectedFnbs" :key="f.fnbItem.id" class="flex justify-between gap-4 text-sm">
-              <span class="text-white/90">{{ f.quantity }} × {{ f.fnbItem.name }}</span>
-              <span class="text-white/70 font-mono">{{ (f.quantity * f.fnbItem.price).toLocaleString('vi-VN') }} đ</span>
+          <div v-if="store.selectedFnbs.length > 0" class="mt-3 space-y-3">
+            <div v-for="f in store.selectedFnbs" :key="f.fnbItem.id" class="flex justify-between items-start gap-4 text-sm">
+              <div>
+                <div class="font-medium text-white/90">{{ f.quantity }} × {{ formatComboTitle(f.fnbItem.name).title }}</div>
+                <div v-if="formatComboTitle(f.fnbItem.name).desc" class="text-xs text-gray-400 mt-0.5">{{ formatComboTitle(f.fnbItem.name).desc }}</div>
+              </div>
+              <div class="text-white/70 font-mono text-right whitespace-nowrap pt-0.5">{{ (f.quantity * f.fnbItem.price).toLocaleString('vi-VN') }} đ</div>
             </div>
           </div>
         </div>

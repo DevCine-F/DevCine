@@ -106,6 +106,7 @@ export const staffApi = {
   create: (data) => api.post('/staff', data),
   update: (id, data) => api.put(`/staff/${id}`, data),
   toggle: (id) => api.put(`/staff/${id}/toggle`),
+  getNextCode: () => api.get('/staff/next-code'),
 };
 
 // Danh sách cơ sở (cụm rạp) cho dropdown lọc/gán nhân viên — endpoint công khai GET

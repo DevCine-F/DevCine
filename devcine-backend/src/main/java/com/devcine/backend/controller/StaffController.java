@@ -38,14 +38,29 @@ public class StaffController {
     @org.springframework.beans.factory.annotation.Value("${staff.default-password:DevCine@2026}")
     private String defaultStaffPassword;
 
-    private static final java.util.regex.Pattern USERNAME_RE = java.util.regex.Pattern.compile("^[a-zA-Z0-9._]{3,30}$");
-    private static final java.util.regex.Pattern STAFFCODE_RE = java.util.regex.Pattern.compile("^[A-Z0-9]{3,15}$");
+    private static final java.util.regex.Pattern USERNAME_RE = java.util.regex.Pattern.compile("^[a-z0-9_]{3,20}$");
     private static final java.util.regex.Pattern EMAIL_RE = java.util.regex.Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    private static final java.util.regex.Pattern PHONE_RE = java.util.regex.Pattern.compile("^(0[35789])[0-9]{8}$");
+    private static final java.util.regex.Pattern PHONE_RE = java.util.regex.Pattern.compile("^(03|05|07|08|09)\\d{8}$");
     private static final java.util.regex.Pattern NAME_RE = java.util.regex.Pattern.compile("^[\\p{L}\\p{M} ]+$");
 
     private static String str(Object o) {
         return o == null ? "" : o.toString().trim();
+    }
+
+    private static String toTitleCase(String str) {
+        if (str == null || str.isBlank()) return "";
+        String[] words = str.trim().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String word : words) {
+            if (word.length() > 0) {
+                sb.append(Character.toUpperCase(word.charAt(0)));
+                if (word.length() > 1) {
+                    sb.append(word.substring(1).toLowerCase());
+                }
+                sb.append(" ");
+            }
+        }
+        return sb.toString().trim();
     }
 
     private void validateFullName(String v) {
@@ -61,64 +76,33 @@ public class StaffController {
 
     private void validatePhoneFormat(Object v) {
         String s = str(v);
-        if (s.isBlank()) return; // không bắt buộc
+        if (s.isBlank()) throw new IllegalArgumentException("Vui lòng nhập số điện thoại.");
         if (!PHONE_RE.matcher(s).matches())
             throw new IllegalArgumentException("Số điện thoại không hợp lệ (10 số, bắt đầu 03/05/07/08/09).");
     }
 
     private void validateUsernameFormat(String v) {
         if (!USERNAME_RE.matcher(str(v)).matches())
-            throw new IllegalArgumentException("Tài khoản 3-30 ký tự, chỉ gồm chữ/số/dấu chấm/gạch dưới, không dấu, không khoảng trắng.");
+            throw new IllegalArgumentException("Tài khoản 3-20 ký tự, chỉ gồm chữ thường, số, gạch dưới, không dấu, không khoảng trắng.");
     }
 
-    private static String formatStaffCode(int number) {
-        return number <= 999 ? String.format("DC%03d", number) : "DC" + number;
+    private static String formatStaffCode(String prefix, int number) {
+        return number <= 999 ? String.format("%s%03d", prefix, number) : prefix + number;
     }
 
     private synchronized String generateStaffCode() {
+        String prefix = "DC";
         int next = staffRepository.findAllStaffCodes().stream()
-                .filter(code -> code != null && code.matches("^DC\\d+$"))
-                .map(code -> Integer.parseInt(code.substring(2)))
+                .filter(code -> code != null && code.startsWith(prefix) && code.substring(prefix.length()).matches("^\\d+$"))
+                .map(code -> Integer.parseInt(code.substring(prefix.length())))
                 .max(Integer::compareTo)
                 .orElse(0) + 1;
 
-        String code = formatStaffCode(next);
+        String code = formatStaffCode(prefix, next);
         while (staffRepository.existsByStaffCode(code)) {
-            code = formatStaffCode(++next);
+            code = formatStaffCode(prefix, ++next);
         }
         return code;
-    }
-
-    private String resolveStaffCodeForCreate(Object value) {
-        String staffCode = str(value);
-        if (staffCode.isBlank()) {
-            return generateStaffCode();
-        }
-        staffCode = staffCode.toUpperCase();
-        if (!STAFFCODE_RE.matcher(staffCode).matches()) {
-            throw new IllegalArgumentException("Mã nhân viên 3-15 ký tự, chỉ gồm chữ IN HOA và chữ số (VD: DC001).");
-        }
-        if (staffRepository.existsByStaffCodeIgnoreCase(staffCode)) {
-            throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
-        }
-        return staffCode;
-    }
-
-    private void updateStaffCode(Staff staff, Object value) {
-        if (value == null) return;
-        String staffCode = str(value);
-        if (staffCode.isBlank()) {
-            throw new IllegalArgumentException("Mã nhân viên không được để trống.");
-        }
-        staffCode = staffCode.toUpperCase();
-        if (!STAFFCODE_RE.matcher(staffCode).matches()) {
-            throw new IllegalArgumentException("Mã nhân viên 3-15 ký tự, chỉ gồm chữ IN HOA và chữ số (VD: DC001).");
-        }
-        if (!staffCode.equalsIgnoreCase(str(staff.getStaffCode()))
-                && staffRepository.existsByStaffCodeIgnoreCaseAndUserIdNot(staffCode, staff.getUserId())) {
-            throw new IllegalArgumentException("Mã nhân viên đã tồn tại.");
-        }
-        staff.setStaffCode(staffCode);
     }
 
     // Gói thông tin một nhân viên trả về FE (dùng HashMap vì có field cho phép null)
@@ -147,6 +131,14 @@ public class StaffController {
      * Danh sách nhân viên + bộ lọc theo cơ sở / trạng thái / từ khoá.
      * Lọc trong Java (dữ liệu nhỏ) để tránh gotcha lower(null) của Postgres khi truyền param null vào JPQL.
      */
+    @GetMapping("/next-code")
+    @PreAuthorize("@perm.can('staff_management','add')")
+    public ResponseEntity<?> getNextStaffCode() {
+        return ResponseEntity.ok(ApiResponse.ok(generateStaffCode()));
+    }
+
+
+
     @GetMapping("/list")
     @PreAuthorize("@perm.can('staff_management','view')")
     public ResponseEntity<?> getAllStaff(
@@ -208,7 +200,7 @@ public class StaffController {
         try {
             String username = str(body.get("username"));
             String email = str(body.get("email"));
-            String fullName = str(body.get("fullName"));
+            String fullName = toTitleCase(str(body.get("fullName")));
 
             // Validate chi tiết (đồng bộ với realtime validate ở FE)
             validateFullName(fullName);
@@ -263,13 +255,14 @@ public class StaffController {
             }
             Staff staff = Staff.builder()
                     .user(u)
-                    .staffCode(resolveStaffCodeForCreate(body.get("staffCode")))
+                    .staffCode(generateStaffCode())
                     .cinema(staffCinema)
                     .build();
             staffRepository.save(staff); // @MapsId: entity mới (userId null) -> persist
 
-            // Gửi email cấp tài khoản (best-effort) — KHÔNG chặn tạo nếu SMTP lỗi
-            boolean emailSent = mailService.sendStaffCredentials(email, fullName, username, defaultStaffPassword);
+            // Gửi email cấp tài khoản chạy ngầm (Asynchronous)
+            mailService.sendStaffCredentials(email, fullName, username, defaultStaffPassword);
+            boolean emailSent = true;
 
             Map<String, Object> resp = new HashMap<>();
             resp.put("success", true);
@@ -290,14 +283,19 @@ public class StaffController {
     @Transactional
     public ResponseEntity<?> updateStaff(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
         try {
+            if (id.equals(com.devcine.backend.util.SecurityUtils.getCurrentUserId())) {
+                throw new IllegalArgumentException("Bạn không thể tự đổi trạng thái hoặc chỉnh sửa tài khoản của mình. Vui lòng nhờ cấp trên thao tác!");
+            }
+
             Staff staff = staffRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhân viên."));
             User u = staff.getUser();
             if (u == null) throw new IllegalArgumentException("Nhân viên không hợp lệ.");
 
             if (body.containsKey("fullName") && !str(body.get("fullName")).isBlank()) {
-                validateFullName(str(body.get("fullName")));
-                u.setFullName(str(body.get("fullName")));
+                String fullName = toTitleCase(str(body.get("fullName")));
+                validateFullName(fullName);
+                u.setFullName(fullName);
             }
             if (body.containsKey("phone")) {
                 validatePhoneFormat(body.get("phone"));
@@ -327,7 +325,6 @@ public class StaffController {
                 }
             }
             userRepository.save(u);
-            updateStaffCode(staff, body.get("staffCode"));
             staff.setUpdatedAt(LocalDateTime.now());
 
             if (body.containsKey("cinemaId")) {
@@ -367,6 +364,10 @@ public class StaffController {
     @PreAuthorize("@perm.can('staff_management','edit')")
     @Transactional
     public ResponseEntity<?> toggleStaff(@PathVariable Integer id) {
+        if (id.equals(com.devcine.backend.util.SecurityUtils.getCurrentUserId())) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn không thể tự đổi trạng thái tài khoản của mình. Vui lòng nhờ cấp trên thao tác!"));
+        }
+
         Staff staff = staffRepository.findById(id).orElse(null);
         if (staff == null || staff.getUser() == null)
             return ResponseEntity.badRequest().body(ApiResponse.fail("Không tìm thấy nhân viên."));

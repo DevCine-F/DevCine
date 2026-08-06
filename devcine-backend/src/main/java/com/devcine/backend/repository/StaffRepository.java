@@ -17,7 +17,7 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
            "JOIN FETCH s.user u " +
            "LEFT JOIN FETCH u.role " +
            "LEFT JOIN FETCH s.cinema " +
-           "ORDER BY COALESCE(s.updatedAt, s.createdAt, u.createdAt) DESC, u.fullName ASC")
+           "ORDER BY s.userId DESC")
     List<Staff> findAllWithDetails();
 
     @Query("SELECT s FROM Staff s " +
@@ -35,7 +35,7 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
            "LEFT JOIN FETCH u.role " +
            "LEFT JOIN FETCH s.cinema c " +
            "WHERE c.id = :cinemaId " +
-           "ORDER BY u.fullName ASC")
+           "ORDER BY s.userId DESC")
     List<Staff> findByCinemaIdWithDetails(@Param("cinemaId") Integer cinemaId);
 
     boolean existsByStaffCode(String staffCode);

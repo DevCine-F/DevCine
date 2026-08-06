@@ -79,14 +79,15 @@ public class MailService {
      * Gửi email cấp tài khoản nhân viên (username + mật khẩu mặc định). Best-effort:
      * KHÔNG ném lỗi — trả về true nếu gửi thành công, false nếu tắt mail/lỗi SMTP.
      */
-    public boolean sendStaffCredentials(String toEmail, String fullName, String username, String password) {
+    @Async
+    public void sendStaffCredentials(String toEmail, String fullName, String username, String password) {
         if (!enabled) {
             log.info("mail.enabled=false → bỏ qua gửi email cấp tài khoản cho {}", username);
-            return false;
+            return;
         }
         if (toEmail == null || toEmail.isBlank()) {
             log.warn("Bỏ qua gửi email cấp tài khoản {}: thiếu email", username);
-            return false;
+            return;
         }
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -97,10 +98,8 @@ public class MailService {
             helper.setText(buildStaffCredentialsHtml(fullName, username, password), true);
             mailSender.send(message);
             log.info("Đã gửi email cấp tài khoản tới {} (username {})", toEmail, username);
-            return true;
         } catch (Exception e) {
             log.error("Gửi email cấp tài khoản thất bại cho {}: {}", toEmail, e.getMessage(), e);
-            return false;
         }
     }
 

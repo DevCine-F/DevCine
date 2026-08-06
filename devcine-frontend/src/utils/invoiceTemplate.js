@@ -163,16 +163,20 @@ export function buildInvoiceHtml(inv) {
     .bar,.divider{display:none}
     .bill,.ticket{box-shadow:none;border-radius:0;max-width:100%;border:0;margin:0}
     .ticket{break-before:page}
+    .ticket:first-of-type{break-before:auto}
     .ticket::before{display:none}
     .tk-stub::before,.tk-stub::after{background:#fff}
   }
 </style></head>
 <body>
+  ${inv.isCheckIn ? '' : `
   <div class="bar">
-    <button class="btn-print" onclick="window.print()">🖨 In hoá đơn</button>
+    <button class="btn-print" onclick="window.print()">🖨 In vé / hoá đơn</button>
     <button class="btn-close" onclick="window.close()">Đóng</button>
   </div>
+  `}
 
+  ${inv.isCheckIn ? '' : `
   <section class="bill">
     <div class="bill-head">
       <div class="brand">
@@ -220,6 +224,7 @@ export function buildInvoiceHtml(inv) {
   </section>
 
   <div class="divider"><span>Vé xem phim · ${tickets.length} vé</span></div>
+  `}
 
   ${ticketSlips}
 </body></html>`

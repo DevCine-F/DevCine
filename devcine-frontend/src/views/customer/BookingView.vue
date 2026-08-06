@@ -6,6 +6,7 @@ import { settingsApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { formatComboTitle } from '@/utils/format'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
@@ -970,22 +971,22 @@ const proceedToPayment = async () => {
     </div>
 
     <!-- Persistent Sidebar Summary -->
-    <aside class="w-full lg:w-[400px] lg:self-start">
+    <aside class="w-full lg:w-[340px] flex-shrink-0 self-start sticky top-24 z-10">
       <div class="glass-card glass-shine-edge shadow-2xl rounded-3xl">
         <!-- Movie Header -->
-        <div class="p-8 pb-6 border-b border-outline-variant/10">
+        <div class="p-6 pb-5 border-b border-outline-variant/10">
           <div class="flex gap-6">
-            <div class="w-20 h-28 flex-shrink-0 shadow-lg">
+            <div class="w-16 h-24 flex-shrink-0 shadow-lg">
               <img :src="store.selectedMovie?.posterUrl || '/images/Hopper.webp'" class="w-full h-full object-cover rounded-lg"/>
             </div>
             <div class="flex flex-col justify-center">
-              <span class="bg-error-container text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 w-fit mb-2 text-white">
+              <span class="bg-error-container text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded w-fit mb-1 text-white">
                 {{ store.selectedMovie?.ageRating || 'T18' }}
               </span>
-              <h2 class="font-headline text-lg font-bold leading-tight uppercase tracking-tight mb-1">
+              <h2 class="font-headline text-base font-bold leading-tight uppercase tracking-tight mb-1 line-clamp-2">
                 {{ store.selectedMovie?.title || 'Phim đã chọn' }}
               </h2>
-              <p class="text-xs text-on-surface-variant font-label">
+              <p class="text-[11px] text-on-surface-variant font-label truncate">
                 {{ store.selectedShowtime?.cinema?.name }} • {{ store.selectedShowtime?.room?.name }}
               </p>
             </div>
@@ -1011,9 +1012,12 @@ const proceedToPayment = async () => {
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bắp nước</span>
               <span class="text-xs font-bold text-primary-container">{{ store.selectedFnbs.reduce((acc, f) => acc + f.quantity, 0) }} sản phẩm</span>
             </div>
-            <div class="flex justify-between text-sm" v-for="fnb in store.selectedFnbs" :key="fnb.fnbItem.id">
-              <span class="text-on-surface/60">{{ fnb.quantity }} x {{ fnb.fnbItem.name }}</span>
-              <span class="font-semibold">{{ (fnb.quantity * fnb.fnbItem.price).toLocaleString('vi-VN') }} VNĐ</span>
+            <div class="flex justify-between items-start gap-3 mt-3" v-for="fnb in store.selectedFnbs" :key="fnb.fnbItem.id">
+              <div>
+                <div class="font-medium text-sm text-on-surface/90">{{ fnb.quantity }} × {{ formatComboTitle(fnb.fnbItem.name).title }}</div>
+                <div v-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-0.5">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
+              </div>
+              <span class="font-semibold whitespace-nowrap pt-0.5">{{ (fnb.quantity * fnb.fnbItem.price).toLocaleString('vi-VN') }} VNĐ</span>
             </div>
           </div>
           <!-- Total Calculation -->
@@ -1027,9 +1031,9 @@ const proceedToPayment = async () => {
                 <span>Khuyến mãi (voucher):</span>
                 <span>-{{ discountAmount.toLocaleString('vi-VN') }}đ</span>
               </div>
-              <div class="flex justify-between items-center border-t border-outline-variant/10 pt-2 mb-1">
-                <span class="text-xs font-bold uppercase tracking-widest text-on-surface">Tổng tiền</span>
-                <span class="text-2xl font-headline font-extrabold text-primary-container">{{ finalPaymentPrice.toLocaleString('vi-VN') }} VNĐ</span>
+              <div class="flex flex-col gap-1 border-t border-outline-variant/10 pt-3 mb-2 mt-1">
+                <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tổng tiền</span>
+                <span class="text-3xl font-headline font-extrabold text-primary-container text-right leading-none">{{ finalPaymentPrice.toLocaleString('vi-VN') }}<span class="text-sm ml-1 text-primary-container/70">VNĐ</span></span>
               </div>
               <p class="text-[10px] text-outline-variant text-right italic">(VAT & Phí dịch vụ đã bao gồm)</p>
             </div>

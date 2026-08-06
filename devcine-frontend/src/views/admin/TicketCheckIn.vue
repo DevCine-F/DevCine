@@ -34,6 +34,7 @@ const buildInv = (b) => ({
   paymentLabel: paymentLabel(b.paymentMethod),
   memberName: b.memberName,
   tickets: (b.seats || []).map(s => ({ seatLabel: s.seatLabel, qrCode: b.bookingCode })),
+  isCheckIn: true
 })
 
 const printBooking = (b) => { try { openInvoice(buildInv(b)) } catch (_) {} }
@@ -291,15 +292,7 @@ onUnmounted(() => {
         </div>
       </div>
       
-      <!-- Quick test controls -->
-      <div class="flex gap-2">
-        <button @click="triggerMockCheckIn('success')" class="text-[10px] bg-green-500/10 text-green-400 hover:bg-green-500/20 px-3 py-1.5 rounded-full border border-green-500/20 font-bold transition-all cursor-pointer">
-          Giả lập Vé Hợp lệ
-        </button>
-        <button @click="triggerMockCheckIn('fail')" class="text-[10px] bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-full border border-red-500/20 font-bold transition-all cursor-pointer">
-          Giả lập Vé Trùng
-        </button>
-      </div>
+
     </div>
 
     <!-- Navigation Tabs -->

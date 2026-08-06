@@ -41,3 +41,21 @@ export const formatTime = (date) => {
   const d = new Date(date);
   return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 };
+
+/**
+ * Tách Tên và Mô tả của Combo Bắp Nước
+ * VD: "Combo Party (2 Bắp + 4 Nước)" -> { title: "Combo Party", desc: "(2 Bắp + 4 Nước)" }
+ * @param {string} name 
+ */
+export const formatComboTitle = (name) => {
+  if (!name) return { title: '', desc: '' };
+  const idx = name.indexOf('(');
+  if (idx !== -1) {
+    return {
+      title: name.substring(0, idx).trim(),
+      desc: name.substring(idx).trim()
+    };
+  }
+  return { title: name, desc: '' };
+};
+
