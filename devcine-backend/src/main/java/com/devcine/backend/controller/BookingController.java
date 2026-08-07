@@ -12,6 +12,7 @@ import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.repository.TicketRepository;
 import com.devcine.backend.service.BookingService;
 import com.devcine.backend.service.PosHoldService;
+import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -63,14 +64,37 @@ public class BookingController {
     }
 
     @GetMapping("/history")
-    public ResponseEntity<?> getBookingHistory(@RequestParam Integer customerId) {
+    public ResponseEntity<?> getBookingHistory() {
         try {
+            Integer customerId = SecurityUtils.getCurrentUserId();
+            if (customerId == null) {
+                return ResponseEntity.status(401).body(ApiResponse.fail("Unauthorized"));
+            }
+
             List<Booking> bookings = bookingRepository.findByCustomerIdWithDetails(customerId);
+            if (bookings.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.ok(List.of()));
+            }
+
+            List<Integer> bookingIds = bookings.stream().map(Booking::getId).toList();
+            
+            // Lấy toàn bộ dữ liệu phụ trợ trong 3 truy vấn (Tránh N+1)
+            List<BookingSeat> allSeats = bookingRepository.findAllSeatsByBookingIds(bookingIds);
+            List<Ticket> allTickets = bookingRepository.findAllTicketsByBookingIds(bookingIds);
+            List<BookingFnb> allFnbs = bookingRepository.findAllFnbsByBookingIds(bookingIds);
+
+            // Nhóm dữ liệu theo bookingId trong memory
+            Map<Integer, List<BookingSeat>> seatsMap = allSeats.stream()
+                    .collect(Collectors.groupingBy(bs -> bs.getBooking().getId()));
+            Map<Integer, List<Ticket>> ticketsMap = allTickets.stream()
+                    .collect(Collectors.groupingBy(t -> t.getBookingSeat().getBooking().getId()));
+            Map<Integer, List<BookingFnb>> fnbsMap = allFnbs.stream()
+                    .collect(Collectors.groupingBy(bf -> bf.getBooking().getId()));
+
             List<Map<String, Object>> result = bookings.stream().map(b -> {
-                List<BookingSeat> seats = bookingSeatRepository.findAllByBookingId(b.getId());
-                // Lấy vé theo booking trong 1 truy vấn (tránh N+1 gọi findByBookingSeatId trong vòng lặp)
-                List<Ticket> tickets = ticketRepository.findAllByBookingId(b.getId());
-                List<BookingFnb> fnbs = bookingFnbRepository.findByBookingIdWithFnb(b.getId());
+                List<BookingSeat> seats = seatsMap.getOrDefault(b.getId(), List.of());
+                List<Ticket> tickets = ticketsMap.getOrDefault(b.getId(), List.of());
+                List<BookingFnb> fnbs = fnbsMap.getOrDefault(b.getId(), List.of());
 
                 String seatLabels = seats.stream()
                         .filter(bs -> bs.getSeat() != null)

@@ -1,6 +1,7 @@
 package com.devcine.backend.repository;
 
 import com.devcine.backend.entity.Booking;
+import com.devcine.backend.entity.BookingSeat;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -112,9 +113,21 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     List<Object[]> countSoldSeatsByShowtimeInRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
                                                    @Param("cinemaId") Integer cinemaId);
 
-    @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie " +
+    @Query("SELECT b FROM Booking b " +
+           "JOIN FETCH b.showtime s JOIN FETCH s.movie m " +
+           "LEFT JOIN FETCH s.room r LEFT JOIN FETCH r.cinema c " +
+           "LEFT JOIN FETCH s.format f " +
            "WHERE b.customer.userId = :customerId ORDER BY b.createdAt DESC")
     List<Booking> findByCustomerIdWithDetails(@Param("customerId") Integer customerId);
+
+    @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.seat s LEFT JOIN FETCH s.seatType WHERE bs.booking.id IN :bookingIds")
+    List<BookingSeat> findAllSeatsByBookingIds(@Param("bookingIds") List<Integer> bookingIds);
+
+    @Query("SELECT t FROM Ticket t WHERE t.bookingSeat.booking.id IN :bookingIds")
+    List<com.devcine.backend.entity.Ticket> findAllTicketsByBookingIds(@Param("bookingIds") List<Integer> bookingIds);
+
+    @Query("SELECT bf FROM BookingFnb bf JOIN FETCH bf.fnbItem WHERE bf.booking.id IN :bookingIds")
+    List<com.devcine.backend.entity.BookingFnb> findAllFnbsByBookingIds(@Param("bookingIds") List<Integer> bookingIds);
 
     /** Số đơn đã CONFIRMED của khách — dùng xác định "khách mới" cho voucher giới hạn đối tượng. */
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.customer.userId = :customerId AND b.status = 'CONFIRMED'")

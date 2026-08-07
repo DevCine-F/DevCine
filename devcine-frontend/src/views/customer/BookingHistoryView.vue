@@ -233,7 +233,7 @@ onMounted(fetchHistory)
             </div>
 
             <!-- Khối 4: Giá tiền -->
-            <div class="flex-1 flex flex-row items-center justify-between md:border-l border-white/10 md:pl-6 pr-4 py-2 w-full h-full">
+            <div class="flex-1 flex flex-row items-center justify-between md:border-l border-white/10 md:pl-6 pr-4 py-2 w-full h-full mt-3 md:mt-0 pt-3 md:pt-0 border-t md:border-t-0">
               <div class="flex flex-col items-start gap-1.5">
                 <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant m-0 leading-none">Tổng tiền</p>
                 <p class="text-2xl font-bold text-white leading-none">{{ formatPrice(b.finalPrice) }}</p>
@@ -346,7 +346,7 @@ onMounted(fetchHistory)
               </div>
               <div class="rounded-xl bg-[#EAB308]/10 border border-[#EAB308]/25 px-3.5 py-2.5 print:border-black/20 print:bg-transparent">
                 <p class="text-[10px] font-medium uppercase tracking-wider text-[#EAB308]/80 mb-0.5 print:text-black">Số ghế</p>
-                <p class="font-bold text-lg text-[#EAB308] print:text-black leading-tight">
+                <p class="font-bold text-lg text-[#EAB308] print:text-black leading-tight break-words max-h-20 overflow-y-auto">
                   {{ selectedBooking.seatsDetail?.map(s => s.seatNumber).join(', ') || selectedBooking.seats || '—' }}
                 </p>
               </div>
@@ -385,8 +385,12 @@ onMounted(fetchHistory)
                 <span class="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-[#EAB308]/70"></span>
                 <span class="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-[#EAB308]/70"></span>
               </div>
-              <div class="bg-white p-3 shadow-[0_0_30px_rgba(234,179,8,0.12)] print:shadow-none print:p-0">
+              <div v-if="selectedBooking.status === 'CONFIRMED' || selectedBooking.status === 'COMPLETED'" class="bg-white p-3 shadow-[0_0_30px_rgba(234,179,8,0.12)] print:shadow-none print:p-0">
                 <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${selectedBooking.bookingCode}`" alt="QR Code" class="w-32 h-32 object-contain print:w-32 print:h-32" />
+              </div>
+              <div v-else class="bg-[#18181B] p-3 border border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.12)] w-32 h-32 flex items-center justify-center relative overflow-hidden">
+                <div class="absolute inset-0 opacity-30 bg-repeat bg-center" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSI+PC9yZWN0Pgo8cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0iI2VmNDQ0NCIgc3Ryb2tlLW9wYWNpdHk9IjAuMyIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+Cjwvc3ZnPg==')"></div>
+                <span class="text-red-500 font-bold uppercase tracking-widest text-xs text-center z-10 rotate-[-15deg] px-2 py-1 bg-red-500/10 border border-red-500/30 rounded backdrop-blur-sm shadow-xl leading-snug">Vé đã hủy<br/>VOID</span>
               </div>
             </div>
           </div>
