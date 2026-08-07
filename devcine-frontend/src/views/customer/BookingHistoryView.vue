@@ -233,9 +233,11 @@ onMounted(fetchHistory)
             </div>
 
             <!-- Khối 4: Giá tiền -->
-            <div class="flex-1 flex flex-col justify-center items-start md:items-end gap-3 md:border-l border-white/10 md:pl-6 pr-4 py-2">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant m-0 leading-none">Tổng tiền</p>
-              <p class="text-2xl font-bold text-white leading-none">{{ formatPrice(b.finalPrice) }}</p>
+            <div class="flex-1 flex flex-row items-center justify-between md:border-l border-white/10 md:pl-6 pr-4 py-2 w-full h-full">
+              <div class="flex flex-col items-start gap-1.5">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant m-0 leading-none">Tổng tiền</p>
+                <p class="text-2xl font-bold text-white leading-none">{{ formatPrice(b.finalPrice) }}</p>
+              </div>
               <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#EAB308] group-hover:text-black transition-colors hidden md:flex shrink-0">
                 <span class="material-symbols-outlined text-sm">arrow_forward</span>
               </div>
@@ -271,148 +273,182 @@ onMounted(fetchHistory)
       </button>
     </div>
 
-    <!-- Modal Chi Tiết Vé (Vertical Ticket Stub Design) -->
-    <div v-if="showTicketModal && selectedBooking" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 print:p-0 print:bg-white print:static print:h-auto print:w-full print:block overflow-y-auto" @click.self="closeTicketDetail">
-      
-      <!-- Vertical Ticket Container -->
-      <div class="relative w-full max-w-md mx-auto my-auto flex flex-col rounded-2xl shadow-2xl print:shadow-none print:w-full print:max-w-none print:h-auto bg-[#121214] border border-zinc-800 print:bg-white print:rounded-none overflow-hidden print:border-none">
-        
+    <!-- Modal Chi Tiết Vé (Ticket Stub Design) -->
+    <div v-if="showTicketModal && selectedBooking" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-lg p-4 print:p-0 print:bg-white print:static print:h-auto print:w-full print:block overflow-y-auto" @click.self="closeTicketDetail">
+
+      <!-- Ticket Container -->
+      <div class="ticket-stub relative w-full max-w-md mx-auto my-auto flex flex-col rounded-[28px] shadow-2xl print:shadow-none print:w-full print:max-w-none print:h-auto bg-[#0e0e10] ring-1 ring-white/10 print:bg-white print:rounded-none print:ring-0">
+
         <!-- Top Section: Details -->
-        <div class="p-6 pb-8 print:p-4 print:pb-4 flex flex-col gap-5">
-           
-           <!-- Header Badges & Close -->
-           <div class="flex justify-between items-start print:hidden">
+        <div class="relative overflow-hidden rounded-t-[28px] print:rounded-none">
+
+          <!-- Poster backdrop wash -->
+          <div v-if="selectedBooking.showtime?.moviePosterUrl" class="absolute inset-0 print:hidden pointer-events-none">
+            <img :src="selectedBooking.showtime.moviePosterUrl" class="w-full h-full object-cover opacity-25 blur-2xl scale-125" />
+            <div class="absolute inset-0 bg-gradient-to-b from-[#0e0e10]/50 via-[#0e0e10]/85 to-[#0e0e10]"></div>
+          </div>
+
+          <div class="relative z-10 p-6 pb-5 print:p-4 flex flex-col gap-5">
+
+            <!-- Header Badges & Close -->
+            <div class="flex justify-between items-start print:hidden">
               <div class="flex items-center gap-2">
-                 <span v-if="selectedBooking.showtime?.format" class="px-2.5 py-1 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-bold text-white shadow-sm">{{ selectedBooking.showtime.format }}</span>
-                 <span v-if="selectedBooking.showtime?.ageRating" :class="['px-2 py-1 rounded text-[10px] font-bold uppercase shadow-sm', ageRatingColor(selectedBooking.showtime.ageRating)]">{{ selectedBooking.showtime.ageRating }}</span>
+                <span v-if="selectedBooking.showtime?.format" class="px-2.5 py-1 rounded-md bg-white/10 backdrop-blur-sm border border-white/15 text-[10px] font-bold text-white">{{ selectedBooking.showtime.format }}</span>
+                <span v-if="selectedBooking.showtime?.ageRating" :class="['px-2 py-1 rounded-md text-[10px] font-bold uppercase', ageRatingColor(selectedBooking.showtime.ageRating)]">{{ selectedBooking.showtime.ageRating }}</span>
               </div>
               <div class="flex items-center gap-3">
-                 <span :class="['text-[9px] font-bold px-2 py-1 rounded uppercase tracking-wider flex items-center gap-1.5', statusClass(selectedBooking.status)]">
-                   <span v-if="selectedBooking.status === 'CONFIRMED'" class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                   {{ statusLabel(selectedBooking.status) }}
-                 </span>
-                 <button @click="closeTicketDetail" class="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800 hover:bg-zinc-700 text-white transition-colors border border-zinc-700 shrink-0">
-                   <span class="material-symbols-outlined text-sm">close</span>
-                 </button>
-              </div>
-           </div>
-
-           <!-- Movie Title -->
-           <h3 class="text-3xl font-bold uppercase font-headline text-white print:text-black tracking-tight leading-none drop-shadow-[0_2px_8px_rgba(255,255,255,0.1)]">
-             {{ selectedBooking.showtime?.movieTitle }}
-           </h3>
-
-           <!-- Rạp & Phòng chiếu -->
-           <div class="border-b border-white/5 pb-4 print:border-black/20">
-             <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1">RẠP CHIẾU</p>
-             <p class="font-semibold text-sm text-white print:text-black">{{ selectedBooking.showtime?.cinemaName }} <span class="opacity-60 font-normal">- {{ selectedBooking.showtime?.roomName }}</span></p>
-           </div>
-
-           <!-- Thời gian & Ngày chiếu -->
-           <div class="grid grid-cols-2 gap-4 border-b border-white/5 pb-4 print:border-black/20">
-             <div>
-               <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1">SUẤT CHIẾU</p>
-               <p class="font-semibold text-sm text-white print:text-black">{{ extractTime(selectedBooking.showtime?.startTime) }}</p>
-             </div>
-             <div>
-               <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1">NGÀY CHIẾU</p>
-               <p class="font-semibold text-sm text-white print:text-black">{{ extractDate(selectedBooking.showtime?.startTime) }}</p>
-             </div>
-           </div>
-
-           <!-- Loại ghế & Số ghế -->
-           <div class="grid grid-cols-2 gap-4 pb-2">
-             <div>
-               <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1">LOẠI GHẾ</p>
-               <div v-if="selectedBooking.seatsDetail && selectedBooking.seatsDetail.length > 0" class="flex flex-col">
-                 <span v-for="(seat, idx) in Array.from(new Set(selectedBooking.seatsDetail.map(s => `${s.seatType}${s.targetType ? ' - ' + s.targetType : ''}`)))" :key="idx" class="font-semibold text-sm text-white print:text-black">
-                   {{ seat }}
-                 </span>
-               </div>
-               <p v-else class="font-semibold text-sm text-white print:text-black">—</p>
-             </div>
-             <div>
-               <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1">SỐ GHẾ</p>
-               <p class="font-bold text-lg text-[#EAB308] print:text-black drop-shadow-[0_2px_8px_rgba(234,179,8,0.25)]">
-                 {{ selectedBooking.seatsDetail?.map(s => s.seatNumber).join(', ') || selectedBooking.seats || '—' }}
-               </p>
-             </div>
-           </div>
-
-           <!-- Combo F&B -->
-           <div v-if="selectedBooking.fnbs && selectedBooking.fnbs.length > 0" class="pt-4 border-t border-white/5 print:border-black/20">
-              <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-2">COMBO / BẮP NƯỚC</p>
-              <div class="flex flex-wrap gap-2">
-                 <span v-for="(fnb, idx) in selectedBooking.fnbs" :key="idx" class="text-xs text-zinc-200 bg-zinc-800/80 px-2.5 py-1.5 rounded-md">
-                   <span class="font-bold text-[#EAB308] mr-1">{{ fnb.quantity }}x</span> {{ fnb.itemName }}
-                 </span>
-              </div>
-           </div>
-
-        </div>
-
-        <!-- Horizontal Divider -->
-        <div class="w-full border-t border-zinc-800 my-4 print:hidden z-10"></div>
-
-        <!-- Bottom Section: QR & Price -->
-        <div class="p-6 bg-[#121214] print:bg-white flex flex-col relative">
-           
-           <div class="flex justify-between items-center mb-6">
-              <span class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Mã đặt vé / Bắp nước</span>
-              <span class="text-xl font-mono font-bold text-[#EAB308] print:text-black tracking-widest drop-shadow-[0_2px_8px_rgba(234,179,8,0.2)]">#{{ selectedBooking.bookingCode }}</span>
-           </div>
-
-           <div class="flex items-center justify-center mb-6">
-             <div class="bg-white p-3.5 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.05)] border border-zinc-700/50 print:border-black/20 print:shadow-none print:p-0">
-               <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${selectedBooking.bookingCode}`" alt="QR Code" class="w-32 h-32 object-contain print:w-32 print:h-32"/>
-             </div>
-           </div>
-
-           <div class="pt-6 border-t border-zinc-800 print:border-black/20">
-             
-             <!-- Accordion Toggle & Total -->
-             <div class="flex justify-between items-center print:hidden">
-                <button @click="showPriceDetails = !showPriceDetails" class="bg-zinc-800/80 hover:bg-zinc-700 text-xs text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700/50 transition font-bold uppercase tracking-widest flex items-center gap-1.5">
-                  CHI TIẾT GIÁ
-                  <span class="material-symbols-outlined text-sm transition-transform duration-300" :class="{ 'rotate-180': showPriceDetails }">expand_more</span>
+                <span :class="['text-[9px] font-bold px-2 py-1 rounded-md uppercase tracking-wider flex items-center gap-1.5', statusClass(selectedBooking.status)]">
+                  <span v-if="selectedBooking.status === 'CONFIRMED'" class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                  {{ statusLabel(selectedBooking.status) }}
+                </span>
+                <button @click="closeTicketDetail" aria-label="Đóng" class="group/close relative w-8 h-8 flex items-center justify-center rounded-full text-zinc-500 hover:text-white transition-colors shrink-0">
+                  <span class="absolute inset-0 rounded-full bg-white/0 group-hover/close:bg-white/[0.08] transition-colors"></span>
+                  <span class="material-symbols-outlined text-[20px] leading-none relative transition-transform duration-300 group-hover/close:rotate-90" style="font-variation-settings: 'wght' 300;">close</span>
                 </button>
-                <div class="text-right">
-                   <p class="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-0.5">TỔNG THANH TOÁN</p>
-                   <p class="text-2xl font-bold text-[#EAB308] font-mono leading-none">{{ formatPrice(selectedBooking.finalPrice) }}</p>
-                </div>
-             </div>
-
-             <!-- In vé tĩnh -->
-             <div class="hidden print:flex justify-between items-center">
-                 <p class="text-sm font-bold uppercase tracking-widest">Tổng tiền</p>
-                 <p class="text-xl font-bold text-black">{{ formatPrice(selectedBooking.finalPrice) }}</p>
-             </div>
-             
-             <!-- Slide Down Price Details -->
-             <div v-show="showPriceDetails" class="bg-[#18181B] rounded-xl p-4 mt-4 text-sm space-y-3 print:hidden border border-zinc-800 shadow-inner">
-                <div class="flex justify-between text-zinc-300">
-                  <span>Tiền vé & Ghế:</span>
-                  <span class="font-mono">{{ formatPrice(selectedBooking.originalPrice) }}</span>
-                </div>
-                <div v-if="selectedBooking.fnbTotal > 0" class="flex justify-between text-zinc-300">
-                  <span>Tiền Bắp / Nước:</span>
-                  <span class="font-mono">{{ formatPrice(selectedBooking.fnbTotal) }}</span>
-                </div>
-                <div v-if="selectedBooking.discountAmount > 0" class="flex justify-between text-green-400">
-                  <span>Khuyến mãi / Giảm giá:</span>
-                  <span class="font-mono">-{{ formatPrice(selectedBooking.discountAmount) }}</span>
-                </div>
-                <div class="pt-3 mt-1 border-t border-zinc-800 flex justify-between font-bold text-white text-base">
-                  <span>Thành tiền:</span>
-                  <span class="font-mono text-[#EAB308]">{{ formatPrice(selectedBooking.finalPrice) }}</span>
-                </div>
               </div>
+            </div>
+
+            <!-- Movie Title -->
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#EAB308]/80 mb-1.5 print:hidden">Vé xem phim</p>
+              <h3 class="text-[28px] font-bold uppercase font-headline text-white print:text-black tracking-tight leading-[1.2]">
+                {{ selectedBooking.showtime?.movieTitle }}
+              </h3>
+            </div>
+
+            <!-- Rạp & Phòng chiếu -->
+            <div class="flex items-start gap-2.5">
+              <span class="material-symbols-outlined text-[18px] text-[#EAB308]/70 mt-0.5 print:hidden">location_on</span>
+              <div>
+                <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-0.5">Rạp chiếu</p>
+                <p class="font-semibold text-sm text-white print:text-black leading-snug">{{ selectedBooking.showtime?.cinemaName }} <span class="opacity-55 font-normal">— {{ selectedBooking.showtime?.roomName }}</span></p>
+              </div>
+            </div>
+
+            <!-- Info grid: giờ / ngày / loại ghế / số ghế -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="rounded-xl bg-white/[0.04] border border-white/10 px-3.5 py-2.5 print:border-black/20">
+                <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-0.5">Suất chiếu</p>
+                <p class="font-bold text-base text-white print:text-black">{{ extractTime(selectedBooking.showtime?.startTime) }}</p>
+              </div>
+              <div class="rounded-xl bg-white/[0.04] border border-white/10 px-3.5 py-2.5 print:border-black/20">
+                <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-0.5">Ngày chiếu</p>
+                <p class="font-bold text-base text-white print:text-black">{{ extractDate(selectedBooking.showtime?.startTime) }}</p>
+              </div>
+              <div class="rounded-xl bg-white/[0.04] border border-white/10 px-3.5 py-2.5 print:border-black/20">
+                <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-0.5">Loại ghế</p>
+                <div v-if="selectedBooking.seatsDetail && selectedBooking.seatsDetail.length > 0" class="flex flex-col">
+                  <span v-for="(seat, idx) in Array.from(new Set(selectedBooking.seatsDetail.map(s => `${s.seatType}${s.targetType ? ' - ' + s.targetType : ''}`)))" :key="idx" class="font-semibold text-[13px] text-white print:text-black leading-tight">
+                    {{ seat }}
+                  </span>
+                </div>
+                <p v-else class="font-semibold text-[13px] text-white print:text-black">—</p>
+              </div>
+              <div class="rounded-xl bg-[#EAB308]/10 border border-[#EAB308]/25 px-3.5 py-2.5 print:border-black/20 print:bg-transparent">
+                <p class="text-[10px] font-medium uppercase tracking-wider text-[#EAB308]/80 mb-0.5 print:text-black">Số ghế</p>
+                <p class="font-bold text-lg text-[#EAB308] print:text-black leading-tight">
+                  {{ selectedBooking.seatsDetail?.map(s => s.seatNumber).join(', ') || selectedBooking.seats || '—' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Combo F&B -->
+            <div v-if="selectedBooking.fnbs && selectedBooking.fnbs.length > 0">
+              <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-2">Combo / Bắp nước</p>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="(fnb, idx) in selectedBooking.fnbs" :key="idx" class="text-xs text-zinc-100 bg-white/[0.06] border border-white/10 px-2.5 py-1.5 rounded-lg">
+                  <span class="font-bold text-[#EAB308] mr-1">{{ fnb.quantity }}×</span>{{ fnb.itemName }}
+                </span>
+              </div>
+            </div>
 
           </div>
         </div>
-        
+
+        <!-- Divider -->
+        <div class="mx-6 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent print:hidden"></div>
+
+        <!-- Bottom Section: QR & Price -->
+        <div class="px-6 pb-6 pt-5 print:px-4 print:pt-4 flex flex-col relative">
+
+          <div class="flex justify-between items-center mb-5">
+            <span class="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Mã đặt vé / Bắp nước</span>
+            <span class="text-lg font-mono font-bold text-[#EAB308] print:text-black tracking-[0.2em]">#{{ selectedBooking.bookingCode }}</span>
+          </div>
+
+          <!-- QR with scanner corner brackets -->
+          <div class="flex items-center justify-center mb-5">
+            <div class="relative">
+              <div class="absolute -inset-2.5 print:hidden">
+                <span class="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-[#EAB308]/70"></span>
+                <span class="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-[#EAB308]/70"></span>
+                <span class="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-[#EAB308]/70"></span>
+                <span class="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-[#EAB308]/70"></span>
+              </div>
+              <div class="bg-white p-3 shadow-[0_0_30px_rgba(234,179,8,0.12)] print:shadow-none print:p-0">
+                <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${selectedBooking.bookingCode}`" alt="QR Code" class="w-32 h-32 object-contain print:w-32 print:h-32" />
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-5 border-t border-white/10 print:border-black/20">
+
+            <!-- Accordion Toggle & Total -->
+            <div class="flex justify-between items-center print:hidden">
+              <button @click="showPriceDetails = !showPriceDetails" class="bg-white/[0.06] hover:bg-white/10 text-xs text-zinc-300 px-3 py-1.5 rounded-lg border border-white/10 transition font-bold uppercase tracking-widest flex items-center gap-1.5">
+                Chi tiết giá
+                <span class="material-symbols-outlined text-sm transition-transform duration-300" :class="{ 'rotate-180': showPriceDetails }">expand_more</span>
+              </button>
+              <div class="text-right">
+                <p class="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-0.5">Tổng thanh toán</p>
+                <p class="text-2xl font-bold text-[#EAB308] font-mono leading-none">{{ formatPrice(selectedBooking.finalPrice) }}</p>
+              </div>
+            </div>
+
+            <!-- In vé tĩnh -->
+            <div class="hidden print:flex justify-between items-center">
+              <p class="text-sm font-bold uppercase tracking-widest">Tổng tiền</p>
+              <p class="text-xl font-bold text-black">{{ formatPrice(selectedBooking.finalPrice) }}</p>
+            </div>
+
+            <!-- Slide Down Price Details -->
+            <div v-show="showPriceDetails" class="bg-white/[0.03] rounded-xl p-4 mt-4 text-sm space-y-3 print:hidden border border-white/10">
+              <div class="flex justify-between text-zinc-300">
+                <span>Tiền vé &amp; Ghế:</span>
+                <span class="font-mono">{{ formatPrice(selectedBooking.originalPrice) }}</span>
+              </div>
+              <div v-if="selectedBooking.fnbTotal > 0" class="flex justify-between text-zinc-300">
+                <span>Tiền Bắp / Nước:</span>
+                <span class="font-mono">{{ formatPrice(selectedBooking.fnbTotal) }}</span>
+              </div>
+              <div v-if="selectedBooking.discountAmount > 0" class="flex justify-between text-green-400">
+                <span>Khuyến mãi / Giảm giá:</span>
+                <span class="font-mono">-{{ formatPrice(selectedBooking.discountAmount) }}</span>
+              </div>
+              <div class="pt-3 mt-1 border-t border-white/10 flex justify-between font-bold text-white text-base">
+                <span>Thành tiền:</span>
+                <span class="font-mono text-[#EAB308]">{{ formatPrice(selectedBooking.finalPrice) }}</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </div>
 
   </section>
 </template>
+
+<style scoped>
+.ticket-stub {
+  animation: ticketIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes ticketIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media print {
+  .ticket-stub { animation: none; }
+}
+</style>
