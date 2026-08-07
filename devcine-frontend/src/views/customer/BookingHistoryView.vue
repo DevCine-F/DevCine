@@ -129,6 +129,18 @@ const selectedBooking = ref(null)
 const showTicketModal = ref(false)
 const showPriceDetails = ref(false)
 
+const groupedSeats = computed(() => {
+  if (!selectedBooking.value?.seatsDetail) return []
+  const counts = {}
+  selectedBooking.value.seatsDetail.forEach(s => {
+    const type = s.seatType || 'Thường'
+    const target = s.targetType ? ` (${s.targetType})` : ''
+    const key = `${type}${target}`
+    counts[key] = (counts[key] || 0) + 1
+  })
+  return Object.entries(counts).map(([k, v]) => `${v}× ${k}`)
+})
+
 const openTicketDetail = (booking) => {
   selectedBooking.value = booking
   showTicketModal.value = true
@@ -337,9 +349,9 @@ onMounted(fetchHistory)
               </div>
               <div class="rounded-xl bg-white/[0.04] border border-white/10 px-3.5 py-2.5 print:border-black/20">
                 <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-0.5">Loại ghế</p>
-                <div v-if="selectedBooking.seatsDetail && selectedBooking.seatsDetail.length > 0" class="flex flex-col">
-                  <span v-for="(seat, idx) in Array.from(new Set(selectedBooking.seatsDetail.map(s => `${s.seatType}${s.targetType ? ' - ' + s.targetType : ''}`)))" :key="idx" class="font-semibold text-[13px] text-white print:text-black leading-tight">
-                    {{ seat }}
+                <div v-if="groupedSeats.length > 0" class="flex flex-wrap gap-1 mt-1">
+                  <span v-for="(group, idx) in groupedSeats" :key="idx" class="font-semibold text-[11px] text-white print:text-black bg-white/10 print:bg-black/5 px-2 py-0.5 rounded leading-tight">
+                    {{ group }}
                   </span>
                 </div>
                 <p v-else class="font-semibold text-[13px] text-white print:text-black">—</p>
@@ -355,8 +367,8 @@ onMounted(fetchHistory)
             <!-- Combo F&B -->
             <div v-if="selectedBooking.fnbs && selectedBooking.fnbs.length > 0">
               <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-2">Combo / Bắp nước</p>
-              <div class="flex flex-wrap gap-2">
-                <span v-for="(fnb, idx) in selectedBooking.fnbs" :key="idx" class="text-xs text-zinc-100 bg-white/[0.06] border border-white/10 px-2.5 py-1.5 rounded-lg">
+              <div class="flex flex-wrap gap-2 max-h-24 overflow-y-auto custom-scrollbar pr-1">
+                <span v-for="(fnb, idx) in selectedBooking.fnbs" :key="idx" class="text-xs text-zinc-100 bg-white/[0.06] border border-white/10 px-2.5 py-1.5 rounded-lg shrink-0">
                   <span class="font-bold text-[#EAB308] mr-1">{{ fnb.quantity }}×</span>{{ fnb.itemName }}
                 </span>
               </div>
