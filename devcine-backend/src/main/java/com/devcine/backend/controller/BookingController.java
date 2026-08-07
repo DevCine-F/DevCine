@@ -3,8 +3,10 @@ package com.devcine.backend.controller;
 import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.BookingRequestDTO;
 import com.devcine.backend.entity.Booking;
+import com.devcine.backend.entity.BookingFnb;
 import com.devcine.backend.entity.BookingSeat;
 import com.devcine.backend.entity.Ticket;
+import com.devcine.backend.repository.BookingFnbRepository;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.repository.TicketRepository;
@@ -28,6 +30,7 @@ public class BookingController {
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final TicketRepository ticketRepository;
+    private final BookingFnbRepository bookingFnbRepository;
 
     @PostMapping("/hold")
     public ResponseEntity<?> holdSeats(@RequestBody BookingRequestDTO request) {
@@ -67,29 +70,41 @@ public class BookingController {
                 List<BookingSeat> seats = bookingSeatRepository.findAllByBookingId(b.getId());
                 // Lấy vé theo booking trong 1 truy vấn (tránh N+1 gọi findByBookingSeatId trong vòng lặp)
                 List<Ticket> tickets = ticketRepository.findAllByBookingId(b.getId());
+                List<BookingFnb> fnbs = bookingFnbRepository.findByBookingIdWithFnb(b.getId());
 
                 String seatLabels = seats.stream()
                         .filter(bs -> bs.getSeat() != null)
                         .map(bs -> bs.getSeat().displayLabel())
                         .collect(Collectors.joining(", "));
+                        
+                List<Map<String, Object>> fnbList = fnbs.stream().map(f -> {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("itemName", f.getFnbItem() != null ? f.getFnbItem().getName() : "");
+                    m.put("quantity", f.getQuantity());
+                    m.put("priceSnapshot", f.getPriceSnapshot());
+                    return m;
+                }).collect(Collectors.toList());
 
-                return Map.of(
-                        "bookingId", b.getId(),
-                        "bookingCode", b.getBookingCode() != null ? b.getBookingCode() : "",
-                        "status", b.getStatus() != null ? b.getStatus() : "",
-                        "totalPrice", b.getTotalPrice(),
-                        "finalPrice", b.getFinalPrice(),
-                        "paymentMethod", b.getPaymentMethod() != null ? b.getPaymentMethod() : "",
-                        "createdAt", b.getCreatedAt().toString(),
-                        "showtime", Map.of(
-                                "id", b.getShowtime().getId(),
-                                "startTime", b.getShowtime().getStartTime().toString(),
-                                "movieTitle", b.getShowtime().getMovie().getTitle(),
-                                "moviePosterUrl", b.getShowtime().getMovie().getPosterUrl() != null ? b.getShowtime().getMovie().getPosterUrl() : ""
-                        ),
-                        "seats", seatLabels,
-                        "qrCodes", tickets.stream().map(Ticket::getQrCode).collect(Collectors.toList())
-                );
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("bookingId", b.getId());
+                map.put("bookingCode", b.getBookingCode() != null ? b.getBookingCode() : "");
+                map.put("status", b.getStatus() != null ? b.getStatus() : "");
+                map.put("totalPrice", b.getTotalPrice());
+                map.put("finalPrice", b.getFinalPrice());
+                map.put("paymentMethod", b.getPaymentMethod() != null ? b.getPaymentMethod() : "");
+                map.put("createdAt", b.getCreatedAt().toString());
+                map.put("showtime", Map.of(
+                        "id", b.getShowtime().getId(),
+                        "startTime", b.getShowtime().getStartTime().toString(),
+                        "movieTitle", b.getShowtime().getMovie().getTitle(),
+                        "moviePosterUrl", b.getShowtime().getMovie().getPosterUrl() != null ? b.getShowtime().getMovie().getPosterUrl() : "",
+                        "roomName", b.getShowtime().getRoom() != null ? b.getShowtime().getRoom().getName() : ""
+                ));
+                map.put("seats", seatLabels);
+                map.put("fnbs", fnbList);
+                map.put("qrCodes", tickets.stream().map(Ticket::getQrCode).collect(Collectors.toList()));
+                
+                return map;
             }).collect(Collectors.toList());
 
             return ResponseEntity.ok(ApiResponse.ok(result));

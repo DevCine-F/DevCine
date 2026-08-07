@@ -95,19 +95,46 @@ const formatDate = (iso) => {
 
 const formatPrice = (n) => n != null ? Number(n).toLocaleString('vi-VN') + 'đ' : ''
 
-const statusLabel = (s) => ({ CONFIRMED: 'Đã xác nhận', HOLD: 'Chờ thanh toán', CANCELLED: 'Đã huỷ' }[s] || s)
+const statusLabel = (s) => ({ 
+  CONFIRMED: 'Đã xác nhận', 
+  HOLD: 'Chờ thanh toán', 
+  CANCELLED: 'Đã huỷ',
+  EXPIRED: 'Đã huỷ',
+  COMPLETED: 'Đã sử dụng'
+}[s] || s)
+
 const statusClass = (s) => ({
   CONFIRMED: 'bg-green-500/10 text-green-400',
   HOLD: 'bg-yellow-500/10 text-yellow-400',
-  CANCELLED: 'bg-red-500/10 text-red-400'
+  CANCELLED: 'bg-red-500/10 text-red-400',
+  EXPIRED: 'bg-red-500/10 text-red-400',
+  COMPLETED: 'bg-neutral-500/10 text-neutral-400'
 }[s] || 'bg-white/10 text-on-surface-variant')
+
+// Ticket Detail Modal
+const selectedBooking = ref(null)
+const showTicketModal = ref(false)
+
+const openTicketDetail = (booking) => {
+  selectedBooking.value = booking
+  showTicketModal.value = true
+}
+
+const closeTicketDetail = () => {
+  showTicketModal.value = false
+  selectedBooking.value = null
+}
+
+const printTicket = () => {
+  window.print()
+}
 
 onMounted(fetchHistory)
 </script>
 
 <template>
   <section>
-    <div class="flex flex-col md:flex-row justify-between items-baseline mb-8 gap-4">
+    <div class="flex flex-col md:flex-row justify-between items-baseline mb-8 gap-4 print:hidden">
       <h2 class="text-2xl font-bold tracking-tight font-headline">Lịch sử đặt vé</h2>
       <!-- Tab lọc: chỉ ở trang đầy đủ -->
       <div v-if="!preview" class="flex gap-4">
@@ -123,24 +150,24 @@ onMounted(fetchHistory)
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="flex flex-col gap-4">
+    <div v-if="isLoading" class="flex flex-col gap-4 print:hidden">
       <div v-for="i in 3" :key="i" class="bg-surface-container-high animate-pulse h-32 rounded"></div>
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">{{ error }}</div>
+    <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm print:hidden">{{ error }}</div>
 
     <!-- Empty -->
-    <div v-else-if="displayBookings.length === 0" class="flex flex-col items-center justify-center py-24 text-center">
+    <div v-else-if="displayBookings.length === 0" class="flex flex-col items-center justify-center py-24 text-center print:hidden">
       <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">confirmation_number</span>
       <p class="text-on-surface-variant font-semibold">Chưa có lịch sử đặt vé</p>
       <p class="text-sm text-outline-variant mt-1">Các vé bạn đã đặt sẽ xuất hiện ở đây</p>
     </div>
 
     <!-- List -->
-    <div v-else class="grid grid-cols-1 gap-4">
-      <div v-for="b in displayBookings" :key="b.bookingId"
-           class="group relative bg-surface-container-high hover:bg-surface-bright transition-all duration-300 p-1 flex flex-col md:flex-row gap-6 items-stretch">
+    <div v-else class="grid grid-cols-1 gap-4 print:hidden">
+      <div v-for="b in displayBookings" :key="b.bookingId" @click="openTicketDetail(b)"
+           class="group relative bg-surface-container-high hover:bg-surface-bright cursor-pointer transition-all duration-300 p-1 flex flex-col md:flex-row gap-6 items-stretch">
         <div class="w-full md:w-24 h-36 md:h-auto overflow-hidden shrink-0">
           <img v-if="b.showtime?.moviePosterUrl"
                :src="b.showtime.moviePosterUrl"
@@ -186,7 +213,7 @@ onMounted(fetchHistory)
     </div>
 
     <!-- Pagination (trang đầy đủ, áp cho cả 3 tab) -->
-    <div v-if="!preview && !isLoading && !error && totalPages > 1" class="mt-8 flex items-center justify-center gap-2">
+    <div v-if="!preview && !isLoading && !error && totalPages > 1" class="mt-8 flex items-center justify-center gap-2 print:hidden">
       <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
               class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
         <span class="material-symbols-outlined text-lg">chevron_left</span>
@@ -202,6 +229,80 @@ onMounted(fetchHistory)
               class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
         <span class="material-symbols-outlined text-lg">chevron_right</span>
       </button>
+    </div>
+
+    <!-- Modal Chi Tiết Vé -->
+    <div v-if="showTicketModal && selectedBooking" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:h-auto print:w-full print:block" @click.self="closeTicketDetail">
+      <div class="bg-surface-container w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl print:shadow-none print:w-full print:max-w-none flex flex-col md:flex-row h-full max-h-[90vh] print:h-auto">
+        <!-- Sidebar: Poster & QR Code -->
+        <div class="w-full md:w-1/3 bg-surface-container-high print:bg-white flex flex-col border-r border-white/5 print:border-black/10">
+          <div class="aspect-[2/3] w-full overflow-hidden shrink-0 hidden md:block">
+            <img v-if="selectedBooking.showtime?.moviePosterUrl" :src="selectedBooking.showtime.moviePosterUrl" class="w-full h-full object-cover"/>
+            <div v-else class="w-full h-full bg-surface-container-highest flex items-center justify-center">
+              <span class="material-symbols-outlined text-3xl text-outline-variant">movie</span>
+            </div>
+          </div>
+          <div class="flex-grow flex flex-col items-center justify-center p-6 print:p-2 bg-white print:bg-transparent">
+            <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${selectedBooking.bookingCode}`" alt="QR Code" class="w-40 h-40 object-contain"/>
+            <p class="text-xs font-mono font-bold mt-3 text-black text-center">{{ selectedBooking.bookingCode }}</p>
+          </div>
+        </div>
+
+        <!-- Details -->
+        <div class="flex-grow flex flex-col p-6 overflow-y-auto print:overflow-visible">
+          <div class="flex justify-between items-start mb-6 print:hidden">
+            <span :class="['text-[10px] font-bold px-2 py-1 rounded-sm uppercase tracking-wider', statusClass(selectedBooking.status)]">
+              {{ statusLabel(selectedBooking.status) }}
+            </span>
+            <button @click="closeTicketDetail" class="text-on-surface-variant hover:text-white transition-colors">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <h3 class="text-2xl font-bold uppercase font-headline mb-4 text-on-surface print:text-black">
+            {{ selectedBooking.showtime?.movieTitle }}
+          </h3>
+
+          <div class="space-y-4 flex-grow text-on-surface-variant print:text-black">
+            <div class="grid grid-cols-2 gap-4 pb-4 border-b border-white/10 print:border-black/10">
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Thời gian</p>
+                <p class="font-semibold text-sm">{{ formatDate(selectedBooking.showtime?.startTime) }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Phòng chiếu</p>
+                <p class="font-semibold text-sm">{{ selectedBooking.showtime?.roomName || 'Đang cập nhật' }}</p>
+              </div>
+            </div>
+
+            <div class="pb-4 border-b border-white/10 print:border-black/10">
+              <p class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Ghế ngồi</p>
+              <p class="font-semibold text-sm text-primary-container print:text-black">{{ selectedBooking.seats || '—' }}</p>
+            </div>
+
+            <div v-if="selectedBooking.fnbs && selectedBooking.fnbs.length > 0" class="pb-4 border-b border-white/10 print:border-black/10">
+              <p class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-2">Bắp nước / Combo</p>
+              <ul class="space-y-1">
+                <li v-for="(fnb, idx) in selectedBooking.fnbs" :key="idx" class="flex justify-between text-sm">
+                  <span>{{ fnb.quantity }}x {{ fnb.itemName }}</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div class="pt-2 flex justify-between items-center">
+              <p class="text-sm font-bold uppercase tracking-widest opacity-60">Tổng tiền</p>
+              <p class="text-xl font-bold text-primary-container print:text-black">{{ formatPrice(selectedBooking.finalPrice) }}</p>
+            </div>
+          </div>
+
+          <div class="mt-8 flex gap-3 print:hidden">
+            <button @click="printTicket" class="flex-1 bg-primary-container text-on-primary py-3 rounded font-bold uppercase tracking-widest text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-xl">print</span>
+              Tải vé / In vé
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
   </section>
