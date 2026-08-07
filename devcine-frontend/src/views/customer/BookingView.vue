@@ -64,7 +64,10 @@ const stepMeta = computed(() => ({
 
 // Bước 1: phải chọn số lượng vé > 0 và chọn ĐÚNG số ghế bằng tổng số vé
 const canProceed = computed(() => {
-  if (currentStep.value === 1) return store.totalTickets > 0 && store.selectedSeats.length === store.totalTickets
+  if (currentStep.value === 1) {
+    const seatsSelectedTickets = store.selectedSeats.reduce((acc, seat) => acc + (seat.seatType === 'SWEETBOX' ? 2 : 1), 0);
+    return store.totalTickets > 0 && seatsSelectedTickets === store.totalTickets;
+  }
   return true
 })
 
@@ -83,11 +86,71 @@ const goToLogin = () => {
   router.push({ name: 'login', query: { redirect: '/booking?step=2' } })
 }
 
+const validateSeatGap = () => {
+  if (store.selectedSeats.length === 0) return true;
+  
+  const selectedIds = store.selectedSeats.map(s => s.seatId);
+  const rows = {};
+  store.availableSeats.forEach(s => {
+    if (s.gridRow != null && s.gridCol != null) {
+      if (!rows[s.gridRow]) rows[s.gridRow] = [];
+      rows[s.gridRow].push(s);
+    }
+  });
+
+  for (const rowKey in rows) {
+    const seatsInRow = rows[rowKey];
+    const hasSelection = seatsInRow.some(s => selectedIds.includes(s.seatId));
+    if (!hasSelection) continue;
+
+    const maxCol = Math.max(...seatsInRow.map(s => s.gridCol));
+    if (maxCol < 0) continue;
+
+    const state = new Array(maxCol + 1).fill('X');
+    seatsInRow.forEach(s => {
+      const col = s.gridCol;
+      if (s.status !== 'AVAILABLE' && s.seatStatus !== 'AVAILABLE') {
+        state[col] = 'X';
+      } else if (selectedIds.includes(s.seatId)) {
+        state[col] = 'S';
+      } else if (isSeatLockedByOthers(s) || (s.status === 'HOLD' || s.status === 'SOLD')) {
+        state[col] = 'O';
+      } else {
+        state[col] = 'E';
+      }
+
+      if (s.seatType === 'SWEETBOX' && col + 1 <= maxCol) {
+        state[col + 1] = 'X';
+      }
+    });
+
+    for (let c = 0; c <= maxCol; c++) {
+      if (state[c] === 'E') {
+        const leftBarrier = (c === 0) || state[c - 1] !== 'E';
+        const rightBarrier = (c === maxCol) || state[c + 1] !== 'E';
+        if (leftBarrier && rightBarrier) {
+          const causedByUser = (c > 0 && state[c - 1] === 'S') || (c < maxCol && state[c + 1] === 'S');
+          if (causedByUser) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+};
+
 const goNext = () => {
   if (holdExpiredNow()) { handleHoldExpired(); return } // hết giờ giữ chỗ → không cho đi tiếp
   if (currentStep.value < steps.length && canProceed.value) {
     // Rời bước chọn ghế (1 → 2): yêu cầu đăng nhập, chưa đăng nhập thì dắt đi đăng nhập
-    if (currentStep.value === 1 && !ensureAuthForBooking()) return
+    if (currentStep.value === 1) {
+      if (!validateSeatGap()) {
+        toast.warning('Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi');
+        return;
+      }
+      if (!ensureAuthForBooking()) return;
+    }
     currentStep.value++
     scrollTop()
   }
@@ -503,6 +566,12 @@ const handleSeatClick = (seat) => {
     if (isSeatLockedByOthers(seat)) {
       toast.error(`Ghế ${seatLabel(seat)} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
       return
+    }
+    const currentSelected = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
+    const capacity = seat.seatType === 'SWEETBOX' ? 2 : 1;
+    if (currentSelected + capacity > store.totalTickets) {
+      toast.warning('Ghế Sweetbox chiếm 2 chỗ, số lượng vé bạn chọn không đủ.');
+      return;
     }
     store.toggleSeat(seat)
     seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)

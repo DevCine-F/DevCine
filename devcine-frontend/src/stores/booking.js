@@ -151,10 +151,15 @@ export const useBookingStore = defineStore('booking', {
     calculateTotal() {
       let total = 0;
       const assign = this.audienceAssignment; // đối tượng gán cho từng ghế theo thứ tự
-      this.selectedSeats.forEach((seat, i) => {
-        const aud = assign[i] || 'ADULT';
-        const byAud = this.priceTable[seat.seatType];
-        total += (byAud && byAud[aud] != null) ? Number(byAud[aud]) : (seat.price || 0);
+      let assignIdx = 0;
+      this.selectedSeats.forEach((seat) => {
+        const capacity = seat.seatType === 'SWEETBOX' ? 2 : 1;
+        for (let j = 0; j < capacity; j++) {
+          const aud = assign[assignIdx] || 'ADULT';
+          const byAud = this.priceTable[seat.seatType];
+          total += (byAud && byAud[aud] != null) ? Number(byAud[aud]) : (seat.price || 0);
+          assignIdx++;
+        }
       });
       for (const fnb of this.selectedFnbs) {
         total += fnb.fnbItem.price * fnb.quantity;
@@ -169,7 +174,19 @@ export const useBookingStore = defineStore('booking', {
           customerId: authStore.user?.id || null,
           showtimeId: this.selectedShowtime.id,
           seatIds: this.selectedSeats.map(s => s.seatId),
-          seatSelections: this.selectedSeats.map((s, i) => ({ seatId: s.seatId, ticketType: this.audienceAssignment[i] || 'ADULT' })),
+          seatSelections: (() => {
+            const sels = [];
+            let assignIdx = 0;
+            this.selectedSeats.forEach(s => {
+              const capacity = s.seatType === 'SWEETBOX' ? 2 : 1;
+              for (let j = 0; j < capacity; j++) {
+                sels.push({ seatId: s.seatId, ticketType: this.audienceAssignment[assignIdx] || 'ADULT' });
+                assignIdx++;
+              }
+            });
+            return sels;
+          })(),
+          totalTickets: this.totalTickets,
           fnbs: this.selectedFnbs.map(f => ({ fnbItemId: f.fnbItem.id, quantity: f.quantity })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
           paymentMethod: paymentMethod

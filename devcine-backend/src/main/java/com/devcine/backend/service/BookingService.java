@@ -65,28 +65,51 @@ public class BookingService {
             SecurityUtils.assertCinemaAccess(cinemaId);
         }
 
-        // Chuẩn hoá danh sách ghế kèm loại vé: ưu tiên seatSelections, fallback seatIds (ADULT)
-        java.util.Map<Integer, String> ticketTypeBySeat = new java.util.LinkedHashMap<>();
+        // Chuẩn hoá danh sách ghế kèm loại vé: 1 ghế có thể có nhiều loại vé (VD: Sweetbox)
+        java.util.Map<Integer, java.util.List<String>> ticketTypesBySeat = new java.util.LinkedHashMap<>();
         if (request.getSeatSelections() != null && !request.getSeatSelections().isEmpty()) {
             for (var sel : request.getSeatSelections()) {
-                ticketTypeBySeat.put(sel.getSeatId(), pricingService.normalizeAudience(sel.getTicketType()));
+                ticketTypesBySeat.computeIfAbsent(sel.getSeatId(), k -> new java.util.ArrayList<>())
+                        .add(pricingService.normalizeAudience(sel.getTicketType()));
             }
         } else if (request.getSeatIds() != null) {
             for (Integer seatId : request.getSeatIds()) {
-                ticketTypeBySeat.put(seatId, "ADULT");
+                ticketTypesBySeat.computeIfAbsent(seatId, k -> new java.util.ArrayList<>()).add("ADULT");
             }
         }
-        java.util.List<Integer> selectedSeatIds = new java.util.ArrayList<>(ticketTypeBySeat.keySet());
+        java.util.List<Integer> selectedSeatIds = new java.util.ArrayList<>(ticketTypesBySeat.keySet());
 
         // Validate số lượng vé: phải có ít nhất 1 ghế và không vượt giới hạn cấu hình (chống phe vé)
         if (selectedSeatIds.isEmpty()) {
             throw new RuntimeException("Vui lòng chọn ít nhất 1 ghế.");
         }
 
+        java.util.List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(showtime.getRoom().getId());
+        java.util.Map<Integer, Seat> seatMap = new java.util.HashMap<>();
+        allSeats.forEach(s -> seatMap.put(s.getId(), s));
+        
+        int requiredTickets = 0;
+        for (Integer seatId : selectedSeatIds) {
+            Seat seat = seatMap.get(seatId);
+            if (seat == null) throw new RuntimeException("Seat not found");
+            int capacity = "SWEETBOX".equals(seat.getSeatType().getName()) ? 2 : 1;
+            requiredTickets += capacity;
+            if (ticketTypesBySeat.get(seatId).size() != capacity) {
+                throw new RuntimeException("Ghế " + seat.displayLabel() + " yêu cầu đúng " + capacity + " loại vé.");
+            }
+        }
+        
+        int providedTickets = request.getTotalTickets() != null ? request.getTotalTickets() : 
+                (request.getSeatSelections() != null ? request.getSeatSelections().size() : selectedSeatIds.size());
+        if (providedTickets < requiredTickets) {
+            throw new RuntimeException("Số lượng vé bạn chọn không đủ cho sức chứa của ghế (Sweetbox cần 2 vé).");
+        }
+
         // Anti-fraud theo KÊNH: vé CHILD/SENIOR bắt buộc xác minh giấy tờ/chiều cao tại quầy →
         // cấm bán online (kẻ gian có thể gọi thẳng API dù UI đã ẩn). U22/ADULT cho qua bình thường.
         if ("ONLINE".equalsIgnoreCase(channel)) {
-            boolean hasRestricted = ticketTypeBySeat.values().stream()
+            boolean hasRestricted = ticketTypesBySeat.values().stream()
+                    .flatMap(java.util.List::stream)
                     .anyMatch(t -> "CHILD".equals(t) || "SENIOR".equals(t));
             if (hasRestricted) {
                 throw new IllegalArgumentException(
@@ -147,6 +170,8 @@ public class BookingService {
             }
         }
 
+        validateSeatGap(selectedSeatIds, existingReservedSeats, allSeats);
+
         Booking booking = Booking.builder()
                 .customer(customer)
                 .showtime(showtime)
@@ -165,26 +190,25 @@ public class BookingService {
         BigDecimal totalPrice = BigDecimal.ZERO;
 
         // Process Seats — giá tính tập trung qua PricingService (nạp ngữ cảnh suất một lần).
-        // Gom 1 query đọc ghế (findAllById) + saveAll thay vì truy vấn/lưu từng ghế (giảm round-trip).
         PricingService.PricingContext priceCtx = pricingService.buildContext(showtime);
-        java.util.Map<Integer, Seat> seatMap = new java.util.HashMap<>();
-        seatRepository.findByIdInWithSeatType(selectedSeatIds).forEach(s -> seatMap.put(s.getId(), s));
         java.util.List<BookingSeat> bookingSeats = new java.util.ArrayList<>();
-        for (java.util.Map.Entry<Integer, String> entry : ticketTypeBySeat.entrySet()) {
+        for (java.util.Map.Entry<Integer, java.util.List<String>> entry : ticketTypesBySeat.entrySet()) {
             Seat seat = seatMap.get(entry.getKey());
-            if (seat == null) throw new RuntimeException("Seat not found");
             // Chặn đặt ghế đang khóa vật lý (bảo trì/khóa) — không phụ thuộc trạng thái runtime
             if (seat.getSeatStatus() != null && !"AVAILABLE".equals(seat.getSeatStatus())) {
                 throw new RuntimeException("Ghế " + (seat.getLabel() != null ? seat.getLabel() : seat.getId())
                         + " đang bảo trì/khóa, không thể đặt.");
             }
-            String ticketType = entry.getValue();
-            BigDecimal seatPrice = pricingService.priceFor(priceCtx, ticketType);
+            java.util.List<String> types = entry.getValue();
+            BigDecimal seatPrice = BigDecimal.ZERO;
+            for (String t : types) {
+                seatPrice = seatPrice.add(pricingService.priceFor(priceCtx, t));
+            }
             bookingSeats.add(BookingSeat.builder()
                     .booking(booking)
                     .seat(seat)
                     .priceSnapshot(seatPrice)
-                    .ticketType(ticketType)
+                    .ticketType(String.join(",", types))
                     .status("HOLD")
                     .build());
             totalPrice = totalPrice.add(seatPrice);
@@ -253,8 +277,66 @@ public class BookingService {
         
         booking.setFinalPrice(finalPrice);
         bookingRepository.save(booking);
-        
         return booking;
+    }
+
+    private void validateSeatGap(List<Integer> selectedSeatIds, List<BookingSeat> reservedSeats, List<Seat> allSeats) {
+        if (selectedSeatIds.isEmpty()) return;
+
+        java.util.Set<Integer> reservedIds = reservedSeats.stream()
+                .filter(bs -> !"EXPIRED".equals(bs.getStatus()))
+                .map(bs -> bs.getSeat().getId())
+                .collect(java.util.stream.Collectors.toSet());
+
+        java.util.Map<Integer, java.util.List<Seat>> rows = allSeats.stream()
+                .filter(s -> s.getGridRow() != null && s.getGridCol() != null)
+                .collect(java.util.stream.Collectors.groupingBy(Seat::getGridRow));
+
+        for (java.util.Map.Entry<Integer, java.util.List<Seat>> rowEntry : rows.entrySet()) {
+            java.util.List<Seat> seatsInRow = rowEntry.getValue();
+            // Check if user selected any seat in this row
+            boolean hasSelectionInRow = seatsInRow.stream().anyMatch(s -> selectedSeatIds.contains(s.getId()));
+            if (!hasSelectionInRow) continue;
+
+            int maxCol = seatsInRow.stream().mapToInt(Seat::getGridCol).max().orElse(-1);
+            if (maxCol < 0) continue;
+
+            // Xây dựng state map: E (Empty), S (Selected), O (Occupied), X (Barrier/Aisle)
+            char[] state = new char[maxCol + 1];
+            java.util.Arrays.fill(state, 'X');
+            for (Seat s : seatsInRow) {
+                int col = s.getGridCol();
+                if (s.getSeatStatus() != null && !"AVAILABLE".equals(s.getSeatStatus())) {
+                    state[col] = 'X';
+                } else if (selectedSeatIds.contains(s.getId())) {
+                    state[col] = 'S';
+                } else if (reservedIds.contains(s.getId())) {
+                    state[col] = 'O';
+                } else {
+                    state[col] = 'E';
+                }
+                
+                // Nếu là SWEETBOX, ô bên phải bị ẩn coi như Barrier (X)
+                if ("SWEETBOX".equals(s.getSeatType().getName()) && col + 1 <= maxCol) {
+                    state[col + 1] = 'X';
+                }
+            }
+
+            for (int c = 0; c <= maxCol; c++) {
+                if (state[c] == 'E') {
+                    boolean leftBarrier = (c == 0) || state[c - 1] != 'E';
+                    boolean rightBarrier = (c == maxCol) || state[c + 1] != 'E';
+
+                    if (leftBarrier && rightBarrier) {
+                        // Khe hở 1 ghế nằm giữa 2 rào cản. Kiểm tra xem người dùng có TẠO RA khe hở này không.
+                        boolean causedByUser = (c > 0 && state[c - 1] == 'S') || (c < maxCol && state[c + 1] == 'S');
+                        if (causedByUser) {
+                            throw new RuntimeException("Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi.");
+                        }
+                    }
+                }
+            }
+        }
     }
     
     @Transactional
