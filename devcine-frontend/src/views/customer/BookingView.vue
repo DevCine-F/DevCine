@@ -561,21 +561,43 @@ const handleSeatClick = (seat) => {
   if (wasSelected) {
     store.toggleSeat(seat)
     seatRealtime.deselect(seat.seatId) // nhả khóa real-time
-  } else {
-    // Ghế đang bị POS/khách khác giữ real-time → chặn ngay
-    if (isSeatLockedByOthers(seat)) {
-      toast.error(`Ghế ${seatLabel(seat)} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
-      return
-    }
-    const currentSelected = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
-    const capacity = seat.seatType === 'SWEETBOX' ? 2 : 1;
-    if (currentSelected + capacity > store.totalTickets) {
-      toast.warning('Ghế Sweetbox chiếm 2 chỗ, số lượng vé bạn chọn không đủ.');
+    return;
+  }
+  
+  // Ghế đang bị POS/khách khác giữ real-time → chặn ngay
+  if (isSeatLockedByOthers(seat)) {
+    toast.toasts = [];
+    toast.error(`Ghế ${seatLabel(seat)} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
+    return
+  }
+
+  const currentSelected = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
+  const capacity = seat.seatType === 'SWEETBOX' ? 2 : 1;
+  const remainingTickets = store.totalTickets - currentSelected;
+  
+  if (capacity > remainingTickets) {
+    if (seat.seatType === 'SWEETBOX') {
+      const missing = capacity - remainingTickets;
+      const targetCode = store.audienceAssignment[store.audienceAssignment.length - 1] || 'ADULT';
+      
+      if (store.totalTickets + missing > store.maxTicketsPerBooking) {
+        toast.toasts = [];
+        toast.warning('Số lượng vé vượt quá giới hạn cho phép.');
+        return;
+      }
+      
+      setQty(targetCode, missing);
+      toast.toasts = [];
+      toast.warning('Lưu ý: Ghế Sweetbox sẽ tính 2 chỗ');
+    } else {
+      toast.toasts = [];
+      toast.warning(`Bạn đã chọn đủ số lượng vé (${store.totalTickets}/${store.totalTickets} vé).`);
       return;
     }
-    store.toggleSeat(seat)
-    seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
   }
+
+  store.toggleSeat(seat)
+  seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
 }
 
 const isSeatSelected = (seat) => {
@@ -593,7 +615,16 @@ const getRowChar = (row) => {
 }
 
 // Tăng/giảm số lượng vé theo đối tượng (chọn trước khi chọn ghế)
-const setQty = (code, delta) => store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) + delta)
+const setQty = (code, delta) => {
+  store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) + delta);
+  const currentSelectedCapacity = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
+  if (store.totalTickets < currentSelectedCapacity) {
+    store.selectedSeats.forEach(s => seatRealtime.deselect(s.seatId));
+    store.clearSeats();
+    toast.toasts = [];
+    toast.warning('Số lượng vé đã giảm. Vui lòng chọn lại vị trí ghế.');
+  }
+}
 
 const isHiddenBecauseSweetbox = (row, col) => {
   if (col === 0) return false;

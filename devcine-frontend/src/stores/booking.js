@@ -129,10 +129,10 @@ export const useBookingStore = defineStore('booking', {
       const allowed = Math.max(0, this.maxTicketsPerBooking - others);
       if (n > allowed) n = allowed;
       this.ticketQuantities = { ...this.ticketQuantities, [code]: n };
-      // Nếu giảm số vé xuống dưới số ghế đang chọn → bỏ bớt ghế thừa
-      if (this.selectedSeats.length > this.totalTickets) {
-        this.selectedSeats = this.selectedSeats.slice(0, this.totalTickets);
-      }
+      this.calculateTotal();
+    },
+    clearSeats() {
+      this.selectedSeats = [];
       this.calculateTotal();
     },
     updateFnb(fnbItem, quantity) {
