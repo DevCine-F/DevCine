@@ -89,18 +89,46 @@ public class BookingController {
                 map.put("bookingId", b.getId());
                 map.put("bookingCode", b.getBookingCode() != null ? b.getBookingCode() : "");
                 map.put("status", b.getStatus() != null ? b.getStatus() : "");
-                map.put("totalPrice", b.getTotalPrice());
-                map.put("finalPrice", b.getFinalPrice());
+                
+                java.math.BigDecimal originalPrice = b.getTotalPrice() != null ? b.getTotalPrice() : java.math.BigDecimal.ZERO;
+                java.math.BigDecimal finalPrice = b.getFinalPrice() != null ? b.getFinalPrice() : java.math.BigDecimal.ZERO;
+                java.math.BigDecimal discountAmount = originalPrice.subtract(finalPrice);
+                java.math.BigDecimal fnbTotal = fnbs.stream()
+                        .map(f -> (f.getPriceSnapshot() != null ? f.getPriceSnapshot() : java.math.BigDecimal.ZERO)
+                                .multiply(java.math.BigDecimal.valueOf(f.getQuantity() != null ? f.getQuantity() : 0)))
+                        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+
+                map.put("totalPrice", originalPrice);
+                map.put("finalPrice", finalPrice);
+                map.put("originalPrice", originalPrice);
+                map.put("discountAmount", discountAmount);
+                map.put("fnbTotal", fnbTotal);
                 map.put("paymentMethod", b.getPaymentMethod() != null ? b.getPaymentMethod() : "");
                 map.put("createdAt", b.getCreatedAt().toString());
-                map.put("showtime", Map.of(
-                        "id", b.getShowtime().getId(),
-                        "startTime", b.getShowtime().getStartTime().toString(),
-                        "movieTitle", b.getShowtime().getMovie().getTitle(),
-                        "moviePosterUrl", b.getShowtime().getMovie().getPosterUrl() != null ? b.getShowtime().getMovie().getPosterUrl() : "",
-                        "roomName", b.getShowtime().getRoom() != null ? b.getShowtime().getRoom().getName() : ""
-                ));
+                
+                java.util.Map<String, Object> showtimeMap = new java.util.HashMap<>();
+                showtimeMap.put("id", b.getShowtime().getId());
+                showtimeMap.put("startTime", b.getShowtime().getStartTime().toString());
+                showtimeMap.put("showDate", b.getShowtime().getStartTime().toLocalDate().toString());
+                showtimeMap.put("movieTitle", b.getShowtime().getMovie().getTitle());
+                showtimeMap.put("moviePosterUrl", b.getShowtime().getMovie().getPosterUrl() != null ? b.getShowtime().getMovie().getPosterUrl() : "");
+                showtimeMap.put("format", b.getShowtime().getFormat() != null ? b.getShowtime().getFormat().getName() : "");
+                showtimeMap.put("ageRating", b.getShowtime().getMovie().getAgeRating() != null ? b.getShowtime().getMovie().getAgeRating() : "");
+                showtimeMap.put("cinemaName", (b.getShowtime().getRoom() != null && b.getShowtime().getRoom().getCinema() != null) ? b.getShowtime().getRoom().getCinema().getName() : "");
+                showtimeMap.put("roomName", b.getShowtime().getRoom() != null ? b.getShowtime().getRoom().getName() : "");
+                
+                map.put("showtime", showtimeMap);
                 map.put("seats", seatLabels);
+                
+                List<Map<String, Object>> seatsDetail = seats.stream().map(bs -> {
+                    Map<String, Object> sm = new java.util.HashMap<>();
+                    sm.put("seatNumber", bs.getSeat() != null ? bs.getSeat().displayLabel() : "");
+                    sm.put("seatType", (bs.getSeat() != null && bs.getSeat().getSeatType() != null) ? bs.getSeat().getSeatType().getName() : "");
+                    sm.put("targetType", bs.getTicketType() != null ? bs.getTicketType() : "");
+                    return sm;
+                }).collect(Collectors.toList());
+                map.put("seatsDetail", seatsDetail);
+                
                 map.put("fnbs", fnbList);
                 map.put("qrCodes", tickets.stream().map(Ticket::getQrCode).collect(Collectors.toList()));
                 
