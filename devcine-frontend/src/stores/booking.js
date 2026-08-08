@@ -22,6 +22,7 @@ export const useBookingStore = defineStore('booking', {
     priceTable: {}, // tên loại ghế -> (mã đối tượng -> giá)
     audienceLabels: {}, // mã đối tượng -> nhãn
     ticketQuantities: {}, // mã đối tượng -> số lượng vé (chọn TRƯỚC khi chọn ghế)
+    autoAddedTickets: {}, // seatId -> { code, qty }
     maxTicketsPerBooking: 8, // giới hạn số vé/lần đặt (lấy từ cấu hình admin)
     matrixRow: 9,
     matrixCol: 10,
@@ -39,7 +40,8 @@ export const useBookingStore = defineStore('booking', {
       for (const [code, qty] of Object.entries(state.ticketQuantities)) {
         for (let i = 0; i < (Number(qty) || 0); i++) arr.push(code)
       }
-      return arr.slice(0, state.selectedSeats.length)
+      const currentSelectedCapacity = state.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
+      return arr.slice(0, currentSelectedCapacity);
     }
   },
   actions: {
@@ -99,6 +101,7 @@ export const useBookingStore = defineStore('booking', {
       // Bắt đầu phiên đặt vé mới: dọn sạch lựa chọn cũ để tránh áp voucher/ghế/combo còn sót từ lần trước
       this.selectedSeats = [];
       this.ticketQuantities = {};
+      this.autoAddedTickets = {};
       this.selectedFnbs = [];
       this.selectedVoucher = null;
       this.totalPrice = 0;

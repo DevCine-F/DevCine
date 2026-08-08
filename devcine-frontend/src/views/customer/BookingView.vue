@@ -278,12 +278,62 @@ const seatsSubtotal = computed(() => {
   const fnb = store.selectedFnbs.reduce((a, f) => a + f.fnbItem.price * f.quantity, 0)
   return Math.max(0, store.totalPrice - fnb)
 })
-// Liệt kê số lượng vé theo đối tượng (chỉ loại > 0) cho sidebar
-const ticketBreakdown = computed(() =>
-  Object.entries(store.ticketQuantities)
-    .filter(([, q]) => q > 0)
-    .map(([code, q]) => ({ label: store.audienceLabels[code] || code, qty: q }))
-)
+
+const showStudentVerificationWarning = computed(() => {
+  const hasSweetbox = store.selectedSeats.some(s => s.seatType === 'SWEETBOX');
+  const hasRestrictedTicket = store.audienceAssignment.some(code => ['U22', 'CHILD', 'SENIOR'].includes(code));
+  return hasSweetbox && hasRestrictedTicket;
+})
+
+const formattedSeatSummary = computed(() => {
+  const normalCount = store.selectedSeats.filter(s => s.seatType !== 'SWEETBOX').length;
+  const sweetCount = store.selectedSeats.filter(s => s.seatType === 'SWEETBOX').length;
+  let str = [];
+  if (normalCount > 0) str.push(`${normalCount} ghế`);
+  if (sweetCount > 0) str.push(`${sweetCount} ghế đôi (${sweetCount * 2} chỗ)`);
+  return str.join(', ');
+})
+
+const ticketBreakdown = computed(() => {
+  const breakdown = {};
+  
+  // Khởi tạo toàn bộ vé từ store (Single Source of Truth)
+  Object.entries(store.ticketQuantities).forEach(([code, q]) => {
+    if (q > 0) {
+      const label = store.audienceLabels[code] || code;
+      const basePrice = (store.priceTable['STANDARD'] && store.priceTable['STANDARD'][code]) || 0;
+      breakdown[code] = { label, qty: q, price: 0, _unassigned: q, _basePrice: basePrice };
+    }
+  });
+
+  // Map các ghế đã chọn vào vé để tính giá thực tế (bao gồm phụ thu VIP/Sweetbox)
+  const assign = store.audienceAssignment;
+  let assignIdx = 0;
+  
+  store.selectedSeats.forEach(seat => {
+    const capacity = seat.seatType === 'SWEETBOX' ? 2 : 1;
+    for (let j = 0; j < capacity; j++) {
+      const code = assign[assignIdx] || 'ADULT';
+      if (breakdown[code] && breakdown[code]._unassigned > 0) {
+        breakdown[code]._unassigned--;
+        
+        const byAud = store.priceTable[seat.seatType] || {};
+        const actualPrice = (byAud[code] != null) ? Number(byAud[code]) : (seat.price || 0);
+        breakdown[code].price += actualPrice;
+      }
+      assignIdx++;
+    }
+  });
+  
+  // Cộng giá cơ bản cho các vé chưa được chọn ghế
+  Object.values(breakdown).forEach(item => {
+    if (item._unassigned > 0) {
+      item.price += (item._unassigned * item._basePrice);
+    }
+  });
+  
+  return Object.values(breakdown);
+})
 
 // ===== Phân trang danh sách combo / F&B (6 món = 2 cột x 3 hàng / trang) =====
 const fnbPage = ref(1)
@@ -561,6 +611,12 @@ const handleSeatClick = (seat) => {
   if (wasSelected) {
     store.toggleSeat(seat)
     seatRealtime.deselect(seat.seatId) // nhả khóa real-time
+    // Khôi phục snapshot nếu ghế này từng tự động bù vé
+    if (store.autoAddedTickets[seat.seatId]) {
+      const { code, qty } = store.autoAddedTickets[seat.seatId];
+      store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) - qty);
+      delete store.autoAddedTickets[seat.seatId];
+    }
     return;
   }
   
@@ -578,7 +634,10 @@ const handleSeatClick = (seat) => {
   if (capacity > remainingTickets) {
     if (seat.seatType === 'SWEETBOX') {
       const missing = capacity - remainingTickets;
-      const targetCode = store.audienceAssignment[store.audienceAssignment.length - 1] || 'ADULT';
+      let targetCode = store.audienceAssignment[store.audienceAssignment.length - 1];
+      if (!targetCode) {
+        targetCode = Object.keys(store.ticketQuantities).find(k => store.ticketQuantities[k] > 0) || 'ADULT';
+      }
       
       if (store.totalTickets + missing > store.maxTicketsPerBooking) {
         toast.toasts = [];
@@ -587,6 +646,7 @@ const handleSeatClick = (seat) => {
       }
       
       setQty(targetCode, missing);
+      store.autoAddedTickets[seat.seatId] = { code: targetCode, qty: missing };
       toast.toasts = [];
       toast.warning('Lưu ý: Ghế Sweetbox sẽ tính 2 chỗ');
     } else {
@@ -619,10 +679,29 @@ const setQty = (code, delta) => {
   store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) + delta);
   const currentSelectedCapacity = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
   if (store.totalTickets < currentSelectedCapacity) {
-    store.selectedSeats.forEach(s => seatRealtime.deselect(s.seatId));
-    store.clearSeats();
+    pruneSeatsOnDecrement(store.totalTickets);
+  }
+}
+
+const pruneSeatsOnDecrement = (newTotal) => {
+  let capacity = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
+  if (capacity <= newTotal) return;
+
+  let pruned = false;
+  while (capacity > newTotal && store.selectedSeats.length > 0) {
+    const seat = store.selectedSeats[store.selectedSeats.length - 1];
+    store.toggleSeat(seat);
+    seatRealtime.deselect(seat.seatId);
+    if (store.autoAddedTickets[seat.seatId]) {
+      delete store.autoAddedTickets[seat.seatId];
+    }
+    capacity = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
+    pruned = true;
+  }
+  
+  if (pruned) {
     toast.toasts = [];
-    toast.warning('Số lượng vé đã giảm. Vui lòng chọn lại vị trí ghế.');
+    toast.warning('Số lượng vé đã giảm. Các vị trí ghế chọn cuối cùng đã được nhả tự động.');
   }
 }
 
@@ -1100,11 +1179,11 @@ const proceedToPayment = async () => {
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ghế đã chọn</span>
               <span class="text-xs font-bold text-primary-container">{{ store.selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
             </div>
-            <div v-for="t in ticketBreakdown" :key="t.label" class="flex justify-between text-sm">
-              <span class="text-on-surface/60">{{ t.qty }} x {{ t.label }}</span>
+            <div v-for="t in ticketBreakdown" :key="t.label + t.price" class="flex justify-between text-sm">
+              <span class="text-on-surface/60">{{ t.qty }} x {{ t.label }} - {{ (t.price).toLocaleString('vi-VN') }}đ</span>
             </div>
             <div class="flex justify-between text-sm pt-1">
-              <span class="text-on-surface/60">{{ store.selectedSeats.length }} ghế</span>
+              <span class="text-on-surface/60">{{ formattedSeatSummary }}</span>
               <span class="font-semibold">{{ seatsSubtotal.toLocaleString('vi-VN') }} VNĐ</span>
             </div>
           </div>
@@ -1163,6 +1242,10 @@ const proceedToPayment = async () => {
             {{ isPaying ? 'Đang xử lý...' : 'Xác nhận thanh toán' }}
           </button>
         </div>
+      </div>
+      <div v-if="showStudentVerificationWarning" class="mt-4 bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 flex gap-3 text-orange-400">
+        <span class="material-symbols-outlined text-base mt-0.5 shrink-0">info</span>
+        <p class="text-[11px] font-medium leading-relaxed">Lưu ý: Cả 2 người xem ghế Sweetbox bắt buộc xuất trình Thẻ HSSV/CCCD chính chủ khi soát vé.</p>
       </div>
     </aside>
     </div>
