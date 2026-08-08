@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { authApi } from '../../api/customer/index'
@@ -164,6 +164,7 @@ const forgotStep = ref(1) // 1: nhập email, 2: nhập mã OTP, 3: đặt mật
 const forgotLoading = ref(false)
 const showNewPassword = ref(false)
 const forgotForm = ref({ email: '', otp: '', newPassword: '', confirmPassword: '' })
+const otpInputRef = ref(null)
 
 const otpCooldown = ref(0)
 let cooldownTimer = null
@@ -219,7 +220,11 @@ const sendOtp = async () => {
     await authApi.forgotPassword(email)
     toast.success('Đã gửi yêu cầu cấp mã xác minh. Vui lòng kiểm tra hộp thư (cả mục Spam).')
     startCooldown(30)
+    forgotForm.value.otp = ''
     forgotStep.value = 2
+    setTimeout(() => {
+      if (otpInputRef.value) otpInputRef.value.focus()
+    }, 100)
   } catch (err) {
     toast.error(friendlyError(err, 'Không gửi được mã xác minh. Vui lòng thử lại.'))
   } finally {
@@ -450,6 +455,7 @@ const submitNewPassword = async () => {
             <div class="space-y-2">
               <label class="block text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">Mã xác minh (OTP)</label>
               <input v-model="forgotForm.otp" type="text" inputmode="numeric" maxlength="6" placeholder="------"
+                     ref="otpInputRef"
                      @input="forgotForm.otp = forgotForm.otp.replace(/\D/g, '')"
                      class="w-full bg-surface-container-lowest border-none py-4 px-4 text-on-surface text-center text-2xl font-bold tracking-[0.5em] placeholder:text-neutral-700 placeholder:tracking-[0.3em] rounded-sm transition-all focus:ring-1 focus:ring-[#f5c518]"/>
             </div>
