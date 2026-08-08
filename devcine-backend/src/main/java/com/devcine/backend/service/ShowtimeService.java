@@ -76,6 +76,7 @@ public class ShowtimeService {
                 .formatName(s.getFormat().getName())
                 .roomId(s.getRoom().getId())
                 .roomName(s.getRoom().getName())
+                .roomTypeName(s.getRoom().getType() != null ? s.getRoom().getType().replace("_", " ") : null)
                 .build();
     }
 

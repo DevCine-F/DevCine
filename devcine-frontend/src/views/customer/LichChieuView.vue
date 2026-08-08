@@ -87,7 +87,7 @@ const moviesForDate = computed(() => {
     const m = map.get(s.movieId)
     if (s.formatName) m.formatSet.add(s.formatName)
     const d = toDate(s.startTime)
-    m.showtimes.push({ id: s.id, time: getTimeString(s.startTime), sort: d ? d.getTime() : 0, past: selectedDate.value === todayStr && d && d.getTime() < Date.now(), raw: s })
+    m.showtimes.push({ id: s.id, time: getTimeString(s.startTime), roomName: s.roomName, roomTypeName: s.roomTypeName, sort: d ? d.getTime() : 0, past: selectedDate.value === todayStr && d && d.getTime() < Date.now(), raw: s })
   }
   return Array.from(map.values()).map(m => ({
     ...m,
@@ -348,8 +348,15 @@ onMounted(loadShowtimes)
               <p class="text-xs font-bold text-on-surface mb-2">Lịch chiếu</p>
               <div class="flex flex-wrap gap-2">
                 <button v-for="st in movie.showtimes" :key="st.id" @click="goToBooking(st)" :disabled="st.past"
-                  :class="st.past ? 'border-outline-variant/20 text-on-surface-variant/40 line-through cursor-not-allowed' : 'border-outline-variant/30 text-on-surface hover:border-[#f5c518] hover:bg-[#f5c518]/10 hover:text-[#f5c518]'"
-                  class="px-4 py-1.5 border text-sm font-bold rounded-md transition-all">{{ st.time }}</button>
+                  :class="st.past ? 'border-outline-variant/20 grayscale cursor-not-allowed' : 'border-outline-variant/30 hover:border-[#f5c518] hover:bg-[#f5c518]/10 group'"
+                  class="relative flex flex-col items-center justify-center min-w-[95px] px-3 py-2 border bg-surface-container-high/50 rounded-xl transition-all duration-300">
+                  <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider mb-0.5 text-on-surface-variant group-hover:text-[#f5c518]/80 transition-colors line-clamp-1">
+                    {{ st.roomName }}<span v-if="st.roomTypeName"> - {{ st.roomTypeName }}</span>
+                  </span>
+                  <span class="text-base font-extrabold text-on-surface group-hover:text-[#f5c518] transition-colors" :class="{'line-through text-on-surface-variant/40': st.past}">
+                    {{ st.time }}
+                  </span>
+                </button>
               </div>
             </div>
           </div>

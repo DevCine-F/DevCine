@@ -40,4 +40,5 @@ public class PublicShowtimeDTO {
     private String formatName;
     private Integer roomId;
     private String roomName;
+    private String roomTypeName;
 }
