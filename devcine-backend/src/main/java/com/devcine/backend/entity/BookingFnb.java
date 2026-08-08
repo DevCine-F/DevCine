@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.ArrayList;
 
 @Entity
 @Table(name = "booking_fnbs")
@@ -31,4 +33,8 @@ public class BookingFnb {
 
     @Column(name = "price_snapshot", precision = 15, scale = 2)
     private BigDecimal priceSnapshot;
+
+    @OneToMany(mappedBy = "bookingFnb", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<BookingFnbOption> options = new ArrayList<>();
 }

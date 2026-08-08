@@ -23,7 +23,8 @@ public record BookingPrintResponse(
         int seatCount,
         List<SeatLine> seats,
         List<FnbLine> fnbs,
-        LocalDateTime printedAt
+        LocalDateTime printedAt,
+        boolean requiresStudentVerification
 ) {
     /** Một ghế trong đơn: nhãn ghế (vd "A5"), loại đối tượng, giá đã chốt. */
     public record SeatLine(String seatLabel, String ticketType, BigDecimal price) {}

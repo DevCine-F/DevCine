@@ -9,6 +9,7 @@ import { friendlyError } from '@/utils/friendlyError'
 import { formatComboTitle } from '@/utils/format'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import FnbOptionModal from '@/components/FnbOptionModal.vue'
 
 const store = useBookingStore()
 const router = useRouter()
@@ -345,6 +346,33 @@ const pagedFnbs = computed(() => {
 })
 // Kẹp lại số trang nếu danh sách thay đổi (vd sau khi tải xong)
 watch(fnbTotalPages, (total) => { if (fnbPage.value > total) fnbPage.value = total })
+
+// State for FnbOptionModal
+const isFnbModalOpen = ref(false)
+const selectedFnbForModal = ref(null)
+
+const openFnbModal = (fnbItem) => {
+  if (fnbItem.optionGroups && fnbItem.optionGroups.length > 0) {
+    selectedFnbForModal.value = fnbItem
+    isFnbModalOpen.value = true
+  } else {
+    // If no options, just add directly
+    store.updateFnb(fnbItem, (store.selectedFnbs.find(f => f.fnbItem.id === fnbItem.id && (!f.options || f.options.length === 0))?.quantity || 0) + 1, [])
+  }
+}
+
+const handleFnbOptionConfirm = (options) => {
+  const fnbItem = selectedFnbForModal.value
+  const existing = store.selectedFnbs.find(f => {
+    if (f.fnbItem.id !== fnbItem.id) return false;
+    const aIds = (f.options || []).map(o => o.optionItemId).sort().join(',');
+    const bIds = options.map(o => o.optionItemId).sort().join(',');
+    return aIds === bIds;
+  })
+  
+  store.updateFnb(fnbItem, (existing?.quantity || 0) + 1, options)
+}
+
 const vouchers = ref([])
 const voucherCode = ref('')
 const voucherError = ref('')
@@ -1016,11 +1044,12 @@ const proceedToPayment = async () => {
               </div>
               <div class="flex items-center justify-between mt-2">
                 <span class="font-headline font-bold text-primary-container">{{ fnb.price?.toLocaleString('vi-VN') }} VNĐ</span>
-                <div class="flex items-center bg-surface-container-high rounded-full px-2 py-1">
-                  <button @click="store.updateFnb(fnb, (store.selectedFnbs.find(f => f.fnbItem.id === fnb.id)?.quantity || 0) - 1)" class="w-6 h-6 flex items-center justify-center hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-sm">remove</span></button>
-                  <span class="w-8 text-center text-xs font-bold">{{ store.selectedFnbs.find(f => f.fnbItem.id === fnb.id)?.quantity || 0 }}</span>
-                  <button @click="store.updateFnb(fnb, (store.selectedFnbs.find(f => f.fnbItem.id === fnb.id)?.quantity || 0) + 1)" class="w-6 h-6 flex items-center justify-center hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-sm">add</span></button>
-                </div>
+                <button 
+                  @click="openFnbModal(fnb)" 
+                  class="bg-surface-container-high hover:bg-primary-container/20 hover:text-primary-container text-on-surface rounded-full px-4 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
+                >
+                  <span class="material-symbols-outlined text-sm">add</span> Chọn
+                </button>
               </div>
             </div>
           </div>
@@ -1192,12 +1221,25 @@ const proceedToPayment = async () => {
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bắp nước</span>
               <span class="text-xs font-bold text-primary-container">{{ store.selectedFnbs.reduce((acc, f) => acc + f.quantity, 0) }} sản phẩm</span>
             </div>
-            <div class="flex justify-between items-start gap-3 mt-3" v-for="fnb in store.selectedFnbs" :key="fnb.fnbItem.id">
-              <div>
-                <div class="font-medium text-sm text-on-surface/90">{{ fnb.quantity }} × {{ formatComboTitle(fnb.fnbItem.name).title }}</div>
-                <div v-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-0.5">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
+            <!-- Iterate over Fnb cart items -->
+            <div class="flex justify-between items-start gap-3 mt-3 group" v-for="(fnb, idx) in store.selectedFnbs" :key="idx">
+              <div class="flex-grow">
+                <div class="flex items-center gap-2">
+                   <div class="flex items-center bg-surface-container-high rounded-md px-1 py-0.5 shrink-0 border border-outline-variant/10">
+                     <button @click="store.updateFnb(fnb.fnbItem, fnb.quantity - 1, fnb.options)" class="w-4 h-4 flex items-center justify-center hover:text-primary-container"><span class="material-symbols-outlined text-[10px]">remove</span></button>
+                     <span class="w-4 text-center text-[10px] font-bold">{{ fnb.quantity }}</span>
+                     <button @click="store.updateFnb(fnb.fnbItem, fnb.quantity + 1, fnb.options)" class="w-4 h-4 flex items-center justify-center hover:text-primary-container"><span class="material-symbols-outlined text-[10px]">add</span></button>
+                   </div>
+                   <div class="font-medium text-sm text-on-surface/90">{{ formatComboTitle(fnb.fnbItem.name).title }}</div>
+                </div>
+                <div v-if="fnb.options && fnb.options.length > 0" class="text-xs text-on-surface-variant/70 mt-1 pl-10 flex flex-wrap gap-1">
+                   <span v-for="opt in fnb.options" :key="opt.optionItemId" class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px]">
+                      {{ opt.optionName }}
+                   </span>
+                </div>
+                <div v-else-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-1 pl-10">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
               </div>
-              <span class="font-semibold whitespace-nowrap pt-0.5">{{ (fnb.quantity * fnb.fnbItem.price).toLocaleString('vi-VN') }} VNĐ</span>
+              <span class="font-semibold whitespace-nowrap pt-0.5">{{ ((fnb.fnbItem.price + (fnb.options || []).reduce((sum, o) => sum + (o.surchargePrice || 0), 0)) * fnb.quantity).toLocaleString('vi-VN') }}đ</span>
             </div>
           </div>
           <!-- Total Calculation -->
@@ -1250,6 +1292,13 @@ const proceedToPayment = async () => {
     </aside>
     </div>
   </main>
+  
+  <FnbOptionModal 
+    :isOpen="isFnbModalOpen"
+    :fnbItem="selectedFnbForModal"
+    @close="isFnbModalOpen = false"
+    @confirm="handleFnbOptionConfirm"
+  />
 </template>
 
 <style scoped>

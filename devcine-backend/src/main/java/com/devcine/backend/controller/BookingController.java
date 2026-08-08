@@ -128,6 +128,12 @@ public class BookingController {
                 map.put("discountAmount", discountAmount);
                 map.put("fnbTotal", fnbTotal);
                 map.put("paymentMethod", b.getPaymentMethod() != null ? b.getPaymentMethod() : "");
+                
+                boolean requiresStudentVerification = seats.stream().anyMatch(bs -> 
+                    bs.getSeat() != null && bs.getSeat().getSeatType() != null && "SWEETBOX".equals(bs.getSeat().getSeatType().getName()) &&
+                    bs.getTicketType() != null && List.of("U22", "CHILD", "SENIOR").contains(bs.getTicketType().toUpperCase())
+                );
+                map.put("requiresStudentVerification", requiresStudentVerification);
                 map.put("createdAt", b.getCreatedAt().toString());
                 
                 java.util.Map<String, Object> showtimeMap = new java.util.HashMap<>();

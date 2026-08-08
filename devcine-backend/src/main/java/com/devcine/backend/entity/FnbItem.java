@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.Set;
+import java.util.HashSet;
 
 @Entity
 @Table(name = "fnb_items")
@@ -37,4 +39,13 @@ public class FnbItem {
     @Column(name = "is_active", columnDefinition = "boolean not null default true")
     @Builder.Default
     private Boolean isActive = true;
+
+    @ManyToMany
+    @JoinTable(
+        name = "fnb_item_option_groups",
+        joinColumns = @JoinColumn(name = "fnb_item_id"),
+        inverseJoinColumns = @JoinColumn(name = "option_group_id")
+    )
+    @Builder.Default
+    private Set<FnbOptionGroup> optionGroups = new HashSet<>();
 }

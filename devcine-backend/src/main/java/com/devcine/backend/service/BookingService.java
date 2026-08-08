@@ -27,6 +27,7 @@ public class BookingService {
     private final BookingFnbRepository bookingFnbRepository;
     private final SeatRepository seatRepository;
     private final FnbItemRepository fnbItemRepository;
+    private final FnbOptionItemRepository fnbOptionItemRepository;
     private final ShowtimeRepository showtimeRepository;
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
@@ -225,13 +226,34 @@ public class BookingService {
             for (FnbSelectionDTO fnbDTO : request.getFnbs()) {
                 FnbItem item = fnbMap.get(fnbDTO.getFnbItemId());
                 if (item == null) throw new RuntimeException("F&B Item not found");
-                bookingFnbs.add(BookingFnb.builder()
+                
+                BigDecimal lineSurcharge = BigDecimal.ZERO;
+                java.util.List<BookingFnbOption> fnbOptions = new java.util.ArrayList<>();
+                if (fnbDTO.getOptions() != null) {
+                    for (com.devcine.backend.dto.request.FnbOptionSelectionDTO opt : fnbDTO.getOptions()) {
+                         FnbOptionItem optionItem = fnbOptionItemRepository.findById(opt.getOptionItemId())
+                             .orElseThrow(() -> new RuntimeException("Option not found"));
+                         lineSurcharge = lineSurcharge.add(optionItem.getSurchargePrice());
+                         BookingFnbOption bfo = BookingFnbOption.builder()
+                             .optionNameSnapshot(optionItem.getName())
+                             .surchargeSnapshot(optionItem.getSurchargePrice())
+                             .build();
+                         fnbOptions.add(bfo);
+                    }
+                }
+                
+                BookingFnb bookingFnb = BookingFnb.builder()
                         .booking(booking)
                         .fnbItem(item)
                         .quantity(fnbDTO.getQuantity())
-                        .priceSnapshot(item.getPrice())
-                        .build());
-                totalPrice = totalPrice.add(item.getPrice().multiply(new BigDecimal(fnbDTO.getQuantity())));
+                        .priceSnapshot(item.getPrice().add(lineSurcharge))
+                        .build();
+                for (BookingFnbOption o : fnbOptions) {
+                    o.setBookingFnb(bookingFnb);
+                    bookingFnb.getOptions().add(o);
+                }
+                bookingFnbs.add(bookingFnb);
+                totalPrice = totalPrice.add(bookingFnb.getPriceSnapshot().multiply(new BigDecimal(fnbDTO.getQuantity())));
             }
             bookingFnbRepository.saveAll(bookingFnbs);
         }

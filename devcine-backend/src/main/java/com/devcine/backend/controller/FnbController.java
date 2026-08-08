@@ -24,11 +24,17 @@ import java.util.Map;
 public class FnbController {
 
     private final FnbItemRepository fnbItemRepository;
+    private final com.devcine.backend.repository.FnbOptionGroupRepository fnbOptionGroupRepository;
 
-    /** Công khai — chỉ trả món còn bán, phục vụ bước chọn combo khi đặt vé. */
     @GetMapping
     public ResponseEntity<ApiResponse<List<FnbItem>>> getActiveFnbs() {
         return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findByIsActiveTrueOrderByTypeAscNameAsc()));
+    }
+    
+    @GetMapping("/groups")
+    @PreAuthorize("@perm.can('fnb_menu','view')")
+    public ResponseEntity<ApiResponse<List<com.devcine.backend.entity.FnbOptionGroup>>> getAllOptionGroups() {
+        return ResponseEntity.ok(ApiResponse.ok(fnbOptionGroupRepository.findAll()));
     }
 
     /** Toàn bộ thực đơn (kể cả đang ẩn) cho khu vực quản trị. */
@@ -50,6 +56,10 @@ public class FnbController {
                     .description((String) body.get("description"))
                     .isActive(body.get("isActive") == null || Boolean.parseBoolean(body.get("isActive").toString()))
                     .build();
+            if (body.containsKey("optionGroupIds")) {
+                List<Integer> groupIds = (List<Integer>) body.get("optionGroupIds");
+                item.setOptionGroups(new java.util.HashSet<>(fnbOptionGroupRepository.findAllById(groupIds)));
+            }
             fnbItemRepository.save(item);
             return ResponseEntity.status(201).body(ApiResponse.ok(item));
         } catch (Exception e) {
@@ -69,6 +79,10 @@ public class FnbController {
             if (body.containsKey("imageUrl")) item.setImageUrl((String) body.get("imageUrl"));
             if (body.containsKey("description")) item.setDescription((String) body.get("description"));
             if (body.containsKey("isActive")) item.setIsActive(Boolean.parseBoolean(body.get("isActive").toString()));
+            if (body.containsKey("optionGroupIds")) {
+                List<Integer> groupIds = (List<Integer>) body.get("optionGroupIds");
+                item.setOptionGroups(new java.util.HashSet<>(fnbOptionGroupRepository.findAllById(groupIds)));
+            }
             fnbItemRepository.save(item);
             return ResponseEntity.ok(ApiResponse.ok(item));
         } catch (Exception e) {

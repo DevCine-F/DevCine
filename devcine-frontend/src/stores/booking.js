@@ -138,11 +138,21 @@ export const useBookingStore = defineStore('booking', {
       this.selectedSeats = [];
       this.calculateTotal();
     },
-    updateFnb(fnbItem, quantity) {
-      const index = this.selectedFnbs.findIndex(f => f.fnbItem.id === fnbItem.id);
+    updateFnb(fnbItem, quantity, options = []) {
+      const isOptionsEqual = (a, b) => {
+          if (!a && !b) return true;
+          if (!a || !b) return false;
+          if (a.length !== b.length) return false;
+          const aIds = a.map(o => o.optionItemId).sort().join(',');
+          const bIds = b.map(o => o.optionItemId).sort().join(',');
+          return aIds === bIds;
+      };
+      
+      const index = this.selectedFnbs.findIndex(f => f.fnbItem.id === fnbItem.id && isOptionsEqual(f.options, options));
+      
       if (quantity > 0) {
         if (index === -1) {
-          this.selectedFnbs.push({ fnbItem, quantity });
+          this.selectedFnbs.push({ fnbItem, quantity, options });
         } else {
           this.selectedFnbs[index].quantity = quantity;
         }
@@ -165,7 +175,13 @@ export const useBookingStore = defineStore('booking', {
         }
       });
       for (const fnb of this.selectedFnbs) {
-        total += fnb.fnbItem.price * fnb.quantity;
+        let surcharge = 0;
+        if (fnb.options) {
+           for (const opt of fnb.options) {
+               surcharge += (opt.surchargePrice || 0);
+           }
+        }
+        total += (fnb.fnbItem.price + surcharge) * fnb.quantity;
       }
       this.totalPrice = total;
     },
@@ -190,7 +206,11 @@ export const useBookingStore = defineStore('booking', {
             return sels;
           })(),
           totalTickets: this.totalTickets,
-          fnbs: this.selectedFnbs.map(f => ({ fnbItemId: f.fnbItem.id, quantity: f.quantity })),
+          fnbs: this.selectedFnbs.map(f => ({ 
+             fnbItemId: f.fnbItem.id, 
+             quantity: f.quantity,
+             options: f.options ? f.options.map(o => ({ optionGroupId: o.optionGroupId, optionItemId: o.optionItemId })) : []
+          })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
           paymentMethod: paymentMethod
         };

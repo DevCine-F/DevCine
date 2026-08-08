@@ -9,6 +9,9 @@ import java.util.List;
 @Repository
 public interface FnbItemRepository extends JpaRepository<FnbItem, Integer> {
 
-    /** Các món còn bán — cho bước chọn combo phía khách. */
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"optionGroups", "optionGroups.items"})
     List<FnbItem> findByIsActiveTrueOrderByTypeAscNameAsc();
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"optionGroups", "optionGroups.items"})
+    List<FnbItem> findAll();
 }

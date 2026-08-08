@@ -16,7 +16,8 @@ const isDrawerOpen = ref(false)
 const editingId = ref(null)
 const isSaving = ref(false)
 const isUploading = ref(false)
-const form = ref({ name: '', type: 'COMBO', price: null, imageUrl: '', description: '', isActive: true })
+const form = ref({ name: '', type: 'COMBO', price: null, imageUrl: '', description: '', isActive: true, optionGroupIds: [] })
+const optionGroups = ref([])
 
 const typeOptions = [
   { value: 'COMBO', label: 'Combo' },
@@ -43,6 +44,15 @@ const fetchItems = async () => {
   }
 }
 
+const fetchOptionGroups = async () => {
+  try {
+    const { data } = await api.get('/api/fnbs/groups')
+    optionGroups.value = data.data ?? data
+  } catch (err) {
+    console.error('Failed to fetch option groups', err)
+  }
+}
+
 const openCreate = () => {
   editingId.value = null
   form.value = { name: '', type: 'COMBO', price: null, imageUrl: '', description: '', isActive: true }
@@ -57,7 +67,8 @@ const openEdit = (item) => {
     price: item.price != null ? Number(item.price) : null,
     imageUrl: item.imageUrl || '',
     description: item.description || '',
-    isActive: item.isActive !== false
+    isActive: item.isActive !== false,
+    optionGroupIds: item.optionGroups ? item.optionGroups.map(g => g.id) : []
   }
   isDrawerOpen.value = true
 }
@@ -99,7 +110,8 @@ const handleSave = async () => {
       price: Number(form.value.price),
       imageUrl: form.value.imageUrl || null,
       description: form.value.description || null,
-      isActive: form.value.isActive
+      isActive: form.value.isActive,
+      optionGroupIds: form.value.optionGroupIds
     }
     if (editingId.value) {
       await fnbApi.update(editingId.value, payload)
@@ -146,7 +158,10 @@ const confirmDelete = async () => {
 
 const formatPrice = (n) => (n != null ? Number(n).toLocaleString('vi-VN') + 'đ' : '')
 
-onMounted(fetchItems)
+onMounted(() => {
+  fetchItems()
+  fetchOptionGroups()
+})
 
 </script>
 
@@ -258,6 +273,16 @@ onMounted(fetchItems)
           <div class="space-y-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả</label>
             <textarea v-model="form.description" rows="3" class="w-full bg-surface-container-highest border border-outline-variant/20 p-3 rounded-xl text-sm text-on-surface focus:border-primary outline-none resize-none" placeholder="VD: 1 bắp lớn + 2 nước ngọt"></textarea>
+          </div>
+
+          <div class="space-y-2" v-if="optionGroups.length > 0">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Nhóm Tùy Chọn (Modifiers)</label>
+            <div class="flex flex-col gap-2 max-h-40 overflow-y-auto bg-surface-container-highest p-3 rounded-xl border border-outline-variant/20 custom-scrollbar">
+              <label v-for="group in optionGroups" :key="group.id" class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" :value="group.id" v-model="form.optionGroupIds" class="w-4 h-4 text-primary bg-surface-container border-outline-variant rounded" />
+                <span class="text-sm font-semibold text-on-surface">{{ group.name }}</span>
+              </label>
+            </div>
           </div>
 
           <div class="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10">

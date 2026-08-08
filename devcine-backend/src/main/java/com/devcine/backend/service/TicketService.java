@@ -194,10 +194,16 @@ public class TicketService {
         String format = showtime != null && showtime.getFormat() != null ? showtime.getFormat().getName() : "";
 
         List<BookingPrintResponse.SeatLine> seatLines = new ArrayList<>();
+        boolean requiresStudentVerification = false;
         for (BookingSeat bs : bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())) {
             Seat seat = bs.getSeat();
             String label = seat.displayLabel();
-            seatLines.add(new BookingPrintResponse.SeatLine(label, bs.getTicketType(), bs.getPriceSnapshot()));
+            String type = bs.getTicketType();
+            seatLines.add(new BookingPrintResponse.SeatLine(label, type, bs.getPriceSnapshot()));
+            
+            if (seat.getSeatType() != null && "SWEETBOX".equals(seat.getSeatType().getName()) && type != null && List.of("U22", "CHILD", "SENIOR").contains(type.toUpperCase())) {
+                requiresStudentVerification = true;
+            }
         }
 
         List<BookingPrintResponse.FnbLine> fnbLines = new ArrayList<>();
@@ -228,6 +234,7 @@ public class TicketService {
                 seatLines.size(),
                 seatLines,
                 fnbLines,
-                booking.getPrintedAt());
+                booking.getPrintedAt(),
+                requiresStudentVerification);
     }
 }

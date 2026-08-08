@@ -9,10 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FnbSelectionDTO {
-    private Integer fnbItemId;
-    private Integer quantity;
-    
-    @Builder.Default
-    private java.util.List<FnbOptionSelectionDTO> options = new java.util.ArrayList<>();
+public class FnbOptionSelectionDTO {
+    private Integer optionGroupId;
+    private Integer optionItemId;
 }

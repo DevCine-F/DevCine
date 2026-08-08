@@ -35,6 +35,7 @@ public class ConcessionService {
     private final ConcessionSaleRepository saleRepository;
     private final ConcessionSaleItemRepository itemRepository;
     private final FnbItemRepository fnbItemRepository;
+    private final com.devcine.backend.repository.FnbOptionItemRepository fnbOptionItemRepository;
     private final CustomerRepository customerRepository;
     private final LoyaltyService loyaltyService;
 
@@ -81,13 +82,24 @@ public class ConcessionService {
             if (qty < 1 || qty > MAX_QTY_PER_ITEM) {
                 throw new RuntimeException("So luong moi mon phai tu 1 den " + MAX_QTY_PER_ITEM + ".");
             }
+            
+            BigDecimal lineSurcharge = BigDecimal.ZERO;
+            if (dto.getOptions() != null) {
+                for (com.devcine.backend.dto.request.FnbOptionSelectionDTO opt : dto.getOptions()) {
+                    com.devcine.backend.entity.FnbOptionItem optionItem = fnbOptionItemRepository.findById(opt.getOptionItemId())
+                         .orElseThrow(() -> new RuntimeException("Option not found"));
+                    lineSurcharge = lineSurcharge.add(optionItem.getSurchargePrice());
+                }
+            }
+            BigDecimal finalItemPrice = item.getPrice().add(lineSurcharge);
+            
             rows.add(ConcessionSaleItem.builder()
                     .sale(sale)
                     .fnbItem(item)
                     .quantity(qty)
-                    .priceSnapshot(item.getPrice())
+                    .priceSnapshot(finalItemPrice)
                     .build());
-            total = total.add(item.getPrice().multiply(BigDecimal.valueOf(qty)));
+            total = total.add(finalItemPrice.multiply(BigDecimal.valueOf(qty)));
         }
         itemRepository.saveAll(rows);
 
