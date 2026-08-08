@@ -327,8 +327,8 @@ onMounted(loadShowtimes)
       <div v-else class="grid grid-cols-1 2xl:grid-cols-2 gap-6">
         <div v-for="movie in moviesForDate" :key="movie.id"
           class="flex gap-5 p-5 border border-outline-variant/10 bg-surface-container-low rounded-2xl hover:border-[#f5c518]/30 transition-all">
-          <div class="w-[110px] lg:w-[130px] shrink-0 aspect-[2/3] rounded-lg overflow-hidden bg-surface-container-high">
-            <img :src="movie.posterUrl || '/images/Hopper.webp'" :alt="movie.title" class="w-full h-full object-cover" />
+          <div class="w-32 sm:w-36 md:w-40 flex-shrink-0 aspect-[2/3] bg-surface-container-high rounded-xl overflow-hidden">
+            <img :src="movie.posterUrl || '/images/Hopper.webp'" :alt="movie.title" class="w-full h-full object-cover rounded-xl" />
           </div>
           <div class="flex-1 min-w-0 flex flex-col">
             <div class="flex items-start justify-between gap-2 mb-1.5">
