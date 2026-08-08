@@ -165,6 +165,41 @@ const forgotLoading = ref(false)
 const showNewPassword = ref(false)
 const forgotForm = ref({ email: '', otp: '', newPassword: '', confirmPassword: '' })
 
+const otpCooldown = ref(0)
+let cooldownTimer = null
+
+const startCooldown = (durationInSeconds = 30) => {
+  const expire = Date.now() + durationInSeconds * 1000;
+  localStorage.setItem('forgot_otp_expire', expire.toString());
+  
+  if (cooldownTimer) clearInterval(cooldownTimer);
+  
+  const tick = () => {
+    const remaining = Math.ceil((expire - Date.now()) / 1000);
+    if (remaining > 0) {
+      otpCooldown.value = remaining;
+    } else {
+      otpCooldown.value = 0;
+      clearInterval(cooldownTimer);
+      localStorage.removeItem('forgot_otp_expire');
+    }
+  };
+  tick();
+  cooldownTimer = setInterval(tick, 1000);
+}
+
+onMounted(() => {
+  const expire = localStorage.getItem('forgot_otp_expire');
+  if (expire) {
+    const remaining = Math.ceil((Number(expire) - Date.now()) / 1000);
+    if (remaining > 0) {
+      startCooldown(remaining);
+    } else {
+      localStorage.removeItem('forgot_otp_expire');
+    }
+  }
+})
+
 const openForgot = () => {
   forgotMode.value = true
   forgotStep.value = 1
@@ -176,12 +211,14 @@ const openForgot = () => {
 const closeForgot = () => { forgotMode.value = false }
 
 const sendOtp = async () => {
+  if (otpCooldown.value > 0) return;
   const email = forgotForm.value.email.trim()
   if (!EMAIL_RE.test(email)) { toast.error('Email không đúng định dạng (vd: ten@domain.com).'); return }
   forgotLoading.value = true
   try {
     await authApi.forgotPassword(email)
-    toast.success('Đã gửi mã xác minh tới email của bạn. Vui lòng kiểm tra hộp thư (cả mục Spam).')
+    toast.success('Đã gửi yêu cầu cấp mã xác minh. Vui lòng kiểm tra hộp thư (cả mục Spam).')
+    startCooldown(30)
     forgotStep.value = 2
   } catch (err) {
     toast.error(friendlyError(err, 'Không gửi được mã xác minh. Vui lòng thử lại.'))
@@ -356,20 +393,7 @@ const submitNewPassword = async () => {
           </button>
         </form>
         
-        <!-- Divider -->
-        <div class="relative my-6 flex items-center">
-          <div class="flex-grow border-t border-outline-variant/10"></div>
-          <span class="px-4 text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-600 bg-surface">Hoặc tiếp tục với</span>
-          <div class="flex-grow border-t border-outline-variant/10"></div>
-        </div>
         
-        <!-- Social Login -->
-        <div class="grid grid-cols-1 gap-4">
-          <button class="flex items-center justify-center gap-3 py-4 bg-surface-container-high hover:bg-surface-container-highest transition-colors rounded-sm border border-outline-variant/10">
-            <img alt="Google" class="w-5 h-5" src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg"/>
-            <span class="text-xs font-bold uppercase tracking-tighter text-on-surface">Google</span>
-          </button>
-        </div>
         
         <!-- Quick Access for Testing -->
         <div class="mt-6 pt-6 border-t border-outline-variant/10">
@@ -412,8 +436,8 @@ const submitNewPassword = async () => {
                        class="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-on-surface placeholder:text-neutral-700 rounded-sm transition-all focus:ring-1 focus:ring-[#f5c518]"/>
               </div>
             </div>
-            <button type="submit" :disabled="forgotLoading" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
-              {{ forgotLoading ? 'Đang gửi...' : 'Gửi mã xác minh' }}
+            <button type="submit" :disabled="forgotLoading || otpCooldown > 0" class="w-full bg-primary-container text-on-primary py-4 font-bold uppercase tracking-widest text-sm rounded-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+              {{ forgotLoading ? 'Đang gửi...' : (otpCooldown > 0 ? `Gửi lại sau (${otpCooldown}s)` : 'Gửi mã xác minh') }}
             </button>
           </form>
 
@@ -434,7 +458,7 @@ const submitNewPassword = async () => {
             </button>
             <div class="flex items-center justify-between text-xs">
               <button type="button" @click="forgotStep = 1" class="font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors">Đổi email</button>
-              <button type="button" @click="sendOtp" :disabled="forgotLoading" class="font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors disabled:opacity-50">Gửi lại mã</button>
+              <button type="button" @click="sendOtp" :disabled="forgotLoading || otpCooldown > 0" class="font-semibold text-neutral-400 hover:text-[#f5c518] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{{ otpCooldown > 0 ? `Gửi lại sau (${otpCooldown}s)` : 'Gửi lại mã' }}</button>
             </div>
           </form>
 

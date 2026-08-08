@@ -68,15 +68,11 @@ public class PasswordResetService {
         }
 
         String code = String.format("%06d", random.nextInt(1_000_000));
+        // Ghi đè mã OTP cũ thành vô hiệu (thay thế bằng mã mới)
         otps.put(k, new Otp(code, now));
-        try {
-            mailService.sendOtpEmail(user.getEmail(), code, TTL_MIN);
-        } catch (Exception e) {
-            otps.remove(k);
-            log.error("Gửi OTP đặt lại mật khẩu thất bại cho {}: {}", k, e.getMessage(), e);
-            throw new RuntimeException("Không gửi được email xác minh. Vui lòng thử lại sau.");
-        }
-        log.info("Đã gửi OTP đặt lại mật khẩu tới {}", user.getEmail());
+        
+        mailService.sendOtpEmail(user.getEmail(), code, TTL_MIN);
+        log.info("Đã phát hành OTP đặt lại mật khẩu tới {}", user.getEmail());
     }
 
     /** Bước 2: xác minh mã (không tiêu thụ) để FE cho sang màn nhập mật khẩu mới. */

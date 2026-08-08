@@ -65,14 +65,20 @@ public class MailService {
      * @param code mã OTP 6 số
      * @param ttlMin số phút hiệu lực (đưa vào nội dung mail)
      */
-    public void sendOtpEmail(String toEmail, String code, int ttlMin) throws Exception {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-        helper.setFrom(from);
-        helper.setTo(toEmail);
-        helper.setSubject("DevCine • Mã xác minh đặt lại mật khẩu");
-        helper.setText(buildOtpHtml(code, ttlMin), true);
-        mailSender.send(message);
+    @Async
+    public void sendOtpEmail(String toEmail, String code, int ttlMin) {
+        if (!enabled || toEmail == null || toEmail.isBlank()) return;
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(toEmail);
+            helper.setSubject("DevCine • Mã xác minh đặt lại mật khẩu");
+            helper.setText(buildOtpHtml(code, ttlMin), true);
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.error("Gửi OTP đặt lại mật khẩu thất bại cho: {}", toEmail, e);
+        }
     }
 
     /**
