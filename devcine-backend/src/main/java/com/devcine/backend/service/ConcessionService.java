@@ -6,6 +6,9 @@ import com.devcine.backend.entity.ConcessionSale;
 import com.devcine.backend.entity.ConcessionSaleItem;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.FnbItem;
+import com.devcine.backend.entity.FnbOptionGroup;
+import com.devcine.backend.entity.FnbOptionItem;
+import com.devcine.backend.entity.ConcessionSaleItemOption;
 import com.devcine.backend.entity.Staff;
 import com.devcine.backend.repository.ConcessionSaleItemRepository;
 import com.devcine.backend.repository.ConcessionSaleRepository;
@@ -84,21 +87,34 @@ public class ConcessionService {
             }
             
             BigDecimal lineSurcharge = BigDecimal.ZERO;
-            if (dto.getOptions() != null) {
-                for (com.devcine.backend.dto.request.FnbOptionSelectionDTO opt : dto.getOptions()) {
-                    com.devcine.backend.entity.FnbOptionItem optionItem = fnbOptionItemRepository.findById(opt.getOptionItemId())
-                         .orElseThrow(() -> new RuntimeException("Option not found"));
-                    lineSurcharge = lineSurcharge.add(optionItem.getSurchargePrice());
-                }
-            }
-            BigDecimal finalItemPrice = item.getPrice().add(lineSurcharge);
-            
-            rows.add(ConcessionSaleItem.builder()
+            List<ConcessionSaleItemOption> mappedOptions = new ArrayList<>();
+            ConcessionSaleItem saleItem = ConcessionSaleItem.builder()
                     .sale(sale)
                     .fnbItem(item)
                     .quantity(qty)
-                    .priceSnapshot(finalItemPrice)
-                    .build());
+                    .build();
+
+            if (dto.getOptions() != null) {
+                for (com.devcine.backend.dto.request.FnbOptionSelectionDTO opt : dto.getOptions()) {
+                    FnbOptionItem optionItem = fnbOptionItemRepository.findById(opt.getOptionItemId())
+                         .orElseThrow(() -> new RuntimeException("Option not found"));
+                    lineSurcharge = lineSurcharge.add(optionItem.getSurchargePrice());
+                    
+                    mappedOptions.add(ConcessionSaleItemOption.builder()
+                            .saleItem(saleItem)
+                            .optionGroup(FnbOptionGroup.builder().id(opt.getOptionGroupId()).build())
+                            .optionItem(optionItem)
+                            .optionName(optionItem.getName())
+                            .surchargeSnapshot(optionItem.getSurchargePrice())
+                            .build());
+                }
+            }
+            BigDecimal finalItemPrice = item.getPrice().add(lineSurcharge);
+            saleItem.setPriceSnapshot(finalItemPrice);
+            if (!mappedOptions.isEmpty()) {
+                saleItem.setOptions(mappedOptions);
+            }
+            rows.add(saleItem);
             total = total.add(finalItemPrice.multiply(BigDecimal.valueOf(qty)));
         }
         itemRepository.saveAll(rows);

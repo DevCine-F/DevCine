@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.ArrayList;
 
 /** Một dòng món trong đơn bán bắp nước độc lập ({@link ConcessionSale}). */
 @Entity
@@ -33,4 +35,8 @@ public class ConcessionSaleItem {
     /** Giá tại thời điểm bán (chốt giá, không phụ thuộc giá món sau này thay đổi). */
     @Column(name = "price_snapshot", nullable = false, precision = 15, scale = 2)
     private BigDecimal priceSnapshot;
+
+    @OneToMany(mappedBy = "saleItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ConcessionSaleItemOption> options = new ArrayList<>();
 }

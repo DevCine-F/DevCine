@@ -5,6 +5,7 @@ import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import FnbOptionModal from '@/components/FnbOptionModal.vue'
 
 const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Payment, 6: Done
 
@@ -697,7 +698,7 @@ const processConcessionPayment = async (method) => {
   isPaying.value = true
   try {
     const payload = {
-      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity })),
+      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
       customerId: member.value ? member.value.customerId : null,
       paymentMethod: method,
     }
@@ -941,13 +942,64 @@ const seatClass = (seat) => {
 
 // F&B — giới hạn 1–99 phần/món tránh gõ nhầm làm sai hoá đơn
 const MAX_FNB_QTY = 99
-const addCombo = (cb) => {
-  const existing = selectedCombos.value.find(c => c.id === cb.id)
-  if (existing) {
-    if (existing.quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
-    existing.quantity++
+const isFnbModalOpen = ref(false)
+const editingFnbItem = ref(null)
+const editingFnbIndex = ref(-1)
+const initialFnbOptions = ref([])
+
+const openFnbModal = (cb) => {
+  editingFnbItem.value = cb
+  editingFnbIndex.value = -1
+  initialFnbOptions.value = []
+  isFnbModalOpen.value = true
+}
+
+const editFnbOptions = (item, index) => {
+  const originalCombo = combos.value.find(c => c.id === item.id)
+  if (!originalCombo) return
+  editingFnbItem.value = originalCombo
+  editingFnbIndex.value = index
+  initialFnbOptions.value = item.options || []
+  isFnbModalOpen.value = true
+}
+
+const handleFnbOptionsConfirm = ({ options, totalSurcharge }) => {
+  if (editingFnbIndex.value > -1) {
+    const item = selectedCombos.value[editingFnbIndex.value]
+    item.options = options
+    item.surchargePrice = totalSurcharge
   } else {
-    selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1 })
+    const cb = editingFnbItem.value
+    const isOptionsEqual = (a, b) => {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        if (a.length !== b.length) return false;
+        const sortedA = [...a].sort((x, y) => x.optionItemId - y.optionItemId);
+        const sortedB = [...b].sort((x, y) => x.optionItemId - y.optionItemId);
+        return sortedA.every((val, index) => val.optionItemId === sortedB[index].optionItemId);
+    }
+    const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id && isOptionsEqual(c.options, options))
+    if (existingIndex > -1) {
+        if (selectedCombos.value[existingIndex].quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
+        selectedCombos.value[existingIndex].quantity++
+    } else {
+        selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options, surchargePrice: totalSurcharge })
+    }
+  }
+  isFnbModalOpen.value = false
+}
+
+const addCombo = (cb) => {
+  if (cb.optionGroups && cb.optionGroups.length > 0) {
+      openFnbModal(cb)
+      return
+  }
+  const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id && (!c.options || c.options.length === 0))
+  if (existingIndex > -1) {
+    if (selectedCombos.value[existingIndex].quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
+    selectedCombos.value[existingIndex].quantity++
+  } else {
+    selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options: [], surchargePrice: 0 })
   }
 }
 const changeComboQty = (item, delta) => {
@@ -961,7 +1013,7 @@ const changeComboQty = (item, delta) => {
 }
 
 const seatTotal = computed(() => selectedSeats.value.reduce((a, s) => a + priceOf(s), 0))
-const comboTotal = computed(() => selectedCombos.value.reduce((a, c) => a + c.price * c.quantity, 0))
+const comboTotal = computed(() => selectedCombos.value.reduce((a, c) => a + (c.price + (c.surchargePrice || 0)) * c.quantity, 0))
 const totalPrice = computed(() => seatTotal.value + comboTotal.value)
 
 // Giảm giá voucher (xem trước phía client; số chính thức do BE tính lại khi thanh toán)
@@ -1167,7 +1219,7 @@ const processPayment = async (method) => {
       showtimeId: selectedShowtime.value.id,
       seatIds: selectedSeats.value.map(s => s.seatId),
       seatSelections: selectedSeats.value.map(s => ({ seatId: s.seatId, ticketType: s.ticketType || 'ADULT' })),
-      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity })),
+      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method
@@ -1870,7 +1922,13 @@ onUnmounted(() => {
                    class="shrink-0 flex items-stretch gap-3 bg-surface-container-high rounded-2xl border border-outline-variant/10 hover:border-primary/30 transition-colors pl-4 pr-2.5 py-2">
                 <div class="flex flex-col justify-center leading-tight">
                   <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
-                  <span class="text-[12px] font-black italic text-primary whitespace-nowrap tabular-nums">{{ fmt(item.price * item.quantity) }}đ</span>
+                  <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
+                    <span v-for="opt in item.options" :key="opt.optionItemId">
+                      • {{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
+                    </span>
+                    <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
+                  </div>
+                  <span class="text-[12px] font-black italic text-primary whitespace-nowrap tabular-nums">{{ fmt((item.price + (item.surchargePrice || 0)) * item.quantity) }}đ</span>
                 </div>
                 <div class="flex items-center gap-1.5 pl-3 border-l border-outline-variant/10">
                   <button @click="changeComboQty(item, -1)"
@@ -2121,7 +2179,13 @@ onUnmounted(() => {
                 <div v-for="item in selectedCombos" :key="item.id" class="shrink-0 flex items-stretch gap-3 bg-surface-container-high rounded-2xl border border-outline-variant/10 pl-4 pr-2.5 py-2">
                   <div class="flex flex-col justify-center leading-tight">
                     <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
-                    <span class="text-[12px] font-black italic text-primary whitespace-nowrap tabular-nums">{{ fmt(item.price * item.quantity) }}đ</span>
+                    <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
+                      <span v-for="opt in item.options" :key="opt.optionItemId">
+                        • {{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
+                      </span>
+                      <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
+                    </div>
+                    <span class="text-[12px] font-black italic text-primary whitespace-nowrap tabular-nums">{{ fmt((item.price + (item.surchargePrice || 0)) * item.quantity) }}đ</span>
                   </div>
                   <div class="flex items-center gap-1.5 pl-3 border-l border-outline-variant/10">
                     <button @click="changeComboQty(item, -1)" class="w-6 h-6 rounded-lg bg-surface-container-lowest border border-outline-variant/15 text-on-surface-variant flex items-center justify-center hover:bg-primary hover:text-black hover:border-primary active:scale-90 transition-all">
@@ -2500,7 +2564,15 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-    </transition>
+      </transition>
+
+      <FnbOptionModal
+        :is-open="isFnbModalOpen"
+        :fnb-item="editingFnbItem"
+        :initial-options="initialFnbOptions"
+        @close="isFnbModalOpen = false"
+        @confirm="handleFnbOptionsConfirm"
+      />
   </div>
 </template>
 
