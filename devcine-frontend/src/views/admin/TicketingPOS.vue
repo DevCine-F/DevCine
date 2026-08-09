@@ -100,16 +100,13 @@ const totalTicketCount = computed(() =>
 const ticketsMatchSeats = computed(() =>
   selectedSeats.value.length > 0 && totalTicketCount.value === selectedSeats.value.length)
 
-// Dựng lại counts từ ticketType hiện có của ghế (khi vào bước xác nhận / đổi ghế)
+// Dựng lại counts: mặc định toàn bộ ghế chuyển thành ADULT khi vào bước xác nhận
 const syncTicketCountsFromSeats = () => {
   const counts = {}
   Object.keys(audienceLabels.value).forEach(k => { counts[k] = 0 })
-  if (counts.ADULT == null) counts.ADULT = 0
-  for (const s of selectedSeats.value) {
-    const t = s.ticketType || 'ADULT'
-    counts[t] = (counts[t] || 0) + 1
-  }
+  counts.ADULT = selectedSeats.value.length
   ticketCounts.value = counts
+  assignTicketCountsToSeats()
 }
 
 // Gán loại vé cho từng ghế theo counts (thứ tự ghế) → priceOf/seatTypeBreakdown tự cập nhật
@@ -122,10 +119,34 @@ const assignTicketCountsToSeats = () => {
 }
 
 const setTicketCount = (code, delta) => {
+  const maxSeats = selectedSeats.value.length
   const cur = Number(ticketCounts.value[code] || 0)
-  if (delta > 0 && totalTicketCount.value >= selectedSeats.value.length) return // không vượt số ghế
-  const next = Math.max(0, cur + delta)
-  ticketCounts.value = { ...ticketCounts.value, [code]: next }
+
+  if (delta < 0) {
+    const next = Math.max(0, cur + delta)
+    ticketCounts.value = { ...ticketCounts.value, [code]: next }
+  } else if (delta > 0) {
+    const totalAssigned = totalTicketCount.value
+
+    if (totalAssigned < maxSeats) {
+      ticketCounts.value = { ...ticketCounts.value, [code]: cur + delta }
+    } else if (totalAssigned === maxSeats && cur < maxSeats) {
+      // 1-click transfer: bớt 1 vé từ loại khác (ưu tiên ADULT) sang loại được bấm
+      let sourceType = 'ADULT'
+      if (sourceType === code || !ticketCounts.value[sourceType]) {
+        sourceType = Object.keys(ticketCounts.value).find(k => k !== code && ticketCounts.value[k] > 0)
+      }
+      
+      if (sourceType) {
+        ticketCounts.value = {
+          ...ticketCounts.value,
+          [sourceType]: ticketCounts.value[sourceType] - 1,
+          [code]: cur + 1
+        }
+      }
+    }
+  }
+  
   assignTicketCountsToSeats()
 }
 
@@ -1889,12 +1910,12 @@ onUnmounted(() => {
                 <span class="text-sm font-black text-on-surface uppercase">{{ label }}</span>
                 <div class="flex items-center gap-3 shrink-0">
                   <button @click="setTicketCount(code, -1)" :disabled="(ticketCounts[code] || 0) <= 0"
-                          class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 hover:text-primary transition-colors">
+                          class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-base">remove</span>
                   </button>
                   <span class="w-7 text-center text-lg font-black tabular-nums text-on-surface">{{ ticketCounts[code] || 0 }}</span>
-                  <button @click="setTicketCount(code, 1)" :disabled="totalTicketCount >= selectedSeats.length"
-                          class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 hover:text-primary transition-colors">
+                  <button @click="setTicketCount(code, 1)" :disabled="(ticketCounts[code] || 0) >= selectedSeats.length"
+                          class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-base">add</span>
                   </button>
                 </div>
