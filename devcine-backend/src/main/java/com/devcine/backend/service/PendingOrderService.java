@@ -75,11 +75,12 @@ public class PendingOrderService {
         Booking booking = bookingService.holdSeatsForStaff(req, soldBy);
         
         LocalDateTime expiresAt = now.plusMinutes(10);
-        if (booking.getShowtime().getStartTime().minusMinutes(5).isBefore(expiresAt)) {
-            expiresAt = booking.getShowtime().getStartTime().minusMinutes(5);
+        LocalDateTime showtimeStart = booking.getShowtime().getStartTime();
+        if (showtimeStart.isBefore(expiresAt)) {
+            expiresAt = showtimeStart; // Giới hạn tối đa bằng đúng giờ khởi chiếu
         }
-        if (expiresAt.isBefore(now)) {
-            throw new RuntimeException("Suất chiếu đã quá sát giờ, không thể giữ đơn.");
+        if (expiresAt.isBefore(now) || expiresAt.isEqual(now)) {
+            throw new RuntimeException("Suất chiếu đã quá sát giờ hoặc đang diễn ra, không thể giữ đơn.");
         }
 
         booking.setStatus("PENDING_PAYMENT");

@@ -12,6 +12,8 @@ const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Paym
 const nowTs = ref(Date.now())
 let nowTimer = null
 const bookingError = ref('')
+const showOutOfStockModal = ref(false)
+const outOfStockMessage = ref('')
 
 const restoredBookingId = ref(null)
 
@@ -1280,7 +1282,12 @@ const processPayment = async (method) => {
     showQrModal.value = false
     currentStep.value = 6
   } catch (err) {
-    if (err.response?.status === 400 && err.response?.data?.message) {
+    if (err.response?.status === 422 && err.response?.data?.message) {
+      outOfStockMessage.value = err.response.data.message
+      showOutOfStockModal.value = true
+    } else if (err.response?.status === 400 && err.response?.data?.message) {
+      showToast(err.response.data.message, 'error')
+    } else if (err.response?.status === 409 && err.response?.data?.message) {
       showToast(err.response.data.message, 'error')
     } else {
       showToast(friendlyError(err, 'Thanh toán thất bại (ghế có thể đã bán).'), 'error')
@@ -1689,17 +1696,16 @@ onUnmounted(() => {
 
         <!-- Giữ đơn (Hold Order) — vô hiệu hoá khi giỏ trống -->
         <button @click="holdCurrentOrder" :disabled="!canHoldOrder || isHolding"
-                :class="(canHoldOrder && !isHolding) ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20' : 'bg-surface-container-high border-outline-variant/10 text-on-surface-variant/40 cursor-not-allowed'"
-                class="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider transition-all">
-          {{ isHolding ? '[ Đang giữ... ]' : '[ Giữ đơn ]' }}
+                :class="(canHoldOrder && !isHolding) ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20' : 'bg-surface-container-high border-outline-variant/10 text-on-surface-variant/40 cursor-not-allowed'"
+                class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-lg">{{ isHolding ? 'progress_activity' : 'pause_circle' }}</span> {{ isHolding ? 'ĐANG GIỮ...' : 'GIỮ ĐƠN' }}
         </button>
 
         <!-- Danh sách đơn chờ -->
-        <button type="button" @click="showHeldPanel = true" 
-                class="bg-surface-container text-on-surface hover:bg-surface-container-high border border-outline-variant/20 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all"
-                title="Danh sách đơn chờ">
-          [ Đơn chờ {{ posStore.heldOrders.length > 0 ? `(${posStore.heldOrders.length})` : '' }} ]
-        </button>
+        <AppButton variant="outline" class="w-12 h-12 !p-0 shrink-0 relative" @click="showHeldPanel = true" title="Danh sách đơn chờ">
+          <span class="material-symbols-outlined">receipt_long</span>
+          <span v-if="posStore.heldOrders.length > 0" class="absolute -top-2 -right-2 w-5 h-5 bg-primary text-on-primary font-bold text-xs rounded-full flex items-center justify-center border-2 border-surface shadow-sm">{{ posStore.heldOrders.length }}</span>
+        </AppButton>
 
         <AppButton variant="outline" @click="resetPOS">Hủy giao dịch</AppButton>
       </div>
@@ -2657,6 +2663,23 @@ onUnmounted(() => {
         @confirm="handleFnbOptionsConfirm"
       />
   </div>
+
+  <!-- Out of Stock Modal -->
+  <Modal :show="showOutOfStockModal" title="F&B Hết Hàng" @close="showOutOfStockModal = false" max-width="sm">
+    <div class="text-center py-4">
+      <div class="w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center text-3xl">
+        <span class="material-symbols-rounded">inventory_2</span>
+      </div>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Sản phẩm không khả dụng</h3>
+      <p class="text-sm text-slate-600 dark:text-slate-400 px-4 leading-relaxed whitespace-pre-line">{{ outOfStockMessage }}</p>
+      <div class="mt-6 flex gap-3 px-6">
+        <button @click="showOutOfStockModal = false" class="flex-1 py-3 text-sm font-semibold rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
+          Đóng và Sửa giỏ hàng
+        </button>
+      </div>
+    </div>
+  </Modal>
+
 </template>
 
 <style scoped>

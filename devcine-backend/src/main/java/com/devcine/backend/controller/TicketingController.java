@@ -222,6 +222,9 @@ public class TicketingController {
         } catch (AccessDeniedException e) {
             throw e;
         } catch (Exception e) {
+            if (e.getMessage() != null && e.getMessage().contains("Out-of-Stock")) {
+                return ResponseEntity.status(422).body(ApiResponse.fail(e.getMessage()));
+            }
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }

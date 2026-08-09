@@ -68,8 +68,16 @@ public class BookingService {
         }
 
         // Giải phóng đơn chờ cũ (nếu có) trước khi tạo đơn mới
+        Booking oldBooking = null;
+        java.util.List<BookingSeat> oldBookingSeats = new java.util.ArrayList<>();
+        java.util.List<BookingFnb> oldBookingFnbs = new java.util.ArrayList<>();
         if (request.getHeldBookingId() != null) {
             try {
+                oldBooking = bookingRepository.findByIdWithPessimisticLock(request.getHeldBookingId()).orElse(null);
+                if (oldBooking != null) {
+                    oldBookingSeats = bookingSeatRepository.findAllByBookingIdWithSeat(oldBooking.getId());
+                    oldBookingFnbs = bookingRepository.findAllFnbsByBookingIds(java.util.List.of(oldBooking.getId()));
+                }
                 posHoldService.releaseHold(request.getHeldBookingId());
             } catch (Exception e) {
                 log.warn("Lỗi khi giải phóng đơn giữ cũ {}: {}", request.getHeldBookingId(), e.getMessage());
@@ -211,9 +219,19 @@ public class BookingService {
                         + " đang bảo trì/khóa, không thể đặt.");
             }
             java.util.List<String> types = entry.getValue();
-            BigDecimal seatPrice = BigDecimal.ZERO;
-            for (String t : types) {
-                seatPrice = seatPrice.add(pricingService.priceFor(priceCtx, t));
+            BigDecimal seatPrice = null;
+            if (oldBooking != null) {
+                BookingSeat oldBs = oldBookingSeats.stream()
+                        .filter(bs -> bs.getSeat().getId().equals(seat.getId())).findFirst().orElse(null);
+                if (oldBs != null) {
+                    seatPrice = oldBs.getPriceSnapshot();
+                }
+            }
+            if (seatPrice == null) {
+                seatPrice = BigDecimal.ZERO;
+                for (String t : types) {
+                    seatPrice = seatPrice.add(pricingService.priceFor(priceCtx, t));
+                }
             }
             bookingSeats.add(BookingSeat.builder()
                     .booking(booking)
@@ -250,11 +268,23 @@ public class BookingService {
                             .build());
                 }
 
+                BigDecimal fnbPrice = null;
+                if (oldBooking != null) {
+                    BookingFnb oldFnb = oldBookingFnbs.stream()
+                            .filter(f -> f.getFnbItem().getId().equals(item.getId()) && f.getQuantity().equals(fnbDTO.getQuantity())).findFirst().orElse(null);
+                    if (oldFnb != null) {
+                        fnbPrice = oldFnb.getPriceSnapshot();
+                    }
+                }
+                if (fnbPrice == null) {
+                    fnbPrice = item.getPrice().add(lineSurcharge);
+                }
+
                 BookingFnb bookingFnb = BookingFnb.builder()
                         .booking(booking)
                         .fnbItem(item)
                         .quantity(fnbDTO.getQuantity())
-                        .priceSnapshot(item.getPrice().add(lineSurcharge))
+                        .priceSnapshot(fnbPrice)
                         .build();
                 for (BookingFnbOption o : fnbOptions) {
                     o.setBookingFnb(bookingFnb);
