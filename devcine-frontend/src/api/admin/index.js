@@ -76,6 +76,13 @@ export const fnbApi = {
   delete: (id) => api.delete(`/fnbs/${id}`),
 };
 
+export const fnbGroupApi = {
+  getAll: () => api.get('/fnbs/groups'),
+  create: (data) => api.post('/fnbs/groups', data),
+  update: (id, data) => api.put(`/fnbs/groups/${id}`, data),
+  delete: (id) => api.delete(`/fnbs/groups/${id}`),
+};
+
 export const bookingAdminApi = {
   list: (params) => api.get('/admin/bookings', { params }),
   detail: (id) => api.get(`/admin/bookings/${id}`),

@@ -2,7 +2,11 @@ package com.devcine.backend.controller;
 
 import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.FnbItem;
+import com.devcine.backend.entity.FnbOptionGroup;
+import com.devcine.backend.entity.FnbComboSlot;
 import com.devcine.backend.repository.FnbItemRepository;
+import com.devcine.backend.repository.FnbOptionGroupRepository;
+import com.devcine.backend.repository.FnbComboSlotRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,7 +28,8 @@ import java.util.Map;
 public class FnbController {
 
     private final FnbItemRepository fnbItemRepository;
-    private final com.devcine.backend.repository.FnbOptionGroupRepository fnbOptionGroupRepository;
+    private final FnbOptionGroupRepository fnbOptionGroupRepository;
+    private final FnbComboSlotRepository fnbComboSlotRepository;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<FnbItem>>> getActiveFnbs() {
@@ -35,6 +40,96 @@ public class FnbController {
     @PreAuthorize("@perm.can('fnb_menu','view')")
     public ResponseEntity<ApiResponse<List<com.devcine.backend.entity.FnbOptionGroup>>> getAllOptionGroups() {
         return ResponseEntity.ok(ApiResponse.ok(fnbOptionGroupRepository.findAll()));
+    }
+
+    @PostMapping("/groups")
+    @PreAuthorize("@perm.can('fnb_menu','add')")
+    public ResponseEntity<?> createOptionGroup(@RequestBody Map<String, Object> body) {
+        try {
+            com.devcine.backend.entity.FnbOptionGroup group = com.devcine.backend.entity.FnbOptionGroup.builder()
+                    .name((String) body.get("name"))
+                    .build();
+            
+            if (body.containsKey("items")) {
+                List<Map<String, Object>> itemsList = (List<Map<String, Object>>) body.get("items");
+                for (Map<String, Object> itemData : itemsList) {
+                    com.devcine.backend.entity.FnbOptionItem optionItem = com.devcine.backend.entity.FnbOptionItem.builder()
+                            .group(group)
+                            .name((String) itemData.get("name"))
+                            .surchargePrice(new BigDecimal(itemData.get("surchargePrice").toString()))
+                            .build();
+                    group.getItems().add(optionItem);
+                }
+            }
+            fnbOptionGroupRepository.save(group);
+            return ResponseEntity.status(201).body(ApiResponse.ok(group));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/groups/{id}")
+    @PreAuthorize("@perm.can('fnb_menu','edit')")
+    public ResponseEntity<?> updateOptionGroup(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
+        try {
+            com.devcine.backend.entity.FnbOptionGroup group = fnbOptionGroupRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy Nhóm tùy chọn"));
+            
+            if (body.containsKey("name")) group.setName((String) body.get("name"));
+
+            if (body.containsKey("items")) {
+                List<Map<String, Object>> itemsList = (List<Map<String, Object>>) body.get("items");
+                List<Integer> incomingIds = itemsList.stream()
+                        .filter(i -> i.get("id") != null)
+                        .map(i -> (Integer) i.get("id"))
+                        .toList();
+                group.getItems().removeIf(item -> item.getId() != null && !incomingIds.contains(item.getId()));
+                
+                for (Map<String, Object> itemData : itemsList) {
+                    if (itemData.get("id") != null) {
+                        Integer itemId = (Integer) itemData.get("id");
+                        com.devcine.backend.entity.FnbOptionItem existing = group.getItems().stream()
+                                .filter(i -> i.getId().equals(itemId)).findFirst().orElse(null);
+                        if (existing != null) {
+                            existing.setName((String) itemData.get("name"));
+                            existing.setSurchargePrice(new BigDecimal(itemData.get("surchargePrice").toString()));
+                        }
+                    } else {
+                        com.devcine.backend.entity.FnbOptionItem newItem = com.devcine.backend.entity.FnbOptionItem.builder()
+                                .group(group)
+                                .name((String) itemData.get("name"))
+                                .surchargePrice(new BigDecimal(itemData.get("surchargePrice").toString()))
+                                .build();
+                        group.getItems().add(newItem);
+                    }
+                }
+            }
+            fnbOptionGroupRepository.save(group);
+            return ResponseEntity.ok(ApiResponse.ok(group));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/groups/{id}")
+    @PreAuthorize("@perm.can('fnb_menu','delete')")
+    public ResponseEntity<?> deleteOptionGroup(@PathVariable Integer id) {
+        try {
+            com.devcine.backend.entity.FnbOptionGroup group = fnbOptionGroupRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy Kho tùy chọn"));
+
+            // Chặn xoá nếu pool đang được một Ô chọn (Slot) của combo nào đó sử dụng
+            // (tránh phá cấu hình combo + vi phạm khoá ngoại). Gỡ slot trước rồi mới xoá pool.
+            if (fnbComboSlotRepository.existsByOptionGroup_Id(id)) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail(
+                        "Kho tùy chọn đang được dùng trong Ô chọn của combo. Hãy gỡ khỏi combo trước khi xoá."));
+            }
+
+            fnbOptionGroupRepository.delete(group);
+            return ResponseEntity.ok(ApiResponse.success("Đã xoá Kho tùy chọn."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+        }
     }
 
     /** Toàn bộ thực đơn (kể cả đang ẩn) cho khu vực quản trị. */
@@ -56,9 +151,8 @@ public class FnbController {
                     .description((String) body.get("description"))
                     .isActive(body.get("isActive") == null || Boolean.parseBoolean(body.get("isActive").toString()))
                     .build();
-            if (body.containsKey("optionGroupIds")) {
-                List<Integer> groupIds = (List<Integer>) body.get("optionGroupIds");
-                item.setOptionGroups(new java.util.HashSet<>(fnbOptionGroupRepository.findAllById(groupIds)));
+            if (body.containsKey("slots")) {
+                applySlots(item, body.get("slots"));
             }
             fnbItemRepository.save(item);
             return ResponseEntity.status(201).body(ApiResponse.ok(item));
@@ -79,9 +173,8 @@ public class FnbController {
             if (body.containsKey("imageUrl")) item.setImageUrl((String) body.get("imageUrl"));
             if (body.containsKey("description")) item.setDescription((String) body.get("description"));
             if (body.containsKey("isActive")) item.setIsActive(Boolean.parseBoolean(body.get("isActive").toString()));
-            if (body.containsKey("optionGroupIds")) {
-                List<Integer> groupIds = (List<Integer>) body.get("optionGroupIds");
-                item.setOptionGroups(new java.util.HashSet<>(fnbOptionGroupRepository.findAllById(groupIds)));
+            if (body.containsKey("slots")) {
+                applySlots(item, body.get("slots"));
             }
             fnbItemRepository.save(item);
             return ResponseEntity.ok(ApiResponse.ok(item));
@@ -102,5 +195,59 @@ public class FnbController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
+    }
+
+    /**
+     * Dựng lại toàn bộ Ô chọn (Slot) của món từ payload admin.
+     * Rebuild-from-scratch: orphanRemoval xoá slot cũ, insert slot mới. An toàn cho
+     * lịch sử vì snapshot đơn hàng lưu {@code slotLabel} dạng chuỗi, không FK tới slot.
+     */
+    @SuppressWarnings("unchecked")
+    private void applySlots(FnbItem item, Object slotsRaw) {
+        List<Map<String, Object>> slotsList = slotsRaw instanceof List
+                ? (List<Map<String, Object>>) slotsRaw : List.of();
+
+        List<Integer> poolIds = slotsList.stream()
+                .map(s -> toInt(s.get("optionGroupId")))
+                .filter(java.util.Objects::nonNull)
+                .distinct().toList();
+        Map<Integer, FnbOptionGroup> poolMap = new java.util.HashMap<>();
+        fnbOptionGroupRepository.findAllById(poolIds).forEach(p -> poolMap.put(p.getId(), p));
+
+        item.getSlots().clear();
+        int order = 0;
+        for (Map<String, Object> s : slotsList) {
+            Integer poolId = toInt(s.get("optionGroupId"));
+            FnbOptionGroup pool = poolId != null ? poolMap.get(poolId) : null;
+            if (pool == null) {
+                throw new RuntimeException("Kho tùy chọn không hợp lệ cho một Ô chọn.");
+            }
+            int min = s.get("minChoices") != null ? toInt(s.get("minChoices")) : 1;
+            int max = s.get("maxChoices") != null ? toInt(s.get("maxChoices")) : 1;
+            if (max < 1) max = 1;
+            if (min < 0) min = 0;
+            if (min > max) min = max;
+            boolean required = s.get("isRequired") != null
+                    ? Boolean.parseBoolean(s.get("isRequired").toString()) : (min > 0);
+            int displayOrder = s.get("displayOrder") != null ? toInt(s.get("displayOrder")) : order;
+
+            item.getSlots().add(FnbComboSlot.builder()
+                    .fnbItem(item)
+                    .optionGroup(pool)
+                    .slotLabel(s.get("slotLabel") != null && !s.get("slotLabel").toString().isBlank()
+                            ? s.get("slotLabel").toString() : pool.getName())
+                    .displayOrder(displayOrder)
+                    .minChoices(min)
+                    .maxChoices(max)
+                    .isRequired(required)
+                    .build());
+            order++;
+        }
+    }
+
+    private static Integer toInt(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number n) return n.intValue();
+        return Integer.parseInt(o.toString());
     }
 }

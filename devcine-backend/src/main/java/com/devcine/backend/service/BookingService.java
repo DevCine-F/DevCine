@@ -27,7 +27,7 @@ public class BookingService {
     private final BookingFnbRepository bookingFnbRepository;
     private final SeatRepository seatRepository;
     private final FnbItemRepository fnbItemRepository;
-    private final FnbOptionItemRepository fnbOptionItemRepository;
+    private final FnbOptionValidator fnbOptionValidator;
     private final ShowtimeRepository showtimeRepository;
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
@@ -221,27 +221,25 @@ public class BookingService {
             java.util.List<Integer> fnbIds = request.getFnbs().stream()
                     .map(FnbSelectionDTO::getFnbItemId).toList();
             java.util.Map<Integer, FnbItem> fnbMap = new java.util.HashMap<>();
-            fnbItemRepository.findAllById(fnbIds).forEach(i -> fnbMap.put(i.getId(), i));
+            // Nạp kèm slots.optionGroup.items để FnbOptionValidator xác thực server-side.
+            fnbItemRepository.findByIdIn(fnbIds).forEach(i -> fnbMap.put(i.getId(), i));
             java.util.List<BookingFnb> bookingFnbs = new java.util.ArrayList<>();
             for (FnbSelectionDTO fnbDTO : request.getFnbs()) {
                 FnbItem item = fnbMap.get(fnbDTO.getFnbItemId());
                 if (item == null) throw new RuntimeException("F&B Item not found");
-                
+
                 BigDecimal lineSurcharge = BigDecimal.ZERO;
                 java.util.List<BookingFnbOption> fnbOptions = new java.util.ArrayList<>();
-                if (fnbDTO.getOptions() != null) {
-                    for (com.devcine.backend.dto.request.FnbOptionSelectionDTO opt : fnbDTO.getOptions()) {
-                         FnbOptionItem optionItem = fnbOptionItemRepository.findById(opt.getOptionItemId())
-                             .orElseThrow(() -> new RuntimeException("Option not found"));
-                         lineSurcharge = lineSurcharge.add(optionItem.getSurchargePrice());
-                         BookingFnbOption bfo = BookingFnbOption.builder()
-                             .optionNameSnapshot(optionItem.getName())
-                             .surchargeSnapshot(optionItem.getSurchargePrice())
-                             .build();
-                         fnbOptions.add(bfo);
-                    }
+                // Xác thực server-side (membership + min/max + required) và lấy phụ thu TỪ DB.
+                for (FnbOptionValidator.ResolvedOption ro : fnbOptionValidator.validateAndResolve(item, fnbDTO.getOptions())) {
+                    lineSurcharge = lineSurcharge.add(ro.surcharge());
+                    fnbOptions.add(BookingFnbOption.builder()
+                            .slotLabelSnapshot(ro.slotLabel())
+                            .optionNameSnapshot(ro.optionName())
+                            .surchargeSnapshot(ro.surcharge())
+                            .build());
                 }
-                
+
                 BookingFnb bookingFnb = BookingFnb.builder()
                         .booking(booking)
                         .fnbItem(item)

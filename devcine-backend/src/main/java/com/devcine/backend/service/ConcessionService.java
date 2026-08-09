@@ -6,8 +6,6 @@ import com.devcine.backend.entity.ConcessionSale;
 import com.devcine.backend.entity.ConcessionSaleItem;
 import com.devcine.backend.entity.Customer;
 import com.devcine.backend.entity.FnbItem;
-import com.devcine.backend.entity.FnbOptionGroup;
-import com.devcine.backend.entity.FnbOptionItem;
 import com.devcine.backend.entity.ConcessionSaleItemOption;
 import com.devcine.backend.entity.Staff;
 import com.devcine.backend.repository.ConcessionSaleItemRepository;
@@ -38,9 +36,9 @@ public class ConcessionService {
     private final ConcessionSaleRepository saleRepository;
     private final ConcessionSaleItemRepository itemRepository;
     private final FnbItemRepository fnbItemRepository;
-    private final com.devcine.backend.repository.FnbOptionItemRepository fnbOptionItemRepository;
     private final CustomerRepository customerRepository;
     private final LoyaltyService loyaltyService;
+    private final FnbOptionValidator fnbOptionValidator;
 
     @Transactional
     public ConcessionSale createSale(List<FnbSelectionDTO> items, Integer customerId, String paymentMethod) {
@@ -60,7 +58,8 @@ public class ConcessionService {
 
         List<Integer> ids = items.stream().map(FnbSelectionDTO::getFnbItemId).toList();
         Map<Integer, FnbItem> fnbMap = new HashMap<>();
-        fnbItemRepository.findAllById(ids).forEach(i -> fnbMap.put(i.getId(), i));
+        // Nạp kèm slots.optionGroup.items để FnbOptionValidator xác thực server-side.
+        fnbItemRepository.findByIdIn(ids).forEach(i -> fnbMap.put(i.getId(), i));
 
         ConcessionSale sale = ConcessionSale.builder()
                 .customer(customer)
@@ -94,20 +93,17 @@ public class ConcessionService {
                     .quantity(qty)
                     .build();
 
-            if (dto.getOptions() != null) {
-                for (com.devcine.backend.dto.request.FnbOptionSelectionDTO opt : dto.getOptions()) {
-                    FnbOptionItem optionItem = fnbOptionItemRepository.findById(opt.getOptionItemId())
-                         .orElseThrow(() -> new RuntimeException("Option not found"));
-                    lineSurcharge = lineSurcharge.add(optionItem.getSurchargePrice());
-                    
-                    mappedOptions.add(ConcessionSaleItemOption.builder()
-                            .saleItem(saleItem)
-                            .optionGroup(FnbOptionGroup.builder().id(opt.getOptionGroupId()).build())
-                            .optionItem(optionItem)
-                            .optionName(optionItem.getName())
-                            .surchargeSnapshot(optionItem.getSurchargePrice())
-                            .build());
-                }
+            // Xác thực server-side (membership + min/max + required) và lấy phụ thu TỪ DB.
+            for (FnbOptionValidator.ResolvedOption ro : fnbOptionValidator.validateAndResolve(item, dto.getOptions())) {
+                lineSurcharge = lineSurcharge.add(ro.surcharge());
+                mappedOptions.add(ConcessionSaleItemOption.builder()
+                        .saleItem(saleItem)
+                        .optionGroup(ro.slot().getOptionGroup())
+                        .optionItem(ro.item())
+                        .slotLabelSnapshot(ro.slotLabel())
+                        .optionNameSnapshot(ro.optionName())
+                        .surchargeSnapshot(ro.surcharge())
+                        .build());
             }
             BigDecimal finalItemPrice = item.getPrice().add(lineSurcharge);
             saleItem.setPriceSnapshot(finalItemPrice);

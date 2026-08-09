@@ -990,7 +990,7 @@ const handleFnbOptionsConfirm = ({ options, totalSurcharge }) => {
 }
 
 const addCombo = (cb) => {
-  if (cb.optionGroups && cb.optionGroups.length > 0) {
+  if (cb.slots && cb.slots.length > 0) {
       openFnbModal(cb)
       return
   }
@@ -1924,7 +1924,7 @@ onUnmounted(() => {
                   <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
                   <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
                     <span v-for="opt in item.options" :key="opt.optionItemId">
-                      • {{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
+                      <span v-if="opt.slotLabel" class="font-bold">{{ opt.slotLabel }}: </span>{{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
                     </span>
                     <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
                   </div>
@@ -2181,7 +2181,7 @@ onUnmounted(() => {
                     <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
                     <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
                       <span v-for="opt in item.options" :key="opt.optionItemId">
-                        • {{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
+                        <span v-if="opt.slotLabel" class="font-bold">{{ opt.slotLabel }}: </span>{{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
                       </span>
                       <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
                     </div>

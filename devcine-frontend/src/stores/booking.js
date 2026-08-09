@@ -209,7 +209,7 @@ export const useBookingStore = defineStore('booking', {
           fnbs: this.selectedFnbs.map(f => ({ 
              fnbItemId: f.fnbItem.id, 
              quantity: f.quantity,
-             options: f.options ? f.options.map(o => ({ optionGroupId: o.optionGroupId, optionItemId: o.optionItemId })) : []
+             options: f.options ? f.options.map(o => ({ slotId: o.slotId, optionGroupId: o.optionGroupId, optionItemId: o.optionItemId })) : []
           })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
           paymentMethod: paymentMethod

@@ -23,9 +23,13 @@ public class BookingFnbOption {
     @JsonIgnore
     private BookingFnb bookingFnb;
 
-    @Column(name = "option_name_snapshot", nullable = false)
+    /** Snapshot nhãn Ô chọn tại thời điểm đặt (VD "Nước 1") — bảo toàn báo cáo lịch sử. */
+    @Column(name = "slot_label_snapshot")
+    private String slotLabelSnapshot;
+
+    @Column(name = "option_name_snapshot")
     private String optionNameSnapshot;
 
-    @Column(name = "surcharge_snapshot", nullable = false, precision = 15, scale = 2)
+    @Column(name = "surcharge_snapshot", precision = 15, scale = 2)
     private BigDecimal surchargeSnapshot;
 }

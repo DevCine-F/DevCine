@@ -5,7 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.util.Set;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 
 @Entity
 @Table(name = "fnb_items")
@@ -40,12 +40,17 @@ public class FnbItem {
     @Builder.Default
     private Boolean isActive = true;
 
-    @ManyToMany
-    @JoinTable(
-        name = "fnb_item_option_groups",
-        joinColumns = @JoinColumn(name = "fnb_item_id"),
-        inverseJoinColumns = @JoinColumn(name = "option_group_id")
-    )
+    /**
+     * Các Ô chọn món (Slot) khi cấu hình Combo — thay cho quan hệ ManyToMany cũ.
+     * Một món có thể có nhiều slot trỏ tới cùng một pool (VD: "Nước 1", "Nước 2").
+     *
+     * <p>Dùng {@link Set} (không phải List/bag) để khi EntityGraph fetch kèm
+     * {@code slots.optionGroup.items} thì tích Descartes (mỗi slot nhân theo số item
+     * của pool) được Set gộp lại — không bị nhân bản slot. {@code @OrderBy} vẫn giữ
+     * thứ tự (Hibernate trả LinkedHashSet).
+     */
+    @OneToMany(mappedBy = "fnbItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC, id ASC")
     @Builder.Default
-    private Set<FnbOptionGroup> optionGroups = new HashSet<>();
+    private Set<FnbComboSlot> slots = new LinkedHashSet<>();
 }

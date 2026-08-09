@@ -352,7 +352,7 @@ const isFnbModalOpen = ref(false)
 const selectedFnbForModal = ref(null)
 
 const openFnbModal = (fnbItem) => {
-  if (fnbItem.optionGroups && fnbItem.optionGroups.length > 0) {
+  if (fnbItem.slots && fnbItem.slots.length > 0) {
     selectedFnbForModal.value = fnbItem
     isFnbModalOpen.value = true
   } else {
@@ -361,7 +361,7 @@ const openFnbModal = (fnbItem) => {
   }
 }
 
-const handleFnbOptionConfirm = (options) => {
+const handleFnbOptionConfirm = ({ options }) => {
   const fnbItem = selectedFnbForModal.value
   const existing = store.selectedFnbs.find(f => {
     if (f.fnbItem.id !== fnbItem.id) return false;

@@ -30,9 +30,13 @@ public class ConcessionSaleItemOption {
     @JoinColumn(name = "option_item_id", nullable = false)
     private FnbOptionItem optionItem;
 
-    @Column(nullable = false)
-    private String optionName;
+    /** Snapshot nhãn Ô chọn tại thời điểm bán (VD "Nước 1") — bảo toàn báo cáo lịch sử. */
+    @Column(name = "slot_label_snapshot")
+    private String slotLabelSnapshot;
 
-    @Column(name = "surcharge_snapshot", nullable = false, precision = 15, scale = 2)
+    @Column(name = "option_name_snapshot")
+    private String optionNameSnapshot;
+
+    @Column(name = "surcharge_snapshot", precision = 15, scale = 2)
     private BigDecimal surchargeSnapshot;
 }

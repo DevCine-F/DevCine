@@ -307,41 +307,7 @@ public class DataSeeder {
                 System.out.println("Đã bổ sung " + missingCustomerUsers.size() + " bản ghi Customer còn thiếu.");
             }
 
-            // Seed thực đơn F&B / Combo mẫu (combo bắp nước, đồ uống, đồ ăn vặt thường gặp ở rạp)
-            if (fnbItemRepository.count() == 0) {
-                List<FnbItem> menu = List.of(
-                        FnbItem.builder().name("Combo Solo").type("COMBO").price(new BigDecimal("89000"))
-                                .description("1 bắp ngọt lớn + 1 nước ngọt lớn").isActive(true).build(),
-                        FnbItem.builder().name("Combo Couple").type("COMBO").price(new BigDecimal("129000"))
-                                .description("1 bắp ngọt lớn + 2 nước ngọt lớn").isActive(true).build(),
-                        FnbItem.builder().name("Combo Nhóm (Party)").type("COMBO").price(new BigDecimal("219000"))
-                                .description("2 bắp ngọt lớn + 4 nước ngọt").isActive(true).build(),
-                        FnbItem.builder().name("Combo Bắp Phô Mai").type("COMBO").price(new BigDecimal("109000"))
-                                .description("1 bắp phô mai lớn + 1 nước ngọt lớn").isActive(true).build(),
-                        FnbItem.builder().name("Bắp Ngọt (Lớn)").type("POPCORN").price(new BigDecimal("55000"))
-                                .description("Bắp rang bơ vị ngọt size lớn").isActive(true).build(),
-                        FnbItem.builder().name("Bắp Phô Mai (Lớn)").type("POPCORN").price(new BigDecimal("65000"))
-                                .description("Bắp rang phủ phô mai size lớn").isActive(true).build(),
-                        FnbItem.builder().name("Bắp Caramel (Lớn)").type("POPCORN").price(new BigDecimal("65000"))
-                                .description("Bắp rang caramel giòn ngọt size lớn").isActive(true).build(),
-                        FnbItem.builder().name("Coca-Cola (Lớn)").type("DRINK").price(new BigDecimal("35000"))
-                                .description("Nước ngọt có ga Coca-Cola ly lớn").isActive(true).build(),
-                        FnbItem.builder().name("Pepsi (Lớn)").type("DRINK").price(new BigDecimal("35000"))
-                                .description("Nước ngọt có ga Pepsi ly lớn").isActive(true).build(),
-                        FnbItem.builder().name("Sprite (Lớn)").type("DRINK").price(new BigDecimal("35000"))
-                                .description("Nước ngọt có ga Sprite ly lớn").isActive(true).build(),
-                        FnbItem.builder().name("Nước Suối Aquafina").type("DRINK").price(new BigDecimal("20000"))
-                                .description("Nước tinh khiết Aquafina 500ml").isActive(true).build(),
-                        FnbItem.builder().name("Khoai Tây Chiên").type("SNACK").price(new BigDecimal("45000"))
-                                .description("Khoai tây chiên giòn kèm sốt").isActive(true).build(),
-                        FnbItem.builder().name("Xúc Xích (Hotdog)").type("SNACK").price(new BigDecimal("49000"))
-                                .description("Bánh mì kẹp xúc xích nóng").isActive(true).build(),
-                        FnbItem.builder().name("Snack Khoai Tây").type("SNACK").price(new BigDecimal("25000"))
-                                .description("Gói snack ăn vặt giòn rụm").isActive(true).build()
-                );
-                fnbItemRepository.saveAll(menu);
-                System.out.println("Đã tạo " + menu.size() + " món F&B/combo mẫu.");
-            }
+            // F&B Seeding moved to FnbDataSeeder.java
 
             if (roomRepository.count() == 0) {
                 // To avoid duplicating cinemas if they already exist, let's fetch them first or create if missing
