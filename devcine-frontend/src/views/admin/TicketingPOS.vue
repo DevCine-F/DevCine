@@ -2664,21 +2664,27 @@ onUnmounted(() => {
       />
   </div>
 
-  <!-- Out of Stock Modal -->
-  <Modal :show="showOutOfStockModal" title="F&B Hết Hàng" @close="showOutOfStockModal = false" max-width="sm">
-    <div class="text-center py-4">
-      <div class="w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center text-3xl">
-        <span class="material-symbols-rounded">inventory_2</span>
+    <!-- Modal: Out of Stock -->
+    <transition name="fade">
+      <div v-if="showOutOfStockModal" class="fixed inset-0 z-[1250] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showOutOfStockModal = false">
+        <div class="w-full max-w-sm bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
+          <div class="p-7 text-center space-y-4">
+            <div class="w-16 h-16 mx-auto rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+              <span class="material-symbols-outlined text-4xl text-red-500">inventory_2</span>
+            </div>
+            <div>
+              <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Sản phẩm không khả dụng</h3>
+              <p class="text-sm text-on-surface-variant mt-2 whitespace-pre-line">{{ outOfStockMessage }}</p>
+            </div>
+          </div>
+          <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
+            <button @click="showOutOfStockModal = false" class="flex-1 px-4 py-3 rounded-xl bg-surface-container-highest text-on-surface text-sm font-bold shadow hover:brightness-110 transition-all">
+              Đóng và Sửa giỏ hàng
+            </button>
+          </div>
+        </div>
       </div>
-      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Sản phẩm không khả dụng</h3>
-      <p class="text-sm text-slate-600 dark:text-slate-400 px-4 leading-relaxed whitespace-pre-line">{{ outOfStockMessage }}</p>
-      <div class="mt-6 flex gap-3 px-6">
-        <button @click="showOutOfStockModal = false" class="flex-1 py-3 text-sm font-semibold rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
-          Đóng và Sửa giỏ hàng
-        </button>
-      </div>
-    </div>
-  </Modal>
+    </transition>
 
 </template>
 
