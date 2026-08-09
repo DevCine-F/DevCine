@@ -34,7 +34,14 @@ public class PublicShowtimeDTO {
     private java.time.LocalDate movieReleaseDate;
     private String movieDescription;
     private Set<String> movieGenres;
-    
+    private String movieRating;        // điểm đánh giá (thang 10, nhập tay) — có thể null
+    private Integer movieRatingCount;  // số lượt đánh giá tương ứng — có thể null
+    private String movieTrailerUrl;    // link trailer (YouTube) — có thể null
+
+    // Seat availability (tính batch, tránh N+1) — chỉ set ở endpoint upcoming
+    private Integer totalSeats;
+    private Integer availableSeats;
+
     // Format & Room info
     private Integer formatId;
     private String formatName;

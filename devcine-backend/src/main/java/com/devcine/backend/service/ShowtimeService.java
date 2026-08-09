@@ -47,8 +47,34 @@ public class ShowtimeService {
 
     public List<PublicShowtimeDTO> getAllUpcomingShowtimes() {
         LocalDateTime now = LocalDateTime.now();
-        return showtimeRepository.findUpcomingShowtimes(now).stream()
-                .map(this::toPublicDTO).collect(Collectors.toList());
+        List<Showtime> showtimes = showtimeRepository.findUpcomingShowtimes(now);
+
+        // Tình trạng ghế tính 1 LẦN cho toàn bộ suất (2 query gộp, tránh N+1):
+        //  - sellable/phòng = ghế active & không bảo trì/khóa
+        //  - reserved/suất  = ghế SOLD/HOLD
+        Set<Integer> roomIds = showtimes.stream().map(s -> s.getRoom().getId()).collect(Collectors.toSet());
+        Set<Integer> showtimeIds = showtimes.stream().map(Showtime::getId).collect(Collectors.toSet());
+        Map<Integer, Integer> sellableByRoom = new HashMap<>();
+        Map<Integer, Integer> reservedByShowtime = new HashMap<>();
+        if (!roomIds.isEmpty()) {
+            for (Object[] row : seatRepository.countSellableSeatsByRoomIds(roomIds)) {
+                sellableByRoom.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+        if (!showtimeIds.isEmpty()) {
+            for (Object[] row : bookingSeatRepository.countReservedByShowtimeIds(showtimeIds)) {
+                reservedByShowtime.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+
+        return showtimes.stream().map(s -> {
+            PublicShowtimeDTO dto = toPublicDTO(s);
+            int total = sellableByRoom.getOrDefault(s.getRoom().getId(), 0);
+            int reserved = reservedByShowtime.getOrDefault(s.getId(), 0);
+            dto.setTotalSeats(total);
+            dto.setAvailableSeats(Math.max(0, total - reserved));
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     /** Mapper dùng chung: Showtime -> PublicShowtimeDTO (DTO phẳng cho FE tự nhóm). */
@@ -72,6 +98,9 @@ public class ShowtimeService {
                 .movieDescription(s.getMovie().getDescription())
                 .movieGenres(s.getMovie().getGenres() != null ?
                     s.getMovie().getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new HashSet<>())
+                .movieRating(s.getMovie().getRating())
+                .movieRatingCount(s.getMovie().getRatingCount())
+                .movieTrailerUrl(s.getMovie().getTrailerUrl())
                 .formatId(s.getFormat().getId())
                 .formatName(s.getFormat().getName())
                 .roomId(s.getRoom().getId())
