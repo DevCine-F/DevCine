@@ -1924,7 +1924,7 @@ onUnmounted(() => {
                   <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
                   <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
                     <span v-for="opt in item.options" :key="opt.optionItemId">
-                      <span v-if="opt.slotLabel" class="font-bold">{{ opt.slotLabel }}: </span>{{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
+                      • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
                     </span>
                     <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
                   </div>
@@ -2181,7 +2181,7 @@ onUnmounted(() => {
                     <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
                     <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
                       <span v-for="opt in item.options" :key="opt.optionItemId">
-                        <span v-if="opt.slotLabel" class="font-bold">{{ opt.slotLabel }}: </span>{{ opt.optionName }} (+{{ fmt(opt.surchargePrice) }}đ)
+                        • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
                       </span>
                       <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
                     </div>
@@ -2341,9 +2341,16 @@ onUnmounted(() => {
           </div>
           <div v-if="selectedCombos.length" class="pb-5 border-b border-outline-variant/10">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">F&B / Combo</p>
-            <div v-for="c in selectedCombos" :key="c.id" class="flex justify-between text-xs font-semibold mb-1">
-              <span class="text-on-surface-variant">{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
-              <span class="text-on-surface">{{ fmt(c.price * c.quantity) }}đ</span>
+            <div v-for="c in selectedCombos" :key="c.id" class="mb-2">
+              <div class="flex justify-between text-xs font-semibold">
+                <span class="text-on-surface-variant">{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
+                <span class="text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+              </div>
+              <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface-variant/80 mt-1 space-y-0.5 ml-2">
+                <div v-for="opt in c.options" :key="opt.optionItemId">
+                  • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
