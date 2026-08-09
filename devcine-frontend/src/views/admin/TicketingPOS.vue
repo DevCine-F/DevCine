@@ -1913,9 +1913,9 @@ onUnmounted(() => {
                         <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
                         <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt((getCartItem(cb.id).price + (getCartItem(cb.id).surchargePrice || 0)) * getCartItem(cb.id).quantity) }}đ</span>
                     </div>
-                    <div class="text-[12px] text-on-surface-variant/80 space-y-0.5 mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                    <div class="text-[12px] text-on-surface space-y-1.5 leading-normal mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
                       <div v-for="opt in getCartItem(cb.id).options" :key="opt.optionItemId" class="truncate">
-                        • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                        • {{ opt.optionName }} <span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium">(+{{ fmt(opt.surchargePrice) }}đ)</span>
                       </div>
                     </div>
                   </div>
@@ -2171,9 +2171,9 @@ onUnmounted(() => {
                           <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
                           <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt((getCartItem(cb.id).price + (getCartItem(cb.id).surchargePrice || 0)) * getCartItem(cb.id).quantity) }}đ</span>
                       </div>
-                      <div class="text-[12px] text-on-surface-variant/80 space-y-0.5 mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                      <div class="text-[12px] text-on-surface space-y-1.5 leading-normal mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
                         <div v-for="opt in getCartItem(cb.id).options" :key="opt.optionItemId" class="truncate">
-                          • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                          • {{ opt.optionName }} <span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium">(+{{ fmt(opt.surchargePrice) }}đ)</span>
                         </div>
                       </div>
                     </div>
@@ -2228,9 +2228,16 @@ onUnmounted(() => {
             <div class="grid grid-cols-2 gap-8">
               <div class="bg-surface-container-high p-8 rounded-3xl border border-outline-variant/10 space-y-4">
                 <p class="text-[10px] font-black text-primary uppercase tracking-widest">Chi tiết hóa đơn</p>
-                <div v-for="c in selectedCombos" :key="c.id" class="flex justify-between text-xs font-bold text-on-surface-variant uppercase border-b border-outline-variant/10 pb-3">
-                  <span>{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
-                  <span class="text-on-surface">{{ fmt(c.price * c.quantity) }}đ</span>
+                <div v-for="c in selectedCombos" :key="c.id" class="border-b border-outline-variant/10 pb-3">
+                  <div class="flex justify-between text-xs font-bold text-on-surface-variant uppercase">
+                    <span>{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
+                    <span class="text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+                  </div>
+                  <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface mt-1.5 space-y-1.5 leading-normal ml-2">
+                    <div v-for="opt in c.options" :key="opt.optionItemId">
+                      • {{ opt.optionName }} <span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="pt-3 flex justify-between items-end">
                   <p class="text-[10px] font-black text-on-surface-variant uppercase">Tổng cộng</p>
@@ -2355,9 +2362,9 @@ onUnmounted(() => {
                 <span class="text-on-surface-variant">{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
                 <span class="text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
               </div>
-              <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface-variant/80 mt-1 space-y-0.5 ml-2">
+              <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface mt-1.5 space-y-1.5 leading-normal ml-2">
                 <div v-for="opt in c.options" :key="opt.optionItemId">
-                  • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                  • {{ opt.optionName }} <span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium">(+{{ fmt(opt.surchargePrice) }}đ)</span>
                 </div>
               </div>
             </div>
