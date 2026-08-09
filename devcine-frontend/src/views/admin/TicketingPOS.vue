@@ -1888,7 +1888,6 @@ onUnmounted(() => {
             </h2>
             <div class="flex items-center gap-3">
               <AppButton variant="ghost" @click="currentStep = 3">Quay lại</AppButton>
-              <AppButton @click="currentStep = 5">5. Thanh toán</AppButton>
             </div>
           </div>
 
@@ -2143,7 +2142,6 @@ onUnmounted(() => {
               </h2>
               <div class="flex items-center gap-4">
                 <span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest hidden sm:inline">Khách vãng lai · Không cần vé</span>
-                <AppButton :disabled="selectedCombos.length === 0" @click="fnbStep = 2">Thanh toán</AppButton>
               </div>
             </div>
 
@@ -2383,6 +2381,13 @@ onUnmounted(() => {
           <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Tổng tiền</p>
           <p class="text-3xl font-black italic tracking-tighter text-primary">{{ fmt(payableTotal) }}đ</p>
         </div>
+        
+        <button v-if="saleMode === 'FNB' || currentStep === 4"
+          class="w-full py-3.5 mt-4 bg-primary text-on-primary font-bold text-base rounded-xl shadow-lg hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+          :disabled="totalPrice === 0"
+          @click="saleMode === 'FNB' ? fnbStep = 2 : currentStep = 5">
+          THANH TOÁN ({{ fmt(payableTotal) }}đ)
+        </button>
       </div>
     </main>
 
