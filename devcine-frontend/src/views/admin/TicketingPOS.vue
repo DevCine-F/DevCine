@@ -970,18 +970,10 @@ const handleFnbOptionsConfirm = ({ options, totalSurcharge }) => {
     item.surchargePrice = totalSurcharge
   } else {
     const cb = editingFnbItem.value
-    const isOptionsEqual = (a, b) => {
-        if (!a && !b) return true;
-        if (!a || !b) return false;
-        if (a.length !== b.length) return false;
-        const sortedA = [...a].sort((x, y) => x.optionItemId - y.optionItemId);
-        const sortedB = [...b].sort((x, y) => x.optionItemId - y.optionItemId);
-        return sortedA.every((val, index) => val.optionItemId === sortedB[index].optionItemId);
-    }
-    const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id && isOptionsEqual(c.options, options))
+    const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id)
     if (existingIndex > -1) {
-        if (selectedCombos.value[existingIndex].quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
-        selectedCombos.value[existingIndex].quantity++
+        selectedCombos.value[existingIndex].options = options
+        selectedCombos.value[existingIndex].surchargePrice = totalSurcharge
     } else {
         selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options, surchargePrice: totalSurcharge })
     }
@@ -994,7 +986,7 @@ const addCombo = (cb) => {
       openFnbModal(cb)
       return
   }
-  const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id && (!c.options || c.options.length === 0))
+  const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id)
   if (existingIndex > -1) {
     if (selectedCombos.value[existingIndex].quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
     selectedCombos.value[existingIndex].quantity++
@@ -1002,6 +994,20 @@ const addCombo = (cb) => {
     selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options: [], surchargePrice: 0 })
   }
 }
+
+const getCartItem = (cbId) => selectedCombos.value.find(c => c.id === cbId)
+
+const handleFnbCardClick = (cb) => {
+  const item = getCartItem(cb.id)
+  if (item) {
+    if (cb.slots && cb.slots.length > 0) {
+      editFnbOptions(item, selectedCombos.value.indexOf(item))
+    }
+  } else {
+    addCombo(cb)
+  }
+}
+
 const changeComboQty = (item, delta) => {
   const next = item.quantity + delta
   if (next > MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
@@ -1880,77 +1886,75 @@ onUnmounted(() => {
             <h2 class="text-xl font-black uppercase italic tracking-tighter text-on-surface flex items-center gap-3">
               <span class="w-8 h-1 bg-primary rounded-full"></span> 4. Combo / Đồ ăn & Nước uống
             </h2>
-            <AppButton variant="ghost" @click="currentStep = 3">Quay lại</AppButton>
+            <div class="flex items-center gap-3">
+              <AppButton variant="ghost" @click="currentStep = 3">Quay lại</AppButton>
+              <AppButton @click="currentStep = 5">5. Thanh toán</AppButton>
+            </div>
           </div>
 
           <div v-if="combos.length === 0" class="flex-grow flex items-center justify-center text-on-surface-variant text-sm">
             Chưa có combo. Thêm ở "Thực đơn F&B / Combo".
           </div>
-          <div v-else class="grid grid-cols-2 gap-6 flex-grow overflow-y-auto custom-scrollbar pr-2">
-            <div v-for="cb in combos" :key="cb.id" class="p-5 bg-surface-container-high rounded-3xl border border-outline-variant/10 flex gap-4 hover:border-primary/30 transition-all">
-              <div class="w-16 h-16 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
-                <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
-                <span v-else class="material-symbols-outlined text-on-surface-variant/40">fastfood</span>
-              </div>
-              <div class="flex flex-col justify-between flex-grow min-w-0">
-                <div>
-                  <h3 class="text-sm font-black uppercase text-on-surface truncate">{{ cb.name }}</h3>
-                  <p class="text-[11px] text-on-surface-variant line-clamp-1">{{ cb.description }}</p>
-                </div>
-                <div class="flex items-center justify-between mt-2">
-                  <span class="text-base font-black text-primary italic">{{ fmt(cb.price) }}đ</span>
-                  <button @click="addCombo(cb)" class="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center hover:bg-primary/20 transition-colors">
-                    <span class="material-symbols-outlined text-sm">add</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-4 rounded-2xl border border-primary/20 bg-primary/5 flex items-center gap-3 pl-4 pr-3 py-2.5">
-            <!-- Label -->
-            <div class="flex items-center gap-2 shrink-0">
-              <span class="material-symbols-outlined text-primary text-lg">shopping_bag</span>
-              <h3 class="text-[10px] font-black uppercase tracking-widest text-primary leading-none">Giỏ F&B</h3>
-              <span class="text-[10px] font-bold text-on-surface-variant whitespace-nowrap">· {{ selectedCombos.length }} món</span>
-            </div>
-
-            <!-- Items (cuộn ngang nếu nhiều) -->
-            <div class="flex-grow min-w-0 flex items-center gap-2 overflow-x-auto custom-scrollbar">
-              <p v-if="selectedCombos.length === 0" class="text-[11px] text-on-surface-variant/60 whitespace-nowrap">Chưa chọn combo nào — không bắt buộc.</p>
-              <div v-for="item in selectedCombos" :key="item.id"
-                   class="shrink-0 flex items-stretch gap-3 bg-surface-container-high rounded-2xl border border-outline-variant/10 hover:border-primary/30 transition-colors pl-4 pr-2.5 py-2">
-                <div class="flex flex-col justify-center leading-tight">
-                  <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
-                  <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
-                    <span v-for="opt in item.options" :key="opt.optionItemId">
-                      • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
-                    </span>
-                    <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
+          <div v-else class="grid grid-cols-2 xl:grid-cols-3 gap-3.5 flex-grow overflow-y-auto custom-scrollbar pr-2 content-start pb-6">
+            <div v-for="cb in combos" :key="cb.id" 
+                 @click="handleFnbCardClick(cb)"
+                 :class="getCartItem(cb.id) ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5 cursor-pointer' : 'bg-surface-container-low/60 border-outline-variant/30 hover:border-primary/50 cursor-pointer'"
+                 class="min-h-[150px] max-h-[200px] p-3.5 rounded-xl border flex flex-col justify-between transition-all duration-200">
+              
+              <template v-if="getCartItem(cb.id)">
+                <!-- State 2: Selected -->
+                <div class="flex items-start gap-3 flex-grow min-h-0">
+                  <div class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
+                    <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
+                    <span v-else class="material-symbols-outlined text-on-surface-variant/40">fastfood</span>
                   </div>
-                  <span class="text-[12px] font-black italic text-primary whitespace-nowrap tabular-nums">{{ fmt((item.price + (item.surchargePrice || 0)) * item.quantity) }}đ</span>
+                  <div class="flex-grow min-w-0 flex flex-col h-full">
+                    <div class="flex justify-between items-start gap-2">
+                        <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
+                        <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt((getCartItem(cb.id).price + (getCartItem(cb.id).surchargePrice || 0)) * getCartItem(cb.id).quantity) }}đ</span>
+                    </div>
+                    <div class="text-[12px] text-on-surface-variant/80 space-y-0.5 mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                      <div v-for="opt in getCartItem(cb.id).options" :key="opt.optionItemId" class="truncate">
+                        • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="flex items-center gap-1.5 pl-3 border-l border-outline-variant/10">
-                  <button @click="changeComboQty(item, -1)"
-                          class="w-6 h-6 rounded-lg bg-surface-container-lowest border border-outline-variant/15 text-on-surface-variant flex items-center justify-center hover:bg-primary hover:text-black hover:border-primary active:scale-90 transition-all">
-                    <span class="material-symbols-outlined text-[16px] leading-none">remove</span>
-                  </button>
-                  <span class="w-5 text-center text-[13px] font-black tabular-nums text-on-surface">{{ item.quantity }}</span>
-                  <button @click="changeComboQty(item, 1)"
-                          class="w-6 h-6 rounded-lg bg-primary/15 border border-primary/30 text-primary flex items-center justify-center hover:bg-primary hover:text-black active:scale-90 transition-all">
-                    <span class="material-symbols-outlined text-[16px] leading-none">add</span>
-                  </button>
+                <div class="flex items-end justify-end mt-2 shrink-0">
+                  <div class="flex items-center gap-2 bg-surface-container-highest rounded-full p-1 border border-outline-variant/20">
+                    <button @click.stop="changeComboQty(getCartItem(cb.id), -1)" class="w-6 h-6 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                      <span class="material-symbols-outlined text-[14px]">remove</span>
+                    </button>
+                    <span class="w-4 text-center text-xs font-black tabular-nums">{{ getCartItem(cb.id).quantity }}</span>
+                    <button @click.stop="changeComboQty(getCartItem(cb.id), 1)" class="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                      <span class="material-symbols-outlined text-[14px]">add</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </template>
 
-            <!-- Subtotal + action -->
-            <div class="shrink-0 flex items-center gap-3 pl-3 border-l border-primary/15">
-              <div class="text-right hidden sm:block">
-                <p class="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant leading-none mb-0.5">Tạm tính</p>
-                <p class="text-base font-black italic text-primary tracking-tighter leading-none">{{ fmt(comboTotal) }}đ</p>
-              </div>
-              <AppButton @click="currentStep = 5">5. Thanh toán</AppButton>
+              <template v-else>
+                <!-- State 1: Unselected -->
+                <div class="flex items-start gap-3 flex-grow min-h-0">
+                  <div class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
+                    <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
+                    <span v-else class="material-symbols-outlined text-on-surface-variant/40">fastfood</span>
+                  </div>
+                  <div class="flex-grow min-w-0 flex flex-col h-full">
+                    <div class="flex justify-between items-start gap-2">
+                        <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
+                        <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt(cb.price) }}đ</span>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant line-clamp-2 mt-1.5 flex-1" :title="cb.description">{{ cb.description }}</p>
+                  </div>
+                </div>
+                <div class="flex items-end justify-end mt-2 shrink-0">
+                  <button @click.stop="addCombo(cb)" class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">add</span>
+                  </button>
+                </div>
+              </template>
+
             </div>
           </div>
         </div>
@@ -2137,7 +2141,10 @@ onUnmounted(() => {
               <h2 class="text-xl font-black uppercase italic tracking-tighter text-on-surface flex items-center gap-3">
                 <span class="w-8 h-1 bg-primary rounded-full"></span> Bán nhanh bắp nước & combo
               </h2>
-              <span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">Khách vãng lai · Không cần vé</span>
+              <div class="flex items-center gap-4">
+                <span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest hidden sm:inline">Khách vãng lai · Không cần vé</span>
+                <AppButton :disabled="selectedCombos.length === 0" @click="fnbStep = 2">Thanh toán</AppButton>
+              </div>
             </div>
 
             <div v-if="isLoading" class="grid grid-cols-3 gap-5">
@@ -2146,64 +2153,66 @@ onUnmounted(() => {
             <div v-else-if="combos.length === 0" class="flex-grow flex items-center justify-center text-on-surface-variant text-sm">
               Chưa có món F&B. Thêm ở "Thực đơn F&B / Combo".
             </div>
-            <div v-else class="grid grid-cols-3 gap-5 flex-grow overflow-y-auto custom-scrollbar pr-2 content-start">
-              <div v-for="cb in combos" :key="cb.id" class="p-5 bg-surface-container-high rounded-3xl border border-outline-variant/10 flex gap-4 hover:border-primary/30 transition-all">
-                <div class="w-16 h-16 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
-                  <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
-                  <span v-else class="material-symbols-outlined text-on-surface-variant/40">fastfood</span>
-                </div>
-                <div class="flex flex-col justify-between flex-grow min-w-0">
-                  <div>
-                    <h3 class="text-sm font-black uppercase text-on-surface truncate">{{ cb.name }}</h3>
-                    <p class="text-[11px] text-on-surface-variant line-clamp-1">{{ cb.description }}</p>
-                  </div>
-                  <div class="flex items-center justify-between mt-2">
-                    <span class="text-base font-black text-primary italic">{{ fmt(cb.price) }}đ</span>
-                    <button @click="addCombo(cb)" class="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center hover:bg-primary/20 transition-colors">
-                      <span class="material-symbols-outlined text-sm">add</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Giỏ F&B + nút Thanh toán -->
-            <div class="mt-4 rounded-2xl border border-primary/20 bg-primary/5 flex items-center gap-3 pl-4 pr-3 py-2.5">
-              <div class="flex items-center gap-2 shrink-0">
-                <span class="material-symbols-outlined text-primary text-lg">shopping_bag</span>
-                <h3 class="text-[10px] font-black uppercase tracking-widest text-primary leading-none">Giỏ F&B</h3>
-                <span class="text-[10px] font-bold text-on-surface-variant whitespace-nowrap">· {{ selectedCombos.length }} món</span>
-              </div>
-              <div class="flex-grow min-w-0 flex items-center gap-2 overflow-x-auto custom-scrollbar">
-                <p v-if="selectedCombos.length === 0" class="text-[11px] text-on-surface-variant/60 whitespace-nowrap">Chọn món để thêm vào giỏ.</p>
-                <div v-for="item in selectedCombos" :key="item.id" class="shrink-0 flex items-stretch gap-3 bg-surface-container-high rounded-2xl border border-outline-variant/10 pl-4 pr-2.5 py-2">
-                  <div class="flex flex-col justify-center leading-tight">
-                    <span class="text-[11px] font-bold text-on-surface whitespace-nowrap">{{ item.name }}</span>
-                    <div v-if="item.options && item.options.length" class="text-[9px] text-on-surface-variant flex flex-col gap-0.5 mt-0.5 mb-0.5">
-                      <span v-for="opt in item.options" :key="opt.optionItemId">
-                        • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
-                      </span>
-                      <button @click="editFnbOptions(item, selectedCombos.indexOf(item))" class="text-primary hover:underline text-left mt-0.5 font-bold">[Sửa vị]</button>
+            <div v-else class="grid grid-cols-2 xl:grid-cols-3 gap-3.5 flex-grow overflow-y-auto custom-scrollbar pr-2 content-start pb-6">
+              <div v-for="cb in combos" :key="cb.id" 
+                   @click="handleFnbCardClick(cb)"
+                   :class="getCartItem(cb.id) ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5 cursor-pointer' : 'bg-surface-container-low/60 border-outline-variant/30 hover:border-primary/50 cursor-pointer'"
+                   class="min-h-[150px] max-h-[200px] p-3.5 rounded-xl border flex flex-col justify-between transition-all duration-200">
+                
+                <template v-if="getCartItem(cb.id)">
+                  <!-- State 2: Selected -->
+                  <div class="flex items-start gap-3 flex-grow min-h-0">
+                    <div class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
+                      <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
+                      <span v-else class="material-symbols-outlined text-on-surface-variant/40">fastfood</span>
                     </div>
-                    <span class="text-[12px] font-black italic text-primary whitespace-nowrap tabular-nums">{{ fmt((item.price + (item.surchargePrice || 0)) * item.quantity) }}đ</span>
+                    <div class="flex-grow min-w-0 flex flex-col h-full">
+                      <div class="flex justify-between items-start gap-2">
+                          <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
+                          <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt((getCartItem(cb.id).price + (getCartItem(cb.id).surchargePrice || 0)) * getCartItem(cb.id).quantity) }}đ</span>
+                      </div>
+                      <div class="text-[12px] text-on-surface-variant/80 space-y-0.5 mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                        <div v-for="opt in getCartItem(cb.id).options" :key="opt.optionItemId" class="truncate">
+                          • {{ opt.optionName }} <span v-if="opt.surchargePrice !== undefined">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="flex items-center gap-1.5 pl-3 border-l border-outline-variant/10">
-                    <button @click="changeComboQty(item, -1)" class="w-6 h-6 rounded-lg bg-surface-container-lowest border border-outline-variant/15 text-on-surface-variant flex items-center justify-center hover:bg-primary hover:text-black hover:border-primary active:scale-90 transition-all">
-                      <span class="material-symbols-outlined text-[16px] leading-none">remove</span>
-                    </button>
-                    <span class="w-5 text-center text-[13px] font-black tabular-nums text-on-surface">{{ item.quantity }}</span>
-                    <button @click="changeComboQty(item, 1)" class="w-6 h-6 rounded-lg bg-primary/15 border border-primary/30 text-primary flex items-center justify-center hover:bg-primary hover:text-black active:scale-90 transition-all">
-                      <span class="material-symbols-outlined text-[16px] leading-none">add</span>
+                  <div class="flex items-end justify-end mt-2 shrink-0">
+                    <div class="flex items-center gap-2 bg-surface-container-highest rounded-full p-1 border border-outline-variant/20">
+                      <button @click.stop="changeComboQty(getCartItem(cb.id), -1)" class="w-6 h-6 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                        <span class="material-symbols-outlined text-[14px]">remove</span>
+                      </button>
+                      <span class="w-4 text-center text-xs font-black tabular-nums">{{ getCartItem(cb.id).quantity }}</span>
+                      <button @click.stop="changeComboQty(getCartItem(cb.id), 1)" class="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                        <span class="material-symbols-outlined text-[14px]">add</span>
+                      </button>
+                    </div>
+                  </div>
+                </template>
+
+                <template v-else>
+                  <!-- State 1: Unselected -->
+                  <div class="flex items-start gap-3 flex-grow min-h-0">
+                    <div class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
+                      <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
+                      <span v-else class="material-symbols-outlined text-on-surface-variant/40">fastfood</span>
+                    </div>
+                    <div class="flex-grow min-w-0 flex flex-col h-full">
+                      <div class="flex justify-between items-start gap-2">
+                          <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
+                          <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt(cb.price) }}đ</span>
+                      </div>
+                      <p class="text-[11px] text-on-surface-variant line-clamp-2 mt-1.5 flex-1" :title="cb.description">{{ cb.description }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-end justify-end mt-2 shrink-0">
+                    <button @click.stop="addCombo(cb)" class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                      <span class="material-symbols-outlined text-[18px]">add</span>
                     </button>
                   </div>
-                </div>
-              </div>
-              <div class="shrink-0 flex items-center gap-3 pl-3 border-l border-primary/15">
-                <div class="text-right hidden sm:block">
-                  <p class="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant leading-none mb-0.5">Tạm tính</p>
-                  <p class="text-base font-black italic text-primary tracking-tighter leading-none">{{ fmt(comboTotal) }}đ</p>
-                </div>
-                <AppButton :disabled="selectedCombos.length === 0" @click="fnbStep = 2">Thanh toán</AppButton>
+                </template>
+
               </div>
             </div>
           </div>
