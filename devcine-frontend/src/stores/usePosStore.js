@@ -1,7 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { ticketingApi } from '@/api/admin/index'
+import { posPendingOrderApi } from '@/api/admin/index'
 import { useToastStore } from '@/stores/toast'
+
+const POS_TERMINAL_ID_KEY = 'devcine_pos_terminal_id'
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 const HELD_KEY = 'devcine_pos_held_orders'
 const HELD_SEQ_KEY = 'devcine_pos_hold_seq'
@@ -11,6 +19,13 @@ const HOLD_SECONDS = 5 * 60
 export const usePosStore = defineStore('posStore', () => {
   const heldOrders = ref([])
   let timerId = null
+
+  let posTerminalId = localStorage.getItem(POS_TERMINAL_ID_KEY)
+  if (!posTerminalId) {
+    posTerminalId = generateUUID()
+    localStorage.setItem(POS_TERMINAL_ID_KEY, posTerminalId)
+  }
+  const getPosTerminalId = () => posTerminalId
 
   const toastStore = useToastStore()
   const showToast = (message, type = 'success') => toastStore.push(message, type)
@@ -52,18 +67,20 @@ export const usePosStore = defineStore('posStore', () => {
     let hasActiveTickets = false
 
     heldOrders.value = heldOrders.value.map(order => {
-      if (order.mode !== 'TICKET' || !order.bookingId) {
-        return order // F&B only doesn't expire with timer here
+      let remaining = 0
+      if (order.expiresAt) {
+        remaining = Math.max(0, Math.floor((order.expiresAt - now) / 1000))
+      } else {
+        const elapsed = Math.floor((now - order.createdAt) / 1000)
+        remaining = Math.max(0, HOLD_SECONDS - elapsed)
       }
-      
-      const elapsed = Math.floor((now - order.createdAt) / 1000)
-      const remaining = Math.max(0, HOLD_SECONDS - elapsed)
       order.holdRemaining = remaining
 
       if (remaining <= 0) {
         hasExpired = true
-        // Fire API call asynchronously, don't await here in loop
-        ticketingApi.releaseHold(order.bookingId).catch(() => {})
+        if (order.bookingId) {
+           posPendingOrderApi.cancel(order.bookingId, posTerminalId).catch(() => {})
+        }
       } else {
         hasActiveTickets = true
       }
@@ -71,8 +88,8 @@ export const usePosStore = defineStore('posStore', () => {
     })
 
     if (hasExpired) {
-      const expiredCount = heldOrders.value.filter(o => o.mode === 'TICKET' && o.holdRemaining <= 0).length
-      heldOrders.value = heldOrders.value.filter(o => o.mode !== 'TICKET' || o.holdRemaining > 0)
+      const expiredCount = heldOrders.value.filter(o => o.holdRemaining <= 0).length
+      heldOrders.value = heldOrders.value.filter(o => o.holdRemaining > 0)
       persistToLocalStorage()
       if (expiredCount > 0) {
         showToast('Một số đơn chờ đã hết thời gian giữ ghế và bị huỷ.', 'error')
@@ -104,9 +121,10 @@ export const usePosStore = defineStore('posStore', () => {
 
     const newOrder = {
       ...orderData,
-      code: nextHoldCode(),
-      createdAt: Date.now(),
-      holdRemaining: HOLD_SECONDS
+      code: orderData.code || nextHoldCode(),
+      createdAt: orderData.createdAt || Date.now(),
+      expiresAt: orderData.expiresAt || (Date.now() + HOLD_SECONDS * 1000),
+      holdRemaining: 0 // calculated in updateTimers
     }
 
     heldOrders.value.unshift(newOrder) // Pinia state first
@@ -124,7 +142,7 @@ export const usePosStore = defineStore('posStore', () => {
 
   const deleteHeldOrder = (order) => {
     if (order.bookingId) {
-      ticketingApi.releaseHold(order.bookingId).catch(() => {})
+      posPendingOrderApi.cancel(order.bookingId, posTerminalId).catch(() => {})
     }
     removeOrder(order.code)
     showToast(`Đã huỷ đơn chờ ${order.code}${order.bookingId ? ' — ghế được giải phóng' : ''}.`, 'success')
@@ -135,6 +153,8 @@ export const usePosStore = defineStore('posStore', () => {
   startSync()
 
   return {
+    posTerminalId,
+    getPosTerminalId,
     heldOrders,
     holdOrder,
     removeOrder,

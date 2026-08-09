@@ -158,6 +158,9 @@ public class TicketingController {
                 voucherId = voucherService.getOrClaimForCheckout(customerId, voucherCode).getId();
             }
 
+            Integer heldBookingId = body.get("heldBookingId") != null
+                    ? Integer.parseInt(body.get("heldBookingId").toString()) : null;
+
             com.devcine.backend.dto.request.BookingRequestDTO req =
                     com.devcine.backend.dto.request.BookingRequestDTO.builder()
                             .showtimeId(showtimeId)
@@ -167,6 +170,7 @@ public class TicketingController {
                             .customerId(customerId)
                             .voucherId(voucherId)
                             .paymentMethod(paymentMethod)
+                            .heldBookingId(heldBookingId)
                             .build();
 
             Booking booking = bookingService.holdSeatsForStaff(req, soldBy);

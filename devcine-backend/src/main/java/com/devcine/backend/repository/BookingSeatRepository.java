@@ -54,4 +54,9 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
     @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.seat s LEFT JOIN FETCH s.seatType " +
            "WHERE bs.booking.id = :bookingId ORDER BY s.rowChar, s.colNum")
     List<BookingSeat> findAllByBookingIdWithSeat(@Param("bookingId") Integer bookingId);
+
+    @Query("SELECT bs.seat.id FROM BookingSeat bs JOIN bs.booking b " +
+           "WHERE bs.seat.id IN :seatIds AND b.showtime.id = :showtimeId " +
+           "AND (bs.status = 'SOLD' OR (bs.status = 'HOLD' AND b.expiresAt >= :now AND b.status IN ('PENDING_PAYMENT', 'PAYING', 'HOLD')))")
+    List<Integer> findConflictingSeats(@Param("showtimeId") Integer showtimeId, @Param("seatIds") List<Integer> seatIds, @Param("now") LocalDateTime now);
 }

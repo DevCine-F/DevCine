@@ -11,8 +11,11 @@ const currentStep = ref(1) // 1: Showtime, 2: Seats, 3: Confirm, 4: F&B, 5: Paym
 
 const nowTs = ref(Date.now())
 let nowTimer = null
+const bookingError = ref('')
 
-const lateBookingMinutes = ref(10)
+const restoredBookingId = ref(null)
+
+const lateBookingMinutes = ref(30)
 
 const getTodayYmd = () => {
   const d = new Date()
@@ -248,17 +251,24 @@ const holdCurrentOrder = async () => {
   if (!canHoldOrder.value) { showToast('Chưa có gì để giữ đơn (giỏ hàng đang trống).', 'error'); return }
 
   let bookingId = null
+  let bookingCode = null
+  let expiresAt = null
+
   if (saleMode.value === 'TICKET') {
     isHolding.value = true
     try {
-      const { data } = await ticketingApi.hold({
+      const { data } = await posPendingOrderApi.hold({
+        posTerminalId: posStore.getPosTerminalId(),
         showtimeId: selectedShowtime.value.id,
         seatIds: selectedSeats.value.map(s => s.seatId),
         customerId: member.value ? member.value.customerId : null,
+        fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] }))
       })
-      bookingId = data.bookingId
+      bookingId = data.data.bookingId
+      bookingCode = data.data.bookingCode
+      expiresAt = new Date(data.data.expiresAt).getTime()
     } catch (err) {
-      showToast(friendlyError(err, 'Không giữ được ghế (có thể vừa bị đặt).'), 'error')
+      showToast(friendlyError(err, 'Không giữ được đơn (vượt quá 3 đơn, ghế bị phạt, hoặc vừa bị đặt).'), 'error')
       isHolding.value = false
       return
     } finally {
@@ -269,6 +279,8 @@ const holdCurrentOrder = async () => {
   const orderData = {
     mode: saleMode.value,
     bookingId,
+    code: bookingCode,
+    expiresAt,
     step: saleMode.value === 'FNB' ? fnbStep.value : currentStep.value,
     showtime: selectedShowtime.value ? JSON.parse(JSON.stringify(selectedShowtime.value)) : null,
     seats: JSON.parse(JSON.stringify(selectedSeats.value)),
@@ -283,13 +295,13 @@ const holdCurrentOrder = async () => {
     showQrModal.value = false
     cashGiven.value = 0
     showToast(saleMode.value === 'TICKET'
-      ? `Đã giữ đơn ${code}. Ghế đã được khoá trên toàn hệ thống.`
-      : `Đã giữ đơn ${code}. Gọi lại bất cứ lúc nào ở "Đơn chờ".`, 'success')
+      ? `Đã giữ đơn ${code}. Ghế đã được khoá trên hệ thống.`
+      : `Đã giữ đơn F&B. Gọi lại bất cứ lúc nào ở "Đơn chờ".`, 'success')
     softReset()
   }
 }
 
-const restoreHeldOrder = async (o) => {
+const performRestore = async (o) => {
   try {
     const { data: availableFnbsResponse } = await ticketingApi.getCombos().catch(() => ({ data: { data: [] } }));
     const availableFnbs = availableFnbsResponse?.data || [];
@@ -326,7 +338,7 @@ const restoreHeldOrder = async (o) => {
   }
   
   if (isPastShowtime(o.showtime)) {
-    if (o.bookingId) { try { await ticketingApi.releaseHold(o.bookingId) } catch (_) {} }
+    if (o.bookingId) { try { await posPendingOrderApi.cancel(o.bookingId, posStore.getPosTerminalId()) } catch (_) {} }
     posStore.removeOrder(o.code)
     showToast(`Suất chiếu của đơn ${o.code} đã quá giờ — đã huỷ đơn chờ và nhả ghế.`, 'error')
     return
@@ -334,20 +346,20 @@ const restoreHeldOrder = async (o) => {
   
   if (o.bookingId) {
     try {
-      const { data } = await ticketingApi.releaseHold(o.bookingId)
-      if (data.status === 'CONFIRMED') {
-        posStore.removeOrder(o.code)
-        showHeldPanel.value = false
-        showToast(`Đơn ${o.code} đã được thanh toán trước đó — không thể gọi lại.`, 'error')
-        return
-      }
-    } catch (_) { }
+      const { data } = await posPendingOrderApi.resume(o.bookingId, posStore.getPosTerminalId())
+    } catch (err) {
+      posStore.removeOrder(o.code)
+      showHeldPanel.value = false
+      showToast(`Không thể khôi phục đơn ${o.code}: ${err.response?.data?.error || err.message}`, 'error')
+      return
+    }
   }
   
   saleMode.value = 'TICKET'
   selectedShowtime.value = o.showtime
   selectedCombos.value = o.combos || []
   member.value = o.member || null
+  restoredBookingId.value = o.bookingId || null
   showHeldPanel.value = false
   currentStep.value = 2
   isLoadingSeats.value = true
@@ -361,7 +373,8 @@ const restoreHeldOrder = async (o) => {
     const restored = []; const lost = []
     for (const s of (o.seats || [])) {
       const cur = byId.get(s.seatId)
-      if (cur && cur.status === 'AVAILABLE') { cur.ticketType = s.ticketType || 'ADULT'; restored.push(cur) } else lost.push(s)
+      // Check if it's still HOLD by us, or AVAILABLE
+      if (cur && (cur.status === 'AVAILABLE' || cur.status === 'HOLD')) { cur.ticketType = s.ticketType || 'ADULT'; restored.push(cur) } else lost.push(s)
     }
     selectedSeats.value = restored
     if (lost.length) {
@@ -377,6 +390,22 @@ const restoreHeldOrder = async (o) => {
     isLoadingSeats.value = false
   }
   posStore.removeOrder(o.code)
+}
+
+const confirmRestoreHold = ref(null)
+const askRestoreHeldOrder = (o) => {
+  if (canHoldOrder.value || selectedCombos.value.length > 0 || (saleMode.value === 'TICKET' && selectedShowtime.value)) {
+    confirmRestoreHold.value = o
+  } else {
+    performRestore(o)
+  }
+}
+const cancelRestoreHeldOrder = () => { confirmRestoreHold.value = null }
+const confirmRestoreAction = () => {
+  if (confirmRestoreHold.value) {
+    performRestore(confirmRestoreHold.value)
+    confirmRestoreHold.value = null
+  }
 }
 
 const deleteHeldOrder = (o) => posStore.deleteHeldOrder(o)
@@ -614,6 +643,7 @@ const softReset = () => {
   selectedSeats.value = []
   selectedCombos.value = []
   member.value = null
+  restoredBookingId.value = null
   cardNumberInput.value = ''
   cardError.value = ''
   concessionSale.value = null
@@ -668,6 +698,7 @@ const switchMode = (mode) => {
   selectedSeats.value = []
   selectedCombos.value = []
   member.value = null
+  restoredBookingId.value = null
   cardNumberInput.value = ''
   cardError.value = ''
   completedBooking.value = null
@@ -1228,7 +1259,8 @@ const processPayment = async (method) => {
       fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
-      paymentMethod: method
+      paymentMethod: method,
+      heldBookingId: restoredBookingId.value
     }
     
     if (method === 'TRANSFER') {
@@ -1564,6 +1596,7 @@ const resetPOS = () => {
   selectedSeats.value = []
   selectedCombos.value = []
   member.value = null
+  restoredBookingId.value = null
   cardNumberInput.value = ''
   cardError.value = ''
   completedBooking.value = null
@@ -1657,17 +1690,16 @@ onUnmounted(() => {
         <!-- Giữ đơn (Hold Order) — vô hiệu hoá khi giỏ trống -->
         <button @click="holdCurrentOrder" :disabled="!canHoldOrder || isHolding"
                 :class="(canHoldOrder && !isHolding) ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20' : 'bg-surface-container-high border-outline-variant/10 text-on-surface-variant/40 cursor-not-allowed'"
-                class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider transition-all">
-          <span class="material-symbols-outlined text-base">{{ isHolding ? 'progress_activity' : 'pause_circle' }}</span> {{ isHolding ? 'Đang giữ...' : 'Giữ đơn' }}
+                class="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider transition-all">
+          {{ isHolding ? '[ Đang giữ... ]' : '[ Giữ đơn ]' }}
         </button>
 
         <!-- Danh sách đơn chờ -->
-        <AppButton variant="outline" class="w-12 h-12 !p-0 shrink-0 relative" @click="showHeldPanel = true" title="Danh sách đơn chờ">
-                <span class="material-symbols-outlined">receipt_long</span>
-                <span v-if="posStore.heldOrders.length" class="absolute -top-2 -right-2 w-5 h-5 bg-primary text-on-primary text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-surface shadow-sm">
-                  {{ posStore.heldOrders.length }}
-                </span>
-              </AppButton>
+        <button type="button" @click="showHeldPanel = true" 
+                class="bg-surface-container text-on-surface hover:bg-surface-container-high border border-outline-variant/20 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all"
+                title="Danh sách đơn chờ">
+          [ Đơn chờ {{ posStore.heldOrders.length > 0 ? `(${posStore.heldOrders.length})` : '' }} ]
+        </button>
 
         <AppButton variant="outline" @click="resetPOS">Hủy giao dịch</AppButton>
       </div>
@@ -2555,7 +2587,7 @@ onUnmounted(() => {
                           class="w-9 h-9 rounded-lg bg-surface-container-lowest border border-outline-variant/15 text-on-surface-variant hover:text-red-400 hover:border-red-500/30 flex items-center justify-center transition-all" title="Huỷ đơn chờ">
                     <span class="material-symbols-outlined text-lg">delete</span>
                   </button>
-                  <button @click="restoreHeldOrder(o)"
+                  <button @click="askRestoreHeldOrder(o)"
                           class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary text-[11px] font-black uppercase tracking-wider hover:brightness-110 transition-all" title="Khôi phục đơn">
                     <span class="material-symbols-outlined text-base">restore</span> Gọi lại
                   </button>
@@ -2593,6 +2625,29 @@ onUnmounted(() => {
         </div>
       </div>
       </transition>
+
+    <!-- Modal: Xác nhận đè giỏ hàng dở dang -->
+    <transition name="fade">
+      <div v-if="confirmRestoreHold" class="fixed inset-0 z-[1250] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="cancelRestoreHeldOrder">
+        <div class="w-full max-w-sm bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
+          <div class="p-7 text-center space-y-4">
+            <div class="w-16 h-16 mx-auto rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+              <span class="material-symbols-outlined text-3xl text-amber-400">warning</span>
+            </div>
+            <div>
+              <h3 class="text-lg font-black uppercase italic tracking-tighter text-on-surface">Đè giỏ hàng hiện tại?</h3>
+              <p class="text-sm text-on-surface-variant mt-2">Giỏ hàng bạn đang thao tác sẽ bị xoá. Hãy <b class="text-amber-400">[Giữ đơn]</b> hiện tại trước nếu cần. Tiếp tục gọi lại đơn?</p>
+            </div>
+          </div>
+          <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
+            <AppButton variant="ghost" class="flex-1" @click="cancelRestoreHeldOrder">Quay lại</AppButton>
+            <button @click="confirmRestoreAction" class="flex-1 px-4 py-2 rounded-xl bg-amber-500 text-black text-sm font-bold shadow hover:brightness-110 transition-all">
+              Đồng ý
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
 
       <FnbOptionModal
         :is-open="isFnbModalOpen"

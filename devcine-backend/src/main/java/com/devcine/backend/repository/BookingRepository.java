@@ -218,4 +218,19 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "WHERE s.movie.id = :movieId AND b.status = 'CONFIRMED' " +
            "GROUP BY t.id, t.name ORDER BY SUM(bs.priceSnapshot) DESC")
     List<Object[]> ticketClassDistributionByMovie(@Param("movieId") Integer movieId);
+
+    // ===== Hold Order & Pending Orders Management =====
+
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.posTerminalId = :posTerminalId AND (b.status = 'PENDING_PAYMENT' OR b.status = 'PAYING')")
+    long countPendingByPosTerminalId(@Param("posTerminalId") String posTerminalId);
+
+    @Query("SELECT b FROM Booking b JOIN FETCH b.showtime s JOIN FETCH s.movie JOIN FETCH s.room LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user WHERE b.posTerminalId = :posTerminalId AND (b.status = 'PENDING_PAYMENT' OR b.status = 'PAYING') ORDER BY b.createdAt DESC")
+    List<Booking> findPendingByPosTerminalId(@Param("posTerminalId") String posTerminalId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Booking b WHERE b.id = :id")
+    Optional<Booking> findByIdWithPessimisticLock(@Param("id") Integer id);
+
+    @Query("SELECT b FROM Booking b WHERE (b.status = 'PENDING_PAYMENT' OR b.status = 'PAYING' OR b.status = 'HOLD') AND b.expiresAt < :now")
+    List<Booking> findExpiredHolds(@Param("now") LocalDateTime now);
 }

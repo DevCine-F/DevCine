@@ -67,4 +67,10 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "printed_by")
     private Staff printedBy;
+
+    @Column(name = "pos_terminal_id", length = 100)
+    private String posTerminalId;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 }

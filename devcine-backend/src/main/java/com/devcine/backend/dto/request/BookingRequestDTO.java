@@ -22,4 +22,5 @@ public class BookingRequestDTO {
     private Integer voucherId;
     private String paymentMethod; // VNPAY, MOMO, TRANSFER
     private Integer totalTickets;
+    private Integer heldBookingId;
 }

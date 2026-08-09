@@ -42,6 +42,7 @@ public class BookingService {
     private final SeatLockService seatLockService;
     private final LoyaltyService loyaltyService;
     private final VoucherService voucherService;
+    private final PosHoldService posHoldService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -64,6 +65,15 @@ public class BookingService {
             Integer cinemaId = showtime.getRoom() != null && showtime.getRoom().getCinema() != null
                     ? showtime.getRoom().getCinema().getId() : null;
             SecurityUtils.assertCinemaAccess(cinemaId);
+        }
+
+        // Giải phóng đơn chờ cũ (nếu có) trước khi tạo đơn mới
+        if (request.getHeldBookingId() != null) {
+            try {
+                posHoldService.releaseHold(request.getHeldBookingId());
+            } catch (Exception e) {
+                log.warn("Lỗi khi giải phóng đơn giữ cũ {}: {}", request.getHeldBookingId(), e.getMessage());
+            }
         }
 
         // Chuẩn hoá danh sách ghế kèm loại vé: 1 ghế có thể có nhiều loại vé (VD: Sweetbox)

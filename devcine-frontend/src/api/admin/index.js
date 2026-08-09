@@ -103,6 +103,15 @@ export const ticketingApi = {
   applyVoucher: (customerId, code) => api.post('/vouchers/apply', null, { params: { customerId, code } }),
 };
 
+export const posPendingOrderApi = {
+  hold: (payload) => api.post('/admin/pos/bookings/hold', payload),
+  getPending: (posTerminalId) => api.get('/admin/pos/bookings', { params: { posTerminalId } }),
+  resume: (id, posTerminalId) => api.get(`/admin/pos/bookings/${id}/resume`, { params: { posTerminalId } }),
+  payIntent: (id, posTerminalId) => api.post(`/admin/pos/bookings/${id}/pay-intent`, { posTerminalId }),
+  pay: (id, payload) => api.post(`/admin/pos/bookings/${id}/pay`, payload),
+  cancel: (id, posTerminalId) => api.post(`/admin/pos/bookings/${id}/cancel`, { posTerminalId }),
+};
+
 export const reviewAdminApi = {
   list: () => api.get('/reviews/admin/list'),
   toggle: (id) => api.put(`/reviews/${id}/visibility`),
