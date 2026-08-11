@@ -166,7 +166,8 @@ public class TicketService {
 
             List<TicketEmailData.FnbLine> fnbLines = new ArrayList<>();
             for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
-                fnbLines.add(new TicketEmailData.FnbLine(bf.getFnbItem().getName(), bf.getQuantity()));
+                String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
+                fnbLines.add(new TicketEmailData.FnbLine(name, bf.getQuantity()));
             }
 
             mailService.sendTicketEmail(new TicketEmailData(
@@ -208,8 +209,8 @@ public class TicketService {
 
         List<BookingPrintResponse.FnbLine> fnbLines = new ArrayList<>();
         for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
-            fnbLines.add(new BookingPrintResponse.FnbLine(
-                    bf.getFnbItem().getName(), bf.getQuantity(), bf.getPriceSnapshot()));
+            String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
+            fnbLines.add(new BookingPrintResponse.FnbLine(name, bf.getQuantity(), bf.getPriceSnapshot()));
         }
 
         BigDecimal total = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;

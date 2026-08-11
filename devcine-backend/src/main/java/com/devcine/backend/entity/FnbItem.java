@@ -35,10 +35,19 @@ public class FnbItem {
     @Column(length = 500)
     private String description;
 
-    /** Còn bán / hiển thị cho khách ở bước chọn combo hay không. */
+    /** Tạm ngưng bán: gạt toggle "Đang bán". Món vẫn tồn tại, chỉ ẩn khỏi kênh bán. */
     @Column(name = "is_active", columnDefinition = "boolean not null default true")
     @Builder.Default
     private Boolean isActive = true;
+
+    /**
+     * Soft-delete: bấm nút "Xoá". Khác hẳn {@link #isActive} (tạm ngưng) — món đã xoá
+     * biến mất khỏi MỌI danh sách (cả admin), nhưng row vẫn giữ để lịch sử hoá đơn cũ
+     * còn tham chiếu được. Kênh bán yêu cầu {@code isActive=true AND isDeleted=false}.
+     */
+    @Column(name = "is_deleted", columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean isDeleted = false;
 
     /**
      * Các Ô chọn món (Slot) khi cấu hình Combo — thay cho quan hệ ManyToMany cũ.

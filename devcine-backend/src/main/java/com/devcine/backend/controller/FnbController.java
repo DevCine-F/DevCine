@@ -33,7 +33,8 @@ public class FnbController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<FnbItem>>> getActiveFnbs() {
-        return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findByIsActiveTrueOrderByTypeAscNameAsc()));
+        // Kênh bán: đang bán VÀ chưa xoá.
+        return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findByIsActiveTrueAndIsDeletedFalseOrderByTypeAscNameAsc()));
     }
     
     @GetMapping("/groups")
@@ -132,11 +133,11 @@ public class FnbController {
         }
     }
 
-    /** Toàn bộ thực đơn (kể cả đang ẩn) cho khu vực quản trị. */
+    /** Toàn bộ thực đơn (kể cả tạm ngưng) cho khu vực quản trị — nhưng ẨN món đã xoá. */
     @GetMapping("/all")
     @PreAuthorize("@perm.can('fnb_menu','view')")
     public ResponseEntity<ApiResponse<List<FnbItem>>> getAllFnbs() {
-        return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findAll()));
+        return ResponseEntity.ok(ApiResponse.ok(fnbItemRepository.findByIsDeletedFalseOrderByTypeAscNameAsc()));
     }
 
     @PostMapping
@@ -189,7 +190,8 @@ public class FnbController {
         try {
             FnbItem item = fnbItemRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy F&B"));
-            item.setIsActive(false);
+            // Soft-delete: đánh dấu đã xoá (KHÁC với tạm ngưng isActive). Giữ row cho lịch sử.
+            item.setIsDeleted(true);
             fnbItemRepository.save(item);
             return ResponseEntity.ok(ApiResponse.success("Đã xoá món F&B."));
         } catch (Exception e) {

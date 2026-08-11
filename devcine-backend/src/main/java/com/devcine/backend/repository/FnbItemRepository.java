@@ -10,12 +10,13 @@ import java.util.List;
 @Repository
 public interface FnbItemRepository extends JpaRepository<FnbItem, Integer> {
 
-    // Chỉ 1 bag (slots là List) trong đồ thị fetch → an toàn MultipleBagFetchException.
+    // Kênh bán (Khách + POS): đang bán VÀ chưa xoá.
     @EntityGraph(attributePaths = {"slots", "slots.optionGroup", "slots.optionGroup.items"})
-    List<FnbItem> findByIsActiveTrueOrderByTypeAscNameAsc();
+    List<FnbItem> findByIsActiveTrueAndIsDeletedFalseOrderByTypeAscNameAsc();
 
+    // Màn quản trị: cả đang bán lẫn tạm ngưng, nhưng LỌC BỎ món đã xoá.
     @EntityGraph(attributePaths = {"slots", "slots.optionGroup", "slots.optionGroup.items"})
-    List<FnbItem> findAll();
+    List<FnbItem> findByIsDeletedFalseOrderByTypeAscNameAsc();
 
     @EntityGraph(attributePaths = {"slots", "slots.optionGroup", "slots.optionGroup.items"})
     List<FnbItem> findByIdIn(List<Integer> ids);

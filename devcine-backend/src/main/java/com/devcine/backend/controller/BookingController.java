@@ -103,7 +103,9 @@ public class BookingController {
                         
                 List<Map<String, Object>> fnbList = fnbs.stream().map(f -> {
                     Map<String, Object> m = new java.util.HashMap<>();
-                    m.put("itemName", f.getFnbItem() != null ? f.getFnbItem().getName() : "");
+                    // Lịch sử: ưu tiên snapshot tên món; fallback FK cho đơn cũ.
+                    m.put("itemName", f.getItemNameSnapshot() != null ? f.getItemNameSnapshot()
+                            : (f.getFnbItem() != null ? f.getFnbItem().getName() : ""));
                     m.put("quantity", f.getQuantity());
                     m.put("priceSnapshot", f.getPriceSnapshot());
                     return m;

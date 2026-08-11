@@ -77,8 +77,12 @@ public class ConcessionService {
         List<ConcessionSaleItem> rows = new ArrayList<>();
         for (FnbSelectionDTO dto : items) {
             FnbItem item = fnbMap.get(dto.getFnbItemId());
-            if (item == null) {
-                throw new RuntimeException("Khong tim thay mon F&B (id=" + dto.getFnbItemId() + ").");
+            // Re-validate lúc checkout: chặn món đã ngưng bán / đã xoá (giỏ hàng kẹt).
+            if (item == null || Boolean.TRUE.equals(item.getIsDeleted())
+                    || Boolean.FALSE.equals(item.getIsActive())) {
+                throw new RuntimeException("Món '"
+                        + (item != null ? item.getName() : "#" + dto.getFnbItemId())
+                        + "' đã ngưng bán hoặc không tồn tại.");
             }
             int qty = dto.getQuantity() == null ? 0 : dto.getQuantity();
             if (qty < 1 || qty > MAX_QTY_PER_ITEM) {
@@ -90,6 +94,7 @@ public class ConcessionService {
             ConcessionSaleItem saleItem = ConcessionSaleItem.builder()
                     .sale(sale)
                     .fnbItem(item)
+                    .itemNameSnapshot(item.getName()) // chốt cứng tên món cho lịch sử
                     .quantity(qty)
                     .build();
 

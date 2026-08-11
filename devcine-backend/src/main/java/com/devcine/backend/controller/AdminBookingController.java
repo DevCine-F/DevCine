@@ -114,7 +114,8 @@ public class AdminBookingController {
 
         List<Map<String, Object>> fnbs = bookingFnbRepository.findByBookingIdWithFnb(id).stream().map(bf -> {
             Map<String, Object> f = new HashMap<>();
-            f.put("name", bf.getFnbItem().getName());
+            // Lịch sử: ưu tiên snapshot tên món; fallback FK cho đơn cũ.
+            f.put("name", bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName());
             f.put("quantity", bf.getQuantity());
             f.put("price", bf.getPriceSnapshot());
             return f;

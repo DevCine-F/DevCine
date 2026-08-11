@@ -254,7 +254,13 @@ public class BookingService {
             java.util.List<BookingFnb> bookingFnbs = new java.util.ArrayList<>();
             for (FnbSelectionDTO fnbDTO : request.getFnbs()) {
                 FnbItem item = fnbMap.get(fnbDTO.getFnbItemId());
-                if (item == null) throw new RuntimeException("F&B Item not found");
+                // Re-validate lúc checkout: chặn món đã ngưng bán / đã xoá (giỏ hàng kẹt).
+                if (item == null || Boolean.TRUE.equals(item.getIsDeleted())
+                        || Boolean.FALSE.equals(item.getIsActive())) {
+                    throw new RuntimeException("Món '"
+                            + (item != null ? item.getName() : "#" + fnbDTO.getFnbItemId())
+                            + "' đã ngưng bán hoặc không tồn tại.");
+                }
 
                 BigDecimal lineSurcharge = BigDecimal.ZERO;
                 java.util.List<BookingFnbOption> fnbOptions = new java.util.ArrayList<>();
@@ -283,6 +289,7 @@ public class BookingService {
                 BookingFnb bookingFnb = BookingFnb.builder()
                         .booking(booking)
                         .fnbItem(item)
+                        .itemNameSnapshot(item.getName()) // chốt cứng tên món cho lịch sử
                         .quantity(fnbDTO.getQuantity())
                         .priceSnapshot(fnbPrice)
                         .build();
@@ -507,7 +514,9 @@ public class BookingService {
 
             List<TicketEmailData.FnbLine> fnbLines = new java.util.ArrayList<>();
             for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
-                fnbLines.add(new TicketEmailData.FnbLine(bf.getFnbItem().getName(), bf.getQuantity()));
+                // Ưu tiên snapshot; fallback FK cho đơn cũ trước khi có cột snapshot.
+                String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
+                fnbLines.add(new TicketEmailData.FnbLine(name, bf.getQuantity()));
             }
 
             // Tách email theo KÊNH đơn (tin cậy): đơn Online → hiện QR để khách ra rạp quét in vé;

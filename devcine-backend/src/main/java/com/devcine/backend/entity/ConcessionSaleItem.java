@@ -29,6 +29,10 @@ public class ConcessionSaleItem {
     @JoinColumn(name = "fnb_item_id", nullable = false)
     private FnbItem fnbItem;
 
+    /** Tên món tại thời điểm bán — bất biến, đọc từ đây khi xem lịch sử (không qua FK). */
+    @Column(name = "item_name_snapshot", length = 255)
+    private String itemNameSnapshot;
+
     @Column(nullable = false)
     private Integer quantity;
 

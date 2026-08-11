@@ -86,7 +86,7 @@ public class TicketingController {
     @GetMapping("/combos")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getFnbCombos() {
-        List<FnbItem> items = fnbItemRepository.findByIsActiveTrueOrderByTypeAscNameAsc();
+        List<FnbItem> items = fnbItemRepository.findByIsActiveTrueAndIsDeletedFalseOrderByTypeAscNameAsc();
         return ResponseEntity.ok(ApiResponse.ok(items));
     }
 
