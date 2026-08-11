@@ -14,11 +14,24 @@ const toast = useToastStore()
 const isLoading = ref(true)
 const paymentStatus = ref('')
 
+// Làm sạch state khôi phục từ sessionStorage: loại bỏ dòng F&B/ghế hỏng (thiếu trường bắt buộc)
+// có thể tồn từ phiên/phiên bản cũ khác shape — chặn tại NGUỒN để không entry hỏng nào vào store
+// (store dùng chung với BookingView), tránh render ném lỗi làm trắng màn.
+const sanitizeBookingState = (s) => {
+  if (s && Array.isArray(s.selectedFnbs)) {
+    s.selectedFnbs = s.selectedFnbs.filter(f => f && f.fnbItem && f.fnbItem.id != null)
+  }
+  if (s && Array.isArray(s.selectedSeats)) {
+    s.selectedSeats = s.selectedSeats.filter(seat => seat && seat.seatId != null)
+  }
+  return s
+}
+
 onMounted(async () => {
   if (route.query.vnp_SecureHash) {
     // Quay về từ VNPAY: khôi phục state đã lưu trước khi chuyển hướng rồi xác thực chữ ký
     const savedState = sessionStorage.getItem('bookingState')
-    if (savedState) store.$patch(JSON.parse(savedState))
+    if (savedState) store.$patch(sanitizeBookingState(JSON.parse(savedState)))
     try {
       const queryString = window.location.search.substring(1)
       const { data } = await paymentApi.vnpayReturn(queryString)
@@ -39,6 +52,8 @@ onMounted(async () => {
     }
   } else {
     // Thanh toán nội bộ (chuyển khoản / ví): dùng trực tiếp state trong store
+    // Dọn state VNPAY còn sót (nếu có phiên VNPAY dở dang trước đó) để không rò rỉ sang lần sau
+    sessionStorage.removeItem('bookingState')
     paymentStatus.value = 'success'
     isLoading.value = false
   }
@@ -74,6 +89,10 @@ const discount = computed(() => {
 
 // Chỉ hiện thông tin giảm giá khi đơn THỰC SỰ được giảm (tránh hiện voucher tồn từ phiên cũ)
 const hasVoucher = computed(() => discount.value > 0)
+
+// Lọc bỏ dòng F&B hỏng (thiếu fnbItem) — có thể tồn từ state phiên cũ / sessionStorage lỗi thời.
+// Một dòng hỏng KHÔNG được phép làm sập cả trang xác nhận đặt vé thành công.
+const fnbLines = computed(() => (store.selectedFnbs || []).filter(f => f && f.fnbItem))
 </script>
 
 <template>
@@ -130,15 +149,15 @@ const hasVoucher = computed(() => discount.value > 0)
         <div class="py-2.5 border-b border-[#333]/50">
           <div class="flex justify-between gap-4">
             <span class="text-[#888] font-label text-xs flex-shrink-0">Combo / Đồ ăn</span>
-            <span v-if="store.selectedFnbs.length === 0" class="text-white font-headline font-bold text-sm">Không có</span>
+            <span v-if="fnbLines.length === 0" class="text-white font-headline font-bold text-sm">Không có</span>
           </div>
-          <div v-if="store.selectedFnbs.length > 0" class="mt-3 space-y-3">
-            <div v-for="f in store.selectedFnbs" :key="f.fnbItem.id" class="flex justify-between items-start gap-4 text-sm">
+          <div v-if="fnbLines.length > 0" class="mt-3 space-y-3">
+            <div v-for="(f, idx) in fnbLines" :key="f.fnbItem.id ?? idx" class="flex justify-between items-start gap-4 text-sm">
               <div>
                 <div class="font-medium text-white/90">{{ f.quantity }} × {{ formatComboTitle(f.fnbItem.name).title }}</div>
                 <div v-if="formatComboTitle(f.fnbItem.name).desc" class="text-xs text-gray-400 mt-0.5">{{ formatComboTitle(f.fnbItem.name).desc }}</div>
               </div>
-              <div class="text-white/70 font-mono text-right whitespace-nowrap pt-0.5">{{ (f.quantity * f.fnbItem.price).toLocaleString('vi-VN') }} đ</div>
+              <div class="text-white/70 font-mono text-right whitespace-nowrap pt-0.5">{{ (f.quantity * (f.fnbItem.price || 0)).toLocaleString('vi-VN') }} đ</div>
             </div>
           </div>
         </div>
