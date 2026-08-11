@@ -31,8 +31,10 @@
     background-color: #000; /* Dự phòng nền đen phía dưới cùng */
   }
 
-  h1, h2, h3, h4, h5, h6, .font-headline,
-  .uppercase.font-bold, .uppercase.font-extrabold, .uppercase.font-black {
+  /* Montserrat CHỈ cho tiêu đề thật: thẻ heading + class .font-headline khai báo tường minh.
+     KHÔNG ép theo .uppercase.font-* nữa — trước đây nó "vơ" cả nhãn/nội dung thường
+     (IN HOA + đậm) khiến body text bị lệch sang Montserrat thay vì Be Vietnam Pro. */
+  h1, h2, h3, h4, h5, h6, .font-headline {
     font-family: 'Montserrat', sans-serif !important;
   }
 }

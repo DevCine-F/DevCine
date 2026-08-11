@@ -38,6 +38,8 @@ const methodOpen = ref(false)
 const selectMethod = (m) => { filters.method = m; methodOpen.value = false; page.value = 0; fetchBookings() }
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+// Bỏ tiền tố "Ô chọn " trong nhãn slot khi hiển thị (VD "Ô chọn Nước 1" → "Nước 1")
+const stripSlotPrefix = (label) => (label || '').replace(/^Ô\s*chọn\s*/i, '').trim()
 const fmtDateTime = (iso) => {
   if (!iso) return { date: '', time: '' }
   const d = new Date(iso)
@@ -400,7 +402,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 <p class="text-xs text-on-surface-variant mt-1">{{ detail.formatName }} · {{ detail.roomName }}</p>
                 <p class="text-xs text-on-surface-variant">{{ fmtDateTime(detail.showtimeStart).date }} {{ fmtDateTime(detail.showtimeStart).time }}</p>
                 <!-- Trace IDs — chọn/copy để tra cứu khi có lỗi -->
-                <p class="text-[11px] text-gray-500 mt-2 pt-2 border-t border-outline-variant/10 font-mono select-all">Đơn #{{ detail.bookingId }} · Suất #{{ detail.showtimeId }} · Phim #{{ detail.movieId }}</p>
+                <p class="text-[11px] text-on-surface-variant/75 mt-2 pt-2 border-t border-outline-variant/10 font-mono select-all">Đơn #{{ detail.bookingId }} · Suất #{{ detail.showtimeId }} · Phim #{{ detail.movieId }}</p>
               </div>
               <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
                 <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Khách hàng</p>
@@ -478,9 +480,9 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                       <p class="text-sm font-bold text-on-surface">{{ f.name }} <span class="text-on-surface-variant font-medium">x{{ f.quantity }}</span></p>
                       <!-- Danh sách vị khách chọn -->
                       <p v-if="f.options && f.options.length" class="text-xs text-on-surface-variant mt-1">
-                        <template v-for="(o, oi) in f.options" :key="oi"><span v-if="oi"> · </span>{{ o.slotLabel }}: {{ o.optionName }}<span v-if="Number(o.surcharge) > 0"> (+{{ fmt(o.surcharge) }}đ)</span></template>
+                        <template v-for="(o, oi) in f.options" :key="oi"><span v-if="oi"> · </span>{{ stripSlotPrefix(o.slotLabel) }}: {{ o.optionName }}<span v-if="Number(o.surcharge) > 0"> (+{{ fmt(o.surcharge) }}đ)</span></template>
                       </p>
-                      <p class="text-[10px] text-gray-500 mt-0.5 font-mono">Món #{{ f.fnbItemId }} · Đơn giá {{ fmt(f.unitPrice) }}đ</p>
+                      <p class="text-[10px] text-on-surface-variant/75 mt-0.5 font-mono">Món #{{ f.fnbItemId }} · Đơn giá {{ fmt(f.unitPrice) }}đ</p>
                     </div>
                     <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(f.lineTotal) }}đ</span>
                   </div>
