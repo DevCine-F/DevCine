@@ -274,11 +274,12 @@ onUnmounted(() => {
   seatRealtime.disconnect() // rời trang → nhả khóa ghế + ngắt WebSocket
 })
 
-// Tạm tính riêng phần ghế (đã gồm giá theo đối tượng) để hiển thị ở sidebar
-const seatsSubtotal = computed(() => {
-  const fnb = store.selectedFnbs.reduce((a, f) => a + f.fnbItem.price * f.quantity, 0)
-  return Math.max(0, store.totalPrice - fnb)
-})
+// Tạm tính riêng phần ghế (đã gồm giá theo đối tượng) để hiển thị ở sidebar.
+// Tính TRỰC TIẾP từ ticketBreakdown — độc lập hoàn toàn với F&B, tránh lỗi
+// "rò" phụ thu combo vào tiền ghế khi trừ ngược từ totalPrice.
+const seatsSubtotal = computed(() =>
+  ticketBreakdown.value.reduce((sum, t) => sum + t.price, 0)
+)
 
 const showStudentVerificationWarning = computed(() => {
   const hasSweetbox = store.selectedSeats.some(s => s.seatType === 'SWEETBOX');
@@ -350,6 +351,22 @@ watch(fnbTotalPages, (total) => { if (fnbPage.value > total) fnbPage.value = tot
 // State for FnbOptionModal
 const isFnbModalOpen = ref(false)
 const selectedFnbForModal = ref(null)
+
+// Tổng số lượng của một combo trong giỏ (gộp mọi bộ tuỳ chọn) — hiển thị trên card.
+const fnbQtyOf = (fnbItem) =>
+  store.selectedFnbs.filter(f => f.fnbItem.id === fnbItem.id).reduce((s, f) => s + f.quantity, 0)
+
+// Giảm 1 ở dòng (bộ tuỳ chọn) được thêm GẦN NHẤT của combo này.
+// Combo có slot có thể có nhiều bộ tuỳ chọn khác nhau → giảm từ dòng cuối cùng.
+const decrementFnb = (fnbItem) => {
+  for (let i = store.selectedFnbs.length - 1; i >= 0; i--) {
+    const f = store.selectedFnbs[i]
+    if (f.fnbItem.id === fnbItem.id) {
+      store.updateFnb(f.fnbItem, f.quantity - 1, f.options)
+      return
+    }
+  }
+}
 
 const openFnbModal = (fnbItem) => {
   if (fnbItem.slots && fnbItem.slots.length > 0) {
@@ -1124,12 +1141,23 @@ const proceedToPayment = async () => {
               </div>
               <div class="flex items-center justify-between mt-2">
                 <span class="font-headline font-bold text-primary-container">{{ fnb.price?.toLocaleString('vi-VN') }} VNĐ</span>
-                <button 
-                  @click="openFnbModal(fnb)" 
+                <!-- Chưa có trong giỏ → nút Chọn; đã có → stepper +/- điều khiển tổng số lượng -->
+                <button
+                  v-if="fnbQtyOf(fnb) === 0"
+                  @click="openFnbModal(fnb)"
                   class="bg-surface-container-high hover:bg-primary-container/20 hover:text-primary-container text-on-surface rounded-full px-4 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
                 >
                   <span class="material-symbols-outlined text-sm">add</span> Chọn
                 </button>
+                <div v-else class="flex items-center gap-1 bg-surface-container-high rounded-full p-1 border border-outline-variant/10">
+                  <button @click="decrementFnb(fnb)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-primary-container/20 hover:text-primary-container transition-colors" title="Bớt 1">
+                    <span class="material-symbols-outlined text-sm">remove</span>
+                  </button>
+                  <span class="min-w-[1.75rem] text-center text-sm font-bold">{{ fnbQtyOf(fnb) }}</span>
+                  <button @click="openFnbModal(fnb)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-primary-container/20 hover:text-primary-container transition-colors" title="Thêm 1">
+                    <span class="material-symbols-outlined text-sm">add</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1268,15 +1296,23 @@ const proceedToPayment = async () => {
             <div class="w-16 h-24 flex-shrink-0 shadow-lg">
               <img :src="store.selectedMovie?.posterUrl || '/images/Hopper.webp'" class="w-full h-full object-cover rounded-lg"/>
             </div>
-            <div class="flex flex-col justify-center">
-              <span class="bg-error-container text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded w-fit mb-1 text-white">
-                {{ store.selectedMovie?.ageRating || 'T18' }}
-              </span>
+            <div class="flex flex-col justify-center min-w-0">
+              <div class="flex items-center gap-1.5 mb-1">
+                <span class="bg-error-container text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded w-fit text-white">
+                  {{ store.selectedMovie?.ageRating || 'T18' }}
+                </span>
+                <span v-if="store.selectedShowtime?.formatName" class="border border-primary-container/60 text-primary-container text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded w-fit">
+                  {{ store.selectedShowtime.formatName }}
+                </span>
+              </div>
               <h2 class="font-headline text-base font-bold leading-tight uppercase tracking-tight mb-1 line-clamp-2">
                 {{ store.selectedMovie?.title || 'Phim đã chọn' }}
               </h2>
               <p class="text-[11px] text-on-surface-variant font-label truncate">
-                {{ store.selectedShowtime?.cinema?.name }} • {{ store.selectedShowtime?.room?.name }}
+                {{ store.selectedShowtime?.cinema?.cinemaName }} • {{ store.selectedShowtime?.roomName }}
+              </p>
+              <p v-if="store.selectedShowtime?.startTime" class="text-[11px] text-primary-container/90 font-label mt-0.5">
+                {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) }} · {{ new Date(store.selectedShowtime.startTime).toLocaleDateString('vi-VN') }}
               </p>
             </div>
           </div>
@@ -1301,25 +1337,28 @@ const proceedToPayment = async () => {
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bắp nước</span>
               <span class="text-xs font-bold text-primary-container">{{ store.selectedFnbs.reduce((acc, f) => acc + f.quantity, 0) }} sản phẩm</span>
             </div>
-            <!-- Iterate over Fnb cart items -->
-            <div class="flex justify-between items-start gap-3 mt-3 group" v-for="(fnb, idx) in store.selectedFnbs" :key="idx">
-              <div class="flex-grow">
-                <div class="flex items-center gap-2">
-                   <div class="flex items-center bg-surface-container-high rounded-md px-1 py-0.5 shrink-0 border border-outline-variant/10">
-                     <button @click="store.updateFnb(fnb.fnbItem, fnb.quantity - 1, fnb.options)" class="w-4 h-4 flex items-center justify-center hover:text-primary-container"><span class="material-symbols-outlined text-[10px]">remove</span></button>
-                     <span class="w-4 text-center text-[10px] font-bold">{{ fnb.quantity }}</span>
-                     <button @click="store.updateFnb(fnb.fnbItem, fnb.quantity + 1, fnb.options)" class="w-4 h-4 flex items-center justify-center hover:text-primary-container"><span class="material-symbols-outlined text-[10px]">add</span></button>
-                   </div>
-                   <div class="font-medium text-sm text-on-surface/90">{{ formatComboTitle(fnb.fnbItem.name).title }}</div>
+            <!-- Danh sách F&B: giới hạn chiều cao + cuộn để tổng tiền/nút Tiếp tục luôn thấy -->
+            <div class="max-h-[13rem] overflow-y-auto pr-1 -mr-1 fnb-scroll">
+              <div class="flex justify-between items-start gap-2 mt-3 first:mt-0" v-for="(fnb, idx) in store.selectedFnbs" :key="idx">
+                <div class="flex-grow min-w-0">
+                  <div class="flex items-center gap-2">
+                     <span class="shrink-0 min-w-[1.5rem] text-center bg-surface-container-high rounded-md px-1.5 py-0.5 text-[10px] font-bold border border-outline-variant/10">×{{ fnb.quantity }}</span>
+                     <div class="font-medium text-sm text-on-surface/90 truncate">{{ formatComboTitle(fnb.fnbItem.name).title }}</div>
+                  </div>
+                  <div v-if="fnb.options && fnb.options.length > 0" class="text-xs text-on-surface-variant/70 mt-1 pl-8 flex flex-wrap gap-1">
+                     <span v-for="opt in fnb.options" :key="opt.optionItemId" class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px]">
+                        {{ opt.optionName }}
+                     </span>
+                  </div>
+                  <div v-else-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-1 pl-8">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
                 </div>
-                <div v-if="fnb.options && fnb.options.length > 0" class="text-xs text-on-surface-variant/70 mt-1 pl-10 flex flex-wrap gap-1">
-                   <span v-for="opt in fnb.options" :key="opt.optionItemId" class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px]">
-                      {{ opt.optionName }}
-                   </span>
+                <div class="flex flex-col items-end gap-1 shrink-0">
+                  <span class="font-semibold whitespace-nowrap">{{ ((fnb.fnbItem.price + (fnb.options || []).reduce((sum, o) => sum + (o.surchargePrice || 0), 0)) * fnb.quantity).toLocaleString('vi-VN') }}đ</span>
+                  <button @click="store.updateFnb(fnb.fnbItem, 0, fnb.options)" class="text-on-surface-variant/40 hover:text-error-container transition-colors flex items-center" title="Bỏ khỏi đơn">
+                    <span class="material-symbols-outlined text-base">delete</span>
+                  </button>
                 </div>
-                <div v-else-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-1 pl-10">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
               </div>
-              <span class="font-semibold whitespace-nowrap pt-0.5">{{ ((fnb.fnbItem.price + (fnb.options || []).reduce((sum, o) => sum + (o.surchargePrice || 0), 0)) * fnb.quantity).toLocaleString('vi-VN') }}đ</span>
             </div>
           </div>
           <!-- Total Calculation -->
@@ -1382,6 +1421,11 @@ const proceedToPayment = async () => {
 </template>
 
 <style scoped>
+/* Thanh cuộn mảnh cho danh sách F&B trong sidebar */
+.fnb-scroll { scrollbar-width: thin; scrollbar-color: rgba(245,197,24,0.35) transparent; }
+.fnb-scroll::-webkit-scrollbar { width: 4px; }
+.fnb-scroll::-webkit-scrollbar-thumb { background: rgba(245,197,24,0.35); border-radius: 4px; }
+.fnb-scroll::-webkit-scrollbar-track { background: transparent; }
 .seat-grid { perspective: 1000px; }
 .screen-curve { box-shadow: 0 -20px 50px -10px rgba(245, 197, 24, 0.3); }
 </style>
