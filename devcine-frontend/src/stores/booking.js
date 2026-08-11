@@ -6,7 +6,8 @@ export const useBookingStore = defineStore('booking', {
   state: () => ({
     selectedMovie: null,
     selectedShowtime: null,
-    selectedSeats: [], // Array of seat objects
+    selectedSeats: [], // Array of seat objects (mỗi ghế mang blockId của khối đã đặt)
+    currentBlockSize: 0, // Kích thước khối ghế đang chọn (Block Selector kiểu Lotte)
     selectedFnbs: [], // Array of { fnbItem, quantity }
     selectedVoucher: null, // Selected voucher object
     totalPrice: 0, // Tạm tính (suất + bắp), CHƯA trừ voucher
@@ -42,6 +43,24 @@ export const useBookingStore = defineStore('booking', {
       }
       const currentSelectedCapacity = state.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
       return arr.slice(0, currentSelectedCapacity);
+    },
+    // Tổng số chỗ đã đặt (SWEETBOX tính 2 chỗ).
+    selectedCapacity: (state) => state.selectedSeats.reduce((a, s) => a + (s.seatType === 'SWEETBOX' ? 2 : 1), 0),
+    // Số chỗ CÒN LẠI cần đặt.
+    remainingCapacity() {
+      return Math.max(0, this.totalTickets - this.selectedCapacity);
+    },
+    // Các kích thước khối hợp lệ cho phần CÒN LẠI (thuật toán chống ghế mồ côi kiểu Lotte):
+    // với R chỗ còn lại, khối b hợp lệ khi b ≤ R và (R − b) ≠ 1; khối 1 chỉ khi R === 1.
+    validBlockSizes() {
+      const R = this.remainingCapacity;
+      if (R <= 0) return [];
+      if (R === 1) return [1];
+      const sizes = [];
+      for (let b = 2; b <= Math.min(4, R); b++) {
+        if (R - b !== 1) sizes.push(b);
+      }
+      return sizes;
     }
   },
   actions: {
@@ -123,6 +142,23 @@ export const useBookingStore = defineStore('booking', {
       } else {
         this.selectedSeats.splice(index, 1);
       }
+      this.calculateTotal();
+    },
+    // ── Block Selector (chọn theo khối ghế liền nhau) ──
+    setBlockSize(b) { this.currentBlockSize = Number(b) || 0; },
+    // Tự chọn khối mặc định = khối hợp lệ LỚN NHẤT cho phần còn lại (tối đa ngồi cùng nhau).
+    autoPickBlockSize() {
+      const sizes = this.validBlockSizes;
+      this.currentBlockSize = sizes.length ? sizes[sizes.length - 1] : 0;
+    },
+    // Đặt cả một khối ghế (đã quét hợp lệ) vào lựa chọn; mỗi ghế gắn blockId để gỡ nguyên khối.
+    addSeatBlock(seats, blockId) {
+      seats.forEach(s => this.selectedSeats.push({ ...s, blockId }));
+      this.calculateTotal();
+    },
+    // Gỡ toàn bộ ghế thuộc một khối.
+    removeSeatBlock(blockId) {
+      this.selectedSeats = this.selectedSeats.filter(s => s.blockId !== blockId);
       this.calculateTotal();
     },
     setTicketQuantity(code, qty) {

@@ -633,59 +633,97 @@ watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
 // Vào bước "Ưu đãi" (3): chấm điều kiện toàn bộ voucher theo giỏ hiện tại để làm mờ mã không đủ
 watch(currentStep, (s) => { if (s === 3) fetchVoucherEvals() })
 
-const handleSeatClick = (seat) => {
-  if (seat.status !== 'AVAILABLE') return
-  const wasSelected = store.selectedSeats.some(s => s.seatId === seat.seatId)
-  if (wasSelected) {
-    store.toggleSeat(seat)
-    seatRealtime.deselect(seat.seatId) // nhả khóa real-time
-    // Khôi phục snapshot nếu ghế này từng tự động bù vé
-    if (store.autoAddedTickets[seat.seatId]) {
-      const { code, qty } = store.autoAddedTickets[seat.seatId];
-      store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) - qty);
-      delete store.autoAddedTickets[seat.seatId];
-    }
-    return;
+// ══════ BLOCK SELECTOR (chọn theo khối ghế liền nhau — mô hình Lotte) ══════
+let blockCounter = 0
+const hoverBlockIds = ref([])
+
+// Ghế đưa được vào khối mới: trống, không bảo trì, không bị khoá real-time, CHƯA được chọn.
+const isSeatFreeForBlock = (s) =>
+  !!s && s.status === 'AVAILABLE' && !isSeatMaintenance(s) && !isSeatLockedByOthers(s)
+  && !store.selectedSeats.some(sel => sel.seatId === s.seatId)
+
+// Quét sang phải từ ghế bắt đầu, gom đủ `currentBlockSize` chỗ (SWEETBOX = 2 chỗ → nhảy 2 cột).
+// Trả về mảng ghế nếu đủ & liền mạch (không vướng lối đi/tường/ghế bận); ngược lại null.
+const computeBlockSeats = (startSeat) => {
+  const size = store.currentBlockSize
+  if (!size || !startSeat) return null
+  const row = startSeat.gridRow
+  let col = startSeat.gridCol
+  const seats = []
+  let cap = 0
+  while (cap < size) {
+    const s = getSeatAt(row, col)
+    if (!isSeatFreeForBlock(s)) return null // gặp lối đi/tường/ghế bận → khối không đặt được
+    seats.push(s)
+    const w = s.seatType === 'SWEETBOX' ? 2 : 1
+    cap += w
+    col += w
   }
-  
-  // Ghế đang bị POS/khách khác giữ real-time → chặn ngay
-  if (isSeatLockedByOthers(seat)) {
-    toast.toasts = [];
-    toast.error(`Ghế ${seatLabel(seat)} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
+  return cap === size ? seats : null // vượt (VD block lẻ gặp SWEETBOX) → không hợp lệ
+}
+
+const onSeatEnter = (seat) => {
+  if (!seat || store.totalTickets === 0 || store.remainingCapacity === 0) {
+    // Vẫn cho preview khối SẼ GỠ khi rê vào ghế đã chọn (kể cả khi đã đặt đủ)
+    const sel = seat && store.selectedSeats.find(s => s.seatId === seat.seatId)
+    hoverBlockIds.value = sel ? store.selectedSeats.filter(s => s.blockId === sel.blockId).map(s => s.seatId) : []
     return
   }
+  const sel = store.selectedSeats.find(s => s.seatId === seat.seatId)
+  if (sel) { hoverBlockIds.value = store.selectedSeats.filter(s => s.blockId === sel.blockId).map(s => s.seatId); return }
+  const block = computeBlockSeats(seat)
+  hoverBlockIds.value = block ? block.map(s => s.seatId) : []
+}
+const onSeatLeave = () => { hoverBlockIds.value = [] }
 
-  const currentSelected = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
-  const capacity = seat.seatType === 'SWEETBOX' ? 2 : 1;
-  const remainingTickets = store.totalTickets - currentSelected;
-  
-  if (capacity > remainingTickets) {
-    if (seat.seatType === 'SWEETBOX') {
-      const missing = capacity - remainingTickets;
-      let targetCode = store.audienceAssignment[store.audienceAssignment.length - 1];
-      if (!targetCode) {
-        targetCode = Object.keys(store.ticketQuantities).find(k => store.ticketQuantities[k] > 0) || 'ADULT';
-      }
-      
-      if (store.totalTickets + missing > store.maxTicketsPerBooking) {
-        toast.toasts = [];
-        toast.warning('Số lượng vé vượt quá giới hạn cho phép.');
-        return;
-      }
-      
-      setQty(targetCode, missing);
-      store.autoAddedTickets[seat.seatId] = { code: targetCode, qty: missing };
-      toast.toasts = [];
-      toast.warning('Lưu ý: Ghế Sweetbox sẽ tính 2 chỗ');
-    } else {
-      toast.toasts = [];
-      toast.warning(`Bạn đã chọn đủ số lượng vé (${store.totalTickets}/${store.totalTickets} vé).`);
-      return;
-    }
+const onSeatClick = (seat) => {
+  if (!seat || seat.status !== 'AVAILABLE') return
+  // Click ghế đã chọn → gỡ NGUYÊN khối chứa nó.
+  const sel = store.selectedSeats.find(s => s.seatId === seat.seatId)
+  if (sel) {
+    store.selectedSeats.filter(s => s.blockId === sel.blockId).forEach(s => seatRealtime.deselect(s.seatId))
+    store.removeSeatBlock(sel.blockId)
+    store.autoPickBlockSize()
+    hoverBlockIds.value = []
+    return
   }
+  if (store.totalTickets === 0) { toast.toasts = []; toast.warning('Vui lòng chọn số lượng vé trước.'); return }
+  if (!store.currentBlockSize) { toast.toasts = []; toast.warning('Bạn đã chọn đủ ghế cho số vé này.'); return }
+  const block = computeBlockSeats(seat)
+  if (!block) {
+    toast.toasts = []
+    toast.warning(`Không đủ ${store.currentBlockSize} ghế trống liền nhau từ vị trí này. Vui lòng chọn chỗ khác.`)
+    return
+  }
+  const blockId = ++blockCounter
+  store.addSeatBlock(block, blockId)
+  block.forEach(s => seatRealtime.select(s.seatId)) // giữ ghế real-time (ai click trước thắng)
+  store.autoPickBlockSize() // phần còn lại → chọn khối mặc định mới
+  hoverBlockIds.value = []
+}
 
-  store.toggleSeat(seat)
-  seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
+// An toàn: nếu khối đang chọn không còn hợp lệ cho phần còn lại (hoặc chưa khởi tạo) → chọn lại.
+watch(() => store.remainingCapacity, () => {
+  if (store.remainingCapacity > 0 && !store.validBlockSizes.includes(store.currentBlockSize)) {
+    store.autoPickBlockSize()
+  }
+}, { immediate: true })
+
+// Reset toàn bộ ghế đã chọn (khi đổi số lượng vé) + nhả khoá real-time + chọn lại khối mặc định.
+const resetSeatSelection = () => {
+  store.selectedSeats.forEach(s => seatRealtime.deselect(s.seatId))
+  store.clearSeats()
+  store.autoPickBlockSize()
+  hoverBlockIds.value = []
+}
+
+// Viền preview trên sơ đồ: vàng = sẽ đặt, đỏ = sẽ gỡ.
+const seatPreviewClass = (seat) => {
+  if (!seat || !hoverBlockIds.value.includes(seat.seatId)) return ''
+  const isSel = store.selectedSeats.some(s => s.seatId === seat.seatId)
+  return isSel
+    ? 'ring-2 ring-red-400 ring-offset-2 ring-offset-black/40'
+    : 'ring-2 ring-primary ring-offset-2 ring-offset-black/40 brightness-125 scale-[1.03]'
 }
 
 const isSeatSelected = (seat) => {
@@ -702,35 +740,12 @@ const getRowChar = (row) => {
   return seat ? seat.rowChar : ''
 }
 
-// Tăng/giảm số lượng vé theo đối tượng (chọn trước khi chọn ghế)
+// Tăng/giảm số lượng vé theo đối tượng (chọn trước khi chọn ghế).
+// Block Selector: đổi số vé → RESET ghế đã đặt + chọn lại khối mặc định (theo yêu cầu Lotte).
 const setQty = (code, delta) => {
-  store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) + delta);
-  const currentSelectedCapacity = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
-  if (store.totalTickets < currentSelectedCapacity) {
-    pruneSeatsOnDecrement(store.totalTickets);
-  }
-}
-
-const pruneSeatsOnDecrement = (newTotal) => {
-  let capacity = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
-  if (capacity <= newTotal) return;
-
-  let pruned = false;
-  while (capacity > newTotal && store.selectedSeats.length > 0) {
-    const seat = store.selectedSeats[store.selectedSeats.length - 1];
-    store.toggleSeat(seat);
-    seatRealtime.deselect(seat.seatId);
-    if (store.autoAddedTickets[seat.seatId]) {
-      delete store.autoAddedTickets[seat.seatId];
-    }
-    capacity = store.selectedSeats.reduce((acc, s) => acc + (s.seatType === 'SWEETBOX' ? 2 : 1), 0);
-    pruned = true;
-  }
-  
-  if (pruned) {
-    toast.toasts = [];
-    toast.warning('Số lượng vé đã giảm. Các vị trí ghế chọn cuối cùng đã được nhả tự động.');
-  }
+  const before = store.totalTickets
+  store.setTicketQuantity(code, (store.ticketQuantities[code] || 0) + delta)
+  if (store.totalTickets !== before) resetSeatSelection()
 }
 
 const isHiddenBecauseSweetbox = (row, col) => {
@@ -951,6 +966,37 @@ const proceedToPayment = async () => {
           <div v-if="store.totalTickets === 0" class="mb-8 text-center bg-primary-container/10 border border-primary-container/30 rounded-2xl py-4 px-6 text-sm text-on-surface-variant">
             Vui lòng chọn số lượng vé ở trên trước khi chọn ghế.
           </div>
+
+          <!-- Block Selector: chọn kích thước khối ghế liền nhau (chống ghế mồ côi kiểu Lotte) -->
+          <div v-else class="mb-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+            <span class="text-sm font-bold text-on-surface-variant flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-base text-primary">chair</span> Chọn ghế liền nhau
+              <span class="material-symbols-outlined text-sm text-on-surface-variant/50 cursor-help"
+                    title="Chọn kích thước khối, rồi rê chuột lên sơ đồ để đặt các ghế ngồi cạnh nhau. Hệ thống tự khoá các lựa chọn làm dư 1 ghế lẻ.">info</span>
+            </span>
+            <div class="flex items-center gap-2.5">
+              <button v-for="b in [1, 2, 3, 4]" :key="b"
+                      type="button"
+                      :disabled="!store.validBlockSizes.includes(b)"
+                      @click="store.setBlockSize(b)"
+                      :title="`Khối ${b} ghế`"
+                      :class="store.currentBlockSize === b
+                        ? 'border-primary bg-primary/10 shadow-[0_0_15px_rgba(245,197,24,0.25)]'
+                        : 'border-outline-variant/20 hover:border-outline-variant/40'"
+                      class="flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
+                <span class="w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-colors"
+                      :class="store.currentBlockSize === b ? 'border-primary bg-primary' : 'border-outline-variant/50'"></span>
+                <span class="flex gap-1">
+                  <span v-for="k in b" :key="k" class="w-4 h-4 rounded-sm transition-colors"
+                        :class="store.validBlockSizes.includes(b) ? 'bg-on-surface' : 'bg-on-surface/25'"></span>
+                </span>
+              </button>
+            </div>
+            <span v-if="store.remainingCapacity === 0" class="text-xs font-bold text-green-400 flex items-center gap-1">
+              <span class="material-symbols-outlined text-sm">check_circle</span> Đã chọn đủ ghế
+            </span>
+            <span v-else class="text-xs text-on-surface-variant">Còn <b class="text-primary">{{ store.remainingCapacity }}</b> ghế cần chọn</span>
+          </div>
           <!-- Screen -->
           <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8 mb-12">
             <div class="absolute top-0 w-full h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
@@ -967,8 +1013,10 @@ const proceedToPayment = async () => {
                 
                 <template v-for="col in store.matrixCol" :key="col">
                   <template v-if="getSeatAt(row - 1, col - 1)">
-                    <div @click="handleSeatClick(getSeatAt(row - 1, col - 1))"
-                         :class="getBookingSeatClass(getSeatAt(row - 1, col - 1))"
+                    <div @click="onSeatClick(getSeatAt(row - 1, col - 1))"
+                         @mouseenter="onSeatEnter(getSeatAt(row - 1, col - 1))"
+                         @mouseleave="onSeatLeave"
+                         :class="[getBookingSeatClass(getSeatAt(row - 1, col - 1)), seatPreviewClass(getSeatAt(row - 1, col - 1))]"
                          :title="isSeatMaintenance(getSeatAt(row - 1, col - 1)) ? 'Ghế bảo trì' : seatLabel(getSeatAt(row - 1, col - 1))">
                       <span v-if="isSeatMaintenance(getSeatAt(row - 1, col - 1))" class="material-symbols-outlined text-sm">build</span>
                       <template v-else>{{ seatLabel(getSeatAt(row - 1, col - 1)) }}</template>
