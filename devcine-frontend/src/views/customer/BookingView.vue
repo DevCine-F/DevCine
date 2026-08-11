@@ -642,13 +642,41 @@ const isSeatFreeForBlock = (s) =>
   !!s && s.status === 'AVAILABLE' && !isSeatMaintenance(s) && !isSeatLockedByOthers(s)
   && !store.selectedSeats.some(sel => sel.seatId === s.seatId)
 
+// Đếm SỐ CHỖ trống liền nhau (SWEETBOX = 2) từ `fromCol` theo hướng `dir` (−1 trái / +1 phải),
+// dừng khi gặp lối đi/tường/ghế đã bán-giữ-khoá-chọn. Dùng để soi khoảng trống bỏ lại ở 2 mép.
+const freeRunCapacity = (row, fromCol, dir) => {
+  let total = 0
+  let col = fromCol
+  while (col >= 0 && col < store.matrixCol) {
+    const s = getSeatAt(row, col)
+    if (!s) {
+      // Ô trống trên lưới: có thể là nửa phải (ẩn) của SWEETBOX bên trái, hoặc lối đi/tường thật.
+      const owner = getSeatAt(row, col - 1)
+      if (dir === -1 && owner && owner.seatType === 'SWEETBOX') {
+        if (!isSeatFreeForBlock(owner)) break
+        total += 2
+        col -= 2
+        continue
+      }
+      break // lối đi / tường → chặn
+    }
+    if (!isSeatFreeForBlock(s)) break // ghế đã bán/giữ/khoá/bảo trì/đã chọn → chặn
+    const w = s.seatType === 'SWEETBOX' ? 2 : 1
+    total += w
+    col += dir * w
+  }
+  return total
+}
+
 // Quét sang phải từ ghế bắt đầu, gom đủ `currentBlockSize` chỗ (SWEETBOX = 2 chỗ → nhảy 2 cột).
-// Trả về mảng ghế nếu đủ & liền mạch (không vướng lối đi/tường/ghế bận); ngược lại null.
+// Trả về mảng ghế nếu HỢP LỆ; null nếu: không đủ ghế liền mạch, vượt block, HOẶC để lại đúng
+// 1 chỗ trống lẻ ở mép trái/phải (chốt chặn không gian kiểu Lotte — chống ghế mồ côi).
 const computeBlockSeats = (startSeat) => {
   const size = store.currentBlockSize
   if (!size || !startSeat) return null
   const row = startSeat.gridRow
-  let col = startSeat.gridCol
+  const startCol = startSeat.gridCol
+  let col = startCol
   const seats = []
   let cap = 0
   while (cap < size) {
@@ -659,7 +687,11 @@ const computeBlockSeats = (startSeat) => {
     cap += w
     col += w
   }
-  return cap === size ? seats : null // vượt (VD block lẻ gặp SWEETBOX) → không hợp lệ
+  if (cap !== size) return null // vượt (VD block lẻ gặp SWEETBOX) → không hợp lệ
+  // Chốt chặn 2 mép: nếu bên trái hoặc bên phải khối bị bỏ lại ĐÚNG 1 chỗ trống lẻ → cấm đặt.
+  if (freeRunCapacity(row, startCol - 1, -1) === 1) return null // mép trái lẻ 1 ghế
+  if (freeRunCapacity(row, col, 1) === 1) return null            // mép phải lẻ 1 ghế
+  return seats
 }
 
 const onSeatEnter = (seat) => {
@@ -692,7 +724,7 @@ const onSeatClick = (seat) => {
   const block = computeBlockSeats(seat)
   if (!block) {
     toast.toasts = []
-    toast.warning(`Không đủ ${store.currentBlockSize} ghế trống liền nhau từ vị trí này. Vui lòng chọn chỗ khác.`)
+    toast.warning(`Vị trí này không đủ ${store.currentBlockSize} ghế liền nhau hoặc sẽ để trống 1 ghế lẻ. Vui lòng chọn chỗ khác.`)
     return
   }
   const blockId = ++blockCounter
