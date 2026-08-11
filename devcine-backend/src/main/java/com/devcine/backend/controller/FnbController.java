@@ -231,9 +231,17 @@ public class FnbController {
                     ? Boolean.parseBoolean(s.get("isRequired").toString()) : (min > 0);
             int displayOrder = s.get("displayOrder") != null ? toInt(s.get("displayOrder")) : order;
 
+            // Vị mặc định (tuỳ chọn) — phải là một Vị THUỘC đúng kho của slot này.
+            Integer defaultId = toInt(s.get("defaultOptionItemId"));
+            var defaultItem = defaultId == null ? null
+                    : pool.getItems().stream()
+                        .filter(oi -> defaultId.equals(oi.getId()))
+                        .findFirst().orElse(null);
+
             item.getSlots().add(FnbComboSlot.builder()
                     .fnbItem(item)
                     .optionGroup(pool)
+                    .defaultOptionItem(defaultItem)
                     .slotLabel(s.get("slotLabel") != null && !s.get("slotLabel").toString().isBlank()
                             ? s.get("slotLabel").toString() : pool.getName())
                     .displayOrder(displayOrder)
