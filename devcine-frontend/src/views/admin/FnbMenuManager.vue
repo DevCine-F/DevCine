@@ -65,6 +65,7 @@ const openCreate = () => {
   editingId.value = null
   form.value = { name: '', type: 'COMBO', price: null, imageUrl: '', description: '', isActive: true, slots: [] }
   builderMode.value = true
+  resetTouched()
   isDrawerOpen.value = true
 }
 
@@ -91,6 +92,7 @@ const openEdit = (item) => {
   // Chọn chế độ hiển thị: combo rỗng hoặc đồng đều (mỗi ô chọn đúng 1) → Builder số lượng;
   // combo có cấu hình lệch (mix vị / tùy chọn) → Nâng cao để không mất dữ liệu.
   builderMode.value = form.value.slots.length === 0 || slotsAreUniform(form.value.slots)
+  resetTouched()
   isDrawerOpen.value = true
 }
 
@@ -119,6 +121,7 @@ const handleUpload = async (event) => {
 }
 
 const handleSave = async () => {
+  submitAttempted.value = true // từ giờ mọi lỗi được phép hiện đỏ
   // Chặn lưu khi còn bất kỳ lỗi nào — KHÔNG âm thầm bỏ qua/sửa dữ liệu.
   if (!canSave.value) {
     toast.warning(nameError.value || priceError.value || 'Vui lòng sửa các mục đang báo lỗi (viền đỏ) trước khi lưu.')
@@ -382,6 +385,12 @@ const slotErrors = computed(() => {
 const hasSlotErrors = computed(() => slotErrors.value.some(e => Object.keys(e).length > 0))
 
 // ── Validate chung (tên + giá gốc) ──
+// UX: chỉ hiện lỗi đỏ khi ô đã "touched" (focus rồi blur) HOẶC đã bấm Lưu.
+// Không báo đỏ lúc form vừa mở (pristine). Bản thân canSave vẫn chặn nút Lưu như thường.
+const touched = ref({ name: false, price: false })
+const submitAttempted = ref(false)
+const showError = (field, msg) => ((touched.value[field] || submitAttempted.value) ? msg : '')
+const resetTouched = () => { touched.value = { name: false, price: false }; submitAttempted.value = false }
 const NAME_MAX = 50
 const nameError = computed(() => {
   const n = (form.value.name || '')
@@ -622,15 +631,15 @@ onMounted(() => {
           <div class="space-y-1.5">
             <div class="flex items-center justify-between">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên món / combo</label>
-              <span class="text-[10px] font-semibold tabular-nums" :class="(form.name || '').trim().length > 50 ? 'text-red-400' : 'text-on-surface-variant/60'">{{ (form.name || '').trim().length }}/50</span>
+              <span class="text-[10px] font-semibold tabular-nums" :class="(form.name || '').length >= 50 ? 'text-amber-400' : 'text-on-surface-variant/60'">{{ (form.name || '').length }}/50</span>
             </div>
             <input
-              v-model="form.name"
+              v-model="form.name" maxlength="50" @blur="touched.name = true"
               class="w-full bg-surface-container-highest border p-3 rounded-lg text-sm font-bold text-on-surface focus:border-primary outline-none"
-              :class="nameError ? 'border-red-500/60' : 'border-outline-variant/20'"
+              :class="showError('name', nameError) ? 'border-red-500/60' : 'border-outline-variant/20'"
               placeholder="VD: Combo Couple"
             />
-            <p v-if="nameError" class="text-[10px] text-red-400 font-semibold">{{ nameError }}</p>
+            <p v-if="showError('name', nameError)" class="text-[10px] text-red-400 font-semibold">{{ nameError }}</p>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -643,18 +652,21 @@ onMounted(() => {
             <div class="space-y-1.5">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá gốc (VNĐ)</label>
               <input
-                v-model="form.price" type="number" min="0"
+                v-model="form.price" type="number" min="0" @blur="touched.price = true"
                 class="w-full bg-surface-container-highest border p-3 rounded-lg text-sm font-bold text-on-surface focus:border-primary outline-none"
-                :class="priceError ? 'border-red-500/60' : 'border-outline-variant/20'"
+                :class="showError('price', priceError) ? 'border-red-500/60' : 'border-outline-variant/20'"
                 placeholder="VD: 89000"
               />
             </div>
           </div>
-          <p v-if="priceError" class="text-[10px] text-red-400 font-semibold -mt-2">{{ priceError }}</p>
+          <p v-if="showError('price', priceError)" class="text-[10px] text-red-400 font-semibold -mt-2">{{ priceError }}</p>
 
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả</label>
-            <textarea v-model="form.description" rows="3" class="w-full bg-surface-container-highest border border-outline-variant/20 p-3 rounded-lg text-sm text-on-surface focus:border-primary outline-none resize-none" placeholder="VD: 1 bắp lớn + 2 nước ngọt"></textarea>
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả</label>
+              <span class="text-[10px] font-semibold tabular-nums text-on-surface-variant/60">{{ (form.description || '').length }}/255</span>
+            </div>
+            <textarea v-model="form.description" rows="3" maxlength="255" class="w-full bg-surface-container-highest border border-outline-variant/20 p-3 rounded-lg text-sm text-on-surface focus:border-primary outline-none resize-none" placeholder="VD: 1 bắp lớn + 2 nước ngọt"></textarea>
           </div>
 
           <!-- Thành phần / Ô chọn — CHỈ hiện cho COMBO -->
