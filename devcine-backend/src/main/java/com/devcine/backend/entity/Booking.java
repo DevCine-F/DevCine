@@ -45,6 +45,10 @@ public class Booking {
     @Column(name = "payment_method", length = 50)
     private String paymentMethod;
 
+    /** Mã giao dịch cổng thanh toán (VNPAY vnp_TransactionNo…) để đối soát. Null với tiền mặt. */
+    @Column(name = "payment_gateway_ref", length = 100)
+    private String paymentRef;
+
     @Column(length = 50)
     private String status;
 

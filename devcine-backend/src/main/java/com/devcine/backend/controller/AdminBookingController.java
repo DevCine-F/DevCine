@@ -43,6 +43,7 @@ public class AdminBookingController {
             @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(required = false, defaultValue = "") String status,
             @RequestParam(required = false, defaultValue = "") String method,
+            @RequestParam(required = false, defaultValue = "") String hasFnb,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             @RequestParam(defaultValue = "0") int page,
@@ -55,15 +56,22 @@ public class AdminBookingController {
         LocalDateTime fromDt = parseStart(from, MIN_DATE);
         LocalDateTime toDt = parseEnd(to, LocalDateTime.now().plusYears(10));
 
+        // hasFnb: "" (tất cả) | "YES" (có F&B) | "NO" (chỉ vé)
+        String hasFnbFilter = hasFnb == null ? "" : hasFnb.trim().toUpperCase();
         Page<Booking> result = bookingRepository.searchForAdmin(
                 q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), staffUserId,
-                fromDt, toDt, PageRequest.of(page, size));
+                fromDt, toDt, hasFnbFilter, PageRequest.of(page, size));
 
         List<Integer> ids = result.getContent().stream().map(Booking::getId).collect(Collectors.toList());
         Map<Integer, Long> seatCounts = new HashMap<>();
+        Map<Integer, Long> fnbCounts = new HashMap<>();
         if (!ids.isEmpty()) {
             for (Object[] row : bookingRepository.countSeatsByBookingIds(ids)) {
                 seatCounts.put((Integer) row[0], (Long) row[1]);
+            }
+            // Batch đếm F&B cho cả trang trong 1 query (tránh N+1).
+            for (Object[] row : bookingFnbRepository.countFnbByBookingIds(ids)) {
+                fnbCounts.put((Integer) row[0], (Long) row[1]);
             }
         }
 
@@ -83,6 +91,9 @@ public class AdminBookingController {
             m.put("roomName", b.getShowtime().getRoom().getName());
             m.put("showtimeStart", b.getShowtime().getStartTime().toString());
             m.put("seatCount", seatCounts.getOrDefault(b.getId(), 0L));
+            long fnbCount = fnbCounts.getOrDefault(b.getId(), 0L);
+            m.put("fnbItemCount", fnbCount);
+            m.put("hasFnb", fnbCount > 0);
             return m;
         }).collect(Collectors.toList());
 
@@ -114,10 +125,25 @@ public class AdminBookingController {
 
         List<Map<String, Object>> fnbs = bookingFnbRepository.findByBookingIdWithFnb(id).stream().map(bf -> {
             Map<String, Object> f = new HashMap<>();
+            java.math.BigDecimal unit = bf.getPriceSnapshot() != null ? bf.getPriceSnapshot() : java.math.BigDecimal.ZERO;
+            int qty = bf.getQuantity() != null ? bf.getQuantity() : 0;
+            f.put("fnbItemId", bf.getFnbItem() != null ? bf.getFnbItem().getId() : null);
             // Lịch sử: ưu tiên snapshot tên món; fallback FK cho đơn cũ.
             f.put("name", bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName());
-            f.put("quantity", bf.getQuantity());
-            f.put("price", bf.getPriceSnapshot());
+            f.put("quantity", qty);
+            f.put("unitPrice", unit);
+            f.put("lineTotal", unit.multiply(java.math.BigDecimal.valueOf(qty)));
+            f.put("price", unit); // giữ khoá cũ để tương thích ngược FE
+            // Danh sách vị khách đã chọn (snapshot) — hiển thị sub-text trong modal.
+            List<Map<String, Object>> options = bf.getOptions().stream().map(o -> {
+                Map<String, Object> om = new HashMap<>();
+                om.put("slotLabel", o.getSlotLabelSnapshot());
+                om.put("optionName", o.getOptionNameSnapshot());
+                om.put("surcharge", o.getSurchargeSnapshot());
+                om.put("optionItemId", o.getOptionItem() != null ? o.getOptionItem().getId() : null);
+                return om;
+            }).collect(Collectors.toList());
+            f.put("options", options);
             return f;
         }).collect(Collectors.toList());
 
@@ -149,6 +175,17 @@ public class AdminBookingController {
         dto.put("showtimeStart", b.getShowtime().getStartTime().toString());
         dto.put("voucherCode", b.getVoucher() != null && b.getVoucher().getPromotion() != null
                 ? b.getVoucher().getPromotion().getCode() : null);
+        // Snapshot tài chính: giảm giá = tổng − thực trả; mã đối soát cổng thanh toán.
+        dto.put("discountAmount", b.getTotalPrice() != null && b.getFinalPrice() != null
+                ? b.getTotalPrice().subtract(b.getFinalPrice()).max(java.math.BigDecimal.ZERO) : java.math.BigDecimal.ZERO);
+        dto.put("paymentRef", b.getPaymentRef());
+        // Trace IDs cho admin tra cứu nhanh.
+        dto.put("showtimeId", b.getShowtime().getId());
+        dto.put("movieId", b.getShowtime().getMovie().getId());
+        // Thông tin soát/in vé tại quầy (booking-level).
+        dto.put("checkedInAt", b.getPrintedAt() != null ? b.getPrintedAt().toString() : null);
+        dto.put("checkedInBy", b.getPrintedBy() != null && b.getPrintedBy().getUser() != null
+                ? b.getPrintedBy().getUser().getFullName() : null);
         dto.put("seats", seats);
         dto.put("fnbs", fnbs);
         dto.put("tickets", tickets);

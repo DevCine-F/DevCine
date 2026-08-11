@@ -23,6 +23,19 @@ public class BookingFnbOption {
     @JsonIgnore
     private BookingFnb bookingFnb;
 
+    /**
+     * FK tới Vị đã chọn (truy vết ID cho đơn Online — parity với ConcessionSaleItemOption).
+     * Nullable: đơn cũ trước khi có cột này để null; snapshot tên/giá vẫn đủ để hiển thị.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "option_item_id")
+    private FnbOptionItem optionItem;
+
+    /** FK tới Kho (Pool) của vị — truy vết ID. Nullable vì lý do tương thích ngược. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "option_group_id")
+    private FnbOptionGroup optionGroup;
+
     /** Snapshot nhãn Ô chọn tại thời điểm đặt (VD "Nước 1") — bảo toàn báo cáo lịch sử. */
     @Column(name = "slot_label_snapshot")
     private String slotLabelSnapshot;

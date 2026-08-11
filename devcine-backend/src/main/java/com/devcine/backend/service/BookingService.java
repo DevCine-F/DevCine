@@ -268,6 +268,8 @@ public class BookingService {
                 for (FnbOptionValidator.ResolvedOption ro : fnbOptionValidator.validateAndResolve(item, fnbDTO.getOptions())) {
                     lineSurcharge = lineSurcharge.add(ro.surcharge());
                     fnbOptions.add(BookingFnbOption.builder()
+                            .optionItem(ro.item())                        // FK truy vết ID vị
+                            .optionGroup(ro.slot().getOptionGroup())      // FK truy vết ID kho
                             .slotLabelSnapshot(ro.slotLabel())
                             .optionNameSnapshot(ro.optionName())
                             .surchargeSnapshot(ro.surcharge())
@@ -408,9 +410,15 @@ public class BookingService {
     
     @Transactional
     public void completePayment(Integer bookingId, String paymentMethod) {
+        completePayment(bookingId, paymentMethod, null);
+    }
+
+    /** Overload có mã đối soát cổng thanh toán (VNPAY vnp_TransactionNo). null = tiền mặt/không có. */
+    @Transactional
+    public void completePayment(Integer bookingId, String paymentMethod, String paymentRef) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
-                
+
         if ("CONFIRMED".equals(booking.getStatus())) {
             return; // Idempotent: đơn đã xác nhận → không xử lý/trừ tiền/sinh vé lần 2
         }
@@ -429,6 +437,9 @@ public class BookingService {
         
         booking.setStatus("CONFIRMED");
         booking.setPaymentMethod(paymentMethod);
+        if (paymentRef != null && !paymentRef.isBlank()) {
+            booking.setPaymentRef(paymentRef); // mã đối soát cổng thanh toán
+        }
         bookingRepository.save(booking);
         
         // Update seat status + sinh vé QR — gom saveAll thay vì lưu từng bản ghi (giảm round-trip).

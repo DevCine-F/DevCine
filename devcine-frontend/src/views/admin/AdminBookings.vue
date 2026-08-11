@@ -17,7 +17,13 @@ const page = ref(0)
 const totalPages = ref(1)
 const totalElements = ref(0)
 
-const filters = reactive({ q: '', status: '', method: '', from: '', to: '' })
+const filters = reactive({ q: '', status: '', method: '', hasFnb: '', from: '', to: '' })
+
+const FNB_TABS = [
+  { value: '', label: 'Tất cả' },
+  { value: 'YES', label: 'Có F&B' },
+  { value: 'NO', label: 'Chỉ vé' }
+]
 
 const STATUS_TABS = [
   { value: '', label: 'Tất cả' },
@@ -59,6 +65,7 @@ const fetchBookings = async () => {
     if (filters.q.trim()) params.q = filters.q.trim()
     if (filters.status) params.status = filters.status
     if (filters.method) params.method = filters.method
+    if (filters.hasFnb) params.hasFnb = filters.hasFnb
     if (filters.from) params.from = filters.from
     if (filters.to) params.to = filters.to
     const { data } = await bookingAdminApi.list(params)
@@ -82,7 +89,7 @@ const onSearchInput = () => {
 }
 const applyFilter = () => { page.value = 0; fetchBookings() }
 const resetFilters = () => {
-  filters.q = ''; filters.status = ''; filters.method = ''; filters.from = ''; filters.to = ''
+  filters.q = ''; filters.status = ''; filters.method = ''; filters.hasFnb = ''; filters.from = ''; filters.to = ''
   page.value = 0; fetchBookings()
 }
 const goPage = (p) => { if (p < 0 || p >= totalPages.value) return; page.value = p; fetchBookings() }
@@ -209,6 +216,13 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 class="px-4 h-full text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all">{{ t.label }}</button>
       </div>
 
+      <!-- Lọc theo F&B -->
+      <div class="flex items-center gap-1 bg-surface-container-highest p-1 rounded-xl border border-outline-variant/10 h-11">
+        <button v-for="t in FNB_TABS" :key="t.value" @click="filters.hasFnb = t.value; applyFilter()"
+                :class="filters.hasFnb === t.value ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/5'"
+                class="px-4 h-full text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all">{{ t.label }}</button>
+      </div>
+
       <div class="relative h-11">
         <button @click="methodOpen = !methodOpen" type="button"
                 class="h-full w-[190px] bg-surface-container-highest border rounded-xl pl-10 pr-9 text-sm text-left text-on-surface outline-none cursor-pointer transition-all relative flex items-center"
@@ -294,7 +308,12 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               <p class="text-[11px] font-bold text-on-surface-variant uppercase mt-0.5">{{ r.channel }}</p>
             </div>
             <div class="col-span-3 min-w-0">
-              <p class="text-base font-bold text-on-surface truncate">{{ r.customerName }}</p>
+              <div class="flex items-center gap-2">
+                <p class="text-base font-bold text-on-surface truncate">{{ r.customerName }}</p>
+                <span v-if="r.hasFnb" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 border border-amber-400/20" :title="`${r.fnbItemCount} món F&B`">
+                  <span class="material-symbols-outlined text-[11px]">lunch_dining</span> Vé + F&B
+                </span>
+              </div>
               <p class="text-xs text-on-surface-variant truncate">{{ r.movieTitle }} · {{ r.roomName }}</p>
             </div>
             <div class="col-span-1 text-center">
@@ -364,6 +383,8 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 <p class="text-sm font-black text-on-surface">{{ detail.movieTitle }}</p>
                 <p class="text-xs text-on-surface-variant mt-1">{{ detail.formatName }} · {{ detail.roomName }}</p>
                 <p class="text-xs text-on-surface-variant">{{ fmtDateTime(detail.showtimeStart).date }} {{ fmtDateTime(detail.showtimeStart).time }}</p>
+                <!-- Trace IDs — chọn/copy để tra cứu khi có lỗi -->
+                <p class="text-xs text-gray-500 mt-2 font-mono select-all">Đơn #{{ detail.bookingId }} · Suất #{{ detail.showtimeId }} · Phim #{{ detail.movieId }}</p>
               </div>
               <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
                 <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Khách hàng</p>
@@ -380,17 +401,6 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 <span v-for="(s, i) in detail.seats" :key="i" class="px-3 py-1.5 rounded-lg bg-surface-container-high border border-outline-variant/10 text-xs font-bold text-on-surface">
                   {{ s.label }} <span class="text-on-surface-variant">· {{ seatTypeLabel(s.seatType) }}<template v-if="ticketTypeLabel(s.ticketType)"> · {{ ticketTypeLabel(s.ticketType) }}</template> · {{ fmt(s.price) }}đ</span>
                 </span>
-              </div>
-            </div>
-
-            <!-- F&B -->
-            <div v-if="detail.fnbs && detail.fnbs.length">
-              <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Bắp nước &amp; Combo</p>
-              <div class="space-y-1.5">
-                <div v-for="(f, i) in detail.fnbs" :key="i" class="flex justify-between text-sm">
-                  <span class="text-on-surface">{{ f.name }} <span class="text-on-surface-variant">x{{ f.quantity }}</span></span>
-                  <span class="text-on-surface font-bold tabular-nums">{{ fmt(Number(f.price) * f.quantity) }}đ</span>
-                </div>
               </div>
             </div>
 
@@ -418,6 +428,26 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               </div>
             </div>
 
+            <!-- DỊCH VỤ ĐI KÈM (F&B) — giữa Vé QR và Tổng thanh toán -->
+            <div v-if="detail.fnbs && detail.fnbs.length">
+              <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Dịch vụ đi kèm (F&B)</p>
+              <div class="space-y-2">
+                <div v-for="(f, i) in detail.fnbs" :key="i" class="p-3 rounded-xl bg-surface-container-high border border-outline-variant/10">
+                  <div class="flex justify-between items-start gap-3">
+                    <div class="min-w-0">
+                      <p class="text-sm font-bold text-on-surface">{{ f.name }} <span class="text-on-surface-variant font-medium">x{{ f.quantity }}</span></p>
+                      <!-- Danh sách vị khách chọn -->
+                      <p v-if="f.options && f.options.length" class="text-xs text-on-surface-variant mt-1">
+                        <template v-for="(o, oi) in f.options" :key="oi"><span v-if="oi"> · </span>{{ o.slotLabel }}: {{ o.optionName }}<span v-if="Number(o.surcharge) > 0"> (+{{ fmt(o.surcharge) }}đ)</span></template>
+                      </p>
+                      <p class="text-[10px] text-gray-500 mt-0.5 font-mono">Món #{{ f.fnbItemId }} · Đơn giá {{ fmt(f.unitPrice) }}đ</p>
+                    </div>
+                    <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(f.lineTotal) }}đ</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Summary -->
             <div class="pt-4 border-t border-outline-variant/10 space-y-2">
               <div class="flex justify-between text-sm text-on-surface-variant"><span>Tiền vé</span><span class="tabular-nums">{{ fmt(detailSeatTotal) }}đ</span></div>
@@ -431,6 +461,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 <span class="text-2xl font-black text-primary italic tabular-nums">{{ fmt(detail.finalPrice) }}đ</span>
               </div>
               <p class="text-xs text-on-surface-variant text-right">Phương thức: <b class="text-on-surface">{{ paymentLabel(detail.paymentMethod) }}</b></p>
+              <p v-if="detail.paymentRef" class="text-xs text-gray-500 text-right font-mono select-all">Mã GD đối soát: {{ detail.paymentRef }}</p>
             </div>
           </div>
 

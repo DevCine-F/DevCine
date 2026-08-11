@@ -159,7 +159,9 @@ public class PaymentController {
             if (bookingIdStr != null && "00".equals(request.getParameter("vnp_ResponseCode"))) {
                 Integer bookingId = Integer.parseInt(bookingIdStr);
                 // Call booking service to complete payment (ensures seat status updates and tickets generate)
-                bookingService.completePayment(bookingId, "VNPAY");
+                // Lưu mã giao dịch VNPAY để đối soát về sau.
+                String vnpTxnRef = request.getParameter("vnp_TransactionNo");
+                bookingService.completePayment(bookingId, "VNPAY", vnpTxnRef);
                 
                 response.put("code", "00");
                 response.put("message", "Thanh toán thành công");

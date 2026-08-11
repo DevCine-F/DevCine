@@ -11,6 +11,15 @@ import java.util.List;
 @Repository
 public interface BookingFnbRepository extends JpaRepository<BookingFnb, Integer> {
 
-    @Query("SELECT bf FROM BookingFnb bf JOIN FETCH bf.fnbItem WHERE bf.booking.id = :bookingId")
+    // Fetch kèm options (LEFT vì món có thể không có vị) để tránh N+1/LazyInit khi build detail.
+    // DISTINCT vì LEFT JOIN FETCH collection có thể nhân bản dòng cha.
+    @Query("SELECT DISTINCT bf FROM BookingFnb bf " +
+           "JOIN FETCH bf.fnbItem " +
+           "LEFT JOIN FETCH bf.options " +
+           "WHERE bf.booking.id = :bookingId")
     List<BookingFnb> findByBookingIdWithFnb(@Param("bookingId") Integer bookingId);
+
+    // Batch đếm số dòng F&B theo từng đơn cho màn danh sách (tránh N+1 giống countSeatsByBookingIds).
+    @Query("SELECT bf.booking.id, COUNT(bf) FROM BookingFnb bf WHERE bf.booking.id IN :ids GROUP BY bf.booking.id")
+    List<Object[]> countFnbByBookingIds(@Param("ids") List<Integer> ids);
 }

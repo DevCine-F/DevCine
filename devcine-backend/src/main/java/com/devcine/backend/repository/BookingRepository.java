@@ -151,6 +151,9 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "AND (:q = '' OR LOWER(b.bookingCode) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.fullName) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')) " +
+           "AND (:hasFnb = '' " +
+           "     OR (:hasFnb = 'YES' AND EXISTS (SELECT 1 FROM BookingFnb bf WHERE bf.booking = b)) " +
+           "     OR (:hasFnb = 'NO' AND NOT EXISTS (SELECT 1 FROM BookingFnb bf WHERE bf.booking = b))) " +
            "ORDER BY b.createdAt DESC",
            countQuery = "SELECT COUNT(b) FROM Booking b LEFT JOIN b.customer c LEFT JOIN c.user u " +
            "LEFT JOIN b.soldBy st " +
@@ -160,11 +163,15 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "AND (:staffUserId IS NULL OR st.userId = :staffUserId) " +
            "AND (:q = '' OR LOWER(b.bookingCode) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.fullName) LIKE CONCAT('%', LOWER(:q), '%') " +
-           "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%'))")
+           "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')) " +
+           "AND (:hasFnb = '' " +
+           "     OR (:hasFnb = 'YES' AND EXISTS (SELECT 1 FROM BookingFnb bf WHERE bf.booking = b)) " +
+           "     OR (:hasFnb = 'NO' AND NOT EXISTS (SELECT 1 FROM BookingFnb bf WHERE bf.booking = b)))")
     Page<Booking> searchForAdmin(@Param("q") String q, @Param("status") String status,
                                  @Param("method") String method,
                                  @Param("staffUserId") Integer staffUserId,
                                  @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+                                 @Param("hasFnb") String hasFnb,
                                  Pageable pageable);
 
     @Query("SELECT b FROM Booking b " +
