@@ -52,8 +52,11 @@ public class PosHoldService {
         if ("EXPIRED".equals(booking.getStatus()) || "CANCELLED".equals(booking.getStatus())) {
             return "RELEASED";
         }
-        if (!"HOLD".equals(booking.getStatus())) {
-            return booking.getStatus(); // Nếu khác HOLD thì không xử lý nhả ghế
+        // Nhả cả đơn giữ POS (PENDING_PAYMENT/PAYING) chứ không chỉ "HOLD". Trước đây guard chỉ chấp
+        // nhận "HOLD" khiến Huỷ đơn POS thành no-op im lặng: ghế kẹt + vẫn bị đếm vào hạn mức 3 đơn chờ.
+        String st = booking.getStatus();
+        if (!"HOLD".equals(st) && !"PENDING_PAYMENT".equals(st) && !"PAYING".equals(st)) {
+            return st; // Trạng thái khác (lạ) → không xử lý nhả ghế
         }
 
         List<BookingSeat> seats = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId);

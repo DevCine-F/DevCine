@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import { ticketingApi, settingsApi, approvalApi, bookingAdminApi } from '@/api/admin/index'
+import { ticketingApi, settingsApi, approvalApi, bookingAdminApi, posPendingOrderApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useToastStore } from '@/stores/toast'
@@ -287,9 +287,12 @@ const holdCurrentOrder = async () => {
         customerId: member.value ? member.value.customerId : null,
         fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] }))
       })
-      bookingId = data.data.bookingId
-      bookingCode = data.data.bookingCode
-      expiresAt = new Date(data.data.expiresAt).getTime()
+      // Interceptor axios đã bóc envelope ApiResponse → `data` chính là { bookingId, bookingCode, expiresAt }.
+      // Giữ `?? data` để an toàn nếu envelope không bị bóc (endpoint trả payload thô).
+      const held = data?.data ?? data
+      bookingId = held.bookingId
+      bookingCode = held.bookingCode
+      expiresAt = new Date(held.expiresAt).getTime()
     } catch (err) {
       showToast(friendlyError(err, 'Không giữ được đơn (vượt quá 3 đơn, ghế bị phạt, hoặc vừa bị đặt).'), 'error')
       isHolding.value = false

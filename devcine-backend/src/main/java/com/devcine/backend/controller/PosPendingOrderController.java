@@ -59,13 +59,15 @@ public class PosPendingOrderController {
                     "expiresAt", booking.getExpiresAt().toString()
             )));
         } catch (Exception e) {
-            if (e.getMessage().contains("xung đột") || e.getMessage().contains("bị phạt") || e.getMessage().contains("đã bị đặt")) {
-                return ResponseEntity.status(409).body(ApiResponse.fail(e.getMessage()));
+            // Bọc null-safe: exception có thể có message == null (VD: NPE) → tránh NPE thứ cấp khi gọi .contains()
+            String msg = e.getMessage() != null ? e.getMessage() : "Không giữ được đơn. Vui lòng thử lại.";
+            if (msg.contains("xung đột") || msg.contains("bị phạt") || msg.contains("đã bị đặt")) {
+                return ResponseEntity.status(409).body(ApiResponse.fail(msg));
             }
-            if (e.getMessage().contains("giới hạn")) {
-                return ResponseEntity.status(400).body(ApiResponse.fail(e.getMessage()));
+            if (msg.contains("giới hạn")) {
+                return ResponseEntity.status(400).body(ApiResponse.fail(msg));
             }
-            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail(msg));
         }
     }
 
