@@ -171,6 +171,8 @@ public class TicketingController {
                             .voucherId(voucherId)
                             .paymentMethod(paymentMethod)
                             .heldBookingId(heldBookingId)
+                            // POS override "Cho phép lẻ ghế" (chỉ hiệu lực ở kênh POS đã qua quyền pos_ticketing)
+                            .allowOrphan(Boolean.parseBoolean(String.valueOf(body.getOrDefault("allowOrphan", "false"))))
                             .build();
 
             Booking booking = bookingService.holdSeatsForStaff(req, soldBy);
@@ -294,6 +296,7 @@ public class TicketingController {
                             .seatIds(seatIds)
                             .customerId(customerId)
                             .paymentMethod("POS_HOLD")
+                            .allowOrphan(Boolean.parseBoolean(String.valueOf(body.getOrDefault("allowOrphan", "false"))))
                             .build();
 
             Booking booking = bookingService.holdSeatsForStaff(req, soldBy);

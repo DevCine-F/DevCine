@@ -227,11 +227,17 @@ public class BookingService {
             }
         }
 
-        // Chống ghế mồ côi: dùng RÀO CẢN (lối đi) & khung từ SNAPSHOT để khớp đúng sơ đồ hiển thị.
-        if (snapshot != null) {
-            validateSeatGapFromSnapshot(selectedSeatIds, existingReservedSeats, snapshot, liveStatusById);
-        } else {
-            validateSeatGap(selectedSeatIds, existingReservedSeats, allSeats);
+        // POS override "Cho phép lẻ ghế": bỏ qua luật chống ghế mồ côi cho khách ngoại lệ tại quầy.
+        // CHỈ hiệu lực ở kênh POS (nhân viên đã qua quyền pos_ticketing) — kênh ONLINE luôn phớt lờ cờ này
+        // để API lậu không thể tự tạo khoảng trống lẻ.
+        boolean bypassOrphan = Boolean.TRUE.equals(request.getAllowOrphan()) && "POS".equalsIgnoreCase(channel);
+        if (!bypassOrphan) {
+            // Chống ghế mồ côi: dùng RÀO CẢN (lối đi) & khung từ SNAPSHOT để khớp đúng sơ đồ hiển thị.
+            if (snapshot != null) {
+                validateSeatGapFromSnapshot(selectedSeatIds, existingReservedSeats, snapshot, liveStatusById);
+            } else {
+                validateSeatGap(selectedSeatIds, existingReservedSeats, allSeats);
+            }
         }
 
         Booking booking = Booking.builder()
@@ -455,7 +461,7 @@ public class BookingService {
                     if (leftBarrier && rightBarrier) {
                         boolean causedByUser = (c > 0 && state[c - 1] == 'S') || (c < maxCol && state[c + 1] == 'S');
                         if (causedByUser) {
-                            throw new RuntimeException("Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi.");
+                            throw new IllegalArgumentException("Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi.");
                         }
                     }
                 }
@@ -514,7 +520,7 @@ public class BookingService {
                         // Khe hở 1 ghế nằm giữa 2 rào cản. Kiểm tra xem người dùng có TẠO RA khe hở này không.
                         boolean causedByUser = (c > 0 && state[c - 1] == 'S') || (c < maxCol && state[c + 1] == 'S');
                         if (causedByUser) {
-                            throw new RuntimeException("Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi.");
+                            throw new IllegalArgumentException("Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi.");
                         }
                     }
                 }

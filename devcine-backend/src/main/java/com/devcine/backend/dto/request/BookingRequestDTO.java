@@ -23,4 +23,9 @@ public class BookingRequestDTO {
     private String paymentMethod; // VNPAY, MOMO, TRANSFER
     private Integer totalTickets;
     private Integer heldBookingId;
+    /**
+     * POS override: cho phép để trống 1 ghế lẻ (bỏ qua luật chống ghế mồ côi) khi bán khách ngoại lệ.
+     * CHỈ có hiệu lực ở kênh POS (nhân viên đã qua quyền pos_ticketing); kênh ONLINE luôn bỏ qua cờ này.
+     */
+    private Boolean allowOrphan;
 }

@@ -34,6 +34,8 @@ const selectedShowtime = ref(null)
 const seatData = ref({ matrixRow: 9, matrixCol: 10, seats: [] })
 const isLoadingSeats = ref(false)
 const selectedSeats = ref([]) // seat objects from map
+// POS override: nhân viên bật để bán khách ngoại lệ dù để trống 1 ghế lẻ (backend gate theo quyền POS)
+const allowOrphan = ref(false)
 const selectedCombos = ref([]) // { id, name, price, quantity }
 
 const member = ref(null)
@@ -661,6 +663,7 @@ const softReset = () => {
   seatData.value = { matrixRow: 9, matrixCol: 10, seats: [] }
   selectedSeats.value = []
   selectedCombos.value = []
+  allowOrphan.value = false
   member.value = null
   restoredBookingId.value = null
   cardNumberInput.value = ''
@@ -1281,7 +1284,8 @@ const processPayment = async (method) => {
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method,
-      heldBookingId: restoredBookingId.value
+      heldBookingId: restoredBookingId.value,
+      allowOrphan: allowOrphan.value // POS override: cho phép để trống 1 ghế lẻ (khách ngoại lệ)
     }
     
     if (method === 'TRANSFER') {
@@ -1621,6 +1625,7 @@ const resetPOS = () => {
   seatData.value = { matrixRow: 9, matrixCol: 10, seats: [] }
   selectedSeats.value = []
   selectedCombos.value = []
+  allowOrphan.value = false
   member.value = null
   restoredBookingId.value = null
   cardNumberInput.value = ''
@@ -1888,7 +1893,17 @@ onUnmounted(() => {
               <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-surface-container-high opacity-40"></span>Đã bán</span>
               <span class="flex items-center gap-1"><span class="w-3 h-3 flex items-center justify-center rounded bg-surface-container-highest border border-white/10 text-red-500 opacity-60"><span class="material-symbols-outlined text-[8px]">build</span></span>Ghế bảo trì</span>
             </div>
-            <AppButton @click="currentStep = 3" :disabled="selectedSeats.length === 0">3. Xác nhận vé</AppButton>
+            <div class="flex items-center gap-3">
+              <!-- POS override: cho phép để trống 1 ghế lẻ (backend chỉ chấp nhận ở kênh POS đã qua quyền) -->
+              <button type="button" @click="allowOrphan = !allowOrphan"
+                      :title="allowOrphan ? 'Đang cho phép để trống ghế lẻ' : 'Bật để bán khách ngoại lệ dù để trống 1 ghế lẻ'"
+                      class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all"
+                      :class="allowOrphan ? 'border-primary/60 bg-primary/10 text-primary' : 'border-outline-variant/20 text-on-surface-variant/60 hover:border-outline-variant/40'">
+                <span class="material-symbols-outlined text-[15px]">{{ allowOrphan ? 'toggle_on' : 'toggle_off' }}</span>
+                Cho phép lẻ ghế
+              </button>
+              <AppButton @click="currentStep = 3" :disabled="selectedSeats.length === 0">3. Xác nhận vé</AppButton>
+            </div>
           </div>
         </div>
 
