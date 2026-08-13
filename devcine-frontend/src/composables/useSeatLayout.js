@@ -48,6 +48,12 @@ export function useSeatLayout() {
 
         const map = {};
         data.seats.forEach((seat) => {
+          // Ô lối đi được BE lưu tường minh (không còn tự đoán) → dựng lại đúng khung
+          if (seat.kind === "AISLE") {
+            map[`${seat.gridRow}-${seat.gridCol}`] = { type: "aisle" };
+            return;
+          }
+
           let seatType = "standard";
           if (seat.seatType === "VIP") seatType = "vip";
           if (seat.seatType === "SWEETBOX") seatType = "double";
@@ -89,14 +95,20 @@ export function useSeatLayout() {
     try {
       const seatsList = [];
       Object.entries(currentSeatMap.value).forEach(([key, seatData]) => {
-        // Lối đi (aisle), ô ẩn (hidden) và ô đã xóa (absent) KHÔNG phải ghế → không lưu
-        if (!seatData || !seatData.type || seatData.type === "hidden" || seatData.type === "aisle") {
+        // Ô ẩn (hidden) và ô đã xóa (absent) KHÔNG được lưu. Lối đi (aisle) NAY ĐƯỢC lưu tường minh.
+        if (!seatData || !seatData.type || seatData.type === "hidden") {
           return;
         }
 
         const [gridRowStr, gridColStr] = key.split("-");
         const gridRow = parseInt(gridRowStr);
         const gridCol = parseInt(gridColStr);
+
+        // Lối đi: chỉ cần vị trí lưới + cờ kind; BE tự điền placeholder cho các cột NOT NULL
+        if (seatData.type === "aisle") {
+          seatsList.push({ gridRow, gridCol, kind: "AISLE", type: "aisle" });
+          return;
+        }
 
         // Tách rowChar/colNum từ label (custom hoặc auto). Vẫn giữ 2 trường này cho tương thích
         // (email, gom nhóm loại ghế...), nhưng label mới là nguồn hiển thị chuẩn.
@@ -118,6 +130,7 @@ export function useSeatLayout() {
           colNum,
           gridRow,
           gridCol,
+          kind: "SEAT",
           type: seatData.type,
           label: seatData.label,
           status: seatData.status || "AVAILABLE",

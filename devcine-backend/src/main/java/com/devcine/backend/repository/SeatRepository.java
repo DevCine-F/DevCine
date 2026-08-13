@@ -12,14 +12,23 @@ import java.util.List;
 
 @Repository
 public interface SeatRepository extends JpaRepository<Seat, Integer> {
-    @Query("SELECT s FROM Seat s JOIN FETCH s.seatType WHERE s.room.id = :roomId AND s.isActive = true")
+    // Chỉ GHẾ bán được (loại bỏ ô lối đi AISLE). Dùng cho giữ ghế, tính giá, sơ đồ suất chiếu.
+    // Dòng cũ cell_kind = NULL vẫn coi là ghế để tương thích ngược.
+    @Query("SELECT s FROM Seat s JOIN FETCH s.seatType WHERE s.room.id = :roomId AND s.isActive = true " +
+           "AND (s.cellKind IS NULL OR s.cellKind = 'SEAT')")
     List<Seat> findByRoomIdAndIsActiveTrue(@Param("roomId") Integer roomId);
-    
+
+    // TOÀN BỘ ô của phòng gồm cả lối đi (AISLE) — dùng cho trình thiết kế sơ đồ & dựng snapshot,
+    // để FE có khung trọn vẹn, không phải tự đoán lối đi.
+    @Query("SELECT s FROM Seat s JOIN FETCH s.seatType WHERE s.room.id = :roomId AND s.isActive = true")
+    List<Seat> findLayoutByRoomId(@Param("roomId") Integer roomId);
+
     List<Seat> findByRoomId(Integer roomId);
 
-    // Đếm ghế BÁN ĐƯỢC theo phòng (active + không bảo trì/khóa) cho nhiều phòng một lần → tránh N+1.
-    // Trả [roomId, count].
+    // Đếm ghế BÁN ĐƯỢC theo phòng (active + không bảo trì/khóa + không phải lối đi) cho nhiều phòng
+    // một lần → tránh N+1. Trả [roomId, count].
     @Query("SELECT s.room.id, COUNT(s) FROM Seat s WHERE s.room.id IN :roomIds AND s.isActive = true " +
+           "AND (s.cellKind IS NULL OR s.cellKind = 'SEAT') " +
            "AND (s.seatStatus IS NULL OR s.seatStatus = 'AVAILABLE') GROUP BY s.room.id")
     List<Object[]> countSellableSeatsByRoomIds(@Param("roomIds") Collection<Integer> roomIds);
 

@@ -84,6 +84,7 @@ public class SeatService {
                     .rowChar(seat.getRowChar())
                     .colNum(seat.getColNum())
                     .seatType(seat.getSeatType().getName())
+                    .kind("SEAT") // getSeatsForShowtime chỉ trả ghế bán được (đã lọc AISLE ở repo)
                     .label(seat.displayLabel())
                     .price(pricingService.priceFor(priceCtx, "ADULT"))
                     .status(status)
@@ -107,15 +108,18 @@ public class SeatService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
-        List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
+        // Đọc TOÀN BỘ ô gồm cả lối đi (AISLE) để builder có khung trọn vẹn, không phải tự đoán.
+        List<Seat> allSeats = seatRepository.findLayoutByRoomId(roomId);
 
         List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> {
             String seatStatus = seat.getSeatStatus() != null ? seat.getSeatStatus() : "AVAILABLE";
+            String kind = seat.getCellKind() != null ? seat.getCellKind() : "SEAT";
             return SeatDTO.builder()
                     .seatId(seat.getId())
                     .rowChar(seat.getRowChar())
                     .colNum(seat.getColNum())
                     .seatType(seat.getSeatType().getName())
+                    .kind(kind)
                     .label(seat.displayLabel())
                     .custom(Boolean.TRUE.equals(seat.getCustomLabel()))
                     .price(null) // preview phòng (không gắn suất) → không có giá; giá tính khi có Showtime
@@ -229,17 +233,55 @@ public class SeatService {
 
         java.util.Map<String, SeatType> seatTypeMap = seatTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(SeatType::getName, type -> type));
+        // Loại ghế placeholder cho ô lối đi (cột seat_type_id NOT NULL; cell_kind='AISLE' nên bị bỏ qua khắp nơi)
+        SeatType aislePlaceholder = seatTypeMap.get("NORMAL");
+        if (aislePlaceholder == null) {
+            throw new RuntimeException("Chưa cấu hình loại ghế NORMAL (bắt buộc để lưu sơ đồ).");
+        }
 
         List<Seat> existingList = seatRepository.findByRoomId(roomId);
+        // Định danh theo VỊ TRÍ LƯỚI (gridRow_gridCol) thay vì rowChar_colNum: lối đi không có
+        // rowChar/colNum thật, và label thủ công có thể suy ra cùng rowChar/colNum gây trùng khóa.
         java.util.Map<String, Seat> existingMap = new java.util.HashMap<>();
         if (existingList != null) {
             for (Seat s : existingList) {
-                existingMap.put(s.getRowChar() + "_" + s.getColNum(), s);
+                if (s.getGridRow() != null && s.getGridCol() != null) {
+                    existingMap.put(s.getGridRow() + "_" + s.getGridCol(), s);
+                }
             }
         }
 
         List<Seat> seatsToSave = new java.util.ArrayList<>();
         for (var def : request.getSeats()) {
+            boolean isAisle = "AISLE".equalsIgnoreCase(def.getKind())
+                    || "aisle".equalsIgnoreCase(def.getType());
+
+            String key = def.getGridRow() + "_" + def.getGridCol();
+            Seat seat = existingMap.remove(key);
+            if (seat == null) {
+                seat = new Seat();
+                seat.setRoom(room);
+            }
+            seat.setGridRow(def.getGridRow());
+            seat.setGridCol(def.getGridCol());
+            seat.setIsActive(true);
+
+            if (isAisle) {
+                // Ô lối đi: không phải ghế. Điền placeholder cho các cột NOT NULL; cell_kind='AISLE'.
+                seat.setCellKind("AISLE");
+                seat.setSeatType(aislePlaceholder);
+                seat.setSeatStatus("AVAILABLE");
+                seat.setCustomLabel(false);
+                seat.setLabel(null);
+                // row_char/col_num NOT NULL → suy từ vị trí lưới (chỉ để thỏa ràng buộc, không dùng)
+                seat.setRowChar(def.getRowChar() != null && !def.getRowChar().isBlank()
+                        ? def.getRowChar() : String.valueOf((char) ('A' + (def.getGridRow() != null ? def.getGridRow() : 0))));
+                seat.setColNum(def.getColNum() != null ? def.getColNum()
+                        : (def.getGridCol() != null ? def.getGridCol() + 1 : 1));
+                seatsToSave.add(seat);
+                continue;
+            }
+
             String backendType = def.getType().toUpperCase();
             if ("STANDARD".equals(backendType)) backendType = "NORMAL";
             else if ("DOUBLE".equals(backendType)) backendType = "SWEETBOX";
@@ -256,22 +298,13 @@ public class SeatService {
                     ? def.getStatus().toUpperCase()
                     : "AVAILABLE";
 
-            String key = def.getRowChar() + "_" + def.getColNum();
-            Seat seat = existingMap.remove(key);
-            if (seat == null) {
-                seat = new Seat();
-                seat.setRoom(room);
-                seat.setRowChar(def.getRowChar());
-                seat.setColNum(def.getColNum());
-            }
-
-            seat.setGridRow(def.getGridRow());
-            seat.setGridCol(def.getGridCol());
+            seat.setCellKind("SEAT");
+            seat.setRowChar(def.getRowChar());
+            seat.setColNum(def.getColNum());
             seat.setSeatType(seatType);
             seat.setLabel(label);
             seat.setSeatStatus(seatStatus);
             seat.setCustomLabel(Boolean.TRUE.equals(def.getCustom()));
-            seat.setIsActive(true);
 
             seatsToSave.add(seat);
         }

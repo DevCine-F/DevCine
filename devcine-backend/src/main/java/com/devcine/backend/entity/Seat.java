@@ -67,6 +67,24 @@ public class Seat {
     private Integer gridCol;
 
     /**
+     * Loại ô trong lưới sơ đồ:
+     * SEAT  = ghế bán được (mặc định).
+     * AISLE = lối đi — KHÔNG phải ghế, chỉ lưu để FE vẽ khung trọn vẹn (không phải tự đoán)
+     *         và làm rào cản (barrier) cho luật chống ghế mồ côi.
+     * Dòng cũ (trước migration) có giá trị NULL → được coi như SEAT trong code (xem {@link #isSeatCell()}).
+     * Ô AISLE vẫn cần seat_type/row_char/col_num vì cột NOT NULL — dùng giá trị placeholder, mọi
+     * nghiệp vụ ghế đều lọc theo cell_kind nên placeholder không ảnh hưởng.
+     */
+    @Column(name = "cell_kind", length = 10)
+    @Builder.Default
+    private String cellKind = "SEAT";
+
+    /** true nếu ô này là GHẾ bán được (SEAT hoặc dòng cũ null). false nếu là lối đi (AISLE). */
+    public boolean isSeatCell() {
+        return cellKind == null || "SEAT".equalsIgnoreCase(cellKind);
+    }
+
+    /**
      * Nhãn hiển thị chuẩn cho mọi nơi (vé, email, QR-liên quan, in POS):
      * ưu tiên label do Admin đặt/sửa tay, fallback về rowChar+colNum khi chưa có.
      * Dùng thay cho việc ghép rowChar+colNum rải rác để tránh lệch nhãn.
