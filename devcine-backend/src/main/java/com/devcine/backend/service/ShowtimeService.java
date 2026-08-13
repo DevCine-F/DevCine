@@ -40,6 +40,7 @@ public class ShowtimeService {
     private final MovieFormatRepository movieFormatRepository;
     private final SeatRepository seatRepository;
     private final BookingSeatRepository bookingSeatRepository;
+    private final SeatLayoutSnapshotService seatLayoutSnapshotService;
 
     public List<String> getAllCities() {
         return cinemaRepository.findAllCities();
@@ -304,6 +305,8 @@ public class ShowtimeService {
                 .startTime(startTime)
                 .endTime(endTime)
                 .status("Sắp chiếu")
+                // Đông cứng sơ đồ ghế của phòng NGAY lúc tạo suất → suất này có sơ đồ riêng, bất biến.
+                .layoutData(seatLayoutSnapshotService.buildSnapshotJson(room.getId()))
                 .build();
 
         Showtime saved = showtimeRepository.save(showtime);
@@ -384,6 +387,8 @@ public class ShowtimeService {
 
         LocalDateTime now = LocalDateTime.now();
         List<Showtime> toSave = new ArrayList<>();
+        // Snapshot sơ đồ theo TỪNG phòng, dựng 1 lần rồi tái dùng cho mọi suất cùng phòng trong lô (tránh N+1).
+        Map<Integer, String> snapshotByRoom = new HashMap<>();
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> skipped = new ArrayList<>();
         // Suất hợp lệ nhưng KẾT THÚC quá giờ đóng cửa — chỉ tạo khi force.
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> warnings = new ArrayList<>();
@@ -430,6 +435,8 @@ public class ShowtimeService {
                             .movie(movie).room(room).format(format)
                             .startTime(start).endTime(end)
                             .status("Sắp chiếu")
+                            .layoutData(snapshotByRoom.computeIfAbsent(roomId,
+                                    rid -> seatLayoutSnapshotService.buildSnapshotJson(rid)))
                             .build());
                 }
             }
@@ -468,6 +475,7 @@ public class ShowtimeService {
         Showtime showtime = showtimeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy suất chiếu."));
 
+        Integer originalRoomId = showtime.getRoom().getId();
         // Phòng đích: phòng mới (nếu đổi) hoặc phòng hiện tại.
         Room targetRoom = showtime.getRoom();
         if (updates.containsKey("roomId") && updates.get("roomId") != null) {
@@ -506,6 +514,11 @@ public class ShowtimeService {
         showtime.setRoom(targetRoom);
         showtime.setStartTime(targetStart);
         showtime.setEndTime(targetEnd);
+        // Đổi sang phòng khác → chụp lại sơ đồ của phòng mới (giữ đúng nguyên tắc snapshot).
+        // Sửa phòng gốc thì KHÔNG re-snapshot: suất giữ nguyên sơ đồ đã đông cứng.
+        if (!targetRoom.getId().equals(originalRoomId) || showtime.getLayoutData() == null) {
+            showtime.setLayoutData(seatLayoutSnapshotService.buildSnapshotJson(targetRoom.getId()));
+        }
         showtimeRepository.save(showtime);
     }
 

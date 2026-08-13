@@ -38,4 +38,14 @@ public class Showtime {
 
     @Column(length = 20)
     private String status;
+
+    /**
+     * Ảnh chụp (snapshot) BẤT BIẾN khung sơ đồ ghế (JSON) tại thời điểm TẠO suất.
+     * Nguồn CHUNG cho cả hiển thị sơ đồ lẫn luật đặt vé → sửa phòng về sau KHÔNG phá suất cũ,
+     * và không còn cảnh "mỗi trang một sơ đồ". Chỉ chứa khung không gian + seatId; trạng thái
+     * SOLD/HOLD/MAINTENANCE luôn overlay live theo seatId.
+     * NULL với suất cũ (trước migration) → đọc live để tương thích ngược (xem SeatService/BookingService).
+     */
+    @Column(name = "layout_data", columnDefinition = "text")
+    private String layoutData;
 }

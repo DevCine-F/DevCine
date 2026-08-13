@@ -17,6 +17,7 @@ public class SeatDTO {
     private Integer colNum;
     private String seatType; // e.g., NORMAL, VIP, SWEETBOX
     private String kind;     // loại ô: SEAT (ghế) | AISLE (lối đi). null coi như SEAT (tương thích cũ)
+    private Integer span;    // số chỗ theo chiều ngang: SWEETBOX=2, còn lại=1
     private String label;    // nhãn hiển thị (custom hoặc rowChar+colNum)
     private Boolean custom;  // true = label do Admin gõ tay (builder giữ chốt cứng)
     private BigDecimal price;

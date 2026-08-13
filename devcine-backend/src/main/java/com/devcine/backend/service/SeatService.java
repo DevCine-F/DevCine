@@ -35,6 +35,7 @@ public class SeatService {
     private final RoomRepository roomRepository;
     private final SeatTypeRepository seatTypeRepository;
     private final PricingService pricingService;
+    private final SeatLayoutSnapshotService seatLayoutSnapshotService;
     private final JdbcTemplate jdbcTemplate;
 
     public ShowtimeSeatResponse getSeatsForShowtime(Integer showtimeId) {
@@ -46,16 +47,11 @@ public class SeatService {
         Showtime showtime = showtimeRepository.findById(showtimeId)
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
 
-        Integer roomId = showtime.getRoom().getId();
-        List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
-
         List<BookingSeat> reservedBookingSeats = bookingSeatRepository.findReservedSeatsByShowtime(showtimeId);
-
         Set<Integer> soldSeatIds = reservedBookingSeats.stream()
                 .filter(bs -> "SOLD".equals(bs.getStatus()))
                 .map(bs -> bs.getSeat().getId())
                 .collect(Collectors.toSet());
-
         Set<Integer> holdSeatIds = reservedBookingSeats.stream()
                 .filter(bs -> "HOLD".equals(bs.getStatus()))
                 .map(bs -> bs.getSeat().getId())
@@ -64,44 +60,97 @@ public class SeatService {
         // Tính giá tập trung qua PricingService (nạp ngữ cảnh suất một lần — tránh N+1)
         PricingService.PricingContext priceCtx = pricingService.buildContext(showtime);
 
-        List<SeatDTO> seatDTOs = allSeats.stream().map(seat -> {
-            String seatStatus = seat.getSeatStatus() != null ? seat.getSeatStatus() : "AVAILABLE";
-            String status;
-            if (!"AVAILABLE".equals(seatStatus)) {
-                // Ghế khóa vật lý (MAINTENANCE/LOCKED) → không bán, phủ lên trạng thái runtime để FE disable
-                status = seatStatus;
-            } else if (soldSeatIds.contains(seat.getId())) {
-                status = "SOLD";
-            } else if (holdSeatIds.contains(seat.getId())) {
-                status = "HOLD";
-            } else {
-                status = "AVAILABLE";
+        String layoutJson = showtime.getLayoutData();
+        List<SeatDTO> seatDTOs;
+        int matrixRow;
+        int matrixCol;
+
+        if (layoutJson != null && !layoutJson.isBlank()) {
+            // ===== NGUỒN CHUẨN: đọc KHUNG từ snapshot đông cứng của suất, overlay TRẠNG THÁI live =====
+            com.devcine.backend.dto.response.SeatLayoutSnapshot snap = seatLayoutSnapshotService.parse(layoutJson);
+            matrixRow = snap.getMatrixRow();
+            matrixCol = snap.getMatrixCol();
+
+            // Trạng thái vật lý (MAINTENANCE/LOCKED) LUÔN lấy live theo seatId → bảo trì sau khi tạo suất vẫn phản ánh.
+            List<Integer> seatIds = snap.getCells().stream()
+                    .filter(c -> "SEAT".equalsIgnoreCase(c.getKind()) && c.getSeatId() != null)
+                    .map(com.devcine.backend.dto.response.SeatLayoutSnapshot.Cell::getSeatId)
+                    .collect(Collectors.toList());
+            java.util.Map<Integer, String> physStatusById = new java.util.HashMap<>();
+            if (!seatIds.isEmpty()) {
+                for (Seat s : seatRepository.findByIdInWithSeatType(seatIds)) {
+                    physStatusById.put(s.getId(), s.getSeatStatus() != null ? s.getSeatStatus() : "AVAILABLE");
+                }
             }
 
-            // Giá mặc định hiển thị trên sơ đồ = giá Người lớn (ADULT); FE đổi theo priceTable khi chọn loại vé
-            return SeatDTO.builder()
-                    .seatId(seat.getId())
-                    .rowChar(seat.getRowChar())
-                    .colNum(seat.getColNum())
-                    .seatType(seat.getSeatType().getName())
-                    .kind("SEAT") // getSeatsForShowtime chỉ trả ghế bán được (đã lọc AISLE ở repo)
-                    .label(seat.displayLabel())
-                    .price(pricingService.priceFor(priceCtx, "ADULT"))
-                    .status(status)
-                    .seatStatus(seatStatus)
-                    .gridRow(seat.getGridRow())
-                    .gridCol(seat.getGridCol())
-                    .build();
-        }).collect(Collectors.toList());
+            seatDTOs = new java.util.ArrayList<>();
+            for (var cell : snap.getCells()) {
+                // Phase 2: chỉ trả GHẾ cho màn đặt vé (giữ FE hiện tại không đổi); lối đi đưa vào ở Phase 3.
+                if (!"SEAT".equalsIgnoreCase(cell.getKind())) continue;
+
+                String seatStatus = physStatusById.getOrDefault(cell.getSeatId(), "AVAILABLE");
+                String status = seatStatusToRuntime(seatStatus, cell.getSeatId(), soldSeatIds, holdSeatIds);
+
+                seatDTOs.add(SeatDTO.builder()
+                        .seatId(cell.getSeatId())
+                        .seatType(cell.getType())
+                        .kind("SEAT")
+                        .span(cell.getSpan())
+                        .label(cell.getLabel())
+                        .price(pricingService.priceFor(priceCtx, "ADULT"))
+                        .status(status)
+                        .seatStatus(seatStatus)
+                        .gridRow(cell.getGridRow())
+                        .gridCol(cell.getGridCol())
+                        .build());
+            }
+        } else {
+            // ===== FALLBACK: suất cũ chưa có snapshot → đọc live như trước (tương thích ngược) =====
+            Integer roomId = showtime.getRoom().getId();
+            List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
+            matrixRow = showtime.getRoom().getMatrixRow() != null ? showtime.getRoom().getMatrixRow() : 9;
+            matrixCol = showtime.getRoom().getMatrixCol() != null ? showtime.getRoom().getMatrixCol() : 10;
+
+            seatDTOs = allSeats.stream().map(seat -> {
+                String seatStatus = seat.getSeatStatus() != null ? seat.getSeatStatus() : "AVAILABLE";
+                String status = seatStatusToRuntime(seatStatus, seat.getId(), soldSeatIds, holdSeatIds);
+                return SeatDTO.builder()
+                        .seatId(seat.getId())
+                        .rowChar(seat.getRowChar())
+                        .colNum(seat.getColNum())
+                        .seatType(seat.getSeatType().getName())
+                        .kind("SEAT")
+                        .span("SWEETBOX".equalsIgnoreCase(seat.getSeatType().getName()) ? 2 : 1)
+                        .label(seat.displayLabel())
+                        .price(pricingService.priceFor(priceCtx, "ADULT"))
+                        .status(status)
+                        .seatStatus(seatStatus)
+                        .gridRow(seat.getGridRow())
+                        .gridCol(seat.getGridCol())
+                        .build();
+            }).collect(Collectors.toList());
+        }
 
         return ShowtimeSeatResponse.builder()
-                .matrixRow(showtime.getRoom().getMatrixRow() != null ? showtime.getRoom().getMatrixRow() : 9)
-                .matrixCol(showtime.getRoom().getMatrixCol() != null ? showtime.getRoom().getMatrixCol() : 10)
+                .matrixRow(matrixRow)
+                .matrixCol(matrixCol)
                 .seats(seatDTOs)
                 .audienceLabels(PricingService.audienceLabels(online))
                 .priceTable(pricingService.buildPriceTable(priceCtx, seatTypeRepository.findAll(),
                         online ? PricingService.ONLINE_AUDIENCE_TYPES : PricingService.AUDIENCE_TYPES))
                 .build();
+    }
+
+    /**
+     * Suy trạng thái runtime hiển thị: ưu tiên khóa vật lý (MAINTENANCE/LOCKED) → SOLD → HOLD → AVAILABLE.
+     * seatStatus là trạng thái vật lý LIVE (đã lấy theo seatId), sold/hold từ booking_seats.
+     */
+    private String seatStatusToRuntime(String seatStatus, Integer seatId,
+                                       Set<Integer> soldSeatIds, Set<Integer> holdSeatIds) {
+        if (seatStatus != null && !"AVAILABLE".equals(seatStatus)) return seatStatus;
+        if (soldSeatIds.contains(seatId)) return "SOLD";
+        if (holdSeatIds.contains(seatId)) return "HOLD";
+        return "AVAILABLE";
     }
 
     public ShowtimeSeatResponse getSeatsForRoom(Integer roomId) {
