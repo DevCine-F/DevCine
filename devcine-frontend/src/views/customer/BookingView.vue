@@ -8,6 +8,7 @@ import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 import { formatComboTitle } from '@/utils/format'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
+import { useSeatGridRender } from '@/composables/useSeatGridRender'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import FnbOptionModal from '@/components/FnbOptionModal.vue'
 
@@ -780,13 +781,15 @@ const isSeatSelected = (seat) => {
   return store.selectedSeats.some(s => s.seatId === seat.seatId)
 }
 
-const getSeatAt = (row, col) => {
-  return store.availableSeats.find(s => s.gridRow === row && s.gridCol === col)
-}
+// Nội suy tọa độ dùng chung: cellAt = ô bất kỳ (ghế/lối đi) cho template; getSeatAt = CHỈ ghế
+// (lối đi → null) nên toàn bộ logic khối/chống-mồ-côi coi lối đi là rào cản như trước.
+const { cellAt, seatAt, isAisle } = useSeatGridRender(() => store.availableSeats)
+const getSeatAt = seatAt
 
 const getRowChar = (row) => {
-  const seat = store.availableSeats.find(s => s.gridRow === row)
-  return seat ? seat.rowChar : ''
+  // Ưu tiên rowChar thật của ghế (payload cũ); snapshot không mang rowChar → suy theo vị trí lưới.
+  const seat = store.availableSeats.find(s => s.gridRow === row && s.rowChar)
+  return seat ? seat.rowChar : String.fromCharCode(65 + row)
 }
 
 // Tăng/giảm số lượng vé theo đối tượng (chọn trước khi chọn ghế).
@@ -1069,6 +1072,12 @@ const proceedToPayment = async () => {
                          :title="isSeatMaintenance(getSeatAt(row - 1, col - 1)) ? 'Ghế bảo trì' : seatLabel(getSeatAt(row - 1, col - 1))">
                       <span v-if="isSeatMaintenance(getSeatAt(row - 1, col - 1))" class="material-symbols-outlined text-sm">build</span>
                       <template v-else>{{ seatLabel(getSeatAt(row - 1, col - 1)) }}</template>
+                    </div>
+                  </template>
+                  <template v-else-if="isAisle(cellAt(row - 1, col - 1))">
+                    <!-- Lối đi: vẽ tường minh (không click được) — không còn tự đoán từ ô trống -->
+                    <div class="aspect-square w-10 flex items-center justify-center" title="Lối đi">
+                      <div class="w-1 h-8 rounded-full bg-white/10"></div>
                     </div>
                   </template>
                   <template v-else-if="!isHiddenBecauseSweetbox(row - 1, col - 1)">

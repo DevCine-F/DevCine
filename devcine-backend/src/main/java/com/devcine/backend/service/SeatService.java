@@ -85,8 +85,16 @@ public class SeatService {
 
             seatDTOs = new java.util.ArrayList<>();
             for (var cell : snap.getCells()) {
-                // Phase 2: chỉ trả GHẾ cho màn đặt vé (giữ FE hiện tại không đổi); lối đi đưa vào ở Phase 3.
-                if (!"SEAT".equalsIgnoreCase(cell.getKind())) continue;
+                // Lối đi (AISLE): trả tường minh để FE vẽ khung trọn vẹn (không tự đoán), không bán/không giá.
+                if (!"SEAT".equalsIgnoreCase(cell.getKind())) {
+                    seatDTOs.add(SeatDTO.builder()
+                            .kind("AISLE")
+                            .span(cell.getSpan())
+                            .gridRow(cell.getGridRow())
+                            .gridCol(cell.getGridCol())
+                            .build());
+                    continue;
+                }
 
                 String seatStatus = physStatusById.getOrDefault(cell.getSeatId(), "AVAILABLE");
                 String status = seatStatusToRuntime(seatStatus, cell.getSeatId(), soldSeatIds, holdSeatIds);

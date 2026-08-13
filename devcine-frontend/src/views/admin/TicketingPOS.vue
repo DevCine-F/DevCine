@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { ticketingApi, settingsApi, approvalApi, bookingAdminApi, posPendingOrderApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
+import { useSeatGridRender } from '@/composables/useSeatGridRender'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 import FnbOptionModal from '@/components/FnbOptionModal.vue'
@@ -935,15 +936,17 @@ const selectShowtime = async (st) => {
   }
 }
 
-const seatAt = (row, col) => seatData.value.seats.find(s => s.gridRow === row && s.gridCol === col)
+// Nội suy tọa độ dùng chung: cellAt = ô bất kỳ (ghế/lối đi); seatAt = CHỈ ghế (lối đi → null).
+const { cellAt, seatAt, isAisle } = useSeatGridRender(() => seatData.value.seats)
 const isSelected = (seat) => selectedSeats.value.some(s => s.seatId === seat.seatId)
 // Nhãn ghế: ưu tiên label lưu ở DB (Admin có thể sửa tay), fallback rowChar+colNum
 const seatLabel = (seat) => seat ? (seat.label || (seat.rowChar + seat.colNum)) : ''
 const isSeatMaintenance = (seat) => !!seat && (seat.status === 'MAINTENANCE' || seat.status === 'LOCKED' || seat.seatStatus === 'MAINTENANCE' || seat.seatStatus === 'LOCKED')
 // Nhãn hàng (A, B, C...) suy từ ghế đầu tiên có trên hàng đó
 const rowLabel = (gridRow) => {
-  const s = seatData.value.seats.find(x => x.gridRow === gridRow)
-  return s ? s.rowChar : ''
+  // Ưu tiên rowChar thật (payload cũ); snapshot không mang rowChar → suy theo vị trí lưới.
+  const s = seatData.value.seats.find(x => x.gridRow === gridRow && x.rowChar)
+  return s ? s.rowChar : String.fromCharCode(65 + gridRow)
 }
 
 const toggleSeat = (seat) => {
@@ -1865,6 +1868,10 @@ onUnmounted(() => {
                        :title="isSeatMaintenance(seatAt(row - 1, col - 1)) ? 'Ghế bảo trì' : seatLabel(seatAt(row - 1, col - 1))">
                     <span v-if="isSeatMaintenance(seatAt(row - 1, col - 1))" class="material-symbols-outlined text-[13px]">build</span>
                     <template v-else>{{ seatLabel(seatAt(row - 1, col - 1)) }}</template>
+                  </div>
+                  <!-- Lối đi: vẽ tường minh (không click được) -->
+                  <div v-else-if="isAisle(cellAt(row - 1, col - 1))" class="w-8 h-8 flex items-center justify-center" title="Lối đi">
+                    <div class="w-1 h-6 rounded-full bg-white/10"></div>
                   </div>
                   <div v-else class="w-8 h-8"></div>
                 </template>
