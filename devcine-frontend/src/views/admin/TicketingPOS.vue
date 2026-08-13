@@ -627,23 +627,15 @@ const getPoster = (movie) => {
 // Số giây còn lại của đơn chờ có vé (null = đơn F&B, không hết hạn)
 const heldRemainingSec = (o) => {
   if (o.mode === 'FNB' || !(o.seats && o.seats.length)) return null
-  return Math.max(0, HELD_TICKET_TTL - Math.floor((nowTs.value - o.createdAt) / 1000))
+  return Math.max(0, HOLD_SECONDS - Math.floor((nowTs.value - o.createdAt) / 1000))
 }
 const heldCountdown = (o) => {
   const s = heldRemainingSec(o)
   if (s == null) return ''
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
-// Tự xoá đơn chờ có vé khi hết giờ giữ → giải phóng ghế cho khách khác
-const sweepExpiredHolds = () => {
-  const expired = heldOrders.value.filter(o => heldRemainingSec(o) === 0)
-  if (!expired.length) return
-  // Nhả ghế HOLD của các đơn vừa hết giờ về AVAILABLE
-  expired.forEach(o => { if (o.bookingId) ticketingApi.releaseHold(o.bookingId).catch(() => {}) })
-  heldOrders.value = heldOrders.value.filter(o => heldRemainingSec(o) !== 0)
-  persistHeld()
-  showToast(`Đơn chờ ${expired.map(o => o.code).join(', ')} đã hết giờ giữ — ghế được giải phóng.`, 'error')
-}
+// Tự xoá đơn chờ hết giờ + nhả ghế được xử lý tập trung trong posStore.updateTimers()
+// (chạy mỗi giây khi còn đơn giữ). Không lặp lại ở component để tránh lệch trạng thái.
 const heldAgeLabel = (ts) => {
   const mins = Math.floor((nowTs.value - ts) / 60000)
   if (mins < 1) return 'vừa xong'
@@ -2575,14 +2567,14 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <div v-if="heldOrders.length === 0" class="flex-grow flex flex-col items-center justify-center text-on-surface-variant/40 gap-3 px-8 text-center">
+          <div v-if="posStore.heldOrders.length === 0" class="flex-grow flex flex-col items-center justify-center text-on-surface-variant/40 gap-3 px-8 text-center">
             <span class="material-symbols-outlined text-5xl">inbox</span>
             <p class="text-sm font-semibold">Chưa có đơn nào đang chờ.</p>
             <p class="text-xs">Bấm <b class="text-primary">Giữ đơn</b> khi cần xử lý khách tiếp theo trong hàng đợi.</p>
           </div>
 
           <div v-else class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-3">
-            <div v-for="o in heldOrders" :key="o.code"
+            <div v-for="o in posStore.heldOrders" :key="o.code"
                  class="p-4 bg-surface-container-high rounded-2xl border border-outline-variant/10 hover:border-primary/30 transition-all">
               <div class="flex items-center justify-between mb-2">
                 <span class="px-2.5 py-1 rounded-lg bg-primary/15 border border-primary/30 text-primary text-[11px] font-black tracking-wider font-mono">{{ o.code }}</span>
