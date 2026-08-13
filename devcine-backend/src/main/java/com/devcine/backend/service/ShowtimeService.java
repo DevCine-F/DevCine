@@ -470,6 +470,24 @@ public class ShowtimeService {
                 .build();
     }
 
+    /**
+     * Backfill snapshot sơ đồ cho các suất cũ (layout_data = null) — chạy 1 lần sau khi bật tính năng.
+     * Mỗi phòng chỉ dựng snapshot 1 lần rồi tái dùng cho mọi suất cùng phòng (tránh N+1). Trả số suất đã vá.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int backfillLayoutSnapshots() {
+        List<Showtime> legacy = showtimeRepository.findWithoutLayoutSnapshot();
+        if (legacy.isEmpty()) return 0;
+        Map<Integer, String> snapshotByRoom = new HashMap<>();
+        for (Showtime s : legacy) {
+            Integer roomId = s.getRoom().getId();
+            s.setLayoutData(snapshotByRoom.computeIfAbsent(roomId,
+                    rid -> seatLayoutSnapshotService.buildSnapshotJson(rid)));
+        }
+        showtimeRepository.saveAll(legacy);
+        return legacy.size();
+    }
+
     @org.springframework.transaction.annotation.Transactional
     public void updateShowtime(Integer id, java.util.Map<String, Object> updates) {
         Showtime showtime = showtimeRepository.findById(id)

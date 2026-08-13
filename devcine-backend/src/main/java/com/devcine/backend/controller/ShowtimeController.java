@@ -99,6 +99,14 @@ public class ShowtimeController {
         }
     }
 
+    /** Backfill snapshot sơ đồ cho suất cũ (layout_data null). Chạy 1 lần, chỉ ADMIN. */
+    @PostMapping("/backfill-layout")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> backfillLayout() {
+        int count = showtimeService.backfillLayoutSnapshots();
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("updated", count)));
+    }
+
     @GetMapping("/{id}/detail")
     public ResponseEntity<?> getShowtimeDetail(@PathVariable Integer id) {
         try {
