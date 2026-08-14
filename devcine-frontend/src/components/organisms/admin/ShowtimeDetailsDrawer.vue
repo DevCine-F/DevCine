@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
-import SeatMapBuilder from '@/components/admin/SeatMapBuilder.vue'
 import ShowtimeDrawer from '@/components/admin/ShowtimeDrawer.vue'
+import { useSeatGridRender } from '@/composables/useSeatGridRender'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -10,7 +10,10 @@ const props = defineProps({
   detail: { type: Object, default: null },
   isLoading: { type: Boolean, default: false },
   cinema: { type: Object, default: null },
-  getEndTime: { type: Function, required: true }
+  getEndTime: { type: Function, required: true },
+  // Sơ đồ ghế THỰC TẾ (ShowtimeSeatResponse) cho modal xem sơ đồ — từng ghế + trạng thái thật.
+  seatData: { type: Object, default: null },
+  isLoadingSeatMap: { type: Boolean, default: false }
 })
 
 defineEmits(['close', 'close-seat-map', 'open-seat-map', 'delete'])
@@ -40,8 +43,22 @@ const reserved = computed(() => (props.detail ? (props.detail.soldSeats || 0) + 
 const total = computed(() => props.detail?.totalSeats || 0)
 const soldPct = computed(() => (total.value > 0 ? Math.round(((props.detail?.soldSeats || 0) / total.value) * 100) : 0))
 
-const roomGeom = computed(() =>
-  props.cinema?.halls?.find(h => h.id === props.detail?.roomId) || null)
+// ===== Sơ đồ ghế THẬT (dùng chung composable với POS/Booking/Incident — không mock) =====
+const { cellAt } = useSeatGridRender(() => props.seatData?.seats || [])
+const smRows = computed(() => Array.from({ length: props.seatData?.matrixRow || 0 }, (_, i) => i))
+const smCols = computed(() => Array.from({ length: props.seatData?.matrixCol || 0 }, (_, i) => i))
+
+// Màu ô: ưu tiên TRẠNG THÁI (bảo trì/đã bán/đang giữ), còn lại tô theo LOẠI ghế.
+const seatClass = (cell) => {
+  const base = 'w-8 h-8 rounded-md flex items-center justify-center text-[9px] font-black border transition-all leading-none shrink-0'
+  const st = cell.status
+  if (st === 'MAINTENANCE' || st === 'LOCKED') return `${base} bg-red-950/40 border-dashed border-red-500/50 text-red-300/70 opacity-70`
+  if (st === 'SOLD') return `${base} bg-surface-container-highest border-white/5 text-on-surface-variant/30 opacity-50`
+  if (st === 'HOLD') return `${base} bg-orange-500/20 border-orange-500/50 text-orange-200`
+  if (cell.seatType === 'VIP') return `${base} bg-gradient-to-b from-red-700/90 to-red-900/90 border-red-500/50 text-red-100`
+  if (cell.seatType === 'SWEETBOX') return `${base} bg-gradient-to-b from-purple-600/90 to-purple-900/90 border-purple-500/50 text-purple-100`
+  return `${base} bg-slate-800/80 border-slate-600/50 text-slate-300`
+}
 
 const isEditing = ref(false)
 
@@ -241,16 +258,119 @@ const onEditSaved = () => {
           </button>
         </div>
 
-        <div class="flex-1 overflow-hidden relative">
-          <SeatMapBuilder
-            :rows="roomGeom?.rows || 10"
-            :cols="roomGeom?.cols || 16"
-            :initialMap="{}"
-            :readonly="true"
-            :soldTickets="detail?.soldSeats || 0"
-            :canceledTickets="0"
-            :revenue="fmtMoney(detail?.revenue)"
-          />
+        <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+          <!-- Thẻ thống kê (số liệu THỰC TẾ từ /detail) -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-shrink-0">
+            <!-- Tỷ lệ lấp đầy -->
+            <div class="bg-surface-container-low border border-outline-variant/10 p-5 rounded-2xl flex items-center gap-6 shadow-sm">
+              <div class="flex items-center justify-center relative flex-shrink-0">
+                <svg class="w-20 h-20 transform -rotate-90">
+                  <circle cx="40" cy="40" r="34" class="stroke-white/5" stroke-width="8" fill="none" />
+                  <circle cx="40" cy="40" r="34" class="stroke-primary transition-all duration-1000" stroke-width="8" fill="none" stroke-dasharray="213.6" :stroke-dashoffset="213.6 - (213.6 * soldPct / 100)" stroke-linecap="round" />
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-base font-black text-white">{{ soldPct }}%</span>
+                </div>
+              </div>
+              <div class="space-y-1">
+                <h4 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Tỷ lệ lấp đầy</h4>
+                <p class="text-xs font-semibold text-white/60">Đã bán: <span class="font-bold text-white text-sm">{{ detail?.soldSeats || 0 }}</span> / {{ total }} ghế</p>
+              </div>
+            </div>
+
+            <!-- Chi tiết ghế -->
+            <div class="bg-surface-container-low border border-outline-variant/10 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+              <h4 class="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70 mb-3">Chi tiết ghế</h4>
+              <div class="grid grid-cols-3 gap-4">
+                <div class="text-center">
+                  <p class="text-[8px] font-bold text-white/40 uppercase mb-1">Ghế trống</p>
+                  <p class="text-lg font-black text-white">{{ detail?.availableSeats ?? 0 }}</p>
+                </div>
+                <div class="text-center border-x border-white/5">
+                  <p class="text-[8px] font-bold text-primary uppercase mb-1">Đã bán</p>
+                  <p class="text-lg font-black text-primary">{{ detail?.soldSeats || 0 }}</p>
+                </div>
+                <div class="text-center">
+                  <p class="text-[8px] font-bold text-orange-400 uppercase mb-1">Đang giữ</p>
+                  <p class="text-lg font-black text-orange-400">{{ detail?.heldSeats || 0 }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Doanh thu tạm tính -->
+            <div class="bg-surface-container-low border border-outline-variant/10 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+              <h4 class="text-[10px] font-bold uppercase tracking-[0.2em] text-green-400 mb-1.5 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">payments</span>
+                Doanh thu tạm tính
+              </h4>
+              <div class="text-2xl font-black text-green-400 tracking-tight">{{ fmtMoney(detail?.revenue) }}</div>
+              <p class="text-[8px] font-medium text-white/30 mt-1 leading-relaxed">* Chỉ tính vé đã bán, bao gồm thuế dịch vụ.</p>
+            </div>
+          </div>
+
+          <!-- Sơ đồ ghế THỰC TẾ -->
+          <div class="flex-grow bg-surface-container-low/80 border border-outline-variant/10 rounded-3xl flex flex-col items-center overflow-hidden shadow-2xl p-6">
+            <!-- Loading -->
+            <div v-if="isLoadingSeatMap" class="flex-1 w-full flex flex-col items-center justify-center gap-3 text-white/40 py-16">
+              <span class="material-symbols-outlined text-4xl animate-spin">progress_activity</span>
+              <p class="text-xs uppercase tracking-widest font-bold">Đang tải sơ đồ ghế...</p>
+            </div>
+            <!-- Empty -->
+            <div v-else-if="!seatData?.seats?.length" class="flex-1 w-full flex flex-col items-center justify-center gap-2 text-white/30 py-16">
+              <span class="material-symbols-outlined text-5xl opacity-40">grid_off</span>
+              <p class="text-sm font-medium">Phòng chưa có sơ đồ ghế.</p>
+            </div>
+            <!-- Grid -->
+            <template v-else>
+              <!-- Màn hình -->
+              <div class="w-full flex flex-col items-center flex-shrink-0 relative py-4">
+                <div class="w-2/3 h-1.5 bg-primary/70 rounded-full shadow-[0_2px_15px_rgba(245,197,24,0.2)] mb-3 border border-primary/20"></div>
+                <p class="text-[9px] font-bold uppercase tracking-[0.6em] text-primary/50">MÀN HÌNH CHÍNH</p>
+              </div>
+
+              <div class="inline-flex flex-col gap-1 overflow-auto max-w-full py-2">
+                <div v-for="r in smRows" :key="r" class="flex gap-1 justify-center">
+                  <template v-for="c in smCols" :key="`${r}-${c}`">
+                    <div v-if="!cellAt(r, c) || cellAt(r, c).kind === 'AISLE'" class="w-8 h-8 shrink-0"></div>
+                    <div v-else :class="seatClass(cellAt(r, c))" :title="cellAt(r, c).label">
+                      {{ cellAt(r, c).label }}
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Chú thích -->
+              <div class="w-full flex justify-center mt-6">
+                <div class="flex items-center gap-5 px-6 py-3 bg-surface-container-high/80 rounded-full border border-white/5 shadow-xl flex-wrap justify-center">
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-3.5 h-3.5 rounded bg-slate-800/80 border border-slate-600/50"></div>
+                    <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế trống</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-3.5 h-3.5 rounded bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50"></div>
+                    <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế VIP</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-3.5 h-3.5 rounded bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50"></div>
+                    <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế Đôi</span>
+                  </div>
+                  <div class="h-3.5 w-px bg-white/10 mx-1 hidden sm:block"></div>
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-3.5 h-3.5 rounded bg-surface-container-highest border border-white/5 opacity-60"></div>
+                    <span class="text-[9px] font-bold text-white/50 uppercase tracking-widest">Đã bán</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-3.5 h-3.5 rounded bg-orange-500/20 border border-orange-500/50"></div>
+                    <span class="text-[9px] font-bold text-white/50 uppercase tracking-widest">Đang giữ</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-3.5 h-3.5 rounded bg-red-950/40 border border-dashed border-red-500/50"></div>
+                    <span class="text-[9px] font-bold text-white/50 uppercase tracking-widest">Bảo trì</span>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
     </div>

@@ -148,6 +148,26 @@ const isLoadingShowtimeDetail = ref(false);
 const showAddShowtimeDrawer = ref(false);
 const showBatchShowtimeDrawer = ref(false);
 const showSeatMapModal = ref(false);
+const showtimeSeatData = ref(null);     // ShowtimeSeatResponse THỰC TẾ cho modal sơ đồ ghế
+const isLoadingSeatMap = ref(false);
+
+// Mở modal sơ đồ ghế: tải sơ đồ ghế THẬT của suất (từng ghế + trạng thái SOLD/HOLD/MAINTENANCE)
+// qua /seats/showtime/{id}?channel=POS — cùng nguồn dữ liệu POS/Booking/Incident (không mock).
+const openSeatMap = async () => {
+  const st = selectedShowtime.value;
+  if (!st) return;
+  showSeatMapModal.value = true;
+  showtimeSeatData.value = null;
+  isLoadingSeatMap.value = true;
+  try {
+    const { data } = await api.get(`/seats/showtime/${st.id}`, { params: { channel: "POS" } });
+    showtimeSeatData.value = data;
+  } catch (e) {
+    toast.error(friendlyError(e, "Không tải được sơ đồ ghế của suất chiếu."));
+  } finally {
+    isLoadingSeatMap.value = false;
+  }
+};
 
 const openShowtimeDetails = async (show) => {
   selectedShowtime.value = show;
@@ -435,9 +455,11 @@ onUnmounted(() => {
       :is-loading="isLoadingShowtimeDetail"
       :cinema="selectedCinema"
       :get-end-time="getEndTime"
+      :seat-data="showtimeSeatData"
+      :is-loading-seat-map="isLoadingSeatMap"
       @close="closeDrawer"
       @close-seat-map="showSeatMapModal = false"
-      @open-seat-map="showSeatMapModal = true"
+      @open-seat-map="openSeatMap"
       @delete="handleDeleteShowtime"
     />
 
