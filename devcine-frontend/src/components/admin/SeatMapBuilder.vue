@@ -4,11 +4,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 const props = defineProps({
   initialRows: { type: Number, default: 10 },
   initialCols: { type: Number, default: 12 },
-  initialSeatMap: { type: Object, default: () => ({}) },
-  readonly: { type: Boolean, default: false },
-  soldTickets: { type: Number, default: 0 },
-  canceledTickets: { type: Number, default: 0 },
-  revenue: { type: String, default: '0đ' }
+  initialSeatMap: { type: Object, default: () => ({}) }
 })
 
 const emit = defineEmits(['update:layout', 'dirty'])
@@ -23,6 +19,7 @@ const isMouseDown = ref(false)
 const editingKey = ref(null)
 const editingLabel = ref('')
 
+// Tổng sức chứa (ghế đôi tính 2 chỗ) — hiển thị ở sidebar trình dựng.
 const totalSeatCapacity = computed(() => {
   return Object.values(seatMap).reduce((total, s) => {
     if (!s || s.type === 'aisle' || s.type === 'remove') return total;
@@ -151,7 +148,6 @@ const applyTool = (r, c) => {
 
 // ===== Sửa label thủ công =====
 const openLabelEditor = (r, c) => {
-  if (props.readonly) return
   const key = `${r}-${c}`
   const cell = seatMap[key]
   if (!isSeatCell(cell)) return // chỉ ghế thật mới sửa được tên
@@ -217,14 +213,6 @@ const getSeatClass = (cell, r, c) => {
     return `${doubleClass} bg-red-950/40 border-2 border-dashed border-red-500/60 text-red-300/70 opacity-70`
   }
 
-  // Mock logic: nếu đang ở mode readonly thì giả lập một số ghế đã bị đặt (dựa trên tọa độ cố định để khỏi bị giật)
-  const isSold = props.readonly && type !== 'aisle' && type !== 'remove' && ((r * 7 + c * 3) % 5 === 0)
-
-  if (isSold) {
-    const doubleClass = type === 'double' ? 'col-span-2 rounded-xl' : 'rounded-lg'
-    return `${doubleClass} bg-surface-container-high border border-white/5 text-white/20 cursor-not-allowed pointer-events-none opacity-50`
-  }
-
   // Ghế có label thủ công (custom) → thêm viền hổ phách báo hiệu (không dùng icon che chữ)
   const customRing = isSeatCell(cell) && cell.custom ? ' ring-2 ring-inset ring-primary/70' : ''
 
@@ -260,128 +248,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- IF READONLY (View mode with stats on top, seat map on bottom) -->
-  <div v-if="readonly" class="flex flex-col gap-6 flex-grow overflow-y-auto h-full p-6">
-    <!-- Top: Stats Row -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-shrink-0">
-      <!-- Card 1: Fill rate/percentage -->
-      <div class="bg-surface-container-low border border-outline-variant/10 p-5 rounded-2xl flex items-center gap-6 shadow-sm">
-        <div class="flex items-center justify-center relative flex-shrink-0">
-          <svg class="w-20 h-20 transform -rotate-90">
-            <circle cx="40" cy="40" r="34" class="stroke-white/5" stroke-width="8" fill="none" />
-            <circle cx="40" cy="40" r="34" class="stroke-primary transition-all duration-1000" stroke-width="8" fill="none" stroke-dasharray="213.6" :stroke-dashoffset="213.6 - (213.6 * soldTickets / (totalSeatCapacity || 1))" stroke-linecap="round" />
-          </svg>
-          <div class="absolute inset-0 flex items-center justify-center">
-            <span class="text-base font-black text-white">{{ Math.round((soldTickets / (totalSeatCapacity || 1)) * 100) }}%</span>
-          </div>
-        </div>
-        <div class="space-y-1">
-          <h4 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Tỷ lệ lấp đầy</h4>
-          <p class="text-xs font-semibold text-white/60">Đã bán: <span class="font-bold text-white text-sm">{{ soldTickets }}</span> / {{ totalSeatCapacity }} ghế</p>
-        </div>
-      </div>
-
-      <!-- Card 2: Seat categories / counts -->
-      <div class="bg-surface-container-low border border-outline-variant/10 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
-        <h4 class="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70 mb-3">Chi tiết ghế</h4>
-        <div class="grid grid-cols-3 gap-4">
-          <div class="text-center">
-            <p class="text-[8px] font-bold text-white/40 uppercase mb-1">Ghế trống</p>
-            <p class="text-lg font-black text-white">{{ totalSeatCapacity - soldTickets }}</p>
-          </div>
-          <div class="text-center border-x border-white/5">
-            <p class="text-[8px] font-bold text-primary uppercase mb-1">Đã đặt</p>
-            <p class="text-lg font-black text-primary">{{ soldTickets }}</p>
-          </div>
-          <div class="text-center">
-            <p class="text-[8px] font-bold text-red-400 uppercase mb-1">Vé hủy</p>
-            <p class="text-lg font-black text-red-400">{{ canceledTickets }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 3: Revenue / Doanh thu tạm tính -->
-      <div class="bg-surface-container-low border border-outline-variant/10 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
-        <h4 class="text-[10px] font-bold uppercase tracking-[0.2em] text-green-400 mb-1.5 flex items-center gap-1.5">
-          <span class="material-symbols-outlined text-sm">payments</span>
-          Doanh thu tạm tính
-        </h4>
-        <div class="text-2xl font-black text-green-400 tracking-tight">{{ revenue }}</div>
-        <p class="text-[8px] font-medium text-white/30 mt-1 leading-relaxed">* Đã trừ vé hủy và bao gồm thuế dịch vụ.</p>
-      </div>
-    </div>
-
-    <!-- Bottom: Seat Map Canvas -->
-    <div class="flex-grow bg-surface-container-low/80 backdrop-blur-md border border-outline-variant/10 rounded-3xl flex flex-col overflow-hidden relative shadow-2xl items-center justify-center p-6">
-      <!-- Screen -->
-      <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8">
-        <div class="absolute top-0 w-full h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
-        <div class="w-2/3 h-1.5 bg-primary/70 rounded-full shadow-[0_2px_15px_rgba(245,197,24,0.2)] mb-4 border border-primary/20"></div>
-        <p class="text-[9px] font-bold uppercase tracking-[0.6em] text-primary/50 relative z-10">MÀN HÌNH CHÍNH</p>
-      </div>
-
-      <!-- Grid with Labels -->
-      <div class="w-full flex-grow overflow-auto p-4 flex items-center justify-center relative scrollbar-hide">
-        <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
-        <div class="relative z-10 flex flex-col gap-2.5 bg-black/40 backdrop-blur-sm p-6 rounded-3xl border border-white/5 shadow-2xl">
-           <!-- Column Labels -->
-           <div class="flex gap-2.5 pl-8 mb-1">
-              <div v-for="c in cols" :key="c" class="w-9 text-center text-[9px] font-black text-outline-variant/40 shrink-0">{{ c }}</div>
-           </div>
-
-           <div class="flex gap-3">
-              <!-- Row Labels -->
-              <div class="flex flex-col gap-2.5 pr-1">
-                 <div v-for="r in rows" :key="r" class="h-9 flex items-center justify-end text-[9px] font-black text-outline-variant/40 w-5">
-                    {{ String.fromCharCode(64 + r) }}
-                 </div>
-              </div>
-
-              <!-- Matrix -->
-              <div class="flex flex-col gap-2.5">
-                <div v-for="r in rows" :key="r" class="flex gap-2.5">
-                  <template v-for="c in cols" :key="c">
-                    <div v-if="!isOccupiedByDouble(r-1, c-1)"
-                      :class="[getSeatClass(seatMap[`${r-1}-${c-1}`], r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[82px]' : 'w-9', 'h-9 flex items-center justify-center text-[8px] font-black transition-all duration-75 group relative cursor-default shrink-0']">
-                    {{ seatMap[`${r-1}-${c-1}`]?.label }}
-                    <div v-if="!seatMap[`${r-1}-${c-1}`]?.type || seatMap[`${r-1}-${c-1}`]?.type === 'aisle'" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                       <div class="w-1 h-1 bg-white/10 rounded-full"></div>
-                    </div>
-                    </div>
-                  </template>
-                </div>
-              </div>
-           </div>
-        </div>
-      </div>
-
-      <!-- Legend -->
-      <div class="w-full flex justify-center mt-6 relative z-10">
-        <div class="flex items-center gap-6 px-6 py-3 bg-surface-container-high/80 backdrop-blur-md rounded-full border border-white/5 shadow-xl flex-wrap justify-center">
-          <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded bg-slate-800/80 border border-slate-600/50"></div>
-            <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế trống</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50"></div>
-            <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế VIP</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded-t-lg rounded-b-sm bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50"></div>
-            <span class="text-[9px] font-bold text-white/70 uppercase tracking-widest">Ghế Đôi</span>
-          </div>
-          <div class="h-3.5 w-px bg-white/10 mx-1 hidden sm:block"></div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-3.5 h-3.5 rounded bg-surface-container-high border border-white/5 flex items-center justify-center text-[7px] text-white/20">X</div>
-            <span class="text-[9px] font-bold text-white/40 uppercase tracking-widest">Đã đặt</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- IF EDITABLE (Horizontal builder view) -->
-  <div v-else class="flex gap-8 flex-grow overflow-hidden h-full">
+  <!-- Trình dựng sơ đồ ghế (chỉ dùng để CHỈNH SỬA — chế độ readonly đã tách sang ShowtimeDetailsDrawer) -->
+  <div class="flex gap-8 flex-grow overflow-hidden h-full">
     <!-- Toolbar / Sidebar -->
     <aside class="w-80 space-y-6 flex-shrink-0 overflow-y-auto pr-2 pb-10 no-scrollbar relative z-20">
       <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl space-y-6">
