@@ -44,6 +44,9 @@ const features = ref([
   // Quản lý hóa đơn: xem danh sách/chi tiết (STAFF chỉ thấy đơn của mình); delete = hủy đơn/hoàn tiền (ADMIN)
   { id: 'bookings', moduleId: 'pos', name: 'Quản lý hóa đơn', actions: ['view', 'delete'],
     labels: { view: 'Xem danh sách / chi tiết hóa đơn', delete: 'Hủy đơn / hoàn tiền' } },
+  // Xử lý sự cố phòng chiếu / đổi ghế đền bù: view = tra cứu & xem lịch sử; handle = đổi ghế/hủy chỗ/khóa ghế + phát đền bù
+  { id: 'incident_handling', moduleId: 'pos', name: 'Xử lý sự cố ghế', actions: ['view', 'handle'],
+    labels: { view: 'Vào màn & tra cứu vé sự cố', handle: 'Đổi ghế / hủy chỗ / khóa ghế & phát đền bù' } },
   // TẠM BỎ — Phê duyệt sửa sai: phần này sẽ BỎ / không phát triển. Xem memory devcine-approvals-dropped.md
   // Phê duyệt sửa sai: view = tạo & theo dõi yêu cầu hủy F&B; edit = duyệt / từ chối (Quản lý/Admin)
   // { id: 'approvals', moduleId: 'pos', name: 'Phê duyệt sửa sai', actions: ['view', 'edit'],
@@ -85,7 +88,8 @@ const actionLabels = {
   add: 'Thêm mới (Add)',
   edit: 'Chỉnh sửa (Edit)',
   delete: 'Xoá (Delete)',
-  export: 'Xuất File (Export)'
+  export: 'Xuất File (Export)',
+  handle: 'Xử lý (Handle)'
 }
 
 const actionLabelsShort = {
@@ -93,7 +97,8 @@ const actionLabelsShort = {
   add: 'Thêm',
   edit: 'Sửa',
   delete: 'Xoá',
-  export: 'Xuất'
+  export: 'Xuất',
+  handle: 'Xử lý'
 }
 
 // --- TRẠNG THÁI (STATE) ---

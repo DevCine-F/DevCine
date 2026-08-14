@@ -104,6 +104,12 @@ export default [
         component: () => import('../views/admin/TicketCheckIn.vue')
       },
       {
+        path: 'incidents',
+        name: 'admin-incidents',
+        meta: { permission: { feature: 'incident_handling', action: 'view' } },
+        component: () => import('../views/admin/IncidentManagement.vue')
+      },
+      {
         path: 'customer-support',
         name: 'admin-customer-support',
         meta: { permission: { feature: 'support', action: 'view' } },

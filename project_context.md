@@ -7,6 +7,7 @@
 > - **Đã GỠ HOÀN TOÀN Kho/Định mức BOM** (11/07): tồn kho VÔ HẠN, chỉ bán/hiển thị F&B.
 > - **Đã GỠ HOÀN TOÀN phân hệ Ca làm việc & Bàn giao ca** (01/08): không còn `Shift`/`StaffSchedule`/`ShiftHandover`/`WorkPosition`/check-in ca/đổi ghế. POS bán vé + Check-in QR chạy **RBAC thuần** (`@perm.can('pos_ticketing',...)`) — nhân viên đăng nhập là bán/soát được ngay.
 > - **Strict Cinema Scoping** (`SecurityUtils.assertCinemaAccess`): nhân viên chỉ thao tác trên cụm rạp của mình; bán/soát chéo rạp → **403**. Đơn POS lưu vết `sold_by` (Staff); đơn F&B thuần lưu thêm `cinema_id`.
+> - **Xử lý sự cố / Đổi ghế đền bù** (14/08): phân hệ mới `/admin/incidents` (feature quyền `incident_handling`). Đổi ghế = repoint `BookingSeat` tại chỗ (giữ QR); đền bù bằng Voucher template `COMP_*` (KHÔNG hoàn tiền); khóa ghế hỏng = `Seat.seat_status=MAINTENANCE`. Ghi vết bảng `seat_incidents`. Chi tiết ở `CLAUDE.md` + memory `devcine-incident-feature`.
 
 ---
 
@@ -140,9 +141,9 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 - `docs/` — `ARCHITECTURE.md`, `DATABASE.md`, `API_CONTRACTS.md`, `CRITICAL_PATHS.md`, `SECURITY.md`.
 - `docs/bao-cao/Bao_cao_thong_ke_DevCine.docx` — báo cáo thống kê & phân tích tiến độ (sinh bởi `generate_report.py`).
 
-## L?ch s? Refactor (02/08/2026) - QUY CHU?N M�N H�NH POS B�N V�
-- **B? c?c Card Phim**: Tu�n th? "GOM NH�M 2 C?P". C?p 1: Phim. C?p 2: �?nh d?ng & Ph�ng chi?u (VD: 2D PH? �? � PH�NG 223). B?T BU?C t? d?ng chu?n h�a ti?n t? "PH�NG" n?u API tr? v? s?.
-- **X? l� D? li?u**: st.movie l� String, st.duration l� s? (g�n tr?c ti?p). KH�NG G?I API /api/admin/movies trong m�n POS tr�nh 404 l�m s?p trang. T? d?ng fallback d? li?u.
-- **M�i gi? & Chu?i Ng�y**: Lu�n d�ng helper parseToDate(st) (thay kho?ng tr?ng b?ng 'T'). So s�nh ng�y b?ng getLocalYmd() (chu?n m�i gi? d?a phuong), TUY?T �?I KH�NG d�ng .toISOString().
-- **UI/UX Dropdown**: Gi? n?n trong su?t g-transparent, hover d?i x�m nh? hover:bg-white/10, ch? 	ext-amber-400. Kh�ng d�ng g-amber-500/10. N�t gi? chi?u d?ng Pill, tang d?n.
-- **Strict Isolation**: Ch? s?a d�ng file ch? d?nh, kh�ng t? � s?a helper/API chung. �?m b?o ite build xanh 100%.
+## L?ch s? Refactor (02/08/2026) - QUY CHU?N M�N H�NH POS B�N V�
+- **B? c?c Card Phim**: Tu�n th? "GOM NH�M 2 C?P". C?p 1: Phim. C?p 2: �?nh d?ng & Ph�ng chi?u (VD: 2D PH? �? � PH�NG 223). B?T BU?C t? d?ng chu?n h�a ti?n t? "PH�NG" n?u API tr? v? s?.
+- **X? l� D? li?u**: st.movie l� String, st.duration l� s? (g�n tr?c ti?p). KH�NG G?I API /api/admin/movies trong m�n POS tr�nh 404 l�m s?p trang. T? d?ng fallback d? li?u.
+- **M�i gi? & Chu?i Ng�y**: Lu�n d�ng helper parseToDate(st) (thay kho?ng tr?ng b?ng 'T'). So s�nh ng�y b?ng getLocalYmd() (chu?n m�i gi? d?a phuong), TUY?T �?I KH�NG d�ng .toISOString().
+- **UI/UX Dropdown**: Gi? n?n trong su?t g-transparent, hover d?i x�m nh? hover:bg-white/10, ch? 	ext-amber-400. Kh�ng d�ng g-amber-500/10. N�t gi? chi?u d?ng Pill, tang d?n.
+- **Strict Isolation**: Ch? s?a d�ng file ch? d?nh, kh�ng t? � s?a helper/API chung. �?m b?o ite build xanh 100%.

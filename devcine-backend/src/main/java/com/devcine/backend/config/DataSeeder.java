@@ -116,7 +116,7 @@ public class DataSeeder {
                     -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
             // Seed ma trận phân quyền mặc định.
-            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V5 (seed thường chỉ set khi blank).
+            // Đặt lại MỘT LẦN trên DB đã có dữ liệu qua cờ PERMISSION_MATRIX_V6 (seed thường chỉ set khi blank).
             // V3: gỡ mọi action KHÔNG có endpoint @perm.can tương ứng ("checkbox chết"), MANAGER thêm settings:view.
             // V4: đổi tên feature pos_inventory -> fnb_menu (nó gác THỰC ĐƠN F&B, không phải kho — kho đã gỡ),
             //     và gỡ hẳn khỏi STAFF: bán F&B tại quầy đi qua pos_ticketing, nên quyền này
@@ -125,9 +125,12 @@ public class DataSeeder {
             //     bookings (hóa đơn), approvals (duyệt hủy F&B), customers (khách hàng), audit_logs (nhật ký).
             //     Dọn action thừa của ADMIN: cinemas chỉ view (ghi là hasRole ADMIN), pricing chỉ view+edit,
             //     pos_ticketing chỉ view+add (không có sửa/xoá vé).
-            boolean permissionMatrixV5 = systemSettingRepository.findById("PERMISSION_MATRIX_V5").isPresent();
-            if (!permissionMatrixV5 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+            // V6: thêm feature incident_handling (view/handle) — Xử lý sự cố phòng chiếu / đổi ghế đền bù.
+            //     STAFF được 'handle' (front-line tại quầy); Cinema Scoping giữ trong cụm rạp của mình.
+            boolean permissionMatrixV6 = systemSettingRepository.findById("PERMISSION_MATRIX_V6").isPresent();
+            if (!permissionMatrixV6 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
+                        + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"dashboard_stats\":[\"view\",\"export\"],"
                         + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"schedules\":[\"view\",\"add\",\"edit\",\"delete\"],"
@@ -151,8 +154,9 @@ public class DataSeeder {
             // support:edit đã gỡ — CSKH thuộc quản lý. bookings:view để xem hoá đơn của chính mình;
             // approvals:view để TẠO & theo dõi yêu cầu hủy F&B (duyệt là quyền của Quản lý — cần 'edit').
             // customers:view giữ để tra cứu thành viên. fnb_menu (sửa giá món) vẫn là việc của quản lý.
-            if (!permissionMatrixV5 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+            if (!permissionMatrixV6 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
                 staffRole.setPermissionsMatrix("{"
+                        + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"movies\":[\"view\"],"
                         + "\"schedules\":[\"view\"],"
                         + "\"pos_ticketing\":[\"view\",\"add\"],"
@@ -169,8 +173,9 @@ public class DataSeeder {
             // support:delete đã gỡ vì xoá đánh giá là ADMIN-cứng (ReviewController) → nút sẽ 403.
             // Có quyền DUYỆT hủy hóa đơn F&B (approvals:edit) trong phạm vi cơ sở mình. Nhật ký (audit_logs)
             // là ADMIN-only nên MANAGER không được cấp.
-            if (!permissionMatrixV5 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
+            if (!permissionMatrixV6 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
                 managerRole.setPermissionsMatrix("{"
+                        + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"dashboard_stats\":[\"view\"],"
                         + "\"movies\":[\"view\"],"
                         + "\"schedules\":[\"view\",\"add\",\"edit\"],"
@@ -189,9 +194,38 @@ public class DataSeeder {
                 roleRepository.save(managerRole);
                 System.out.println("Đã cấu hình ma trận phân quyền mặc định cho MANAGER.");
             }
-            if (!permissionMatrixV5) {
+            if (!permissionMatrixV6) {
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("PERMISSION_MATRIX_V5").settingValue("true").build());
+                        .settingKey("PERMISSION_MATRIX_V6").settingValue("true").build());
+            }
+
+            // Seed bộ Promotion-template ĐỀN BÙ sự cố (mã COMP_*) — phát tự động khi Xử lý sự cố.
+            // Idempotent theo mã (self-heal). discountType GIFT_* → trị giá 0 để KHÔNG lẫn vào giảm giá
+            // lúc đặt vé (chỉ là "phiếu quyền lợi" honored tại quầy); FIXED_AMOUNT dùng được như voucher giảm.
+            record CompSeed(String code, String name, String type, String value) {}
+            List<CompSeed> compSeeds = List.of(
+                    new CompSeed("COMP_FNB_COMBO", "Đền bù: Tặng Combo Bắp nước", "GIFT_FNB", "0"),
+                    new CompSeed("COMP_50K", "Đền bù: Voucher giảm 50.000đ", "FIXED_AMOUNT", "50000"),
+                    new CompSeed("COMP_100K", "Đền bù: Voucher giảm 100.000đ", "FIXED_AMOUNT", "100000"),
+                    new CompSeed("COMP_TICKET_FULL", "Đền bù: Vé mời (đền nguyên vé khi hủy chỗ)", "GIFT_TICKET", "0"));
+            List<Promotion> newComps = new java.util.ArrayList<>();
+            for (CompSeed cs : compSeeds) {
+                if (promotionRepository.findByCodeIgnoreCase(cs.code()).isEmpty()) {
+                    newComps.add(Promotion.builder()
+                            .code(cs.code()).name(cs.name())
+                            .description("Voucher đền bù sự cố phòng chiếu (phát tự động khi xử lý sự cố).")
+                            .discountType(cs.type())
+                            .discountValue(new BigDecimal(cs.value()))
+                            .startDate(LocalDateTime.now().minusDays(1))
+                            .isStackable(false)
+                            .allowPointRedemption(false)
+                            .customerEligibility("ALL")
+                            .build());
+                }
+            }
+            if (!newComps.isEmpty()) {
+                promotionRepository.saveAll(newComps);
+                System.out.println("Đã seed " + newComps.size() + " mẫu voucher đền bù sự cố (COMP_*).");
             }
 
             // Chuẩn hoá mã kiểm duyệt tuổi về đúng bộ VN (P/K/T13/T16/T18/C): dữ liệu cũ lỡ nhập

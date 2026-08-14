@@ -75,9 +75,18 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 - "Người dùng mới" → **"Khách mới của cơ sở"** (lần đầu giao dịch tại cơ sở, dùng `NOT EXISTS`)
 - Màn FAQ / Đánh giá phim chuyển sang `adminOnly` cho khớp `hasRole('ADMIN')` ở backend
 
+**Đã hoàn thiện — Xử lý sự cố / Đổi ghế đền bù (14/08/2026):** phân hệ mới ở khu quản trị (`IncidentManagement.vue`, route `/admin/incidents`, feature quyền `incident_handling` view/handle — STAFF được handle, chịu Cinema Scoping). BE: entity `SeatIncident` (bảng `seat_incidents`) + `SeatIncidentService`/`SeatIncidentController` (`/api/staff/incidents/*`). Xem memory `devcine-incident-feature.md`.
+- **Đổi ghế = REPOINT `BookingSeat.seat_id` TẠI CHỖ** → giữ nguyên Ticket/QR/giá; nhãn ghế suy live nên reprint & email tự đúng (KHÔNG sinh Ticket/QR mới).
+- **Flat Pricing ⇒ đổi ghế cùng suất chênh lệch = 0đ** → đền theo **goodwill** (voucher quà/giảm), KHÔNG theo phép trừ. Chênh lệch > 0 chỉ khi HỦY chỗ (đền = giá vé). Không hoàn tiền.
+- **Đền bù = Voucher từ Promotion-template `COMP_*`** (seed: COMP_FNB_COMBO/50K/100K/TICKET_FULL). `discountType` GIFT_* trị giá 0 để không lẫn vào giảm giá. Khách vãng lai (không Customer) → đền trực tiếp tại quầy, không sinh Voucher, chỉ ghi vết.
+- **Khóa ghế hỏng** = set `Seat.seat_status=MAINTENANCE` (chặn bán mọi suất sau). Ghi vết `handled_by`+`cinema_id`. Idempotency & race-check → 409.
+- **Ma trận quyền bump `PERMISSION_MATRIX_V4` → `V6`** (thực tế đã qua V5; nay V6 thêm `incident_handling` cho ADMIN/MANAGER/STAFF).
+- **File bất khả xâm phạm:** tạo MỚI `entity/SeatIncident.java` (thêm bảng, `ddl-auto` tự tạo); sửa `TicketService.java` (+2 helper in lại/gửi email). Không đụng `BookingService`/`PricingService`.
+
 **Còn lại:**
 - 8 cảnh báo Dependabot (đụng `pom.xml`/`package.json` → báo cáo trước khi sửa)
 - Nhánh fail-closed của dashboard chưa có tình huống thật để test (chưa có tài khoản MANAGER nào thiếu cơ sở)
+- Incident: chưa enforce orphan-check khi đổi cụm ghế (`allowOrphan` giữ sẵn); chưa verify end-to-end runtime (mới compile/build sạch)
 
 ## Commit convention
 

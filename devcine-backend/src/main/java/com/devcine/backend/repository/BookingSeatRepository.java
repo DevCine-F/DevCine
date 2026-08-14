@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BookingSeatRepository extends JpaRepository<BookingSeat, Integer> {
@@ -59,4 +60,14 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
            "WHERE bs.seat.id IN :seatIds AND b.showtime.id = :showtimeId " +
            "AND (bs.status = 'SOLD' OR (bs.status = 'HOLD' AND b.expiresAt >= :now AND b.status IN ('PENDING_PAYMENT', 'PAYING', 'HOLD')))")
     List<Integer> findConflictingSeats(@Param("showtimeId") Integer showtimeId, @Param("seatIds") List<Integer> seatIds, @Param("now") LocalDateTime now);
+
+    /**
+     * Ghế ĐÃ BÁN đang gắn với một vé của suất (xử lý sự cố: chọn ghế trên sơ đồ → truy ngược đơn).
+     * Fetch booking + khách để dựng ngữ cảnh mà không N+1. Chỉ lấy SOLD (không đụng HOLD chưa trả tiền).
+     */
+    @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.booking b JOIN FETCH bs.seat " +
+           "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user " +
+           "WHERE b.showtime.id = :showtimeId AND bs.seat.id = :seatId AND bs.status = 'SOLD'")
+    Optional<BookingSeat> findSoldSeatOccupant(@Param("showtimeId") Integer showtimeId,
+                                               @Param("seatId") Integer seatId);
 }

@@ -240,4 +240,16 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
 
     @Query("SELECT b FROM Booking b WHERE (b.status = 'PENDING_PAYMENT' OR b.status = 'PAYING' OR b.status = 'HOLD') AND b.expiresAt < :now")
     List<Booking> findExpiredHolds(@Param("now") LocalDateTime now);
+
+    /**
+     * Tra cứu đơn theo SĐT khách (xử lý sự cố tại quầy). Chỉ đơn CONFIRMED, mới nhất trước.
+     * Fetch suất/phim/phòng/rạp + khách để dựng ngữ cảnh sự cố không N+1.
+     */
+    @Query("SELECT b FROM Booking b " +
+           "JOIN FETCH b.showtime s JOIN FETCH s.movie JOIN FETCH s.room r LEFT JOIN FETCH r.cinema " +
+           "LEFT JOIN FETCH s.format " +
+           "JOIN FETCH b.customer c JOIN FETCH c.user u " +
+           "WHERE u.phone = :phone AND b.status = 'CONFIRMED' " +
+           "ORDER BY s.startTime DESC")
+    List<Booking> findConfirmedByCustomerPhone(@Param("phone") String phone, Pageable pageable);
 }

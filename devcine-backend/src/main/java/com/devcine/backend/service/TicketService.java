@@ -238,4 +238,62 @@ public class TicketService {
                 booking.getPrintedAt(),
                 requiresStudentVerification);
     }
+
+    /**
+     * Dựng dữ liệu in vé cho một đơn (dùng cho IN LẠI sau khi xử lý sự cố đổi ghế).
+     * Khác {@link #lookupByBookingCode}: KHÔNG chặn đơn đã in — đổi ghế xong luôn cần in lại nhãn mới.
+     */
+    @Transactional(readOnly = true)
+    public BookingPrintResponse buildPrintData(Integer bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn để in lại vé."));
+        return buildResponse(booking);
+    }
+
+    /**
+     * Gửi LẠI email vé cho đơn ONLINE sau khi đổi ghế (nhãn ghế mới, QR giữ nguyên vì đổi ghế là
+     * repoint booking_seat tại chỗ). Trả false (im lặng) nếu đơn POS / không có email — không phải lỗi.
+     */
+    @Transactional
+    public boolean resendTicketEmailIfOnline(Integer bookingId) {
+        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        if (booking == null) return false;
+        if ("POS".equalsIgnoreCase(booking.getChannel())) return false; // đơn POS không kèm QR
+        if (booking.getCustomer() == null || booking.getCustomer().getUser() == null) return false;
+        User user = booking.getCustomer().getUser();
+        if (user.getEmail() == null || user.getEmail().isBlank()) return false;
+
+        Showtime showtime = booking.getShowtime();
+        Movie movie = showtime != null ? showtime.getMovie() : null;
+        Room room = showtime != null ? showtime.getRoom() : null;
+        Cinema cinema = room != null ? room.getCinema() : null;
+
+        List<TicketEmailData.SeatLine> seatLines = new ArrayList<>();
+        for (Ticket t : ticketRepository.findAllByBookingIdWithSeat(bookingId)) {
+            BookingSeat bs = t.getBookingSeat();
+            if (bs == null || !"SOLD".equalsIgnoreCase(bs.getStatus())) continue; // bỏ ghế đã hủy
+            seatLines.add(new TicketEmailData.SeatLine(bs.getSeat().displayLabel(), bs.getTicketType(), t.getQrCode()));
+        }
+
+        List<TicketEmailData.FnbLine> fnbLines = new ArrayList<>();
+        for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(bookingId)) {
+            String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
+            fnbLines.add(new TicketEmailData.FnbLine(name, bf.getQuantity()));
+        }
+
+        try {
+            mailService.sendTicketEmail(new TicketEmailData(
+                    user.getEmail(), user.getFullName(), booking.getBookingCode(),
+                    movie != null ? movie.getTitle() : "Phim",
+                    cinema != null ? cinema.getName() : "",
+                    room != null ? room.getName() : "",
+                    showtime != null ? showtime.getStartTime() : null,
+                    booking.getPaymentMethod(), booking.getFinalPrice(),
+                    seatLines, fnbLines, true));
+            return true;
+        } catch (Exception e) {
+            log.error("Lỗi gửi lại email vé sau đổi ghế cho đơn {}: {}", booking.getBookingCode(), e.getMessage(), e);
+            return false;
+        }
+    }
 }
