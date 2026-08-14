@@ -44,9 +44,10 @@ const features = ref([
   // Quản lý hóa đơn: xem danh sách/chi tiết (STAFF chỉ thấy đơn của mình); delete = hủy đơn/hoàn tiền (ADMIN)
   { id: 'bookings', moduleId: 'pos', name: 'Quản lý hóa đơn', actions: ['view', 'delete'],
     labels: { view: 'Xem danh sách / chi tiết hóa đơn', delete: 'Hủy đơn / hoàn tiền' } },
+  // TẠM BỎ — Phê duyệt sửa sai: phần này sẽ BỎ / không phát triển. Xem memory devcine-approvals-dropped.md
   // Phê duyệt sửa sai: view = tạo & theo dõi yêu cầu hủy F&B; edit = duyệt / từ chối (Quản lý/Admin)
-  { id: 'approvals', moduleId: 'pos', name: 'Phê duyệt sửa sai', actions: ['view', 'edit'],
-    labels: { view: 'Xem danh sách yêu cầu', edit: 'Duyệt / Từ chối hủy F&B' } },
+  // { id: 'approvals', moduleId: 'pos', name: 'Phê duyệt sửa sai', actions: ['view', 'edit'],
+  //   labels: { view: 'Xem danh sách yêu cầu', edit: 'Duyệt / Từ chối hủy F&B' } },
 
   { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'],
     labels: { view: 'Xem danh sách phim', add: 'Thêm phim', edit: 'Sửa thông tin phim', delete: 'Xoá / ẩn phim' } },

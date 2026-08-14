@@ -73,12 +73,13 @@ export default [
         meta: { permission: { feature: 'fnb_menu', action: 'view' } },
         component: () => import('../views/admin/FnbMenuManager.vue')
       },
-      {
-        path: 'approvals',
-        name: 'admin-approvals',
-        meta: { permission: { feature: 'approvals', action: 'view' } },
-        component: () => import('../views/admin/ApprovalQueue.vue')
-      },
+      // TẠM BỎ — Phê duyệt sửa sai: phần này sẽ BỎ / không phát triển. Xem memory devcine-approvals-dropped.md
+      // {
+      //   path: 'approvals',
+      //   name: 'admin-approvals',
+      //   meta: { permission: { feature: 'approvals', action: 'view' } },
+      //   component: () => import('../views/admin/ApprovalQueue.vue')
+      // },
       {
         path: 'account',
         name: 'admin-account',
