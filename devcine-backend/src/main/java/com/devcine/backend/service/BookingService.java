@@ -228,9 +228,11 @@ public class BookingService {
         }
 
         // POS override "Cho phép lẻ ghế": bỏ qua luật chống ghế mồ côi cho khách ngoại lệ tại quầy.
-        // CHỈ hiệu lực ở kênh POS (nhân viên đã qua quyền pos_ticketing) — kênh ONLINE luôn phớt lờ cờ này
-        // để API lậu không thể tự tạo khoảng trống lẻ.
-        boolean bypassOrphan = Boolean.TRUE.equals(request.getAllowOrphan()) && "POS".equalsIgnoreCase(channel);
+        // CHỈ hiệu lực khi HỘI ĐỦ: kênh POS + vai trò ADMIN/MANAGER (STAFF không được tự quyết ngoại lệ).
+        // Kênh ONLINE luôn phớt lờ cờ này để API lậu không thể tự tạo khoảng trống lẻ.
+        boolean bypassOrphan = Boolean.TRUE.equals(request.getAllowOrphan())
+                && "POS".equalsIgnoreCase(channel)
+                && (SecurityUtils.isAdmin() || SecurityUtils.isManager());
         if (!bypassOrphan) {
             // Chống ghế mồ côi: dùng RÀO CẢN (lối đi) & khung từ SNAPSHOT để khớp đúng sơ đồ hiển thị.
             if (snapshot != null) {

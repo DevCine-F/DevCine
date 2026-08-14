@@ -4,7 +4,9 @@ import { ticketingApi, settingsApi, approvalApi, bookingAdminApi, posPendingOrde
 import AppButton from '../../components/common/AppButton.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useSeatGridRender } from '@/composables/useSeatGridRender'
+import { useOrphanSeatCheck } from '@/composables/useOrphanSeatCheck'
 import { useToastStore } from '@/stores/toast'
+import { useAuthStore } from '@/stores/auth'
 import { friendlyError } from '@/utils/friendlyError'
 import FnbOptionModal from '@/components/FnbOptionModal.vue'
 
@@ -74,6 +76,10 @@ const canUseFnb = computed(() => true)
 const toastStore = useToastStore()
 // Giữ tên showToast để không phải sửa ~40 lời gọi rải khắp file
 const showToast = (message, type = 'success') => toastStore.push(message, type)
+
+const auth = useAuthStore()
+// Chỉ ADMIN/MANAGER được bật "Cho phép lẻ ghế" (khớp gate vai trò ở backend). STAFF không thấy nút.
+const canOverrideOrphan = computed(() => auth.isAdmin || auth.isManager)
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
 
@@ -945,6 +951,16 @@ const isSelected = (seat) => selectedSeats.value.some(s => s.seatId === seat.sea
 // Nhãn ghế: ưu tiên label lưu ở DB (Admin có thể sửa tay), fallback rowChar+colNum
 const seatLabel = (seat) => seat ? (seat.label || (seat.rowChar + seat.colNum)) : ''
 const isSeatMaintenance = (seat) => !!seat && (seat.status === 'MAINTENANCE' || seat.status === 'LOCKED' || seat.seatStatus === 'MAINTENANCE' || seat.seatStatus === 'LOCKED')
+
+// Cảnh báo ghế mồ côi real-time — tự tính lại mỗi khi đổi ghế chọn HOẶC có sự kiện khoá STOMP
+// (othersLocked reassign → reactive). Rào cản = đã bán/giữ/bảo trì/khoá quầy khác.
+const { orphanKeys, hasOrphan } = useOrphanSeatCheck({
+  seats: () => seatData.value.seats,
+  selectedIds: () => selectedSeats.value.map(s => s.seatId),
+  isSeatBlocked: (cell) => cell.status === 'SOLD' || cell.status === 'HOLD'
+    || isSeatMaintenance(cell) || isSeatLockedByOthers(cell)
+})
+const isOrphanSeat = (seat) => !!seat && orphanKeys.value.has(`${seat.gridRow}-${seat.gridCol}`)
 // Nhãn hàng (A, B, C...) suy từ ghế đầu tiên có trên hàng đó
 const rowLabel = (gridRow) => {
   // Ưu tiên rowChar thật (payload cũ); snapshot không mang rowChar → suy theo vị trí lưới.
@@ -988,6 +1004,8 @@ const seatClass = (seat) => {
   // Ghế đang bị quầy khác / khách online giữ real-time → khóa xám, không cho click
   if (isSeatLockedByOthers(seat)) return `${base} bg-yellow-500/10 border-yellow-500/30 text-yellow-500/60 cursor-not-allowed`
   if (isSelected(seat)) return `${base} bg-primary border-primary text-on-primary shadow-lg shadow-primary/30 cursor-pointer scale-105`
+  // Ghế trống bị "kẹt" mồ côi do lựa chọn hiện tại → viền đỏ nhấp nháy, vẫn click được để chọn nốt
+  if (isOrphanSeat(seat)) return `${base} bg-red-500/15 border-red-500/70 text-red-300 ring-2 ring-red-500/50 animate-pulse cursor-pointer`
   const byType = {
     VIP: 'bg-red-900/40 border-red-500/40 text-red-200 hover:border-red-400',
     SWEETBOX: 'bg-purple-900/40 border-purple-500/40 text-purple-200 hover:border-purple-400'
@@ -1285,7 +1303,7 @@ const processPayment = async (method) => {
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method,
       heldBookingId: restoredBookingId.value,
-      allowOrphan: allowOrphan.value // POS override: cho phép để trống 1 ghế lẻ (khách ngoại lệ)
+      allowOrphan: canOverrideOrphan.value && allowOrphan.value // chỉ ADMIN/MANAGER mới gửi cờ (BE cũng gate lại theo vai trò)
     }
     
     if (method === 'TRANSFER') {
@@ -1894,15 +1912,21 @@ onUnmounted(() => {
               <span class="flex items-center gap-1"><span class="w-3 h-3 flex items-center justify-center rounded bg-surface-container-highest border border-white/10 text-red-500 opacity-60"><span class="material-symbols-outlined text-[8px]">build</span></span>Ghế bảo trì</span>
             </div>
             <div class="flex items-center gap-3">
-              <!-- POS override: cho phép để trống 1 ghế lẻ (backend chỉ chấp nhận ở kênh POS đã qua quyền) -->
-              <button type="button" @click="allowOrphan = !allowOrphan"
+              <!-- Cảnh báo ghế mồ côi: hiện khi lựa chọn để trống 1 ghế lẻ và chưa bật ngoại lệ -->
+              <span v-if="hasOrphan && !allowOrphan"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/40 text-[10px] font-bold uppercase tracking-wider text-red-400">
+                <span class="material-symbols-outlined text-[15px]">warning</span>
+                Đang để trống ghế lẻ — chọn nốt ô đỏ hoặc bỏ bớt
+              </span>
+              <!-- POS override: cho phép để trống 1 ghế lẻ. Chỉ ADMIN/MANAGER thấy & bật được (backend cũng gate theo vai trò) -->
+              <button v-if="canOverrideOrphan" type="button" @click="allowOrphan = !allowOrphan"
                       :title="allowOrphan ? 'Đang cho phép để trống ghế lẻ' : 'Bật để bán khách ngoại lệ dù để trống 1 ghế lẻ'"
                       class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all"
                       :class="allowOrphan ? 'border-primary/60 bg-primary/10 text-primary' : 'border-outline-variant/20 text-on-surface-variant/60 hover:border-outline-variant/40'">
                 <span class="material-symbols-outlined text-[15px]">{{ allowOrphan ? 'toggle_on' : 'toggle_off' }}</span>
                 Cho phép lẻ ghế
               </button>
-              <AppButton @click="currentStep = 3" :disabled="selectedSeats.length === 0">3. Xác nhận vé</AppButton>
+              <AppButton @click="currentStep = 3" :disabled="selectedSeats.length === 0 || (hasOrphan && !allowOrphan)">3. Xác nhận vé</AppButton>
             </div>
           </div>
         </div>
