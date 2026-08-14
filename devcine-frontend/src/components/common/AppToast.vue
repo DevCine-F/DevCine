@@ -19,7 +19,7 @@ const STYLES = {
 
 <template>
   <Teleport to="body">
-    <div class="fixed top-6 right-6 z-[1000] flex flex-col gap-3 w-[min(92vw,360px)] pointer-events-none">
+    <div class="fixed top-6 right-6 z-[2000] flex flex-col gap-3 w-[min(92vw,360px)] pointer-events-none">
       <transition-group name="toast">
         <div
           v-for="t in toast.toasts"
