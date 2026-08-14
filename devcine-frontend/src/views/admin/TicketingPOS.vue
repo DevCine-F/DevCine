@@ -1004,8 +1004,9 @@ const seatClass = (seat) => {
   // Ghế đang bị quầy khác / khách online giữ real-time → khóa xám, không cho click
   if (isSeatLockedByOthers(seat)) return `${base} bg-yellow-500/10 border-yellow-500/30 text-yellow-500/60 cursor-not-allowed`
   if (isSelected(seat)) return `${base} bg-primary border-primary text-on-primary shadow-lg shadow-primary/30 cursor-pointer scale-105`
-  // Ghế trống bị "kẹt" mồ côi do lựa chọn hiện tại → viền đỏ nhấp nháy, vẫn click được để chọn nốt
-  if (isOrphanSeat(seat)) return `${base} bg-red-500/15 border-red-500/70 text-red-300 ring-2 ring-red-500/50 animate-pulse cursor-pointer`
+  // Ghế trống bị "kẹt" mồ côi do lựa chọn hiện tại → nền đỏ mờ + viền nét đứt trắng (tĩnh,
+  // không nhấp nháy; viền trắng để không lẫn với ghế VIP đỏ). Vẫn click được để chọn nốt.
+  if (isOrphanSeat(seat)) return `${base} bg-red-500/25 border-2 border-dashed border-white/80 text-white cursor-pointer`
   const byType = {
     VIP: 'bg-red-900/40 border-red-500/40 text-red-200 hover:border-red-400',
     SWEETBOX: 'bg-purple-900/40 border-purple-500/40 text-purple-200 hover:border-purple-400'
