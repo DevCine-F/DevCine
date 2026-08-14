@@ -1356,7 +1356,7 @@ const proceedToPayment = async () => {
                   </div>
                   <div v-if="fnb.options && fnb.options.length > 0" class="text-xs text-on-surface-variant/70 mt-1 pl-8 flex flex-wrap gap-1">
                      <span v-for="opt in fnb.options" :key="opt.optionItemId" class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px]">
-                        {{ opt.optionName }}
+                        {{ opt.optionName }}<span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium ml-0.5">(+{{ Number(opt.surchargePrice).toLocaleString('vi-VN') }}đ)</span>
                      </span>
                   </div>
                   <div v-else-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-1 pl-8">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
