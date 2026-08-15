@@ -714,22 +714,104 @@ const computeBlockSeats = (startSeat) => {
 }
 
 // ══════ PROACTIVE SEAT LOCKING — khoá trước các ghế không thể chọn ══════
-// Quét MỌI ghế còn trống và GIẢ LẬP đặt khối hiện tại vào đó bằng chính `computeBlockSeats`
-// (hàm đang dùng khi click) → không nhân bản thuật toán, không lệch hành vi với lúc bấm.
-// `computeBlockSeats` đã bao trọn 3 quy tắc của tính năng:
-//   1. Loại ghế  — SWEETBOX chiếm 2 chỗ, khối lẻ vào là `cap !== size` ⇒ null
-//   2. Chỗ chứa  — hết ghế trống liền mạch / gặp lối đi, tường, ghế bận ⇒ null
-//   3. Mồ côi    — `freeRunCapacity` để lại đúng 1 chỗ lẻ ở mép trái/phải ⇒ null
-// Phụ thuộc reactive: availableSeats · selectedSeats · currentBlockSize · khoá real-time
-// ⇒ tự tính lại khi đổi số vé, đổi khối, hoặc vừa chọn/bỏ chọn ghế.
+// Ghế đôi: SWEETBOX/DOUBLE chiếm 2 CỘT lưới và ngồi được 2 người (khớp isDoubleSeat của renderer).
+const isCoupleSeat = (c) =>
+  !!c && (c.span === 2 || ['SWEETBOX', 'DOUBLE'].includes(String(c.seatType || '').toUpperCase()))
+
+// Dựng LƯỚI THEO HÀNG một lần cho cả lượt quét: mỗi cột là một ô có trạng thái rõ ràng.
+//   FREE = ghế trống đặt được · BUSY = ghế bận (bán/giữ/khoá/bảo trì/đang chọn)
+//   WALL = lối đi · SPAN = nửa phải bị che của ghế đôi bên trái · rỗng = ngoài khung/không có ô
+// Bề rộng khung suy TỪ CHÍNH các ô có thật, KHÔNG dùng store.matrixCol — ghế nằm ngoài
+// matrixCol (dữ liệu suất cũ) sẽ không bị cắt cụt khiến phép đo khoảng trống lệch.
+const seatRowSlots = computed(() => {
+  const byRow = new Map()
+  for (const c of store.availableSeats) {
+    if (!c || c.gridRow == null || c.gridCol == null) continue
+    if (!byRow.has(c.gridRow)) byRow.set(c.gridRow, [])
+    byRow.get(c.gridRow).push(c)
+  }
+
+  const grid = new Map()
+  for (const [row, cells] of byRow) {
+    let width = 0
+    for (const c of cells) width = Math.max(width, c.gridCol + (isCoupleSeat(c) ? 2 : 1))
+    const slots = new Array(width) // ô chưa gán = ngoài khung → coi như tường
+
+    for (const c of cells) {
+      if (c.kind === 'AISLE') { slots[c.gridCol] = { state: 'WALL', w: 1 }; continue }
+      slots[c.gridCol] = {
+        state: isSeatFreeForBlock(c) ? 'FREE' : 'BUSY',
+        w: isCoupleSeat(c) ? 2 : 1,
+        cell: c,
+      }
+    }
+    // Nửa phải của ghế đôi: chỉ chiếm chỗ nếu cột đó không có ô thật nào khác.
+    for (const c of cells) {
+      if (!isCoupleSeat(c) || c.kind === 'AISLE') continue
+      const next = c.gridCol + 1
+      if (next < width && slots[next] === undefined) slots[next] = { state: 'SPAN', w: 1, ownerCol: c.gridCol }
+    }
+    grid.set(row, slots)
+  }
+  return grid
+})
+
+// Đếm SỐ CHỖ trống liền nhau (ghế đôi = 2 chỗ) từ `fromCol` theo hướng `dir`,
+// dừng ngay khi gặp tường/lối đi/ghế bận. Dùng để đo khoảng trống 2 bên SAU khi đã đặt khối.
+const freeRunFrom = (slots, fromCol, dir) => {
+  let total = 0
+  let col = fromCol
+  while (col >= 0 && col < slots.length) {
+    let e = slots[col]
+    // Đi lùi mà đụng nửa phải của ghế đôi → nhảy về ô chủ để tính trọn ghế đó.
+    if (e && e.state === 'SPAN' && dir === -1) { col = e.ownerCol; e = slots[col] }
+    if (!e || e.state !== 'FREE') break
+    total += e.w
+    col += dir * e.w
+  }
+  return total
+}
+
+// Quét toàn sơ đồ: với MỖI ghế trống làm `anchor`, giả lập đặt trọn khối hiện tại rồi mới
+// đo hai bên (atomic). Ghế nào không đặt được khối ⇒ khoá + phủ dấu X.
+// Phụ thuộc reactive: availableSeats · selectedSeats · currentBlockSize · totalTickets · khoá
+// real-time ⇒ tự tính lại khi đổi số vé, đổi khối, hoặc vừa chọn/bỏ chọn ghế.
 const unselectableSeatIds = computed(() => {
   const ids = new Set()
-  // Chưa chọn vé (lưới đã bị làm mờ) hoặc đã đủ ghế (không còn khối nào để đặt):
-  // bỏ qua để không phủ dấu X lên toàn sơ đồ.
-  if (store.totalTickets === 0 || !store.currentBlockSize) return ids
-  for (const s of store.availableSeats) {
-    if (!isSeatFreeForBlock(s)) continue // đã bán/giữ/khoá/bảo trì/đang chọn → có style riêng
-    if (!computeBlockSeats(s)) ids.add(s.seatId)
+  const size = store.currentBlockSize
+  // Chưa chọn vé (lưới đã bị làm mờ) hoặc đã chọn đủ ghế: bỏ qua để không phủ X toàn sơ đồ.
+  if (store.totalTickets === 0 || !size) return ids
+
+  const oddTickets = store.totalTickets % 2 === 1
+
+  for (const slots of seatRowSlots.value.values()) {
+    for (let anchorCol = 0; anchorCol < slots.length; anchorCol++) {
+      const anchor = slots[anchorCol]
+      if (!anchor || anchor.state !== 'FREE') continue // ghế bận/lối đi đã có style riêng
+      const seatId = anchor.cell.seatId
+
+      // ── Bước 1: LOẠI GHẾ ── số vé lẻ thì không cho đặt vào ghế đôi.
+      if (oddTickets && anchor.w === 2) { ids.add(seatId); continue }
+
+      // ── Bước 2: KHÔNG GIAN CHỨA ── gom sang phải cho đủ `size` chỗ, liền mạch.
+      let cap = 0
+      let col = anchorCol
+      let fits = true
+      while (cap < size) {
+        const e = slots[col]
+        if (!e || e.state !== 'FREE') { fits = false; break } // đụng tường/lối đi/ghế bận
+        cap += e.w
+        col += e.w
+      }
+      // cap > size: khối lẻ đâm vào ghế đôi → thừa chỗ, không đặt được.
+      if (!fits || cap !== size) { ids.add(seatId); continue }
+
+      // ── Bước 3: CHỐNG GHẾ MỒ CÔI (atomic) ── khối đã chiếm [anchorCol, col), giờ mới đo
+      // khoảng trống còn lại hai bên. Đúng 1 chỗ = mồ côi; 0 chỗ là vừa khít, hợp lệ.
+      const leftGap = freeRunFrom(slots, anchorCol - 1, -1)
+      const rightGap = freeRunFrom(slots, col, 1)
+      if (leftGap === 1 || rightGap === 1) ids.add(seatId)
+    }
   }
   return ids
 })
