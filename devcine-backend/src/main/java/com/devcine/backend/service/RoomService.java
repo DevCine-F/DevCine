@@ -90,8 +90,23 @@ public class RoomService {
 
     @Transactional(readOnly = true)
     public List<RoomResponse> getRoomsByCinema(Integer cinemaId) {
-        return roomRepository.findByCinemaId(cinemaId).stream()
-                .map(RoomResponse::fromEntity)
+        List<Room> rooms = roomRepository.findByCinemaId(cinemaId);
+        List<Integer> roomIds = rooms.stream().map(Room::getId).toList();
+
+        // Sức chứa vật lý thật (ghế đôi=2, giữ ghế khóa, bỏ lối đi) — nạp 1 query cho mọi phòng, tránh N+1.
+        java.util.Map<Integer, Integer> capacityById = new java.util.HashMap<>();
+        if (!roomIds.isEmpty()) {
+            for (Object[] row : seatRepository.sumSeatCapacityByRoomIds(roomIds)) {
+                capacityById.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+
+        return rooms.stream()
+                .map(r -> {
+                    RoomResponse res = RoomResponse.fromEntity(r);
+                    res.setSeatCount(capacityById.getOrDefault(r.getId(), 0));
+                    return res;
+                })
                 .toList();
     }
 

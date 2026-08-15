@@ -20,6 +20,9 @@ public class RoomResponse {
     private Integer turnaroundTimeMins;
     private Integer matrixRow;
     private Integer matrixCol;
+    // Sức chứa VẬT LÝ thật sự (ghế đôi = 2 chỗ, bỏ lối đi/ghế xóa, giữ ghế khóa) — KHỚP editor sơ đồ.
+    // KHÁC matrixRow*matrixCol: phép nhân lưới không biết ghế đôi/lối đi nên hiển thị sai (xem card cấu hình phòng).
+    private Integer seatCount;
 
     public static RoomResponse fromEntity(Room r) {
         return RoomResponse.builder()

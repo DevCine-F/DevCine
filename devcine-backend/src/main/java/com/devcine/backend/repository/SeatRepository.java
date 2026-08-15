@@ -32,6 +32,14 @@ public interface SeatRepository extends JpaRepository<Seat, Integer> {
            "AND (s.seatStatus IS NULL OR s.seatStatus = 'AVAILABLE') GROUP BY s.room.id")
     List<Object[]> countSellableSeatsByRoomIds(@Param("roomIds") Collection<Integer> roomIds);
 
+    // Sức chứa VẬT LÝ theo phòng — KHỚP trình thiết kế sơ đồ (SeatMapBuilder.totalSeatCapacity):
+    // mỗi ghế 1 chỗ, ghế đôi (SWEETBOX) 2 chỗ; TÍNH CẢ ghế khóa/bảo trì; BỎ lối đi (AISLE)
+    // và ghế đã xóa (is_active=false). Batch nhiều phòng một lần → tránh N+1. Trả [roomId, capacity].
+    @Query("SELECT s.room.id, SUM(CASE WHEN s.seatType.name = 'SWEETBOX' THEN 2 ELSE 1 END) " +
+           "FROM Seat s WHERE s.room.id IN :roomIds AND s.isActive = true " +
+           "AND (s.cellKind IS NULL OR s.cellKind = 'SEAT') GROUP BY s.room.id")
+    List<Object[]> sumSeatCapacityByRoomIds(@Param("roomIds") Collection<Integer> roomIds);
+
     // Nạp ghế kèm loại ghế trong 1 truy vấn (tránh N+1 lazy khi tính giá lúc giữ ghế)
     @Query("SELECT s FROM Seat s JOIN FETCH s.seatType WHERE s.id IN :ids")
     List<Seat> findByIdInWithSeatType(@Param("ids") List<Integer> ids);

@@ -31,6 +31,8 @@ export function useCinemas() {
     type: r.type,
     rows: r.matrixRow || 0,
     cols: r.matrixCol || 0,
+    // Sức chứa thật từ BE (ghế đôi=2, bỏ lối đi/ghế xóa) — KHÔNG dùng rows*cols vì phép nhân lưới sai.
+    seatCount: r.seatCount ?? 0,
     status: r.status,
     turnaroundTimeMins: r.turnaroundTimeMins
   });

@@ -104,7 +104,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
             Tổng số ghế
           </p>
           <p class="text-lg font-bold text-on-surface">
-            {{ hall.rows * hall.cols }} Ghế
+            {{ hall.seatCount }} Ghế
           </p>
         </div>
       </div>
