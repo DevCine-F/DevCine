@@ -8,6 +8,7 @@ const props = defineProps({
   formatPrice: { type: Function, required: true },
   formatDate: { type: Function, required: true },
   fetchStats: { type: Function, required: true }, // async (id) => stats
+  canEdit: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(["close", "edit"]);
@@ -246,7 +247,7 @@ const durationText = (m) => (m?.durationMins ? m.durationMins + " Phút" : "N/A"
           </div>
         </div>
 
-        <div class="px-16 py-8 shrink-0 bg-white/[0.02] border-t border-white/5 flex items-center justify-end">
+        <div v-if="canEdit" class="px-16 py-8 shrink-0 bg-white/[0.02] border-t border-white/5 flex items-center justify-end">
           <button @click="emit('edit', movie)" class="px-10 py-4 bg-primary text-on-primary font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:brightness-110 hover:scale-[1.02] transition-all shadow-xl shadow-primary/20 flex items-center gap-2">
             <span class="material-symbols-outlined text-sm">edit_square</span>
             Cập nhật nội dung

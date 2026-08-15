@@ -408,6 +408,7 @@ onMounted(() => {
       :format-price="mm.formatPrice"
       :format-date="mm.formatDate"
       :fetch-stats="mm.getMovieStats"
+      :can-edit="can('movies', 'edit')"
       @close="showDetailModal = false"
       @edit="handleEdit"
     />
