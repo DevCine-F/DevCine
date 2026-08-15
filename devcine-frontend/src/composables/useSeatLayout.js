@@ -48,6 +48,11 @@ export function useSeatLayout() {
 
         const map = {};
         data.seats.forEach((seat) => {
+          // Bỏ ô NGOÀI khung matrix (ghế "ma" sót lại từ layout cũ lớn hơn): Designer chỉ vẽ
+          // tempRows×tempCols nên ô ngoài khung vô hình mà vẫn bị lưu lại → mismatch với POS/Booking.
+          // Trim ngay khi nạp để map luôn khớp lưới hiển thị.
+          if (seat.gridRow >= tempRows.value || seat.gridCol >= tempCols.value) return;
+
           // Ô lối đi được BE lưu tường minh (không còn tự đoán) → dựng lại đúng khung
           if (seat.kind === "AISLE") {
             map[`${seat.gridRow}-${seat.gridCol}`] = { type: "aisle" };
@@ -103,6 +108,10 @@ export function useSeatLayout() {
         const [gridRowStr, gridColStr] = key.split("-");
         const gridRow = parseInt(gridRowStr);
         const gridCol = parseInt(gridColStr);
+
+        // Chốt chặn: KHÔNG gửi ô ngoài khung matrix hiện tại (ghế "ma"). Nếu không, thu nhỏ
+        // ROWS/COLS mà vẫn gửi ô cũ → BE giữ chúng active → Designer cắt còn POS/Booking phơi hết.
+        if (gridRow >= tempRows.value || gridCol >= tempCols.value) return;
 
         // Lối đi: chỉ cần vị trí lưới + cờ kind; BE tự điền placeholder cho các cột NOT NULL
         if (seatData.type === "aisle") {

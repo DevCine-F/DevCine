@@ -44,4 +44,14 @@ public class SeatController {
         seatService.saveSeatLayout(roomId, request);
         return ResponseEntity.ok(ApiResponse.success("Đã lưu sơ đồ ghế."));
     }
+
+    /**
+     * Dọn hàng loạt toàn hệ thống (chạy 1 lần, chỉ ADMIN): cắt ghế "ma" ngoài khung của mọi phòng,
+     * chuẩn hóa status rác, và dựng lại snapshot cho suất chưa bán. Sửa triệt để lỗi lệch sơ đồ.
+     */
+    @PostMapping("/cleanup-all")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Integer>>> cleanupAll() {
+        return ResponseEntity.ok(ApiResponse.ok(seatService.cleanupAllRooms()));
+    }
 }

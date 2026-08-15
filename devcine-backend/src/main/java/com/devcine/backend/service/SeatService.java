@@ -288,6 +288,10 @@ public class SeatService {
         room.setMatrixCol(request.getMatrixCol());
         roomRepository.save(room);
 
+        // Khung do SERVER ép: ghế ngoài matrixRow×matrixCol là "ma" → bị deactivate, không lưu active.
+        Integer matrixRow = request.getMatrixRow();
+        Integer matrixCol = request.getMatrixCol();
+
         java.util.Map<String, SeatType> seatTypeMap = seatTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(SeatType::getName, type -> type));
         // Loại ghế placeholder cho ô lối đi (cột seat_type_id NOT NULL; cell_kind='AISLE' nên bị bỏ qua khắp nơi)
@@ -310,6 +314,13 @@ public class SeatService {
 
         List<Seat> seatsToSave = new java.util.ArrayList<>();
         for (var def : request.getSeats()) {
+            // Chốt chặn khung: ô ngoài matrixRow×matrixCol không được lưu active. KHÔNG remove khỏi
+            // existingMap → nó rơi vào nhánh deactivate ở cuối (dọn sạch ghế "ma" của layout cũ).
+            if (def.getGridRow() != null && def.getGridCol() != null && matrixRow != null && matrixCol != null
+                    && (def.getGridRow() >= matrixRow || def.getGridCol() >= matrixCol)) {
+                continue;
+            }
+
             boolean isAisle = "AISLE".equalsIgnoreCase(def.getKind())
                     || "aisle".equalsIgnoreCase(def.getType());
 
@@ -351,9 +362,12 @@ public class SeatService {
             String label = (def.getLabel() != null && !def.getLabel().isBlank())
                     ? def.getLabel()
                     : (def.getRowChar() + def.getColNum());
-            String seatStatus = (def.getStatus() != null && !def.getStatus().isBlank())
-                    ? def.getStatus().toUpperCase()
-                    : "AVAILABLE";
+            // Chuẩn hóa trạng thái vật lý: chỉ chấp nhận MAINTENANCE/LOCKED; giá trị rác (vd "ACTIVE",
+            // "ONLINE"...) hoặc rỗng → AVAILABLE, để không bị vẽ nhầm thành ghế khóa.
+            String rawStatus = (def.getStatus() != null && !def.getStatus().isBlank())
+                    ? def.getStatus().toUpperCase() : "AVAILABLE";
+            String seatStatus = ("MAINTENANCE".equals(rawStatus) || "LOCKED".equals(rawStatus))
+                    ? rawStatus : "AVAILABLE";
 
             seat.setCellKind("SEAT");
             seat.setRowChar(def.getRowChar());
@@ -384,9 +398,9 @@ public class SeatService {
      * suất đã qua giờ hoặc đã huỷ cũng không đụng tới. Chỉ suất đang mở bán và CHƯA có giao dịch
      * mới nhận khung sơ đồ mới → khớp với trình thiết kế phòng.
      */
-    private void resyncActiveShowtimeSnapshots(Integer roomId) {
+    private int resyncActiveShowtimeSnapshots(Integer roomId) {
         List<Showtime> active = showtimeRepository.findActiveByRoomId(roomId, java.time.LocalDateTime.now());
-        if (active.isEmpty()) return;
+        if (active.isEmpty()) return 0;
 
         Set<Integer> reservedShowtimeIds = new java.util.HashSet<>(
                 bookingSeatRepository.findShowtimeIdsWithReservedSeatsByRoom(roomId));
@@ -399,5 +413,62 @@ public class SeatService {
             toUpdate.add(st);
         }
         if (!toUpdate.isEmpty()) showtimeRepository.saveAll(toUpdate);
+        return toUpdate.size();
+    }
+
+    /** Trạng thái ghế vật lý hợp lệ; mọi giá trị khác bị coi là rác → AVAILABLE. */
+    private static final Set<String> VALID_SEAT_STATUS = Set.of("AVAILABLE", "MAINTENANCE", "LOCKED");
+
+    /**
+     * DỌN HÀNG LOẠT toàn hệ thống (chạy 1 lần, chỉ ADMIN). Sửa triệt để lỗi lệch sơ đồ do dữ liệu
+     * cũ: (1) deactivate ghế "ma" ngoài khung matrixRow×matrixCol của MỌI phòng; (2) chuẩn hóa
+     * status rác (vd "ACTIVE") → AVAILABLE; (3) dựng lại snapshot cho mọi suất chưa kết thúc &
+     * chưa có ghế GIỮ/BÁN (suất đã bán giữ nguyên để không dịch ghế khách). Trả thống kê thay đổi.
+     */
+    @Transactional
+    public java.util.Map<String, Integer> cleanupAllRooms() {
+        int roomsTouched = 0, seatsDeactivated = 0, statusFixed = 0, showtimesResynced = 0;
+        List<Room> rooms = roomRepository.findAll();
+
+        for (Room room : rooms) {
+            Integer R = room.getMatrixRow();
+            Integer C = room.getMatrixCol();
+            if (R == null || C == null) continue;
+
+            List<Seat> seats = seatRepository.findByRoomId(room.getId());
+            List<Seat> dirty = new java.util.ArrayList<>();
+            for (Seat s : seats) {
+                if (!Boolean.TRUE.equals(s.getIsActive())) continue;
+                boolean off = s.getGridRow() != null && s.getGridCol() != null
+                        && (s.getGridRow() >= R || s.getGridCol() >= C);
+                if (off) {
+                    s.setIsActive(false);
+                    seatsDeactivated++;
+                    dirty.add(s);
+                } else {
+                    String st = s.getSeatStatus();
+                    if (st != null && !VALID_SEAT_STATUS.contains(st)) {
+                        s.setSeatStatus("AVAILABLE");
+                        statusFixed++;
+                        dirty.add(s);
+                    }
+                }
+            }
+            if (!dirty.isEmpty()) {
+                seatRepository.saveAll(dirty);
+                roomsTouched++;
+            }
+        }
+
+        // Dựng lại snapshot cho MỌI phòng (kể cả phòng không đổi ghế — để chữa snapshot cũ đã lệch).
+        for (Room room : rooms) {
+            showtimesResynced += resyncActiveShowtimeSnapshots(room.getId());
+        }
+
+        return java.util.Map.of(
+                "roomsTouched", roomsTouched,
+                "seatsDeactivated", seatsDeactivated,
+                "statusFixed", statusFixed,
+                "showtimesResynced", showtimesResynced);
     }
 }
