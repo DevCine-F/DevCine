@@ -713,6 +713,29 @@ const computeBlockSeats = (startSeat) => {
   return seats
 }
 
+// ══════ PROACTIVE SEAT LOCKING — khoá trước các ghế không thể chọn ══════
+// Quét MỌI ghế còn trống và GIẢ LẬP đặt khối hiện tại vào đó bằng chính `computeBlockSeats`
+// (hàm đang dùng khi click) → không nhân bản thuật toán, không lệch hành vi với lúc bấm.
+// `computeBlockSeats` đã bao trọn 3 quy tắc của tính năng:
+//   1. Loại ghế  — SWEETBOX chiếm 2 chỗ, khối lẻ vào là `cap !== size` ⇒ null
+//   2. Chỗ chứa  — hết ghế trống liền mạch / gặp lối đi, tường, ghế bận ⇒ null
+//   3. Mồ côi    — `freeRunCapacity` để lại đúng 1 chỗ lẻ ở mép trái/phải ⇒ null
+// Phụ thuộc reactive: availableSeats · selectedSeats · currentBlockSize · khoá real-time
+// ⇒ tự tính lại khi đổi số vé, đổi khối, hoặc vừa chọn/bỏ chọn ghế.
+const unselectableSeatIds = computed(() => {
+  const ids = new Set()
+  // Chưa chọn vé (lưới đã bị làm mờ) hoặc đã đủ ghế (không còn khối nào để đặt):
+  // bỏ qua để không phủ dấu X lên toàn sơ đồ.
+  if (store.totalTickets === 0 || !store.currentBlockSize) return ids
+  for (const s of store.availableSeats) {
+    if (!isSeatFreeForBlock(s)) continue // đã bán/giữ/khoá/bảo trì/đang chọn → có style riêng
+    if (!computeBlockSeats(s)) ids.add(s.seatId)
+  }
+  return ids
+})
+
+const isSeatUnselectable = (seat) => !!seat && unselectableSeatIds.value.has(seat.seatId)
+
 const onSeatEnter = (seat) => {
   if (!seat || store.totalTickets === 0 || store.remainingCapacity === 0) {
     // Vẫn cho preview khối SẼ GỠ khi rê vào ghế đã chọn (kể cả khi đã đặt đủ)
@@ -1069,6 +1092,7 @@ const proceedToPayment = async () => {
                 mode="booking"
                 :is-seat-locked-by-others="isSeatLockedByOthers"
                 :is-seat-maintenance="isSeatMaintenance"
+                :is-seat-unselectable="isSeatUnselectable"
                 :seat-preview-class="seatPreviewClass"
                 @seat-click="onSeatClick"
                 @seat-enter="onSeatEnter"
@@ -1078,7 +1102,7 @@ const proceedToPayment = async () => {
           </div>
           
           <!-- Legend -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 border-t border-outline-variant/10 pt-10">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 border-t border-outline-variant/10 pt-10">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
               <div class="flex flex-col">
@@ -1110,6 +1134,10 @@ const proceedToPayment = async () => {
                 <span class="material-symbols-outlined text-sm">build</span>
               </div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Ghế bảo trì</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="legend-unselectable relative w-8 h-8 rounded-lg bg-surface-container-high border border-white/5 opacity-40"></div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Ghế không thể chọn</span>
             </div>
           </div>
 
@@ -1424,4 +1452,14 @@ const proceedToPayment = async () => {
 .fnb-scroll::-webkit-scrollbar-track { background: transparent; }
 .seat-grid { perspective: 1000px; }
 .screen-curve { box-shadow: 0 -20px 50px -10px rgba(245, 197, 24, 0.3); }
+/* Ô mẫu trong chú thích: vẽ lại dấu "X" giống ghế không thể chọn trên sơ đồ */
+.legend-unselectable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  --x-line: rgba(255, 255, 255, 0.85);
+  background-image:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--x-line) calc(50% - 1px), var(--x-line) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom left, transparent calc(50% - 1px), var(--x-line) calc(50% - 1px), var(--x-line) calc(50% + 1px), transparent calc(50% + 1px));
+}
 </style>

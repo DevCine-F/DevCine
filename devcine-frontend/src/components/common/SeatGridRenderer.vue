@@ -70,6 +70,15 @@ const props = defineProps({
     type: Function,
     default: null
   },
+  /**
+   * Ghế KHÔNG THỂ CHỌN với cấu hình vé/khối hiện tại (proactive seat locking):
+   * ghế còn trống nhưng đặt khối vào đó sẽ không đủ chỗ liền nhau, sai loại ghế,
+   * hoặc để lại ghế mồ côi. Không truyền (null) ⇒ tính năng tắt hoàn toàn.
+   */
+  isSeatUnselectable: {
+    type: Function,
+    default: null
+  },
   seatPreviewClass: {
     type: Function,
     default: null
@@ -143,6 +152,12 @@ const checkOrphan = (seat) => {
   return false
 }
 
+const checkUnselectable = (seat) => {
+  if (!seat) return false
+  if (props.isSeatUnselectable) return props.isSeatUnselectable(seat)
+  return false
+}
+
 // Chỉ lấy nhãn nếu ghế thực sự tồn tại trong dữ liệu — tuyệt đối không sinh nhãn rác cho ô trống
 const getSeatLabel = (seat) => {
   if (!seat) return ''
@@ -212,18 +227,24 @@ const computeSeatClass = (seat) => {
     return `${baseClasses} ${textClass} bg-gradient-to-br from-primary to-amber-600 text-on-primary shadow-[0_0_20px_rgba(245,197,24,0.35)] scale-[1.02] border-none cursor-pointer z-10`
   }
 
-  // 5. Cảnh báo ghế mồ côi (POS mode)
+  // 5. Ghế còn trống nhưng KHÔNG THỂ CHỌN với cấu hình vé/khối hiện tại (proactive locking).
+  //    Đặt SAU nhánh `sel` để ghế đang chọn vẫn bấm được (gỡ khối), TRƯỚC preview/available.
+  if (checkUnselectable(seat)) {
+    return `${baseClasses} ${textClass} relative seat-unselectable bg-surface-container-high border border-white/5 text-white/25 opacity-40 cursor-not-allowed pointer-events-none`
+  }
+
+  // 6. Cảnh báo ghế mồ côi (POS mode)
   if (isOrphan) {
     return `${baseClasses} ${textClass} bg-red-500/25 border-2 border-dashed border-white/80 text-white cursor-pointer`
   }
 
-  // 6. Preview class (nếu có từ props)
+  // 7. Preview class (nếu có từ props)
   if (props.seatPreviewClass) {
     const preview = props.seatPreviewClass(seat)
     if (preview) return `${baseClasses} ${textClass} ${preview}`
   }
 
-  // 7. Readonly preview mode
+  // 8. Readonly preview mode
   if (props.readonly) {
     if (type === 'VIP') {
       return `${baseClasses} ${textClass} bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 text-red-100`
@@ -234,7 +255,7 @@ const computeSeatClass = (seat) => {
     return `${baseClasses} ${textClass} bg-slate-800/80 border border-slate-600/50 text-slate-300`
   }
 
-  // 8. Ghế khả dụng bình thường (Available)
+  // 9. Ghế khả dụng bình thường (Available)
   const shadowClasses = 'shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
   switch (type) {
     case 'VIP':
@@ -252,6 +273,9 @@ const handleSeatClick = (seat) => {
   if (checkMaintenance(seat) || seat.status === 'SOLD' || seat.status === 'HOLD' || checkLockedByOthers(seat)) {
     return
   }
+  // Ghế đã bị khoá chủ động (không đủ chỗ liền nhau / sai loại ghế / để lại ghế mồ côi).
+  // Ghế đang chọn KHÔNG bao giờ rơi vào nhóm này nên thao tác gỡ khối vẫn hoạt động.
+  if (checkUnselectable(seat)) return
   emit('seat-click', seat)
 }
 
@@ -344,7 +368,11 @@ const handleSeatLeave = () => {
             <template v-else-if="seatAt(r - 1, c - 1)">
               <div
                 :class="computeSeatClass(seatAt(r - 1, c - 1))"
-                :title="checkMaintenance(seatAt(r - 1, c - 1)) ? 'Ghế bảo trì' : getSeatLabel(seatAt(r - 1, c - 1))"
+                :title="checkMaintenance(seatAt(r - 1, c - 1))
+                  ? 'Ghế bảo trì'
+                  : checkUnselectable(seatAt(r - 1, c - 1))
+                    ? 'Không thể chọn với số vé / khối ghế hiện tại'
+                    : getSeatLabel(seatAt(r - 1, c - 1))"
                 @click="handleSeatClick(seatAt(r - 1, c - 1))"
                 @mouseenter="handleSeatEnter(seatAt(r - 1, c - 1))"
                 @mouseleave="handleSeatLeave"
@@ -393,5 +421,17 @@ const handleSeatLeave = () => {
 <style scoped>
 .seat-grid-container {
   overflow-x: auto;
+}
+
+/* Dấu "X" đè lên ghế không thể chọn — vẫn thấy nhãn ghế bên dưới */
+.seat-unselectable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --x-line: rgba(255, 255, 255, 0.85);
+  background-image:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--x-line) calc(50% - 1px), var(--x-line) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom left, transparent calc(50% - 1px), var(--x-line) calc(50% - 1px), var(--x-line) calc(50% + 1px), transparent calc(50% + 1px));
 }
 </style>
