@@ -1419,14 +1419,14 @@ const proceedToPayment = async () => {
       </div>
     </aside>
     </div>
+
+    <FnbOptionModal
+      :isOpen="isFnbModalOpen"
+      :fnbItem="selectedFnbForModal"
+      @close="isFnbModalOpen = false"
+      @confirm="handleFnbOptionConfirm"
+    />
   </main>
-  
-  <FnbOptionModal 
-    :isOpen="isFnbModalOpen"
-    :fnbItem="selectedFnbForModal"
-    @close="isFnbModalOpen = false"
-    @confirm="handleFnbOptionConfirm"
-  />
 </template>
 
 <style scoped>
