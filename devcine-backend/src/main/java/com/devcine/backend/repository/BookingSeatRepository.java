@@ -18,6 +18,12 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
            "WHERE b.showtime.id = :showtimeId AND (bs.status = 'SOLD' OR bs.status = 'HOLD')")
     List<BookingSeat> findReservedSeatsByShowtime(@Param("showtimeId") Integer showtimeId);
 
+    // Các suất của MỘT phòng đang có ghế đã GIỮ/BÁN (SOLD/HOLD) — dùng để BỎ QUA khi re-sync
+    // snapshot sơ đồ lúc admin sửa phòng (không dịch ghế khách đang giữ/đã mua). Trả về id suất.
+    @Query("SELECT DISTINCT b.showtime.id FROM BookingSeat bs JOIN bs.booking b " +
+           "WHERE b.showtime.room.id = :roomId AND (bs.status = 'SOLD' OR bs.status = 'HOLD')")
+    List<Integer> findShowtimeIdsWithReservedSeatsByRoom(@Param("roomId") Integer roomId);
+
     // Đếm ghế đã giữ/bán (SOLD/HOLD) cho nhiều suất một lần → tránh N+1 khi dựng card suất chiếu.
     // Trả [showtimeId, count].
     @Query("SELECT b.showtime.id, COUNT(bs) FROM BookingSeat bs JOIN bs.booking b " +

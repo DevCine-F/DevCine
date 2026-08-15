@@ -30,6 +30,10 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room WHERE s.layoutData IS NULL")
     List<Showtime> findWithoutLayoutSnapshot();
 
+    /** Suất CHƯA KẾT THÚC (đang mở bán) của một phòng — dùng re-sync snapshot khi admin sửa sơ đồ. */
+    @Query("SELECT s FROM Showtime s WHERE s.room.id = :roomId AND s.endTime >= :now AND s.status <> 'Cancelled'")
+    List<Showtime> findActiveByRoomId(@Param("roomId") Integer roomId, @Param("now") LocalDateTime now);
+
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
            "WHERE s.movie.id = :movieId AND m.status = 'active' AND s.startTime >= :now " +

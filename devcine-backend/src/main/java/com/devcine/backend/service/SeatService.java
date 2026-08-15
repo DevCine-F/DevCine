@@ -372,5 +372,32 @@ public class SeatService {
         }
 
         seatRepository.saveAll(seatsToSave);
+
+        // Sửa phòng phải LAN sang các suất đang mở bán → dựng lại snapshot khung sơ đồ cho chúng.
+        resyncActiveShowtimeSnapshots(roomId);
+    }
+
+    /**
+     * Re-đồng bộ snapshot sơ đồ (layout_data) cho các suất CHƯA KẾT THÚC của phòng sau khi admin
+     * sửa sơ đồ ghế. Giữ triết lý "đông cứng theo suất" cho suất đã phát sinh giao dịch:
+     * BỎ QUA mọi suất đang có ghế GIỮ/BÁN (SOLD/HOLD) để không dịch ghế khách đang giữ/đã mua;
+     * suất đã qua giờ hoặc đã huỷ cũng không đụng tới. Chỉ suất đang mở bán và CHƯA có giao dịch
+     * mới nhận khung sơ đồ mới → khớp với trình thiết kế phòng.
+     */
+    private void resyncActiveShowtimeSnapshots(Integer roomId) {
+        List<Showtime> active = showtimeRepository.findActiveByRoomId(roomId, java.time.LocalDateTime.now());
+        if (active.isEmpty()) return;
+
+        Set<Integer> reservedShowtimeIds = new java.util.HashSet<>(
+                bookingSeatRepository.findShowtimeIdsWithReservedSeatsByRoom(roomId));
+
+        String freshSnapshot = seatLayoutSnapshotService.buildSnapshotJson(roomId);
+        List<Showtime> toUpdate = new java.util.ArrayList<>();
+        for (Showtime st : active) {
+            if (reservedShowtimeIds.contains(st.getId())) continue; // có ghế GIỮ/BÁN → giữ snapshot cũ
+            st.setLayoutData(freshSnapshot);
+            toUpdate.add(st);
+        }
+        if (!toUpdate.isEmpty()) showtimeRepository.saveAll(toUpdate);
     }
 }
