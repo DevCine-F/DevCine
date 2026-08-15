@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { ticketingApi, settingsApi, approvalApi, bookingAdminApi, posPendingOrderApi } from '@/api/admin/index'
 import AppButton from '../../components/common/AppButton.vue'
+import SeatGridRenderer from '@/components/common/SeatGridRenderer.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useSeatGridRender } from '@/composables/useSeatGridRender'
 import { useOrphanSeatCheck } from '@/composables/useOrphanSeatCheck'
@@ -1890,25 +1891,17 @@ onUnmounted(() => {
             Phòng chưa có sơ đồ ghế.
           </div>
           <div v-else class="flex-grow min-h-0 flex items-center justify-center overflow-auto custom-scrollbar">
-            <div class="flex flex-col gap-1.5 mx-auto my-auto">
-              <div v-for="row in seatData.matrixRow" :key="row" class="flex gap-1.5 items-center justify-center">
-                <span class="w-5 text-[10px] font-bold text-on-surface-variant/50 text-center shrink-0">{{ rowLabel(row - 1) }}</span>
-                <template v-for="col in seatData.matrixCol" :key="col">
-                  <div v-if="seatAt(row - 1, col - 1)" :class="seatClass(seatAt(row - 1, col - 1))"
-                       @click="toggleSeat(seatAt(row - 1, col - 1))"
-                       :title="isSeatMaintenance(seatAt(row - 1, col - 1)) ? 'Ghế bảo trì' : seatLabel(seatAt(row - 1, col - 1))">
-                    <span v-if="isSeatMaintenance(seatAt(row - 1, col - 1))" class="material-symbols-outlined text-[13px]">build</span>
-                    <template v-else>{{ seatLabel(seatAt(row - 1, col - 1)) }}</template>
-                  </div>
-                  <!-- Lối đi: vẽ tường minh (không click được) -->
-                  <div v-else-if="isAisle(cellAt(row - 1, col - 1))" class="w-8 h-8 flex items-center justify-center" title="Lối đi">
-                    <div class="w-1 h-6 rounded-full bg-white/10"></div>
-                  </div>
-                  <div v-else class="w-8 h-8"></div>
-                </template>
-                <span class="w-5 text-[10px] font-bold text-on-surface-variant/50 text-center shrink-0">{{ rowLabel(row - 1) }}</span>
-              </div>
-            </div>
+            <SeatGridRenderer
+              :seats="seatData.seats"
+              :matrix-row="seatData.matrixRow"
+              :matrix-col="seatData.matrixCol"
+              :selected-seats="selectedSeats"
+              mode="pos"
+              :is-seat-locked-by-others="isSeatLockedByOthers"
+              :is-seat-maintenance="isSeatMaintenance"
+              :is-orphan-seat="isOrphanSeat"
+              @seat-click="toggleSeat"
+            />
           </div>
 
           <div class="mt-3 flex items-center justify-between shrink-0">

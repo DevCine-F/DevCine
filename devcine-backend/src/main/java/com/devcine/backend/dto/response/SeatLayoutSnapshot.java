@@ -38,6 +38,8 @@ public class SeatLayoutSnapshot {
         private Integer seatId;
         private int gridRow;
         private int gridCol;
+        private String rowChar;
+        private Integer colNum;
         /** Loại ghế (NORMAL/VIP/SWEETBOX) — chỉ ý nghĩa với SEAT. */
         private String type;
         /** Nhãn hiển thị — chỉ có ở SEAT. */

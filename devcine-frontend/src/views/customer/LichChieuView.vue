@@ -203,7 +203,7 @@ const goToBooking = (st) => {
   const s = st.raw
   store.setMovie({ id: s.movieId, title: s.movieTitle, posterUrl: s.moviePosterUrl, ageRating: s.movieAgeRating, durationMins: s.movieDurationMins })
   store.setShowtime(
-    { id: s.id, startTime: s.startTime, room: { id: s.roomId, name: s.roomName }, format: { id: s.formatId, name: s.formatName } },
+    { id: s.id, startTime: s.startTime, roomId: s.roomId, roomName: s.roomName, formatId: s.formatId, formatName: s.formatName, room: { id: s.roomId, name: s.roomName }, format: { id: s.formatId, name: s.formatName } },
     { id: s.cinemaId, name: s.cinemaName, cinemaName: s.cinemaName, address: s.cinemaAddress }
   )
   router.push('/booking')

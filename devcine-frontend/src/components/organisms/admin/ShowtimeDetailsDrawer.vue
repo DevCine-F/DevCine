@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import ShowtimeDrawer from '@/components/admin/ShowtimeDrawer.vue'
+import SeatGridRenderer from '@/components/common/SeatGridRenderer.vue'
 import { useSeatGridRender } from '@/composables/useSeatGridRender'
 
 const props = defineProps({
@@ -329,14 +330,13 @@ const onEditSaved = () => {
               </div>
 
               <div class="inline-flex flex-col gap-1 overflow-auto max-w-full py-2">
-                <div v-for="r in smRows" :key="r" class="flex gap-1 justify-center">
-                  <template v-for="c in smCols" :key="`${r}-${c}`">
-                    <div v-if="!cellAt(r, c) || cellAt(r, c).kind === 'AISLE'" class="w-8 h-8 shrink-0"></div>
-                    <div v-else :class="seatClass(cellAt(r, c))" :title="cellAt(r, c).label">
-                      {{ cellAt(r, c).label }}
-                    </div>
-                  </template>
-                </div>
+                <SeatGridRenderer
+                  :seats="seatData.seats"
+                  :matrix-row="seatData.matrixRow"
+                  :matrix-col="seatData.matrixCol"
+                  mode="preview"
+                  :readonly="true"
+                />
               </div>
 
               <!-- Chú thích -->

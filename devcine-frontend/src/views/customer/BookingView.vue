@@ -11,6 +11,7 @@ import { useSeatRealtime } from '@/composables/useSeatRealtime'
 import { useSeatGridRender } from '@/composables/useSeatGridRender'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import FnbOptionModal from '@/components/FnbOptionModal.vue'
+import SeatGridRenderer from '@/components/common/SeatGridRenderer.vue'
 
 const store = useBookingStore()
 const router = useRouter()
@@ -1060,33 +1061,19 @@ const proceedToPayment = async () => {
           <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-16 relative transition-opacity" :class="{ 'opacity-40 pointer-events-none': store.totalTickets === 0 }" v-if="store.availableSeats.length">
             <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
             <div class="relative z-10 flex flex-col gap-3 mx-auto min-w-max pb-4 bg-black/40 backdrop-blur-sm p-8 rounded-3xl border border-white/5 shadow-2xl">
-              <div v-for="row in store.matrixRow" :key="row" class="flex items-center gap-2 justify-center">
-                <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ getRowChar(row - 1) }}</div>
-                
-                <template v-for="col in store.matrixCol" :key="col">
-                  <template v-if="getSeatAt(row - 1, col - 1)">
-                    <div @click="onSeatClick(getSeatAt(row - 1, col - 1))"
-                         @mouseenter="onSeatEnter(getSeatAt(row - 1, col - 1))"
-                         @mouseleave="onSeatLeave"
-                         :class="[getBookingSeatClass(getSeatAt(row - 1, col - 1)), seatPreviewClass(getSeatAt(row - 1, col - 1))]"
-                         :title="isSeatMaintenance(getSeatAt(row - 1, col - 1)) ? 'Ghế bảo trì' : seatLabel(getSeatAt(row - 1, col - 1))">
-                      <span v-if="isSeatMaintenance(getSeatAt(row - 1, col - 1))" class="material-symbols-outlined text-sm">build</span>
-                      <template v-else>{{ seatLabel(getSeatAt(row - 1, col - 1)) }}</template>
-                    </div>
-                  </template>
-                  <template v-else-if="isAisle(cellAt(row - 1, col - 1))">
-                    <!-- Lối đi: vẽ tường minh (không click được) — không còn tự đoán từ ô trống -->
-                    <div class="aspect-square w-10 flex items-center justify-center" title="Lối đi">
-                      <div class="w-1 h-8 rounded-full bg-white/10"></div>
-                    </div>
-                  </template>
-                  <template v-else-if="!isHiddenBecauseSweetbox(row - 1, col - 1)">
-                    <div class="aspect-square w-10 opacity-0"></div>
-                  </template>
-                </template>
-
-                <div class="w-6 text-label-sm font-bold text-outline-variant text-center">{{ getRowChar(row - 1) }}</div>
-              </div>
+              <SeatGridRenderer
+                :seats="store.availableSeats"
+                :matrix-row="store.matrixRow"
+                :matrix-col="store.matrixCol"
+                :selected-seats="store.selectedSeats"
+                mode="booking"
+                :is-seat-locked-by-others="isSeatLockedByOthers"
+                :is-seat-maintenance="isSeatMaintenance"
+                :seat-preview-class="seatPreviewClass"
+                @seat-click="onSeatClick"
+                @seat-enter="onSeatEnter"
+                @seat-leave="onSeatLeave"
+              />
             </div>
           </div>
           

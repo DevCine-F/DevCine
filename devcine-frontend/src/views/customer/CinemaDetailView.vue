@@ -114,6 +114,10 @@ const goToBooking = (s) => {
     {
       id: s.id,
       startTime: s.startTime,
+      roomId: s.roomId,
+      roomName: s.roomName,
+      formatId: s.formatId,
+      formatName: s.formatName,
       room: { id: s.roomId, name: s.roomName },
       format: { id: s.formatId, name: s.formatName }
     },

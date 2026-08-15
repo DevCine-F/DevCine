@@ -89,7 +89,7 @@ public class SeatService {
                 if (!"SEAT".equalsIgnoreCase(cell.getKind())) {
                     seatDTOs.add(SeatDTO.builder()
                             .kind("AISLE")
-                            .span(cell.getSpan())
+                            .span(cell.getSpan() > 0 ? cell.getSpan() : 1)
                             .gridRow(cell.getGridRow())
                             .gridCol(cell.getGridCol())
                             .build());
@@ -99,11 +99,29 @@ public class SeatService {
                 String seatStatus = physStatusById.getOrDefault(cell.getSeatId(), "AVAILABLE");
                 String status = seatStatusToRuntime(seatStatus, cell.getSeatId(), soldSeatIds, holdSeatIds);
 
+                String rowChar = cell.getRowChar();
+                Integer colNum = cell.getColNum();
+                if ((rowChar == null || rowChar.isBlank()) && cell.getLabel() != null) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("^([A-Za-z]+)(\\d+)$").matcher(cell.getLabel());
+                    if (m.find()) {
+                        rowChar = m.group(1).toUpperCase();
+                        try { colNum = Integer.parseInt(m.group(2)); } catch (Exception ignored) {}
+                    }
+                }
+                if (rowChar == null || rowChar.isBlank()) {
+                    rowChar = String.valueOf((char) ('A' + cell.getGridRow()));
+                }
+                if (colNum == null) {
+                    colNum = cell.getGridCol() + 1;
+                }
+
                 seatDTOs.add(SeatDTO.builder()
                         .seatId(cell.getSeatId())
+                        .rowChar(rowChar)
+                        .colNum(colNum)
                         .seatType(cell.getType())
                         .kind("SEAT")
-                        .span(cell.getSpan())
+                        .span(cell.getSpan() > 0 ? cell.getSpan() : 1)
                         .label(cell.getLabel())
                         .price(pricingService.priceFor(priceCtx, "ADULT"))
                         .status(status)
@@ -113,22 +131,34 @@ public class SeatService {
                         .build());
             }
         } else {
-            // ===== FALLBACK: suất cũ chưa có snapshot → đọc live như trước (tương thích ngược) =====
+            // ===== FALLBACK: suất cũ chưa có snapshot → đọc toàn bộ ô (kể cả lối đi) từ DB =====
             Integer roomId = showtime.getRoom().getId();
-            List<Seat> allSeats = seatRepository.findByRoomIdAndIsActiveTrue(roomId);
+            List<Seat> allSeats = seatRepository.findLayoutByRoomId(roomId);
             matrixRow = showtime.getRoom().getMatrixRow() != null ? showtime.getRoom().getMatrixRow() : 9;
             matrixCol = showtime.getRoom().getMatrixCol() != null ? showtime.getRoom().getMatrixCol() : 10;
 
             seatDTOs = allSeats.stream().map(seat -> {
+                if (!seat.isSeatCell()) {
+                    return SeatDTO.builder()
+                            .kind("AISLE")
+                            .span(1)
+                            .gridRow(seat.getGridRow())
+                            .gridCol(seat.getGridCol())
+                            .build();
+                }
+
                 String seatStatus = seat.getSeatStatus() != null ? seat.getSeatStatus() : "AVAILABLE";
                 String status = seatStatusToRuntime(seatStatus, seat.getId(), soldSeatIds, holdSeatIds);
+                String typeName = seat.getSeatType() != null ? seat.getSeatType().getName() : "NORMAL";
+                int span = "SWEETBOX".equalsIgnoreCase(typeName) ? 2 : 1;
+
                 return SeatDTO.builder()
                         .seatId(seat.getId())
                         .rowChar(seat.getRowChar())
                         .colNum(seat.getColNum())
-                        .seatType(seat.getSeatType().getName())
+                        .seatType(typeName)
                         .kind("SEAT")
-                        .span("SWEETBOX".equalsIgnoreCase(seat.getSeatType().getName()) ? 2 : 1)
+                        .span(span)
                         .label(seat.displayLabel())
                         .price(pricingService.priceFor(priceCtx, "ADULT"))
                         .status(status)
