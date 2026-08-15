@@ -21,7 +21,7 @@ import logo from '../../assets/images/Logo_DevCine_Ngang_XoaNen.png'
       <div>
         <h4 class="font-headline text-white text-xs font-bold uppercase mb-6 tracking-widest">THÔNG TIN</h4>
         <ul class="space-y-4 text-sm font-label text-neutral-500">
-          <li><router-link class="hover:text-[#f5c518] underline-offset-4 hover:underline transition-all" to="/about">Về chúng tôi</router-link></li>
+          <li><router-link class="hover:text-[#f5c518] underline-offset-4 hover:underline transition-all" :to="{ path: '/', hash: '#about' }">Về chúng tôi</router-link></li>
           <li><router-link class="hover:text-[#f5c518] underline-offset-4 hover:underline transition-all" to="/he-thong-rap">Hệ thống rạp</router-link></li>
           <li><router-link class="hover:text-[#f5c518] underline-offset-4 hover:underline transition-all" to="/contact">Liên hệ</router-link></li>
         </ul>

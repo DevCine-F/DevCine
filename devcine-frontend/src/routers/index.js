@@ -10,7 +10,12 @@ const router = createRouter({
     ...adminRoutes,
     ...customerRoutes
   ],
-  scrollBehavior() {
+  scrollBehavior(to) {
+    // Điều hướng có hash (vd "Về chúng tôi" → #about trên trang chủ): cuộn tới phần tử,
+    // bù offset cho navbar cố định. Không có hash → về đầu trang như trước.
+    if (to.hash) {
+      return { el: to.hash, top: 100, behavior: 'smooth' }
+    }
     return { top: 0 }
   }
 })

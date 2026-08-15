@@ -416,7 +416,7 @@ const getGenreNames = (movie) => {
       </section>
 
       <!-- Introduction/About Section -->
-      <section class="relative py-32 px-10 overflow-hidden">
+      <section id="about" class="relative py-32 px-10 overflow-hidden scroll-mt-32">
         <div class="absolute inset-0 z-0">
           <img alt="Cinema Background" class="w-full h-full object-cover opacity-20" src="/images/Hopper.webp"/>
           <div class="absolute inset-0 bg-gradient-to-b from-transparent via-black/60 to-black/80"></div>
