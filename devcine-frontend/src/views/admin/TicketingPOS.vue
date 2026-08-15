@@ -1021,6 +1021,14 @@ const editingFnbItem = ref(null)
 const editingFnbIndex = ref(-1)
 const initialFnbOptions = ref([])
 
+// Khóa gộp dòng theo BỘ VỊ: cùng combo nhưng khác bộ tùy chọn ⇒ 2 dòng riêng.
+const optionsKey = (opts) => (opts || []).map(o => o.optionItemId).sort().join(',')
+const isOptionsEqual = (a, b) => optionsKey(a) === optionsKey(b)
+// 1 combo (id) có thể đẻ nhiều dòng (nhiều bộ vị) → gom lại để hiển thị trên card menu.
+const fnbLinesOf = (cbId) => selectedCombos.value.filter(c => c.id === cbId)
+const fnbQtyOf = (cbId) => fnbLinesOf(cbId).reduce((s, c) => s + c.quantity, 0)
+const fnbLineTotal = (cbId) => fnbLinesOf(cbId).reduce((s, c) => s + (c.price + (c.surchargePrice || 0)) * c.quantity, 0)
+
 const openFnbModal = (cb) => {
   editingFnbItem.value = cb
   editingFnbIndex.value = -1
@@ -1039,20 +1047,25 @@ const editFnbOptions = (item, index) => {
 
 const handleFnbOptionsConfirm = ({ options, totalSurcharge }) => {
   if (editingFnbIndex.value > -1) {
+    // Đổi vị của ĐÚNG dòng đang chỉnh (ghi đè tại chỗ).
     const item = selectedCombos.value[editingFnbIndex.value]
-    item.options = options
-    item.surchargePrice = totalSurcharge
+    if (item) {
+      item.options = options
+      item.surchargePrice = totalSurcharge
+    }
   } else {
+    // Thêm bộ vị mới: trùng bộ vị đã có ⇒ +1 số lượng, khác ⇒ đẻ dòng mới.
     const cb = editingFnbItem.value
-    const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id)
+    const existingIndex = selectedCombos.value.findIndex(c => c.id === cb.id && isOptionsEqual(c.options, options))
     if (existingIndex > -1) {
-        selectedCombos.value[existingIndex].options = options
-        selectedCombos.value[existingIndex].surchargePrice = totalSurcharge
+      if (selectedCombos.value[existingIndex].quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error') }
+      else selectedCombos.value[existingIndex].quantity++
     } else {
-        selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options, surchargePrice: totalSurcharge })
+      selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options, surchargePrice: totalSurcharge })
     }
   }
   isFnbModalOpen.value = false
+  editingFnbIndex.value = -1
 }
 
 const addCombo = (cb) => {
@@ -1069,17 +1082,11 @@ const addCombo = (cb) => {
   }
 }
 
-const getCartItem = (cbId) => selectedCombos.value.find(c => c.id === cbId)
-
+// Click vào Card menu = TẠO MỚI (mở modal chọn vị / thêm món). Nếu combo đã có
+// trong giỏ thì bỏ qua — thao tác tăng/giảm/đổi vị dùng nút ngay trên card.
 const handleFnbCardClick = (cb) => {
-  const item = getCartItem(cb.id)
-  if (item) {
-    if (cb.slots && cb.slots.length > 0) {
-      editFnbOptions(item, selectedCombos.value.indexOf(item))
-    }
-  } else {
-    addCombo(cb)
-  }
+  if (fnbQtyOf(cb.id) > 0) return
+  addCombo(cb)
 }
 
 const changeComboQty = (item, delta) => {
@@ -1087,7 +1094,7 @@ const changeComboQty = (item, delta) => {
   if (next > MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
   item.quantity = next
   if (item.quantity <= 0) {
-    const idx = selectedCombos.value.findIndex(c => c.id === item.id)
+    const idx = selectedCombos.value.indexOf(item)
     if (idx > -1) selectedCombos.value.splice(idx, 1)
   }
 }
@@ -1998,11 +2005,11 @@ onUnmounted(() => {
           <div v-else class="grid grid-cols-2 xl:grid-cols-3 gap-3.5 flex-grow overflow-y-auto custom-scrollbar pr-2 content-start pb-6">
             <div v-for="cb in combos" :key="cb.id" 
                  @click="handleFnbCardClick(cb)"
-                 :class="getCartItem(cb.id) ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5 cursor-pointer' : 'bg-surface-container-low/60 border-outline-variant/30 hover:border-primary/50 cursor-pointer'"
+                 :class="fnbQtyOf(cb.id) ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5 cursor-pointer' : 'bg-surface-container-low/60 border-outline-variant/30 hover:border-primary/50 cursor-pointer'"
                  class="min-h-[150px] max-h-[200px] p-3.5 rounded-xl border flex flex-col justify-between transition-all duration-200">
-              
-              <template v-if="getCartItem(cb.id)">
-                <!-- State 2: Selected -->
+
+              <template v-if="fnbQtyOf(cb.id)">
+                <!-- State 2: Selected — mỗi bộ vị là 1 dòng có stepper riêng -->
                 <div class="flex items-start gap-3 flex-grow min-h-0">
                   <div class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
                     <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
@@ -2011,25 +2018,38 @@ onUnmounted(() => {
                   <div class="flex-grow min-w-0 flex flex-col h-full">
                     <div class="flex justify-between items-start gap-2">
                         <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
-                        <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt((getCartItem(cb.id).price + (getCartItem(cb.id).surchargePrice || 0)) * getCartItem(cb.id).quantity) }}đ</span>
+                        <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt(fnbLineTotal(cb.id)) }}đ</span>
                     </div>
-                    <div class="text-[12px] text-on-surface space-y-1.5 leading-normal mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
-                      <div v-for="opt in getCartItem(cb.id).options" :key="opt.optionItemId" class="truncate">
-                        • {{ opt.optionName }} <span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                    <div class="mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
+                      <div v-for="line in fnbLinesOf(cb.id)" :key="optionsKey(line.options)" class="flex items-center justify-between gap-2">
+                        <div class="min-w-0 text-[11px] text-on-surface leading-tight truncate">
+                          <template v-if="line.options && line.options.length">
+                            <span v-for="(opt, oi) in line.options" :key="opt.optionItemId"><span v-if="oi">, </span>{{ opt.optionName }}<span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium"> (+{{ fmt(opt.surchargePrice) }}đ)</span></span>
+                          </template>
+                          <span v-else class="text-on-surface-variant/60">Mặc định</span>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                          <button v-if="cb.slots && cb.slots.length" @click.stop="editFnbOptions(line, selectedCombos.indexOf(line))" class="w-5 h-5 rounded-full text-on-surface-variant/60 flex items-center justify-center hover:text-primary transition-colors" title="Đổi vị">
+                            <span class="material-symbols-outlined text-[13px]">edit</span>
+                          </button>
+                          <div class="flex items-center gap-1.5 bg-surface-container-highest rounded-full p-0.5 border border-outline-variant/20">
+                            <button @click.stop="changeComboQty(line, -1)" class="w-5 h-5 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                              <span class="material-symbols-outlined text-[13px]">remove</span>
+                            </button>
+                            <span class="w-4 text-center text-[11px] font-black tabular-nums">{{ line.quantity }}</span>
+                            <button @click.stop="changeComboQty(line, 1)" class="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                              <span class="material-symbols-outlined text-[13px]">add</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div class="flex items-end justify-end mt-2 shrink-0">
-                  <div class="flex items-center gap-2 bg-surface-container-highest rounded-full p-1 border border-outline-variant/20">
-                    <button @click.stop="changeComboQty(getCartItem(cb.id), -1)" class="w-6 h-6 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
-                      <span class="material-symbols-outlined text-[14px]">remove</span>
-                    </button>
-                    <span class="w-4 text-center text-xs font-black tabular-nums">{{ getCartItem(cb.id).quantity }}</span>
-                    <button @click.stop="changeComboQty(getCartItem(cb.id), 1)" class="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
-                      <span class="material-symbols-outlined text-[14px]">add</span>
-                    </button>
-                  </div>
+                <div v-if="cb.slots && cb.slots.length" class="flex items-center justify-end mt-2 shrink-0">
+                  <button @click.stop="openFnbModal(cb)" class="flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary/80 transition-colors px-2 py-1 rounded-full hover:bg-primary/10">
+                    <span class="material-symbols-outlined text-[15px]">add</span> Thêm vị khác
+                  </button>
                 </div>
               </template>
 
@@ -2255,11 +2275,11 @@ onUnmounted(() => {
             <div v-else class="grid grid-cols-2 xl:grid-cols-3 gap-3.5 flex-grow overflow-y-auto custom-scrollbar pr-2 content-start pb-6">
               <div v-for="cb in combos" :key="cb.id" 
                    @click="handleFnbCardClick(cb)"
-                   :class="getCartItem(cb.id) ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5 cursor-pointer' : 'bg-surface-container-low/60 border-outline-variant/30 hover:border-primary/50 cursor-pointer'"
+                   :class="fnbQtyOf(cb.id) ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5 cursor-pointer' : 'bg-surface-container-low/60 border-outline-variant/30 hover:border-primary/50 cursor-pointer'"
                    class="min-h-[150px] max-h-[200px] p-3.5 rounded-xl border flex flex-col justify-between transition-all duration-200">
-                
-                <template v-if="getCartItem(cb.id)">
-                  <!-- State 2: Selected -->
+
+                <template v-if="fnbQtyOf(cb.id)">
+                  <!-- State 2: Selected — mỗi bộ vị là 1 dòng có stepper riêng -->
                   <div class="flex items-start gap-3 flex-grow min-h-0">
                     <div class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container-highest shrink-0 flex items-center justify-center">
                       <img v-if="cb.imageUrl" :src="cb.imageUrl" class="w-full h-full object-cover" />
@@ -2268,25 +2288,38 @@ onUnmounted(() => {
                     <div class="flex-grow min-w-0 flex flex-col h-full">
                       <div class="flex justify-between items-start gap-2">
                           <h3 class="text-base font-bold text-on-surface truncate" :title="cb.name">{{ cb.name }}</h3>
-                          <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt((getCartItem(cb.id).price + (getCartItem(cb.id).surchargePrice || 0)) * getCartItem(cb.id).quantity) }}đ</span>
+                          <span class="text-base font-semibold text-primary shrink-0 leading-none mt-1">{{ fmt(fnbLineTotal(cb.id)) }}đ</span>
                       </div>
-                      <div class="text-[12px] text-on-surface space-y-1.5 leading-normal mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
-                        <div v-for="opt in getCartItem(cb.id).options" :key="opt.optionItemId" class="truncate">
-                          • {{ opt.optionName }} <span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium">(+{{ fmt(opt.surchargePrice) }}đ)</span>
+                      <div class="mt-1.5 flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
+                        <div v-for="line in fnbLinesOf(cb.id)" :key="optionsKey(line.options)" class="flex items-center justify-between gap-2">
+                          <div class="min-w-0 text-[11px] text-on-surface leading-tight truncate">
+                            <template v-if="line.options && line.options.length">
+                              <span v-for="(opt, oi) in line.options" :key="opt.optionItemId"><span v-if="oi">, </span>{{ opt.optionName }}<span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium"> (+{{ fmt(opt.surchargePrice) }}đ)</span></span>
+                            </template>
+                            <span v-else class="text-on-surface-variant/60">Mặc định</span>
+                          </div>
+                          <div class="flex items-center gap-1 shrink-0">
+                            <button v-if="cb.slots && cb.slots.length" @click.stop="editFnbOptions(line, selectedCombos.indexOf(line))" class="w-5 h-5 rounded-full text-on-surface-variant/60 flex items-center justify-center hover:text-primary transition-colors" title="Đổi vị">
+                              <span class="material-symbols-outlined text-[13px]">edit</span>
+                            </button>
+                            <div class="flex items-center gap-1.5 bg-surface-container-highest rounded-full p-0.5 border border-outline-variant/20">
+                              <button @click.stop="changeComboQty(line, -1)" class="w-5 h-5 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                                <span class="material-symbols-outlined text-[13px]">remove</span>
+                              </button>
+                              <span class="w-4 text-center text-[11px] font-black tabular-nums">{{ line.quantity }}</span>
+                              <button @click.stop="changeComboQty(line, 1)" class="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
+                                <span class="material-symbols-outlined text-[13px]">add</span>
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div class="flex items-end justify-end mt-2 shrink-0">
-                    <div class="flex items-center gap-2 bg-surface-container-highest rounded-full p-1 border border-outline-variant/20">
-                      <button @click.stop="changeComboQty(getCartItem(cb.id), -1)" class="w-6 h-6 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
-                        <span class="material-symbols-outlined text-[14px]">remove</span>
-                      </button>
-                      <span class="w-4 text-center text-xs font-black tabular-nums">{{ getCartItem(cb.id).quantity }}</span>
-                      <button @click.stop="changeComboQty(getCartItem(cb.id), 1)" class="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary hover:text-black transition-colors">
-                        <span class="material-symbols-outlined text-[14px]">add</span>
-                      </button>
-                    </div>
+                  <div v-if="cb.slots && cb.slots.length" class="flex items-center justify-end mt-2 shrink-0">
+                    <button @click.stop="openFnbModal(cb)" class="flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary/80 transition-colors px-2 py-1 rounded-full hover:bg-primary/10">
+                      <span class="material-symbols-outlined text-[15px]">add</span> Thêm vị khác
+                    </button>
                   </div>
                 </template>
 
@@ -2327,7 +2360,7 @@ onUnmounted(() => {
             <div class="grid grid-cols-2 gap-8">
               <div class="bg-surface-container-high p-8 rounded-3xl border border-outline-variant/10 space-y-4">
                 <p class="text-[10px] font-black text-primary uppercase tracking-widest">Chi tiết hóa đơn</p>
-                <div v-for="c in selectedCombos" :key="c.id" class="border-b border-outline-variant/10 pb-3">
+                <div v-for="(c, ci) in selectedCombos" :key="ci" class="border-b border-outline-variant/10 pb-3">
                   <div class="flex justify-between text-xs font-bold text-on-surface-variant uppercase">
                     <span>{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
                     <span class="text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
@@ -2456,7 +2489,7 @@ onUnmounted(() => {
           </div>
           <div v-if="selectedCombos.length" class="pb-5 border-b border-outline-variant/10">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">F&B / Combo</p>
-            <div v-for="c in selectedCombos" :key="c.id" class="mb-2">
+            <div v-for="(c, ci) in selectedCombos" :key="ci" class="mb-2">
               <div class="flex justify-between text-xs font-semibold">
                 <span class="text-on-surface-variant">{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
                 <span class="text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
