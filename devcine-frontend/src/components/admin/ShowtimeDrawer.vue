@@ -269,6 +269,84 @@ const endTimePreview = computed(() => {
   };
 });
 
+/* ===== Kiểm tra khung giờ REAL-TIME (inline error, không toast) =====
+   Soi ngay khi đổi giờ/phút bằng dữ liệu đã nạp sẵn -> không gọi API, không debounce.
+   Mirror đúng thứ tự luật của ShowtimeService.createShowtime: giờ hoạt động -> trùng lịch -> giờ đóng cửa.
+   Đây chỉ là lớp cảnh báo sớm; backend vẫn là chốt chặn cuối cùng. */
+const cinemaWindow = computed(() => {
+  const toMin = (t, dh, dm) => {
+    if (!t) return dh * 60 + dm;
+    const [h, m] = String(t).split(':');
+    return (parseInt(h) || 0) * 60 + (parseInt(m) || 0);
+  };
+  const openMin = toMin(props.cinema?.openingTime, 8, 0);
+  let closeMin = toMin(props.cinema?.closingTime, 23, 30);
+  if (closeMin <= openMin) closeMin += 1440;
+  return { openMin, closeMin };
+});
+
+const fmtMin = (min) => {
+  const m = ((min % 1440) + 1440) % 1440;
+  return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
+};
+
+const fmtClock = (date) => `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+
+const buildStartDate = () => {
+  const year = new Date().getFullYear();
+  const [day, month] = props.selectedDate.split('/');
+  return new Date(`${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`);
+};
+
+const timeConflictError = computed(() => {
+  if (isLocked.value) return '';
+  if (!form.movieId || !form.roomId || !form.startHour || !form.startMinute || !props.selectedDate) return '';
+
+  const movie = movies.value.find(m => m.id === form.movieId);
+  const room = rooms.value.find(r => r.id === form.roomId);
+  if (!movie || !room) return '';
+
+  const duration = movie.durationMins || 120;
+  const turnaround = room.turnaroundTimeMins || 15;
+  const start = buildStartDate();
+  if (isNaN(start.getTime())) return '';
+  const end = new Date(start.getTime() + (duration + turnaround) * 60000);
+
+  if (start < new Date()) {
+    return 'Không thể tạo suất chiếu ở thời gian đã trôi qua. Vui lòng chọn giờ khác.';
+  }
+
+  const { openMin, closeMin } = cinemaWindow.value;
+  let startPos = parseInt(form.startHour) * 60 + parseInt(form.startMinute);
+  if (startPos < openMin) startPos += 1440;
+  const endPos = startPos + duration + turnaround;
+
+  if (startPos >= closeMin) {
+    return `Suất chiếu bắt đầu ngoài giờ hoạt động của rạp (${fmtMin(openMin)} – ${fmtMin(closeMin)}). Vui lòng chọn giờ khác.`;
+  }
+
+  const clash = existingShowtimes.value.find(s => {
+    if (props.editData && String(s.id) === String(props.editData.id)) return false;
+    if (String(s.roomId ?? s.room?.id) !== String(form.roomId)) return false;
+    const existStart = new Date(s.startTime);
+    const existEnd = new Date(s.endTime);
+    if (isNaN(existStart.getTime()) || isNaN(existEnd.getTime())) return false;
+    return start < existEnd && end > existStart;
+  });
+  if (clash) {
+    return `Phòng chiếu đã có lịch ${fmtClock(new Date(clash.startTime))} – ${fmtClock(new Date(clash.endTime))} (đã gồm thời gian dọn phòng). Vui lòng chọn giờ khác.`;
+  }
+
+  if (endPos > closeMin) {
+    return `Suất chiếu kết thúc lúc ${fmtMin(endPos)}, vượt quá giờ đóng cửa (${fmtMin(closeMin)}). Vui lòng chọn giờ khác.`;
+  }
+
+  return '';
+});
+
+// Dòng đỏ dưới trường thời gian: lỗi bỏ trống (khi bấm Lưu) hoặc lỗi khung giờ (real-time).
+const timeError = computed(() => fieldErrors.time || timeConflictError.value);
+
 const suggestedSlots = computed(() => {
   if (!form.movieId || !form.roomId || !props.selectedDate) return [];
   const movie = movies.value.find(m => m.id === form.movieId);
@@ -530,7 +608,7 @@ const handleSave = async () => {
                 :options="hourOptions"
                 :disabled="isLocked"
                 placeholder="Giờ"
-                :class="fieldErrors.time ? 'rounded-xl ring-1 ring-red-500/60' : ''"
+                :class="timeError ? 'rounded-xl ring-1 ring-red-500/60' : ''"
               />
             </div>
             <div class="flex-1">
@@ -539,15 +617,14 @@ const handleSave = async () => {
                 :options="minuteOptions"
                 :disabled="isLocked"
                 placeholder="Phút"
-                :class="fieldErrors.time ? 'rounded-xl ring-1 ring-red-500/60' : ''"
+                :class="timeError ? 'rounded-xl ring-1 ring-red-500/60' : ''"
               />
             </div>
           </div>
-          <p v-if="fieldErrors.time" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.time }}</p>
-          
+
           <div v-if="endTimePreview" class="mt-3 p-3 rounded-xl bg-white/5 border border-white/10 space-y-1">
             <p class="text-[11px] text-white/70 font-medium">
-              ⏱️ Khung giờ chiếm phòng dự kiến: <span class="text-white font-bold">{{ endTimePreview.startStr }} - {{ endTimePreview.endStr }}</span>
+              Khung giờ chiếm phòng dự kiến: <span class="text-white font-bold">{{ endTimePreview.startStr }} - {{ endTimePreview.endStr }}</span>
             </p>
             <p class="text-[10px] text-white/40 italic">
               (Bao gồm {{ endTimePreview.turnaround }} phút dọn phòng)
@@ -557,6 +634,15 @@ const handleSave = async () => {
             <span class="material-symbols-outlined text-[14px]">info</span>
             Thời gian dọn dẹp được lấy tự động theo cấu hình của từng phòng chiếu.
           </p>
+
+          <div class="min-h-[18px] mt-2">
+            <Transition name="fade">
+              <p v-if="timeError" aria-live="polite" class="text-[11px] text-red-400 font-bold leading-snug flex items-start gap-1.5">
+                <span class="material-symbols-outlined text-[14px] leading-none shrink-0 mt-px">error</span>
+                <span>{{ timeError }}</span>
+              </p>
+            </Transition>
+          </div>
         </div>
 
       </div>
@@ -565,7 +651,11 @@ const handleSave = async () => {
         <button @click="emit('close')" class="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold uppercase tracking-widest text-xs transition-colors">
           Hủy
         </button>
-        <button @click="handleSave" class="flex-1 py-3 rounded-xl bg-primary hover:brightness-110 text-on-primary font-bold uppercase tracking-widest text-xs shadow-lg shadow-primary/20 transition-all">
+        <button
+          @click="handleSave"
+          :disabled="!!timeConflictError"
+          class="flex-1 py-3 rounded-xl bg-primary enabled:hover:brightness-110 text-on-primary font-bold uppercase tracking-widest text-xs shadow-lg shadow-primary/20 transition-all disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed"
+        >
           {{ editData ? 'Lưu Thay Đổi' : 'Lưu Suất Chiếu' }}
         </button>
       </div>
