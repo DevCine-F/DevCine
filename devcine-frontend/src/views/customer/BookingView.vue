@@ -773,8 +773,8 @@ const seatPreviewClass = (seat) => {
   if (!seat || !hoverBlockIds.value.includes(seat.seatId)) return ''
   const isSel = store.selectedSeats.some(s => s.seatId === seat.seatId)
   return isSel
-    ? 'ring-2 ring-red-400 ring-offset-2 ring-offset-black/40'
-    : 'ring-2 ring-primary ring-offset-2 ring-offset-black/40 brightness-125 scale-[1.03]'
+    ? 'bg-red-500/25 text-white ring-2 ring-red-400 ring-offset-2 ring-offset-black/40'
+    : 'bg-primary text-on-primary ring-2 ring-primary ring-offset-2 ring-offset-black/40 scale-[1.03]'
 }
 
 const isSeatSelected = (seat) => {
