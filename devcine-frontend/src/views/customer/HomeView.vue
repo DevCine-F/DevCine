@@ -205,7 +205,9 @@ const getGenreNames = (movie) => {
               <div class="max-w-xl">
                 <span class="text-primary-container font-label text-xs font-bold tracking-[0.2em] mb-4 uppercase block">Đang chiếu tại rạp</span>
                 <router-link :to="`/movie/${slide.movie.id}`" class="block">
-                  <h1 class="font-headline text-5xl md:text-7xl font-extrabold text-white tracking-tighter mb-5 leading-none uppercase line-clamp-2 hover:text-primary-container transition-colors">
+                  <!-- leading-[1.35]: chữ HOA tiếng Việt có dấu chồng (Ữ/Ệ/Ọ) cao 1.26em (Montserrat) -> leading
+                       nhỏ hơn 1.3 sẽ bị overflow của line-clamp cắt mất dấu và để lọt mực dòng thứ 3 vào khung 2 dòng. -->
+                  <h1 class="font-headline text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight mb-5 leading-[1.35] uppercase line-clamp-2 hover:text-primary-container transition-colors">
                     {{ slide.movie.title }}
                   </h1>
                 </router-link>
