@@ -333,12 +333,28 @@ public class SeatService {
         List<Seat> existingList = seatRepository.findByRoomId(roomId);
         // Định danh theo VỊ TRÍ LƯỚI (gridRow_gridCol) thay vì rowChar_colNum: lối đi không có
         // rowChar/colNum thật, và label thủ công có thể suy ra cùng rowChar/colNum gây trùng khóa.
-        java.util.Map<String, Seat> existingMap = new java.util.HashMap<>();
+        //
+        // ⚠ PHẢI gom thành DANH SÁCH, không phải Map<String, Seat>. Bản Map cũ ghi đè khi trùng
+        // khoá nên các bản sinh đôi bị rơi khỏi map, không bao giờ lọt vào nhánh deactivate cuối
+        // hàm → chúng ở lại is_active=true vĩnh viễn và ĐẺ THÊM mỗi lần lưu sơ đồ. Đó chính là
+        // nguồn gốc ghế "ma" trùng toạ độ. Nay giữ mọi bản: 1 bản sống sót, phần còn lại bị tắt.
+        java.util.Map<String, List<Seat>> existingMap = new java.util.HashMap<>();
         if (existingList != null) {
             for (Seat s : existingList) {
                 if (s.getGridRow() != null && s.getGridCol() != null) {
-                    existingMap.put(s.getGridRow() + "_" + s.getGridCol(), s);
+                    existingMap.computeIfAbsent(s.getGridRow() + "_" + s.getGridCol(), k -> new java.util.ArrayList<>())
+                            .add(s);
                 }
+            }
+        }
+
+        // Toạ độ có ghế THẬT trong sơ đồ mới — dùng để loại bản SWEETBOX (rộng 2 cột) sẽ đè lên
+        // ghế ở cột kế bên. Ghế đôi bị đè khiến renderer nuốt mất ô cột+1 → hàng thiếu ghế.
+        java.util.Set<String> seatDefCoords = new java.util.HashSet<>();
+        for (var def : request.getSeats()) {
+            boolean aisleDef = "AISLE".equalsIgnoreCase(def.getKind()) || "aisle".equalsIgnoreCase(def.getType());
+            if (!aisleDef && def.getGridRow() != null && def.getGridCol() != null) {
+                seatDefCoords.add(def.getGridRow() + "_" + def.getGridCol());
             }
         }
 
@@ -355,7 +371,19 @@ public class SeatService {
                     || "aisle".equalsIgnoreCase(def.getType());
 
             String key = def.getGridRow() + "_" + def.getGridCol();
-            Seat seat = existingMap.remove(key);
+            List<Seat> bucket = existingMap.remove(key);
+            Seat seat = null;
+            if (bucket != null && !bucket.isEmpty()) {
+                boolean nextColTaken = seatDefCoords.contains(def.getGridRow() + "_" + (def.getGridCol() + 1));
+                seat = pickSurvivor(bucket, nextColTaken);
+                // Mọi bản sinh đôi còn lại tại đúng ô này → tắt ngay (không xoá cứng, vé cũ vẫn tra được).
+                for (Seat twin : bucket) {
+                    if (twin != seat) {
+                        twin.setIsActive(false);
+                        seatsToSave.add(twin);
+                    }
+                }
+            }
             if (seat == null) {
                 seat = new Seat();
                 seat.setRoom(room);
@@ -410,9 +438,12 @@ public class SeatService {
             seatsToSave.add(seat);
         }
 
-        for (Seat remaining : existingMap.values()) {
-            remaining.setIsActive(false);
-            seatsToSave.add(remaining);
+        // Ô không còn trong sơ đồ mới (kể cả ghế ngoài khung): tắt TOÀN BỘ bản ghi tại ô đó.
+        for (List<Seat> remaining : existingMap.values()) {
+            for (Seat s : remaining) {
+                s.setIsActive(false);
+                seatsToSave.add(s);
+            }
         }
 
         seatRepository.saveAll(seatsToSave);
@@ -444,6 +475,30 @@ public class SeatService {
         }
         if (!toUpdate.isEmpty()) showtimeRepository.saveAll(toUpdate);
         return toUpdate.size();
+    }
+
+    /**
+     * Chọn bản ghi ĐƯỢC GIỮ LẠI trong một ô có nhiều ghế trùng toạ độ. Thứ tự ưu tiên:
+     * (1) có label thật — bản rác sinh ra do lỗi trùng thường để label = null;
+     * (2) hình học hợp lệ — loại bản SWEETBOX (rộng 2 cột) khi cột kế bên đã có ghế thật,
+     *     vì renderer bỏ qua ô bị ghế đôi che nên hàng sẽ mất hẳn một ghế;
+     * (3) id nhỏ nhất — chốt tất định để hai lần chạy cho cùng kết quả.
+     *
+     * CỐ Ý KHÔNG xét số vé đã bán: ghế bị loại chỉ bị đặt is_active=false chứ không xoá, dòng
+     * seats vẫn còn nên booking_seats cũ vẫn tra ngược được. Ưu tiên theo vé từng khiến bản rác
+     * (label null, SWEETBOX chồng lấn) thắng bản chuẩn và làm hỏng khung sơ đồ.
+     */
+    private static Seat pickSurvivor(List<Seat> bucket, boolean nextColTaken) {
+        return bucket.stream()
+                .min(java.util.Comparator
+                        .comparingInt((Seat s) -> (s.getLabel() != null && !s.getLabel().isBlank()) ? 0 : 1)
+                        .thenComparingInt(s -> (nextColTaken && isSweetbox(s)) ? 1 : 0)
+                        .thenComparingInt(s -> s.getId() == null ? Integer.MAX_VALUE : s.getId()))
+                .orElse(null);
+    }
+
+    private static boolean isSweetbox(Seat s) {
+        return s.getSeatType() != null && "SWEETBOX".equalsIgnoreCase(s.getSeatType().getName());
     }
 
     /** Trạng thái ghế vật lý hợp lệ; mọi giá trị khác bị coi là rác → AVAILABLE. */
