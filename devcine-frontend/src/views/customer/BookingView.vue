@@ -1230,43 +1230,58 @@ const proceedToPayment = async () => {
             </div>
           </div>
           
-          <!-- Legend -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 border-t border-outline-variant/10 pt-10">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
-              <div class="flex flex-col">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300">Standard</span>
+          <!-- Legend: gom 2 nhóm "Loại ghế" | "Trạng thái" trong 1 panel bo góc -->
+          <div class="mt-10 rounded-2xl border border-white/5 bg-black/20 px-5 py-5 sm:px-6">
+            <div class="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:gap-8">
+
+              <!-- Nhóm 1: LOẠI GHẾ -->
+              <div class="flex flex-col gap-3">
+                <span class="text-[10px] font-bold uppercase tracking-[0.12em] text-on-surface-variant/60">Loại ghế</span>
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Standard</span>
+                  </div>
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(220,38,38,0.2)]"></div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-red-400">VIP</span>
+                  </div>
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-11 h-7 rounded-t-xl rounded-b-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(147,51,234,0.2)]"></div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-purple-400">Sweetbox</span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(220,38,38,0.2)]"></div>
-              <div class="flex flex-col">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-red-400">VIP</span>
+
+              <!-- Vách ngăn -->
+              <div class="hidden lg:block w-px self-stretch bg-white/10"></div>
+              <div class="lg:hidden h-px w-full bg-white/10"></div>
+
+              <!-- Nhóm 2: TRẠNG THÁI -->
+              <div class="flex flex-col gap-3 lg:flex-1">
+                <span class="text-[10px] font-bold uppercase tracking-[0.12em] text-on-surface-variant/60">Trạng thái</span>
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-amber-600 shadow-[0_0_20px_rgba(245,197,24,0.3)]"></div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-primary">Đang chọn</span>
+                  </div>
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-surface-container-high border border-white/5 opacity-50"></div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Đã đặt</span>
+                  </div>
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500 opacity-60">
+                      <span class="material-symbols-outlined text-sm">build</span>
+                    </div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Bảo trì</span>
+                  </div>
+                  <div class="flex items-center gap-2.5">
+                    <div class="legend-unselectable relative w-7 h-7 rounded-lg border border-white/5"></div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Không thể chọn</span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-12 h-8 rounded-t-xl rounded-b-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(147,51,234,0.2)]"></div>
-              <div class="flex flex-col">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400">Sweetbox</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-amber-600 shadow-[0_0_20px_rgba(245,197,24,0.3)]"></div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-primary">Đang chọn</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-surface-container-high border border-white/5 opacity-50"></div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Đã đặt</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500 opacity-60">
-                <span class="material-symbols-outlined text-sm">build</span>
-              </div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Ghế bảo trì</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="legend-unselectable relative w-8 h-8 rounded-lg border border-white/5"></div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">Ghế không thể chọn</span>
+
             </div>
           </div>
 
