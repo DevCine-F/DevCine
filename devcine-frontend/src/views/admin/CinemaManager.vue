@@ -140,6 +140,12 @@ const closeDetail = () => {
   activeTab.value = "infrastructure";
 };
 
+// Cụm rạp vừa bị xoá cứng từ tab Cấu hình -> gỡ khỏi list & đóng panel chi tiết.
+const handleCinemaDeleted = (id) => {
+  cinemas.value = cinemas.value.filter((c) => String(c.id) !== String(id));
+  closeDetail();
+};
+
 // Drawer state
 const showDrawer = ref(false);
 const selectedShowtime = ref(null);   // object card timeline (id, roomId, movie, startTime...)
@@ -392,6 +398,7 @@ onUnmounted(() => {
           <CinemaConfigTab
             v-else-if="activeTab === 'config'"
             :cinema="selectedCinema"
+            @deleted="handleCinemaDeleted"
           />
         </div>
       </div>
