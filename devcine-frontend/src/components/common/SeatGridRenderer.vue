@@ -230,7 +230,9 @@ const computeSeatClass = (seat) => {
   // 5. Ghế còn trống nhưng KHÔNG THỂ CHỌN với cấu hình vé/khối hiện tại (proactive locking).
   //    Đặt SAU nhánh `sel` để ghế đang chọn vẫn bấm được (gỡ khối), TRƯỚC preview/available.
   if (checkUnselectable(seat)) {
-    return `${baseClasses} ${textClass} relative seat-unselectable bg-surface-container-high border border-white/5 text-white/25 opacity-40 cursor-not-allowed pointer-events-none`
+    // Không đặt class nền ở đây: lớp phủ .seat-unselectable::after tự sơn nền xám ĐÈ LÊN
+    // màu ghế thật (VIP đỏ / Sweetbox tím), khỏi phụ thuộc thứ tự thắng thua của Tailwind.
+    return `${baseClasses} ${textClass} relative seat-unselectable border border-white/5 text-white/30 cursor-not-allowed pointer-events-none`
   }
 
   // 6. Cảnh báo ghế mồ côi (POS mode)
@@ -423,13 +425,17 @@ const handleSeatLeave = () => {
   overflow-x: auto;
 }
 
-/* Dấu "X" đè lên ghế không thể chọn — vẫn thấy nhãn ghế bên dưới */
+/* Ghế không thể chọn: lớp phủ tự sơn nền XÁM đè lên mọi màu ghế (VIP đỏ / Sweetbox tím),
+   rồi vẽ dấu "X" trắng lên trên. Đặt ở pseudo-element nên luôn nằm trên nền của ghế,
+   không phải tranh độ ưu tiên với class nền của Tailwind. Nhãn ghế còn hiện mờ bên dưới. */
 .seat-unselectable::after {
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
-  --x-line: rgba(255, 255, 255, 0.85);
+  --x-line: rgba(255, 255, 255, 0.9);
+  background-color: rgba(28, 31, 38, 0.85);
   background-image:
     linear-gradient(to bottom right, transparent calc(50% - 1px), var(--x-line) calc(50% - 1px), var(--x-line) calc(50% + 1px), transparent calc(50% + 1px)),
     linear-gradient(to bottom left, transparent calc(50% - 1px), var(--x-line) calc(50% - 1px), var(--x-line) calc(50% + 1px), transparent calc(50% + 1px));
