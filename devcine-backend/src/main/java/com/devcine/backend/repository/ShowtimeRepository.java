@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -57,6 +58,24 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r " +
            "WHERE r.cinema.id = :cinemaId AND s.endTime >= :now")
     List<Showtime> findFutureShowtimesByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
+
+    /**
+     * Hủy HÀNG LOẠT các suất chiếu TƯƠNG LAI (startTime >= now) của một cụm rạp khi rạp
+     * đóng cửa đột xuất. Set status = 'Cancelled' (đúng chữ hoa/thường mà các query loại-trừ
+     * hiện có dùng: {@code s.status <> 'Cancelled'}) để suất đã hủy không còn được coi là active.
+     *
+     * <p>Dùng subquery theo Room để bulk-update JPQL không phải join qua nhiều bậc (an toàn mọi
+     * provider). {@code flushAutomatically=true} để đẩy thay đổi entity đang chờ trước khi chạy;
+     * {@code clearAutomatically=false} để KHÔNG detach {@code cinema} đang thao tác (tránh
+     * LazyInitializationException khi dựng response ngay sau đó).</p>
+     *
+     * @return số suất đã bị hủy
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Showtime s SET s.status = 'Cancelled' " +
+           "WHERE s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND s.room.id IN (SELECT r.id FROM Room r WHERE r.cinema.id = :cinemaId)")
+    int cancelFutureShowtimesByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
 
     @Query("SELECT COUNT(s) > 0 FROM Showtime s WHERE s.room.id = :roomId " +
            "AND s.startTime < :endTime AND s.endTime > :startTime")

@@ -1,6 +1,7 @@
 import { reactive, ref, computed, nextTick } from "vue";
 import axios from "@/api/axios";
 import { useToastStore } from "@/stores/toast";
+import { useConfirmStore } from "@/stores/confirm";
 import { friendlyError } from "@/utils/friendlyError";
 import {
   collapseSpaces,
@@ -24,6 +25,10 @@ import {
 export function useCinemaConfig(selectedCinema) {
   const API_BASE_URL = "/v1/cinemas";
   const toast = useToastStore();
+  const confirm = useConfirmStore();
+
+  // Trạng thái CÒN BÁN VÉ (chưa đóng cửa) — khớp isSellable() phía backend.
+  const isSellableStatus = (s) => !s || s.toUpperCase() === "ACTIVE";
 
   // ===== Model form (12 trường editable, khớp CinemaRequest) =====
   const form = reactive({
@@ -183,6 +188,30 @@ export function useCinemaConfig(selectedCinema) {
       toast.error("Vui lòng nhập đủ giờ mở và giờ đóng cửa.");
       return;
     }
+
+    // ===== CHỐT CHẶN AN TOÀN: đóng cửa cụm rạp đột xuất =====
+    // Chuyển từ trạng thái CÒN BÁN VÉ (ACTIVE/rỗng) sang MAINTENANCE/CLOSED sẽ kích hoạt luồng
+    // "sức công phá lớn" ở backend (hủy toàn bộ suất tương lai + phát voucher đền + gửi email
+    // hàng loạt). Bắt buộc Admin xác nhận trước khi gọi PUT.
+    const newStatus = (form.status || "ACTIVE").toUpperCase();
+    const isDangerousClosure =
+      isSellableStatus(original.value.status) &&
+      (newStatus === "MAINTENANCE" || newStatus === "CLOSED");
+    if (isDangerousClosure) {
+      const ok = await confirm.show({
+        title: "Cảnh báo Đóng cửa cụm rạp!",
+        message:
+          "Hành động này sẽ lập tức HỦY TOÀN BỘ các suất chiếu trong tương lai của rạp này, " +
+          "đồng thời hệ thống sẽ tự động phát Voucher đền bù 100% và gửi Email xin lỗi đến các " +
+          "khách hàng đã đặt vé. Hành động này KHÔNG THỂ hoàn tác. " +
+          "Bạn có chắc chắn muốn đóng cửa rạp?",
+        confirmText: "Đóng cửa rạp",
+        cancelText: "Huỷ",
+        tone: "danger",
+      });
+      if (!ok) return; // Admin bấm Huỷ -> không gửi API, giữ nguyên form
+    }
+
     const n = normalize(form);
     saving.value = true;
     try {

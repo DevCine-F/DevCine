@@ -4,21 +4,30 @@ import com.devcine.backend.dto.request.CinemaRequest;
 import com.devcine.backend.dto.response.CinemaResponse;
 import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Staff;
+import com.devcine.backend.event.CinemaEmergencyClosedEvent;
+import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.RoomRepository;
+import com.devcine.backend.repository.ShowtimeRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.service.CinemaService;
 import com.devcine.backend.service.LocationService;
 import com.devcine.backend.service.ShowtimeService;
+import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.annotation.PostConstruct;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CinemaServiceImpl implements CinemaService {
@@ -28,6 +37,9 @@ public class CinemaServiceImpl implements CinemaService {
     private final RoomRepository roomRepository;
     private final LocationService locationService;
     private final ShowtimeService showtimeService;
+    private final ShowtimeRepository showtimeRepository;
+    private final BookingRepository bookingRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Danh mục hợp lệ — đồng bộ với dropdown phía Frontend (chống can thiệp giá trị lạ qua API)
     private static final Set<String> ALLOWED_TYPES = Set.of("STANDARD", "SUPERPLEX", "CINE_COMFORT");
@@ -188,6 +200,9 @@ public class CinemaServiceImpl implements CinemaService {
         Cinema cinema = cinemaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
 
+        // Trạng thái CŨ (trước khi ghi đè) — dùng phát hiện chuyển sang đóng cửa đột xuất.
+        String oldStatus = cinema.getStatus();
+
         cinema.setName(request.getName());
         cinema.setAddress(request.getAddress());
         cinema.setCity(request.getCity());
@@ -221,7 +236,32 @@ public class CinemaServiceImpl implements CinemaService {
         }
 
         Cinema updatedCinema = cinemaRepository.save(cinema);
+
+        // ===== Đóng cửa cụm rạp đột xuất =====
+        // Chỉ kích hoạt khi CHUYỂN từ trạng thái còn bán vé (null/ACTIVE) sang MAINTENANCE/CLOSED.
+        // Cập nhật lại status đã đóng (form lưu lại) sẽ KHÔNG chạy lần 2 (idempotent).
+        String newStatus = request.getStatus();
+        if (newStatus != null && isSellable(oldStatus)
+                && ("MAINTENANCE".equals(newStatus) || "CLOSED".equals(newStatus))) {
+            LocalDateTime now = LocalDateTime.now();
+            // (1) ĐỒNG BỘ, ngay trong transaction này: hủy mọi suất tương lai + nhả đơn HOLD/chờ.
+            //     Làm sync để chặn cửa sổ race — không cho đặt vé vào suất "sắp bị hủy".
+            int cancelledShows = showtimeRepository.cancelFutureShowtimesByCinema(id, now);
+            int expiredHolds = bookingRepository.expireActiveHoldsByCinema(id, now);
+            log.info("Đóng cửa cụm rạp #{} ({}→{}): hủy {} suất tương lai, nhả {} đơn giữ chỗ.",
+                    id, oldStatus, newStatus, cancelledShows, expiredHolds);
+
+            // (2) NỀN: phát sự kiện để hủy chỗ + đền bù + email cho đơn CONFIRMED SAU khi tx commit.
+            //     Chỉ mang ID → tránh Lazy khi luồng @Async xử lý.
+            eventPublisher.publishEvent(new CinemaEmergencyClosedEvent(id, SecurityUtils.getCurrentUserId()));
+        }
+
         return toResponse(updatedCinema);
+    }
+
+    /** Trạng thái CÒN BÁN VÉ (chưa đóng cửa): null hoặc ACTIVE. */
+    private boolean isSellable(String status) {
+        return status == null || "ACTIVE".equalsIgnoreCase(status);
     }
 
     @Override

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -28,6 +29,32 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            + "AND (:cinemaId IS NULL OR b.showtime.room.cinema.id = :cinemaId)")
     BigDecimal sumRevenueByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
                                      @Param("cinemaId") Integer cinemaId);
+
+    // ===== Đóng cửa cụm rạp đột xuất (Emergency Closure) =====
+
+    /**
+     * ID các đơn ĐÃ XÁC NHẬN (CONFIRMED) gắn suất chiếu TƯƠNG LAI (startTime >= now) của một cụm rạp.
+     * Chỉ SELECT id (nhẹ) — luồng nền tự nạp lại từng đơn trong transaction riêng để hủy/đền bù.
+     */
+    @Query("SELECT b.id FROM Booking b WHERE b.status = 'CONFIRMED' "
+           + "AND b.showtime.startTime >= :now "
+           + "AND b.showtime.room.cinema.id = :cinemaId")
+    List<Integer> findConfirmedIdsByCinemaAndFutureShowtime(@Param("cinemaId") Integer cinemaId,
+                                                            @Param("now") LocalDateTime now);
+
+    /**
+     * Dọn rác: đưa các đơn còn ĐANG GIỮ CHỖ / CHỜ THANH TOÁN của suất tương lai thuộc cụm rạp về
+     * EXPIRED để nhả ghế (query đếm ghế reserved chỉ tính SOLD/HOLD → đơn EXPIRED không còn khóa chỗ).
+     * Chạy ĐỒNG BỘ cùng transaction hủy suất chiếu.
+     *
+     * @return số đơn đã hết hiệu lực
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = false)
+    @Query("UPDATE Booking b SET b.status = 'EXPIRED' "
+           + "WHERE b.status IN ('HOLD', 'PENDING_PAYMENT', 'PAYING') "
+           + "AND b.showtime.id IN (SELECT s.id FROM Showtime s WHERE s.startTime >= :now "
+           + "AND s.room.id IN (SELECT r.id FROM Room r WHERE r.cinema.id = :cinemaId))")
+    int expireActiveHoldsByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
 
     @Query("SELECT COUNT(bs) FROM BookingSeat bs JOIN bs.booking b WHERE b.status = 'CONFIRMED' "
            + "AND b.createdAt >= :startDate AND b.createdAt <= :endDate "
