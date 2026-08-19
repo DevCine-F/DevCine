@@ -85,6 +85,29 @@ export const validateImageUrl = (imageUrl) => {
   return ''
 }
 
+// Trích toạ độ từ nhiều định dạng Google Maps mà user dễ lấy:
+//  - Mã nhúng iframe / URL embed:  ...!2d<kinh độ>!3d<vĩ độ>...
+//  - URL thường trên thanh địa chỉ: .../@<vĩ độ>,<kinh độ>,<zoom>z
+//  - Tham số q/query/ll=<vĩ độ>,<kinh độ>
+// Trả { lat, lng } (chuỗi) nếu nhận diện được, ngược lại null.
+// KHÔNG hỗ trợ link rút gọn maps.app.goo.gl (redirect, không chứa toạ độ) — cần dùng mã nhúng.
+export const parseGoogleMapsInput = (input) => {
+  const s = String(input ?? '')
+  if (!s.trim()) return null
+  const NUM = '(-?\\d+(?:\\.\\d+)?)'
+  // 1) Mã nhúng / URL embed: !3d = vĩ độ, !2d = kinh độ
+  const lat3 = s.match(new RegExp('!3d' + NUM))
+  const lng2 = s.match(new RegExp('!2d' + NUM))
+  if (lat3 && lng2) return { lat: lat3[1], lng: lng2[1] }
+  // 2) URL thường: .../@<vĩ độ>,<kinh độ>,<zoom>
+  const at = s.match(new RegExp('@' + NUM + ',' + NUM))
+  if (at) return { lat: at[1], lng: at[2] }
+  // 3) q/query/ll=<vĩ độ>,<kinh độ>
+  const q = s.match(new RegExp('[?&](?:q|query|ll)=' + NUM + ',' + NUM))
+  if (q) return { lat: q[1], lng: q[2] }
+  return null
+}
+
 // Toạ độ bản đồ: tuỳ chọn; nếu có phải là số trong dải hợp lệ.
 export const validateLatitude = (v) => {
   if (v === '' || v == null) return ''

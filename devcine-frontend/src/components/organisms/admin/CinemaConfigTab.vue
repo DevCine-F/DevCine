@@ -2,7 +2,7 @@
 import { toRef, ref, computed, watch, nextTick } from 'vue'
 import { useCinemaConfig } from '@/composables/useCinemaConfig'
 import { useConfirmStore } from '@/stores/confirm'
-import { titleCase, formatHotline } from '@/utils/cinemaValidators'
+import { titleCase, formatHotline, parseGoogleMapsInput } from '@/utils/cinemaValidators'
 
 const props = defineProps({
   cinema: { type: Object, required: true }
@@ -50,6 +50,25 @@ const onNameBlur = () => { form.name = titleCase(form.name); validateField('name
 const onAddressBlur = () => { form.address = titleCase(form.address); validateField('address') }
 const onHotlineInput = () => { form.hotline = formatHotline(form.hotline); if (errors.hotline) validateField('hotline') }
 const onHotlineBlur = () => { form.hotline = formatHotline(form.hotline); validateField('hotline') }
+
+// ===== Dán link/mã nhúng Google Maps -> tự trích lat/lng vào 2 ô =====
+const mapPasteInput = ref('')
+const mapPasteError = ref('')
+const onMapInput = () => {
+  const parsed = parseGoogleMapsInput(mapPasteInput.value)
+  if (parsed) {
+    form.latitude = parsed.lat
+    form.longitude = parsed.lng
+    validateField('latitude'); validateField('longitude')
+    mapPasteInput.value = ''   // trích xong, xoá ô dán cho gọn (2 ô toạ độ đã điền)
+    mapPasteError.value = ''
+  }
+}
+const onMapBlur = () => {
+  mapPasteError.value = (mapPasteInput.value.trim() && !parseGoogleMapsInput(mapPasteInput.value))
+    ? 'Không nhận diện được toạ độ. Hãy dán MÃ NHÚNG (Chia sẻ → Nhúng bản đồ) hoặc URL dạng .../@vĩ độ,kinh độ — không dùng link rút gọn maps.app.goo.gl.'
+    : ''
+}
 
 // ===== Tiện ích: chip input (lưu canonical vào form.amenities dạng "a, b, c") =====
 const amenityDraft = ref('')
@@ -176,6 +195,17 @@ const STATUS_META = {
           <div class="col-span-2 flex items-center gap-1.5">
             <span class="material-symbols-outlined text-primary text-sm">map</span>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Toạ độ bản đồ <span class="normal-case text-on-surface-variant/50">(tuỳ chọn — để Client hiện Google Maps)</span></label>
+          </div>
+          <!-- Ô dán thông minh: dán mã nhúng / link Maps -> tự điền lat/lng bên dưới -->
+          <div class="col-span-2 space-y-1.5">
+            <textarea v-model="mapPasteInput" @input="onMapInput" @blur="onMapBlur" rows="2"
+              placeholder="Dán MÃ NHÚNG (Chia sẻ → Nhúng bản đồ) hoặc link Google Maps vào đây — toạ độ sẽ tự điền..."
+              :class="mapPasteError ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
+              class="w-full bg-surface-container border rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all resize-none"></textarea>
+            <p v-if="mapPasteError" class="text-red-400 text-xs">{{ mapPasteError }}</p>
+            <p v-else class="text-[10px] text-on-surface-variant/60 flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs">auto_fix_high</span>Dán một phát → 2 ô Vĩ độ/Kinh độ bên dưới tự điền. Hỗ trợ mã nhúng iframe, URL có <code>@vĩ độ,kinh độ</code> — không dùng link rút gọn maps.app.goo.gl.
+            </p>
           </div>
           <div class="space-y-1.5">
             <input v-model="form.latitude" @blur="validateField('latitude')" type="number" step="any" inputmode="decimal" placeholder="Vĩ độ — VD: 10.7952"
