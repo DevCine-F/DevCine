@@ -61,6 +61,12 @@ public class BookingService {
         Showtime showtime = showtimeRepository.findByIdForUpdate(request.getShowtimeId())
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
 
+        // Chốt chặn: cụm rạp đang bảo trì/đóng cửa → không cho giữ chỗ (cả ONLINE lẫn POS).
+        com.devcine.backend.entity.Cinema stCinema = showtime.getRoom() != null ? showtime.getRoom().getCinema() : null;
+        if (stCinema != null && stCinema.getStatus() != null && !"ACTIVE".equalsIgnoreCase(stCinema.getStatus())) {
+            throw new RuntimeException("Rạp đang bảo trì/đóng cửa, tạm ngưng bán vé cho suất chiếu này.");
+        }
+
         // Cách ly cụm rạp cho đơn POS: nhân viên/quản lý chỉ bán suất thuộc cơ sở mình (ADMIN bỏ qua).
         if ("POS".equalsIgnoreCase(channel)) {
             Integer cinemaId = showtime.getRoom() != null && showtime.getRoom().getCinema() != null
@@ -552,7 +558,15 @@ public class BookingService {
         if (!"HOLD".equals(booking.getStatus())) {
             throw new RuntimeException("Trạng thái đơn không hợp lệ để thanh toán.");
         }
-        
+
+        // Chốt chặn: cụm rạp bảo trì/đóng cửa giữa chừng → KHÔNG xác nhận thanh toán vào suất đã ngưng bán.
+        Showtime payShowtime = booking.getShowtime();
+        com.devcine.backend.entity.Cinema payCinema = payShowtime != null && payShowtime.getRoom() != null
+                ? payShowtime.getRoom().getCinema() : null;
+        if (payCinema != null && payCinema.getStatus() != null && !"ACTIVE".equalsIgnoreCase(payCinema.getStatus())) {
+            throw new RuntimeException("Rạp đang bảo trì/đóng cửa, không thể xác nhận thanh toán cho suất chiếu này.");
+        }
+
         // Tích điểm — dùng chung LoyaltyService cho CẢ vé online lẫn vé POS; tính trên số tiền
         // thực trả (finalPrice, đã trừ voucher + làm tròn tiền mặt). Khách null (vãng lai) -> bỏ qua.
         loyaltyService.award(booking.getCustomer(), booking.getFinalPrice(), "BOOKING", booking.getBookingCode());

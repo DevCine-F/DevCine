@@ -169,11 +169,12 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
                                        @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // Danh sách PHIM có suất trong (thành phố × khoảng ngày), tìm theo tên — phân trang — chỉ phim đang chiếu
+    // Chỉ tính suất ở cụm rạp còn hoạt động (c.status = 'ACTIVE') → phim chỉ còn suất ở rạp đóng cửa sẽ bị ẩn.
     @Query(value = "SELECT DISTINCT m FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
-            "WHERE m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "WHERE m.status = 'active' AND c.status = 'ACTIVE' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
             "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY m.title ASC",
             countQuery = "SELECT COUNT(DISTINCT m) FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
-            "WHERE m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "WHERE m.status = 'active' AND c.status = 'ACTIVE' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
             "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Movie> findMoviesWithShowtimes(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
                                         @Param("city") String city, @Param("q") String q, Pageable pageable);

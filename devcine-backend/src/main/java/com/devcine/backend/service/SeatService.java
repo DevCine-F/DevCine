@@ -47,6 +47,12 @@ public class SeatService {
         Showtime showtime = showtimeRepository.findById(showtimeId)
                 .orElseThrow(() -> new RuntimeException("Showtime not found"));
 
+        // Chốt chặn: cụm rạp đang bảo trì/đóng cửa → tạm ngưng bán vé, không cho khởi tạo đặt chỗ.
+        com.devcine.backend.entity.Cinema cinema = showtime.getRoom() != null ? showtime.getRoom().getCinema() : null;
+        if (cinema != null && cinema.getStatus() != null && !"ACTIVE".equalsIgnoreCase(cinema.getStatus())) {
+            throw new IllegalStateException("Rạp đang bảo trì/đóng cửa, tạm ngưng bán vé cho suất chiếu này.");
+        }
+
         List<BookingSeat> reservedBookingSeats = bookingSeatRepository.findReservedSeatsByShowtime(showtimeId);
         Set<Integer> soldSeatIds = reservedBookingSeats.stream()
                 .filter(bs -> "SOLD".equals(bs.getStatus()))

@@ -48,7 +48,9 @@ public class ShowtimeService {
 
     public List<PublicShowtimeDTO> getAllUpcomingShowtimes() {
         LocalDateTime now = LocalDateTime.now();
-        List<Showtime> showtimes = showtimeRepository.findUpcomingShowtimes(now);
+        // Ẩn suất của cụm rạp bảo trì/đóng cửa (và suất đã hủy) khỏi trang khách.
+        List<Showtime> showtimes = showtimeRepository.findUpcomingShowtimes(now).stream()
+                .filter(this::isPubliclyVisible).collect(Collectors.toList());
 
         // Tình trạng ghế tính 1 LẦN cho toàn bộ suất (2 query gộp, tránh N+1):
         //  - sellable/phòng = ghế active & không bảo trì/khóa
@@ -76,6 +78,17 @@ public class ShowtimeService {
             dto.setAvailableSeats(Math.max(0, total - reserved));
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    /** Cụm rạp còn hoạt động (ACTIVE) — điều kiện để suất được bán/hiển thị công khai. */
+    private boolean isCinemaActive(Showtime s) {
+        return s.getRoom() != null && s.getRoom().getCinema() != null
+                && "ACTIVE".equalsIgnoreCase(s.getRoom().getCinema().getStatus());
+    }
+
+    /** Suất hiển thị công khai: cụm rạp ACTIVE và suất chưa bị hủy. */
+    private boolean isPubliclyVisible(Showtime s) {
+        return isCinemaActive(s) && !"Cancelled".equalsIgnoreCase(s.getStatus());
     }
 
     /** Mapper dùng chung: Showtime -> PublicShowtimeDTO (DTO phẳng cho FE tự nhóm). */
@@ -125,7 +138,10 @@ public class ShowtimeService {
         List<Cinema> cinemas = (city != null && !city.isBlank())
                 ? cinemaRepository.findByCityIgnoreCaseOrderByNameAsc(city)
                 : cinemaRepository.findAllByOrderByNameAsc();
-        return cinemas.stream().map(c -> {
+        return cinemas.stream()
+            // Trang khách chỉ chọn được cụm rạp còn hoạt động (ẩn rạp bảo trì/đóng cửa).
+            .filter(c -> "ACTIVE".equalsIgnoreCase(c.getStatus()))
+            .map(c -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", c.getId());
             m.put("name", c.getName());
@@ -156,10 +172,13 @@ public class ShowtimeService {
     public List<PublicShowtimeDTO> getShowtimesByMovieAndDate(Integer movieId, String date, String city) {
         LocalDateTime[] range = dayRange(date);
         return showtimeRepository.findByMovieAndRange(movieId, city != null ? city : "", range[0], range[1])
-                .stream().map(this::toPublicDTO).collect(Collectors.toList());
+                .stream().filter(this::isPubliclyVisible).map(this::toPublicDTO).collect(Collectors.toList());
     }
 
     public List<PublicShowtimeDTO> getShowtimesByCinemaAndDate(Integer cinemaId, String date) {
+        // Cụm rạp bảo trì/đóng cửa → không hiển thị suất nào cho khách (mọi suất cùng 1 cụm rạp).
+        Cinema cinema = cinemaRepository.findById(cinemaId).orElse(null);
+        if (cinema == null || !"ACTIVE".equalsIgnoreCase(cinema.getStatus())) return List.of();
         LocalDateTime[] range = dayRange(date);
         return showtimeRepository.findByCinemaAndRange(cinemaId, range[0], range[1])
                 .stream().map(this::toPublicDTO).collect(Collectors.toList());
@@ -174,6 +193,9 @@ public class ShowtimeService {
         } else {
             showtimes = showtimeRepository.findUpcomingShowtimesByMovieId(movieId, now);
         }
+
+        // Ẩn suất thuộc cụm rạp bảo trì/đóng cửa (giữ nguyên hành vi khi rạp còn hoạt động).
+        showtimes = showtimes.stream().filter(this::isCinemaActive).collect(Collectors.toList());
 
         // Group by Cinema
         Map<Cinema, List<Showtime>> byCinema = showtimes.stream()
@@ -246,6 +268,9 @@ public class ShowtimeService {
     }
 
     public List<ShowtimeDTO> getShowtimesByCinemaId(Integer cinemaId) {
+        // Cụm rạp bảo trì/đóng cửa → trang khách không thấy suất nào.
+        Cinema cinema = cinemaRepository.findById(cinemaId).orElse(null);
+        if (cinema == null || !"ACTIVE".equalsIgnoreCase(cinema.getStatus())) return List.of();
         List<Showtime> showtimes = showtimeRepository.findByCinemaId(cinemaId);
         return showtimes.stream().map(s -> ShowtimeDTO.builder()
                 .id(s.getId())
@@ -278,6 +303,10 @@ public class ShowtimeService {
 
         // ===== Constraint Engine: kiểm soát theo giờ hoạt động của cụm rạp =====
         Cinema cinema = room.getCinema();
+        // Chặn tạo suất mới vào cụm rạp đang bảo trì/đóng cửa (chỉ ACTIVE mới được lên lịch).
+        if (cinema != null && cinema.getStatus() != null && !"ACTIVE".equalsIgnoreCase(cinema.getStatus())) {
+            throw new IllegalStateException("Cụm rạp đang bảo trì/đóng cửa — không thể tạo suất chiếu mới.");
+        }
         int[] win = cinemaWindow(cinema);       // [openMin, closeMin] (closeMin đã +1440 nếu qua nửa đêm)
         int startPos = posOf(startTime.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaround;
@@ -354,6 +383,15 @@ public class ShowtimeService {
         List<Integer> missing = req.getRoomIds().stream().filter(id -> !roomMap.containsKey(id)).toList();
         if (!missing.isEmpty()) {
             throw new IllegalArgumentException("Không tìm thấy phòng chiếu với ID: " + missing);
+        }
+
+        // Chặn tạo lịch hàng loạt vào cụm rạp đang bảo trì/đóng cửa (chỉ ACTIVE mới được lên lịch).
+        for (Room r : roomMap.values()) {
+            Cinema c = r.getCinema();
+            if (c != null && c.getStatus() != null && !"ACTIVE".equalsIgnoreCase(c.getStatus())) {
+                throw new IllegalStateException("Cụm rạp '" + c.getName()
+                        + "' đang bảo trì/đóng cửa — không thể tạo suất chiếu mới.");
+            }
         }
 
         // Parse các mốc giờ "HH:mm"
