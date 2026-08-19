@@ -39,9 +39,6 @@ const sizeDescription = () => {
 }
 const onDescInput = () => { validateField('description'); sizeDescription() }
 
-// Nạp cấu hình khi đổi cụm rạp
-watch(() => props.cinema, (c) => { if (c) { loadConfig(c); nextTick(sizeDescription) } }, { immediate: true })
-
 // Dropdown liên hoàn: Tỉnh/Thành đổi -> nạp lại Quận/Huyện
 watch(() => form.city, (val, old) => onCityChange(val, old))
 
@@ -51,24 +48,59 @@ const onAddressBlur = () => { form.address = titleCase(form.address); validateFi
 const onHotlineInput = () => { form.hotline = formatHotline(form.hotline); if (errors.hotline) validateField('hotline') }
 const onHotlineBlur = () => { form.hotline = formatHotline(form.hotline); validateField('hotline') }
 
-// ===== Dán link/mã nhúng Google Maps -> tự trích lat/lng vào 2 ô =====
-const mapPasteInput = ref('')
-const mapPasteError = ref('')
-const onMapInput = () => {
-  const parsed = parseGoogleMapsInput(mapPasteInput.value)
+// ===== Toạ độ bản đồ: GỘP về 1 ô "vĩ độ, kinh độ" (nhận cả link/mã Google Maps) =====
+// form.latitude/longitude vẫn là nguồn dữ liệu thật; coordsInput chỉ là view 1 chiều
+// (field -> form khi gõ; form -> field chỉ tại điểm load/reset để tránh vòng lặp reactive).
+const coordsInput = ref('')
+const coordsError = ref('')
+// Bóc toạ độ: ưu tiên link/mã Maps, sau đó tới dạng "lat, lng" gõ tay.
+const parseCoords = (raw) => {
+  const s = (raw || '').trim()
+  if (!s) return null
+  const link = parseGoogleMapsInput(s)
+  if (link) return link
+  const m = s.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/)
+  return m ? { lat: m[1], lng: m[2] } : null
+}
+const syncCoordsFromForm = () => {
+  const { latitude: lat, longitude: lng } = form
+  coordsInput.value = (lat !== '' && lat != null && lng !== '' && lng != null) ? `${lat}, ${lng}` : ''
+  coordsError.value = ''
+}
+const onCoordsInput = () => {
+  const raw = coordsInput.value
+  if (!raw.trim()) {
+    form.latitude = ''; form.longitude = ''
+    validateField('latitude'); validateField('longitude')
+    coordsError.value = ''
+    return
+  }
+  const parsed = parseCoords(raw)
   if (parsed) {
     form.latitude = parsed.lat
     form.longitude = parsed.lng
     validateField('latitude'); validateField('longitude')
-    mapPasteInput.value = ''   // trích xong, xoá ô dán cho gọn (2 ô toạ độ đã điền)
-    mapPasteError.value = ''
+    coordsError.value = ''
+    // Dán link/mã -> chuẩn hoá hiển thị về "lat, lng" (chỉ khi có ký tự chữ/@/http)
+    if (/[a-z@/]/i.test(raw)) coordsInput.value = `${parsed.lat}, ${parsed.lng}`
   }
+  // gõ dở dang -> chưa báo lỗi, đợi blur
 }
-const onMapBlur = () => {
-  mapPasteError.value = (mapPasteInput.value.trim() && !parseGoogleMapsInput(mapPasteInput.value))
-    ? 'Không nhận diện được toạ độ. Hãy dán MÃ NHÚNG (Chia sẻ → Nhúng bản đồ) hoặc URL dạng .../@vĩ độ,kinh độ — không dùng link rút gọn maps.app.goo.gl.'
-    : ''
+const onCoordsBlur = () => {
+  const v = coordsInput.value.trim()
+  coordsError.value = (v && !parseCoords(v)) ? 'invalid' : ''
 }
+const clearCoords = () => {
+  coordsInput.value = ''
+  form.latitude = ''; form.longitude = ''
+  validateField('latitude'); validateField('longitude')
+  coordsError.value = ''
+}
+// Hoàn tác: reset form rồi đồng bộ lại ô toạ độ từ giá trị đã nạp.
+const handleReset = () => { resetForm(); syncCoordsFromForm() }
+
+// Nạp cấu hình khi đổi cụm rạp (đặt sau các helper toạ độ để tránh TDZ với immediate:true)
+watch(() => props.cinema, (c) => { if (c) { loadConfig(c); syncCoordsFromForm(); nextTick(sizeDescription) } }, { immediate: true })
 
 // ===== Tiện ích: chip input (lưu canonical vào form.amenities dạng "a, b, c") =====
 const amenityDraft = ref('')
@@ -190,36 +222,21 @@ const STATUS_META = {
           <p v-if="errors.address" class="text-red-400 text-xs">{{ errors.address }}</p>
         </div>
 
-        <!-- Toạ độ bản đồ (Client dùng để render Google Maps) -->
-        <div class="md:col-span-2 grid grid-cols-2 gap-x-6 gap-y-2">
-          <div class="col-span-2 flex items-center gap-1.5">
-            <span class="material-symbols-outlined text-primary text-sm">map</span>
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Toạ độ bản đồ <span class="normal-case text-on-surface-variant/50">(tuỳ chọn — để Client hiện Google Maps)</span></label>
+        <!-- Toạ độ bản đồ: 1 ô — dán link/mã Google Maps hoặc gõ "vĩ độ, kinh độ" -->
+        <div class="md:col-span-2 space-y-1.5">
+          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary text-sm">map</span>Toạ độ bản đồ <span class="normal-case text-on-surface-variant/50">(tuỳ chọn)</span>
+          </label>
+          <div class="relative">
+            <input v-model="coordsInput" @input="onCoordsInput" @blur="onCoordsBlur" type="text"
+              placeholder="Dán link Google Maps, hoặc nhập: vĩ độ, kinh độ"
+              :class="(coordsError || errors.latitude || errors.longitude) ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
+              class="w-full bg-surface-container border rounded-xl pl-4 pr-10 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all" />
+            <button v-if="coordsInput" type="button" @click="clearCoords" tabindex="-1"
+              class="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface hover:bg-white/5 transition-colors">
+              <span class="material-symbols-outlined text-base">close</span>
+            </button>
           </div>
-          <!-- Ô dán thông minh: dán mã nhúng / link Maps -> tự điền lat/lng bên dưới -->
-          <div class="col-span-2 space-y-1.5">
-            <textarea v-model="mapPasteInput" @input="onMapInput" @blur="onMapBlur" rows="2"
-              placeholder="Dán MÃ NHÚNG (Chia sẻ → Nhúng bản đồ) hoặc link Google Maps vào đây — toạ độ sẽ tự điền..."
-              :class="mapPasteError ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
-              class="w-full bg-surface-container border rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all resize-none"></textarea>
-            <p v-if="mapPasteError" class="text-red-400 text-xs">{{ mapPasteError }}</p>
-            <p v-else class="text-[10px] text-on-surface-variant/60 flex items-center gap-1">
-              <span class="material-symbols-outlined text-xs">auto_fix_high</span>Dán một phát → 2 ô Vĩ độ/Kinh độ bên dưới tự điền. Hỗ trợ mã nhúng iframe, URL có <code>@vĩ độ,kinh độ</code> — không dùng link rút gọn maps.app.goo.gl.
-            </p>
-          </div>
-          <div class="space-y-1.5">
-            <input v-model="form.latitude" @blur="validateField('latitude')" type="number" step="any" inputmode="decimal" placeholder="Vĩ độ — VD: 10.7952"
-              :class="errors.latitude ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
-              class="w-full bg-surface-container border rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all" />
-            <p v-if="errors.latitude" class="text-red-400 text-xs">{{ errors.latitude }}</p>
-          </div>
-          <div class="space-y-1.5">
-            <input v-model="form.longitude" @blur="validateField('longitude')" type="number" step="any" inputmode="decimal" placeholder="Kinh độ — VD: 106.7218"
-              :class="errors.longitude ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
-              class="w-full bg-surface-container border rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all" />
-            <p v-if="errors.longitude" class="text-red-400 text-xs">{{ errors.longitude }}</p>
-          </div>
-          <p class="col-span-2 text-[10px] text-on-surface-variant/60">Mẹo: Google Maps → chuột phải vào vị trí rạp → số đầu là vĩ độ, số sau là kinh độ.</p>
         </div>
 
         <!-- Loại rạp -->
@@ -357,7 +374,7 @@ const STATUS_META = {
         <div v-if="isDirty" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 bg-surface-container-highest border border-outline-variant/20 shadow-2xl shadow-black/40 rounded-2xl pl-5 pr-3 py-3">
           <span class="material-symbols-outlined text-amber-400 text-lg">edit_note</span>
           <span class="text-xs font-bold text-on-surface hidden sm:inline">Có thay đổi chưa lưu</span>
-          <button @click="resetForm" :disabled="saving"
+          <button @click="handleReset" :disabled="saving"
             class="px-4 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all disabled:opacity-50">
             Hoàn tác
           </button>
