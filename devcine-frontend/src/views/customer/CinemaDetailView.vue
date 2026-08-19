@@ -5,6 +5,7 @@ import api from '@/api/axios'
 import { useBookingStore } from '@/stores/booking'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { formatHotline } from '@/utils/cinemaValidators'
 
 const route = useRoute()
 const router = useRouter()
@@ -92,6 +93,13 @@ const amenitiesList = computed(() =>
   cinema.value?.amenities ? cinema.value.amenities.split(',').map(a => a.trim()).filter(Boolean) : []
 )
 
+// Ghép địa chỉ đầy đủ: số nhà, quận/huyện, tỉnh/thành (lọc phần rỗng để không dính dấu phẩy thừa).
+const fullAddress = computed(() =>
+  cinema.value
+    ? [cinema.value.address, cinema.value.district, cinema.value.city].filter(Boolean).join(', ')
+    : ''
+)
+
 const mapSrc = computed(() => {
   if (!cinema.value) return ''
   if (cinema.value.latitude && cinema.value.longitude) {
@@ -143,14 +151,22 @@ onMounted(fetchAll)
       </div>
 
       <template v-else-if="cinema">
-        <!-- Hero banner (tối giản, không dùng ảnh rạp) -->
-        <section class="relative rounded-3xl overflow-hidden mb-10 bg-surface-container-low border border-outline-variant/10">
-          <!-- Dải vàng accent bên trái -->
-          <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-primary"></div>
+        <!-- Hero banner: ảnh rạp làm nền + lớp phủ tối để chữ trắng đọc rõ -->
+        <section class="relative rounded-3xl overflow-hidden mb-10 border border-outline-variant/10 min-h-[20rem] flex items-end">
+          <!-- Ảnh nền (fallback nền tối nếu chưa có ảnh) -->
+          <div v-if="cinema.imageUrl" class="absolute inset-0 bg-cover bg-center"
+               :style="{ backgroundImage: `url(${cinema.imageUrl})` }"></div>
+          <div v-else class="absolute inset-0 bg-surface-container-low"></div>
 
-          <div class="pl-8 md:pl-12 pr-8 md:pr-12 py-9 md:py-12">
+          <!-- Lớp phủ gradient tối: đậm dưới, nhạt trên -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/25"></div>
+
+          <!-- Dải vàng accent bên trái -->
+          <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-primary z-10"></div>
+
+          <div class="relative z-10 pl-8 md:pl-12 pr-8 md:pr-12 py-9 md:py-12 w-full">
             <div class="flex items-center gap-3 mb-5 flex-wrap">
-              <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/30 text-[0.65rem] font-bold uppercase tracking-widest rounded-full">{{ cinema.type }}</span>
+              <span class="px-3 py-1 bg-primary/20 text-primary border border-primary/40 text-[0.65rem] font-bold uppercase tracking-widest rounded-full backdrop-blur-sm">{{ cinema.type }}</span>
               <span class="flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-widest"
                     :class="cinema.status === 'ACTIVE' || !cinema.status ? 'text-green-400' : 'text-amber-400'">
                 <span class="w-2 h-2 rounded-full" :class="cinema.status === 'ACTIVE' || !cinema.status ? 'bg-green-400 animate-pulse' : 'bg-amber-400'"></span>
@@ -158,19 +174,19 @@ onMounted(fetchAll)
               </span>
             </div>
 
-            <h1 class="text-4xl md:text-6xl font-bold font-headline tracking-tight mb-4 max-w-3xl">{{ cinema.name }}</h1>
+            <h1 class="text-4xl md:text-6xl font-bold font-headline tracking-tight mb-4 max-w-3xl text-white drop-shadow-lg">{{ cinema.name }}</h1>
 
-            <p class="text-on-surface-variant text-sm md:text-base flex items-center gap-2 max-w-2xl">
-              <span class="material-symbols-outlined text-base text-primary">location_on</span> {{ cinema.address }}
+            <p class="text-white/85 text-sm md:text-base flex items-center gap-2 max-w-2xl">
+              <span class="material-symbols-outlined text-base text-primary">location_on</span> {{ fullAddress }}
             </p>
 
             <!-- Thông tin nhanh -->
-            <div class="flex flex-wrap items-center gap-x-7 gap-y-2 mt-7 pt-6 border-t border-outline-variant/10 text-sm text-on-surface-variant">
+            <div class="flex flex-wrap items-center gap-x-7 gap-y-2 mt-7 pt-6 border-t border-white/15 text-sm text-white/75">
               <span v-if="cinema.rooms" class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-lg">meeting_room</span>{{ cinema.rooms }} phòng chiếu
               </span>
               <span v-if="cinema.hotline" class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary text-lg">call</span><span class="font-mono">{{ cinema.hotline }}</span>
+                <span class="material-symbols-outlined text-primary text-lg">call</span><span class="font-mono">{{ formatHotline(cinema.hotline) }}</span>
               </span>
               <span class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-lg">event_available</span>{{ availableDates.length }} ngày có suất chiếu
@@ -247,15 +263,19 @@ onMounted(fetchAll)
               <div class="space-y-3 text-sm">
                 <div class="flex items-start gap-3">
                   <span class="material-symbols-outlined text-primary text-lg">location_on</span>
-                  <span class="text-on-surface-variant">{{ cinema.address }}</span>
+                  <span class="text-on-surface-variant">{{ fullAddress }}</span>
                 </div>
                 <div class="flex items-center gap-3">
                   <span class="material-symbols-outlined text-primary text-lg">call</span>
-                  <span class="text-on-surface-variant font-mono">{{ cinema.hotline }}</span>
+                  <span class="text-on-surface-variant font-mono">{{ formatHotline(cinema.hotline) }}</span>
                 </div>
                 <div class="flex items-center gap-3">
                   <span class="material-symbols-outlined text-primary text-lg">meeting_room</span>
                   <span class="text-on-surface-variant">{{ cinema.rooms }} phòng chiếu</span>
+                </div>
+                <div v-if="cinema.openingTime && cinema.closingTime" class="flex items-center gap-3">
+                  <span class="material-symbols-outlined text-primary text-lg">schedule</span>
+                  <span class="text-on-surface-variant">Giờ hoạt động: {{ cinema.openingTime }} – {{ cinema.closingTime }}</span>
                 </div>
               </div>
 

@@ -73,3 +73,17 @@ export const validateImageUrl = (imageUrl) => {
   }
   return ''
 }
+
+// Toạ độ bản đồ: tuỳ chọn; nếu có phải là số trong dải hợp lệ.
+export const validateLatitude = (v) => {
+  if (v === '' || v == null) return ''
+  const n = Number(v)
+  if (Number.isNaN(n) || n < -90 || n > 90) return 'Vĩ độ phải là số trong khoảng -90 đến 90'
+  return ''
+}
+export const validateLongitude = (v) => {
+  if (v === '' || v == null) return ''
+  const n = Number(v)
+  if (Number.isNaN(n) || n < -180 || n > 180) return 'Kinh độ phải là số trong khoảng -180 đến 180'
+  return ''
+}

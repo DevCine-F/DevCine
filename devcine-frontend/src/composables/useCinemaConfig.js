@@ -14,6 +14,8 @@ import {
   validateDistrict,
   validateDescription,
   validateImageUrl,
+  validateLatitude,
+  validateLongitude,
 } from "@/utils/cinemaValidators";
 
 // Toàn bộ cấu hình một cụm rạp giờ nằm trong MỘT form + MỘT lần lưu (1 PUT).
@@ -37,13 +39,15 @@ export function useCinemaConfig(selectedCinema) {
     status: "ACTIVE",
     openingTime: "08:00",
     closingTime: "23:30",
+    latitude: "",
+    longitude: "",
   });
 
   // Các trường KHÔNG sửa nhưng updateCinema ghi đè -> phải gửi kèm để không mất dữ liệu.
   // Giữ ngoài `form` để không lọt vào so sánh isDirty.
-  const preserved = reactive({ latitude: null, longitude: null, managerId: null, rooms: null });
+  const preserved = reactive({ managerId: null, rooms: null });
 
-  const errors = reactive({ name: "", address: "", city: "", district: "", hotline: "", imageUrl: "", description: "" });
+  const errors = reactive({ name: "", address: "", city: "", district: "", hotline: "", imageUrl: "", description: "", latitude: "", longitude: "" });
 
   const original = ref({}); // snapshot đã chuẩn hoá, chụp sau mỗi lần load/save
   const provinces = ref([]);
@@ -66,6 +70,8 @@ export function useCinemaConfig(selectedCinema) {
     status: f.status || "ACTIVE",
     openingTime: f.openingTime || "",
     closingTime: f.closingTime || "",
+    latitude: f.latitude === "" || f.latitude == null ? null : Number(f.latitude),
+    longitude: f.longitude === "" || f.longitude == null ? null : Number(f.longitude),
   });
 
   const isDirty = computed(() => JSON.stringify(normalize(form)) !== JSON.stringify(original.value));
@@ -85,6 +91,8 @@ export function useCinemaConfig(selectedCinema) {
       const changed = (form.imageUrl || "").trim() !== (original.value.imageUrl || "");
       errors.imageUrl = changed ? validateImageUrl(form.imageUrl) : "";
     },
+    latitude: () => (errors.latitude = validateLatitude(form.latitude)),
+    longitude: () => (errors.longitude = validateLongitude(form.longitude)),
   };
   const validateField = (f) => {
     if (runField[f]) runField[f]();
@@ -140,8 +148,8 @@ export function useCinemaConfig(selectedCinema) {
     form.openingTime = cinema.openingTime || "08:00";
     form.closingTime = cinema.closingTime || "23:30";
 
-    preserved.latitude = cinema.latitude ?? null;
-    preserved.longitude = cinema.longitude ?? null;
+    form.latitude = cinema.latitude ?? "";
+    form.longitude = cinema.longitude ?? "";
     preserved.managerId = cinema.managerId ?? null;
     preserved.rooms = cinema.rooms ?? null;
 
@@ -195,8 +203,8 @@ export function useCinemaConfig(selectedCinema) {
         imageUrl: imageChanged && n.imageUrl ? n.imageUrl : null,
         openingTime: form.openingTime,
         closingTime: form.closingTime,
-        latitude: preserved.latitude,
-        longitude: preserved.longitude,
+        latitude: n.latitude,
+        longitude: n.longitude,
         managerId: preserved.managerId,
         rooms: preserved.rooms,
       };
@@ -215,6 +223,8 @@ export function useCinemaConfig(selectedCinema) {
         status: n.status,
         openingTime: form.openingTime,
         closingTime: form.closingTime,
+        latitude: n.latitude,
+        longitude: n.longitude,
       });
       if (n.imageUrl) c.imageUrl = n.imageUrl;
 

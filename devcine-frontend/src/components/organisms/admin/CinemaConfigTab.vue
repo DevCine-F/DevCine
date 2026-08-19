@@ -171,6 +171,27 @@ const STATUS_META = {
           <p v-if="errors.address" class="text-red-400 text-xs">{{ errors.address }}</p>
         </div>
 
+        <!-- Toạ độ bản đồ (Client dùng để render Google Maps) -->
+        <div class="md:col-span-2 grid grid-cols-2 gap-x-6 gap-y-2">
+          <div class="col-span-2 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary text-sm">map</span>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Toạ độ bản đồ <span class="normal-case text-on-surface-variant/50">(tuỳ chọn — để Client hiện Google Maps)</span></label>
+          </div>
+          <div class="space-y-1.5">
+            <input v-model="form.latitude" @blur="validateField('latitude')" type="number" step="any" inputmode="decimal" placeholder="Vĩ độ — VD: 10.7952"
+              :class="errors.latitude ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
+              class="w-full bg-surface-container border rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all" />
+            <p v-if="errors.latitude" class="text-red-400 text-xs">{{ errors.latitude }}</p>
+          </div>
+          <div class="space-y-1.5">
+            <input v-model="form.longitude" @blur="validateField('longitude')" type="number" step="any" inputmode="decimal" placeholder="Kinh độ — VD: 106.7218"
+              :class="errors.longitude ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
+              class="w-full bg-surface-container border rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all" />
+            <p v-if="errors.longitude" class="text-red-400 text-xs">{{ errors.longitude }}</p>
+          </div>
+          <p class="col-span-2 text-[10px] text-on-surface-variant/60">Mẹo: Google Maps → chuột phải vào vị trí rạp → số đầu là vĩ độ, số sau là kinh độ.</p>
+        </div>
+
         <!-- Loại rạp -->
         <div class="space-y-1.5">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Loại cụm rạp</label>
