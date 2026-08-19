@@ -262,22 +262,6 @@ const STATUS_META = {
           <p class="text-[10px] text-on-surface-variant/60">Đặt "Tạm đóng cửa" để ngừng bán vé mà vẫn giữ toàn bộ dữ liệu (xoá mềm).</p>
         </div>
 
-        <!-- Ảnh URL + preview -->
-        <div class="md:col-span-2 space-y-1.5">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Ảnh đại diện (URL)</label>
-          <div class="flex gap-3">
-            <input v-model="form.imageUrl" @blur="validateField('imageUrl')" type="url" placeholder="https://res.cloudinary.com/..."
-              :class="errors.imageUrl ? '!border-red-500' : 'border-outline-variant/20 focus:border-primary/50'"
-              class="flex-1 bg-surface-container border rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none transition-all" />
-            <div class="w-16 h-12 rounded-xl bg-surface-container border border-outline-variant/20 overflow-hidden flex items-center justify-center flex-shrink-0">
-              <img v-if="form.imageUrl && !errors.imageUrl" :src="form.imageUrl" alt="preview" class="w-full h-full object-cover" @error="($event) => ($event.target.style.display = 'none')" />
-              <span v-else class="material-symbols-outlined text-on-surface-variant/40 text-lg">image</span>
-            </div>
-          </div>
-          <p v-if="errors.imageUrl" class="text-red-400 text-xs">{{ errors.imageUrl }}</p>
-          <p v-else class="text-[10px] text-on-surface-variant/60">Để trống = giữ nguyên ảnh hiện tại.</p>
-        </div>
-
         <!-- Tiện ích (chip) -->
         <div class="md:col-span-2 space-y-1.5">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tiện ích <span class="normal-case text-on-surface-variant/50">(Enter hoặc dấu phẩy để thêm)</span></label>

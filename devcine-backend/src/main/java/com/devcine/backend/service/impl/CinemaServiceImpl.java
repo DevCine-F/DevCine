@@ -172,7 +172,6 @@ public class CinemaServiceImpl implements CinemaService {
                 .type(request.getType())
                 .hotline(request.getHotline())
                 .rooms(request.getRooms())
-                .imageUrl(request.getImageUrl())
                 .description(request.getDescription())
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
@@ -211,7 +210,6 @@ public class CinemaServiceImpl implements CinemaService {
         cinema.setHotline(request.getHotline());
         if (request.getRooms() != null) cinema.setRooms(request.getRooms());
         // Trường mở rộng: chỉ ghi đè khi request có gửi (tránh form cũ làm mất dữ liệu)
-        if (request.getImageUrl() != null) cinema.setImageUrl(request.getImageUrl());
         if (request.getDescription() != null) cinema.setDescription(request.getDescription());
         if (request.getLatitude() != null) cinema.setLatitude(request.getLatitude());
         if (request.getLongitude() != null) cinema.setLongitude(request.getLongitude());

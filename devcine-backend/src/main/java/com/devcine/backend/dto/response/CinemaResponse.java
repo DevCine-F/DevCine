@@ -20,7 +20,6 @@ public class CinemaResponse {
     private String type;
     private String hotline;
     private Integer rooms;
-    private String imageUrl;
     private String description;
     private Double latitude;
     private Double longitude;
@@ -44,7 +43,6 @@ public class CinemaResponse {
                 .type(cinema.getType())
                 .hotline(cinema.getHotline())
                 .rooms(cinema.getRooms())
-                .imageUrl(cinema.getImageUrl())
                 .description(cinema.getDescription())
                 .latitude(cinema.getLatitude())
                 .longitude(cinema.getLongitude())

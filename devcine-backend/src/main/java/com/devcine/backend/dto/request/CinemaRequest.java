@@ -41,11 +41,6 @@ public class CinemaRequest {
 
     private Integer rooms;
 
-    // Nếu có nhập: phải là URL http/https kết thúc bằng đuôi ảnh hợp lệ
-    @Pattern(regexp = "^(https?://).+\\.(?i)(jpg|jpeg|png|webp)(\\?.*)?$",
-            message = "Ảnh phải là URL http(s) hợp lệ kết thúc bằng .jpg/.jpeg/.png/.webp")
-    private String imageUrl;
-
     @Size(max = 1000, message = "Mô tả tối đa 1000 ký tự")
     private String description;
 

@@ -154,12 +154,10 @@ onMounted(fetchAll)
       </div>
 
       <template v-else-if="cinema">
-        <!-- Hero banner: ảnh rạp làm nền + lớp phủ tối để chữ trắng đọc rõ -->
+        <!-- Hero banner: nền tối + lớp phủ tối để chữ trắng đọc rõ -->
         <section class="relative rounded-3xl overflow-hidden mb-10 border border-outline-variant/10 min-h-[20rem] flex items-end">
-          <!-- Ảnh nền (fallback nền tối nếu chưa có ảnh) -->
-          <div v-if="cinema.imageUrl" class="absolute inset-0 bg-cover bg-center"
-               :style="{ backgroundImage: `url(${cinema.imageUrl})` }"></div>
-          <div v-else class="absolute inset-0 bg-surface-container-low"></div>
+          <!-- Nền tối (hệ thống không dùng ảnh đại diện cụm rạp) -->
+          <div class="absolute inset-0 bg-surface-container-low"></div>
 
           <!-- Lớp phủ gradient tối: đậm dưới, nhạt trên -->
           <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/25"></div>

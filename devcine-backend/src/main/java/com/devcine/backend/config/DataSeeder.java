@@ -777,10 +777,9 @@ public class DataSeeder {
                 System.out.println("Đã đổi tên danh mục FAQ sang 'Thành viên DevCine'.");
             }
 
-            // Backfill thông tin mở rộng cho cụm rạp (idempotent: chỉ ghi khi imageUrl còn trống)
+            // Backfill thông tin mở rộng cho cụm rạp (idempotent: chỉ ghi khi description còn trống)
             Cinema c1 = cinemaRepository.findById(1).orElse(null);
-            if (c1 != null && (c1.getImageUrl() == null || c1.getImageUrl().isBlank())) {
-                c1.setImageUrl("https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80");
+            if (c1 != null && (c1.getDescription() == null || c1.getDescription().isBlank())) {
                 c1.setDescription("Cụm rạp cao cấp tại tòa nhà cao nhất Việt Nam — Vincom Landmark 81. Trang bị phòng chiếu Superplex màn ảnh siêu lớn cùng hệ thống âm thanh Dolby Atmos sống động, mang đến trải nghiệm điện ảnh đẳng cấp bậc nhất.");
                 c1.setLatitude(10.794903);
                 c1.setLongitude(106.721866);
@@ -796,8 +795,7 @@ public class DataSeeder {
                 cinemaRepository.save(c1);
             }
             Cinema c2 = cinemaRepository.findById(2).orElse(null);
-            if (c2 != null && (c2.getImageUrl() == null || c2.getImageUrl().isBlank())) {
-                c2.setImageUrl("https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=1200&q=80");
+            if (c2 != null && (c2.getDescription() == null || c2.getDescription().isBlank())) {
                 c2.setDescription("Tọa lạc tại tháp tài chính Bitexco biểu tượng của Quận 1, DevCine Bitexco mang phong cách hiện đại với phòng chiếu Sweetbox dành cho các cặp đôi và hệ thống âm thanh Dolby Atmos.");
                 c2.setLatitude(10.771706);
                 c2.setLongitude(106.704309);

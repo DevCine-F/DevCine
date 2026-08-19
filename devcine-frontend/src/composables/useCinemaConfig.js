@@ -14,7 +14,6 @@ import {
   validateCity,
   validateDistrict,
   validateDescription,
-  validateImageUrl,
   validateLatitude,
   validateLongitude,
 } from "@/utils/cinemaValidators";
@@ -37,7 +36,6 @@ export function useCinemaConfig(selectedCinema) {
     city: "",
     district: "",
     hotline: "",
-    imageUrl: "",
     type: "STANDARD",
     amenities: "",
     description: "",
@@ -52,7 +50,7 @@ export function useCinemaConfig(selectedCinema) {
   // Giữ ngoài `form` để không lọt vào so sánh isDirty.
   const preserved = reactive({ managerId: null, rooms: null });
 
-  const errors = reactive({ name: "", address: "", city: "", district: "", hotline: "", imageUrl: "", description: "", latitude: "", longitude: "" });
+  const errors = reactive({ name: "", address: "", city: "", district: "", hotline: "", description: "", latitude: "", longitude: "" });
 
   const original = ref({}); // snapshot đã chuẩn hoá, chụp sau mỗi lần load/save
   const provinces = ref([]);
@@ -68,7 +66,6 @@ export function useCinemaConfig(selectedCinema) {
     city: (f.city || "").trim(),
     district: (f.district || "").trim(),
     hotline: rawDigits(f.hotline),
-    imageUrl: (f.imageUrl || "").trim(),
     type: f.type || "STANDARD",
     amenities: normalizeAmenities(f.amenities),
     description: (f.description || "").trim(),
@@ -90,12 +87,6 @@ export function useCinemaConfig(selectedCinema) {
     city: () => (errors.city = validateCity(form.city)),
     district: () => (errors.district = validateDistrict(form.district)),
     description: () => (errors.description = validateDescription(form.description)),
-    // Chỉ validate ảnh khi user THỰC SỰ đổi (nhất quán với "chỉ gửi imageUrl khi đổi").
-    // Ảnh seed cũ có thể không khớp regex đuôi ảnh nhưng sẽ được gửi null (giữ nguyên) -> không chặn lưu.
-    imageUrl: () => {
-      const changed = (form.imageUrl || "").trim() !== (original.value.imageUrl || "");
-      errors.imageUrl = changed ? validateImageUrl(form.imageUrl) : "";
-    },
     latitude: () => (errors.latitude = validateLatitude(form.latitude)),
     longitude: () => (errors.longitude = validateLongitude(form.longitude)),
   };
@@ -145,7 +136,6 @@ export function useCinemaConfig(selectedCinema) {
     form.city = cinema.city || "";
     form.district = cinema.district || "";
     form.hotline = formatHotline(cinema.hotline || "");
-    form.imageUrl = cinema.imageUrl || "";
     form.type = cinema.type || "STANDARD";
     form.amenities = cinema.amenities || "";
     form.description = cinema.description || "";
@@ -215,9 +205,6 @@ export function useCinemaConfig(selectedCinema) {
     const n = normalize(form);
     saving.value = true;
     try {
-      // imageUrl: CHỈ gửi khi người dùng thật sự đổi ảnh. Nếu không đổi -> null (giữ nguyên),
-      // tránh để backend re-validate giá trị ảnh cũ (có thể là link seed không khớp regex đuôi .jpg/...).
-      const imageChanged = n.imageUrl !== (original.value.imageUrl || "");
       const payload = {
         name: n.name,
         address: n.address,
@@ -228,8 +215,6 @@ export function useCinemaConfig(selectedCinema) {
         amenities: n.amenities || null,
         description: n.description || null,
         status: n.status,
-        // null = GIỮ ảnh hiện có (updateCinema chỉ ghi khi != null); không hỗ trợ xoá ảnh về rỗng.
-        imageUrl: imageChanged && n.imageUrl ? n.imageUrl : null,
         openingTime: form.openingTime,
         closingTime: form.closingTime,
         latitude: n.latitude,
@@ -255,7 +240,6 @@ export function useCinemaConfig(selectedCinema) {
         latitude: n.latitude,
         longitude: n.longitude,
       });
-      if (n.imageUrl) c.imageUrl = n.imageUrl;
 
       original.value = normalize(form); // reset dirty
       toast.success("Đã lưu cấu hình cụm rạp.");

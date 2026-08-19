@@ -41,9 +41,6 @@ public class Cinema {
 
     // ----- Thông tin mở rộng phục vụ trang khách (cột mới, ddl-auto update) -----
 
-    @Column(name = "image_url", length = 500)
-    private String imageUrl;
-
     @Column(columnDefinition = "TEXT")
     private String description;
 

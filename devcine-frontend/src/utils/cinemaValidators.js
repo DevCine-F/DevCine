@@ -74,17 +74,6 @@ export const validateDistrict = (district) => (!district ? 'Vui lòng chọn Qu�
 export const validateDescription = (description) =>
   ((description || '').length > 1000 ? 'Mô tả tối đa 1000 ký tự' : '')
 
-// imageUrl không bắt buộc; nếu có phải khớp regex backend:
-// URL http(s) kết thúc bằng .jpg/.jpeg/.png/.webp (cho phép query string theo sau).
-export const validateImageUrl = (imageUrl) => {
-  const v = (imageUrl || '').trim()
-  if (!v) return ''
-  if (!/^https?:\/\/.+\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(v)) {
-    return 'Ảnh phải là URL http(s) kết thúc bằng .jpg/.jpeg/.png/.webp'
-  }
-  return ''
-}
-
 // Trích toạ độ từ nhiều định dạng Google Maps mà user dễ lấy:
 //  - Mã nhúng iframe / URL embed:  ...!2d<kinh độ>!3d<vĩ độ>...
 //  - URL thường trên thanh địa chỉ: .../@<vĩ độ>,<kinh độ>,<zoom>z

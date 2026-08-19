@@ -154,7 +154,7 @@ const cinemaDetailById = computed(() => {
 })
 
 // Chỉ những rạp ĐANG CÓ suất chiếu (distinct theo cinemaId trong allShowtimes),
-// bổ sung city/ảnh từ /v1/cinemas (fallback nếu thiếu).
+// bổ sung city từ /v1/cinemas (fallback nếu thiếu).
 const availableCinemas = computed(() => {
   const seen = new Map()
   for (const s of allShowtimes.value) {
@@ -164,8 +164,7 @@ const availableCinemas = computed(() => {
       id: s.cinemaId,
       name: detail?.name || s.cinemaName,
       address: detail?.address || s.cinemaAddress,
-      city: detail?.city || 'Khác',
-      imageUrl: detail?.imageUrl || ''
+      city: detail?.city || 'Khác'
     })
   }
   return Array.from(seen.values())
