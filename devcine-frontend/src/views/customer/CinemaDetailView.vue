@@ -100,6 +100,9 @@ const fullAddress = computed(() =>
     : ''
 )
 
+// Rạp chỉ cho xem/đặt lịch khi ĐANG hoạt động. Fallback an toàn: status null/undefined coi như mở.
+const isOperating = computed(() => !cinema.value?.status || cinema.value.status === 'ACTIVE')
+
 const mapSrc = computed(() => {
   if (!cinema.value) return ''
   if (cinema.value.latitude && cinema.value.longitude) {
@@ -209,6 +212,22 @@ onMounted(fetchAll)
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
           <!-- Lịch chiếu -->
           <section class="lg:col-span-2 order-1">
+            <!-- Rạp đóng cửa / bảo trì: chặn toàn bộ luồng lịch chiếu + đặt vé -->
+            <div v-if="!isOperating" class="flex flex-col items-center justify-center text-center py-20 px-8 min-h-[24rem] rounded-3xl border border-amber-500/20 bg-amber-500/5">
+              <div class="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mb-6">
+                <span class="material-symbols-outlined text-5xl text-amber-400">sentiment_dissatisfied</span>
+              </div>
+              <h3 class="text-xl font-bold font-headline text-on-surface mb-3">Rạp tạm ngừng phục vụ</h3>
+              <p class="text-on-surface-variant/80 max-w-md leading-relaxed mb-8">
+                Rạp hiện đang tạm đóng cửa hoặc đang trong quá trình bảo trì. Thành thật xin lỗi quý khách vì sự bất tiện này. Vui lòng chọn một cụm rạp khác để tiếp tục trải nghiệm!
+              </p>
+              <RouterLink to="/he-thong-rap" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-on-primary font-bold text-sm hover:brightness-110 transition-all">
+                <span class="material-symbols-outlined text-lg">theaters</span> Chọn cụm rạp khác
+              </RouterLink>
+            </div>
+
+            <!-- Rạp đang hoạt động: hiển thị lịch chiếu bình thường -->
+            <template v-else>
             <h2 class="text-2xl font-bold font-headline mb-6 flex items-center gap-3">
               <span class="material-symbols-outlined text-primary">event</span> Lịch chiếu
             </h2>
@@ -262,6 +281,7 @@ onMounted(fetchAll)
                   </div>
                 </div>
               </div>
+            </template>
             </template>
           </section>
 

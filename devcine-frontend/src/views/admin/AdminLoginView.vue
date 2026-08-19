@@ -42,10 +42,7 @@ onMounted(async () => {
   }
   // Ghi nhớ: tự điền tên đăng nhập đã lưu lần trước
   const saved = localStorage.getItem(REMEMBER_KEY)
-  if (saved) {
-    username.value = saved
-    rememberMe.value = true
-  }
+  if (saved) username.value = saved
 })
 
 const REMEMBER_KEY = 'admin_remember_username'
@@ -54,7 +51,6 @@ const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const isLoading = ref(false)
-const rememberMe = ref(false)
 
 // Dev Mode: đăng nhập nhanh theo vai trò × cơ sở (chỉ dùng khi phát triển).
 // Tài khoản khớp DataSeeder — sửa ở đây thì phải sửa cả seeder, nếu không nút sẽ đăng nhập hỏng.
@@ -91,9 +87,8 @@ const loginAsAdmin = async (e) => {
       return
     }
 
-    // Ghi nhớ tên đăng nhập cho lần sau (hoặc xoá nếu bỏ chọn)
-    if (rememberMe.value) localStorage.setItem(REMEMBER_KEY, user)
-    else localStorage.removeItem(REMEMBER_KEY)
+    // Tự nhớ tên đăng nhập cho lần sau
+    localStorage.setItem(REMEMBER_KEY, user)
 
     themeStore.triggerWarp()
     await new Promise(resolve => setTimeout(resolve, 800))
@@ -158,13 +153,6 @@ const loginAsAdmin = async (e) => {
                     class="absolute right-0 top-2.5 text-white/40 hover:text-[#f5c518] transition-colors p-1">
               <span class="material-symbols-outlined text-xl">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
             </button>
-          </div>
-
-          <div class="flex items-center pt-2">
-            <div class="flex items-center gap-2">
-              <input v-model="rememberMe" type="checkbox" id="remember" class="w-4 h-4 rounded border-white/30 bg-white/10 text-[#f5c518] focus:ring-0 focus:ring-offset-0 cursor-pointer" />
-              <label for="remember" class="text-xs text-white/60 cursor-pointer hover:text-white transition-colors">Ghi nhớ</label>
-            </div>
           </div>
 
           <!-- Submit Button -->

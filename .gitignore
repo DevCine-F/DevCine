@@ -69,3 +69,7 @@ bin/
 
 # Word/Office lock & temp files
 ~$*
+
+# Python cache
+__pycache__/
+*.pyc
