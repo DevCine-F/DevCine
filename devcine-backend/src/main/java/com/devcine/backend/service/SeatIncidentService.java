@@ -291,8 +291,9 @@ public class SeatIncidentService {
         Cinema cinema = cinemaOf(booking);
         SecurityUtils.assertCinemaAccess(cinema != null ? cinema.getId() : null);
         // Thao tác quầy tương tác: người xử lý = nhân viên đang đăng nhập; ghi vết loại "CANCEL".
+        // Đền bù NGAY tại quầy (deferCompensation=false) — khác luồng đóng cửa đột xuất (duyệt sau).
         return performCancel(booking, req.bookingSeatIds(), req.compensation(), req.reason(),
-                currentStaffOrNull(), "CANCEL");
+                currentStaffOrNull(), "CANCEL", false);
     }
 
     /**
@@ -312,7 +313,8 @@ public class SeatIncidentService {
      */
     private IncidentResultResponse performCancel(Booking booking, List<Integer> bookingSeatIds,
                                                  CompensationRequest comp, String reason,
-                                                 Staff handledBy, String incidentType) {
+                                                 Staff handledBy, String incidentType,
+                                                 boolean deferCompensation) {
         Cinema cinema = cinemaOf(booking);
         Showtime st = booking.getShowtime();
 
@@ -350,9 +352,22 @@ public class SeatIncidentService {
         }
         bookingSeatRepository.saveAll(updatedSeats); // gom thành 1 batch thay vì N saves
 
-        // Hủy chỗ → đền bằng trị giá đúng giá vé đã mua; cho phép template GIFT_TICKET (đền nguyên vé)
-        IncidentResultResponse.CompensationResult compResult = applyCompensation(booking, comp, totalValue, true);
-        attachCompensation(toSave.get(0), compResult);
+        IncidentResultResponse.CompensationResult compResult;
+        if (deferCompensation) {
+            // ĐÓNG CỬA ĐỘT XUẤT — Đợt 1: CHƯA phát voucher (chờ Admin duyệt phát hàng loạt ở Đợt 2).
+            // Đánh dấu PENDING cho đơn CÓ KHÁCH (để lọc ở batch duyệt); khách vãng lai giữ NONE
+            // (đền trực tiếp tại quầy, không sinh voucher).
+            boolean hasCustomer = booking.getCustomer() != null && booking.getCustomer().getUser() != null;
+            compResult = IncidentResultResponse.CompensationResult.builder()
+                    .type(hasCustomer ? "PENDING" : "NONE")
+                    .voucherIssued(false).counterGift(false).value(BigDecimal.ZERO).build();
+            toSave.get(0).setCompensationType(compResult.type());
+            toSave.get(0).setCompensationAmount(BigDecimal.ZERO);
+        } else {
+            // Hủy chỗ tại quầy → đền bằng trị giá đúng giá vé đã mua; cho phép template GIFT_TICKET.
+            compResult = applyCompensation(booking, comp, totalValue, true);
+            attachCompensation(toSave.get(0), compResult);
+        }
 
         List<SeatIncident> saved = incidentRepository.saveAll(toSave);
         return IncidentResultResponse.builder()
@@ -370,25 +385,23 @@ public class SeatIncidentService {
     private static final String INCIDENT_EMERGENCY = "EMERGENCY_CLOSURE";
 
     /**
-     * Hủy + đền bù TOÀN BỘ ghế của MỘT đơn khi cụm rạp đóng cửa đột xuất. Mỗi lần gọi mở transaction
-     * RIÊNG (REQUIRES_NEW) để cô lập lỗi: một đơn hỏng không kéo đổ cả batch. Được gọi từ luồng
-     * {@code @Async} nên KHÔNG dựa vào SecurityContext — {@code handledByStaffId} truyền tường minh.
+     * ĐỢT 1 khi cụm rạp đóng cửa đột xuất: HỦY chỗ + GHI VẾT (PENDING) TOÀN BỘ ghế của MỘT đơn,
+     * TUYỆT ĐỐI CHƯA phát voucher (voucher chờ Admin duyệt phát hàng loạt ở Đợt 2). Mỗi lần gọi mở
+     * transaction RIÊNG (REQUIRES_NEW) để cô lập lỗi: một đơn hỏng không kéo đổ cả batch. Được gọi từ
+     * luồng {@code @Async} nên KHÔNG dựa vào SecurityContext — {@code handledByStaffId} truyền tường minh.
      *
      * <p>Idempotent: đơn không còn CONFIRMED, hoặc không còn ghế SOLD chưa xử lý → trả {@code null}
-     * (bỏ qua, không lỗi). Khách VÃNG LAI (không tài khoản/không email) → chỉ ghi vết, không voucher,
-     * không email (trả {@code null}).</p>
+     * (bỏ qua, không lỗi). Khách VÃNG LAI (không tài khoản/không email) → chỉ ghi vết, không email
+     * (trả {@code null}).</p>
      *
-     * @param bookingId           đơn cần xử lý
-     * @param promotionTemplateId id template COMP_TICKET_FULL (đền nguyên vé) — null nếu chưa seed
-     * @param voucherLabel        nhãn hiển thị voucher cho email
-     * @param handledByStaffId    userId người kích hoạt (null = ghi vết hệ thống)
-     * @param reason              lý do ghi vết
-     * @return dữ liệu phẳng để gửi email hủy vé, hoặc {@code null} nếu không cần gửi
+     * @param bookingId        đơn cần xử lý
+     * @param handledByStaffId userId người kích hoạt (null = ghi vết hệ thống)
+     * @param reason           lý do ghi vết
+     * @return dữ liệu phẳng để gửi email xin lỗi Đợt 1, hoặc {@code null} nếu không cần gửi
      */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public com.devcine.backend.dto.CancellationEmailData cancelBookingForEmergency(
-            Integer bookingId, Integer promotionTemplateId, String voucherLabel,
-            Integer handledByStaffId, String reason) {
+            Integer bookingId, Integer handledByStaffId, String reason) {
 
         Booking booking = bookingRepository.findById(bookingId).orElse(null);
         if (booking == null || !"CONFIRMED".equalsIgnoreCase(booking.getStatus()) || booking.getShowtime() == null) {
@@ -408,19 +421,14 @@ public class SeatIncidentService {
             return null; // không còn gì để hủy
         }
 
-        boolean hasCustomer = booking.getCustomer() != null && booking.getCustomer().getUser() != null;
-        // Khách có tài khoản → đền nguyên vé bằng voucher COMP_TICKET_FULL (nếu đã seed);
-        // khách vãng lai → NONE (applyCompensation tự bỏ qua voucher, chỉ ghi vết).
-        CompensationRequest comp = (hasCustomer && promotionTemplateId != null)
-                ? new CompensationRequest("GIFT_TICKET", promotionTemplateId, reason)
-                : new CompensationRequest("NONE", null, reason);
-
         Staff handledBy = handledByStaffId != null
                 ? staffRepository.findById(handledByStaffId).orElse(null) : null;
 
-        IncidentResultResponse res = performCancel(booking, bookingSeatIds, comp, reason, handledBy, INCIDENT_EMERGENCY);
+        // Đợt 1: chỉ HỦY chỗ + ghi vết PENDING (deferCompensation=true) — CHƯA phát voucher.
+        performCancel(booking, bookingSeatIds, null, reason, handledBy, INCIDENT_EMERGENCY, true);
 
         // Dựng dữ liệu email PHẲNG ngay trong transaction (mọi lazy access còn trong session).
+        boolean hasCustomer = booking.getCustomer() != null && booking.getCustomer().getUser() != null;
         if (!hasCustomer) return null; // không tài khoản → không có email để gửi
         User user = booking.getCustomer().getUser();
         if (user.getEmail() == null || user.getEmail().isBlank()) return null;
@@ -433,7 +441,7 @@ public class SeatIncidentService {
                 .map(bs -> bs.getSeat().displayLabel())
                 .collect(Collectors.toList());
 
-        IncidentResultResponse.CompensationResult comp2 = res.compensation();
+        // Đợt 1: voucherIssued=false, voucherCode=null — email xin lỗi KHÔNG kèm voucher.
         return new com.devcine.backend.dto.CancellationEmailData(
                 user.getEmail(),
                 user.getFullName(),
@@ -443,9 +451,9 @@ public class SeatIncidentService {
                 room != null ? room.getName() : "",
                 st.getStartTime(),
                 seatLabels,
-                comp2 != null && comp2.voucherIssued(),
-                comp2 != null ? comp2.voucherCode() : null,
-                voucherLabel,
+                false,
+                null,
+                null,
                 reason);
     }
 

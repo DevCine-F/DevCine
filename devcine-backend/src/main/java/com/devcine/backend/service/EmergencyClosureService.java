@@ -1,10 +1,8 @@
 package com.devcine.backend.service;
 
 import com.devcine.backend.dto.CancellationEmailData;
-import com.devcine.backend.entity.Promotion;
 import com.devcine.backend.event.CinemaEmergencyClosedEvent;
 import com.devcine.backend.repository.BookingRepository;
-import com.devcine.backend.repository.PromotionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -38,11 +36,8 @@ import java.util.List;
 public class EmergencyClosureService {
 
     private static final String CLOSURE_REASON = "Rạp đóng cửa đột xuất / Sự cố hệ thống";
-    /** Template đền bù: vé mời đền nguyên vé khi hủy chỗ (seed sẵn ở DataSeeder). */
-    private static final String COMP_TEMPLATE_CODE = "COMP_TICKET_FULL";
 
     private final BookingRepository bookingRepository;
-    private final PromotionRepository promotionRepository;
     private final SeatIncidentService seatIncidentService;
     private final MailService mailService;
 
@@ -57,33 +52,25 @@ public class EmergencyClosureService {
                 return;
             }
 
-            // Nạp MỘT LẦN template đền bù (dùng lại cho mọi đơn).
-            Promotion template = promotionRepository.findByCode(COMP_TEMPLATE_CODE).orElse(null);
-            Integer templateId = template != null ? template.getId() : null;
-            String templateLabel = template != null && template.getName() != null
-                    ? template.getName() : "Vé mời đền bù";
-            if (templateId == null) {
-                log.warn("Đóng cửa cụm rạp #{}: chưa seed template {} → sẽ chỉ hủy chỗ + ghi vết, không phát voucher.",
-                        event.cinemaId(), COMP_TEMPLATE_CODE);
-            }
-
+            // Đợt 1: CHƯA phát voucher — chỉ hủy chỗ, ghi vết PENDING và gửi email XIN LỖI. Voucher
+            // được Admin duyệt phát hàng loạt ở Đợt 2 (màn /admin/incidents).
             int cancelled = 0, mailed = 0, failed = 0;
             for (Integer bookingId : bookingIds) {
                 try {
                     CancellationEmailData emailData = seatIncidentService.cancelBookingForEmergency(
-                            bookingId, templateId, templateLabel, event.triggeredByStaffId(), CLOSURE_REASON);
+                            bookingId, event.triggeredByStaffId(), CLOSURE_REASON);
                     cancelled++;
                     if (emailData != null) {
-                        mailService.sendCancellationEmail(emailData);
+                        mailService.sendEmergencyApologyEmail(emailData);
                         mailed++;
                     }
                 } catch (Exception ex) {
                     failed++;
-                    log.error("Đền bù đóng cửa cụm rạp #{}: lỗi xử lý đơn #{}: {}",
+                    log.error("Đóng cửa cụm rạp #{}: lỗi xử lý đơn #{}: {}",
                             event.cinemaId(), bookingId, ex.getMessage(), ex);
                 }
             }
-            log.info("Đóng cửa cụm rạp #{}: xử lý {} đơn (gửi {} email, {} lỗi).",
+            log.info("Đóng cửa cụm rạp #{} (Đợt 1): hủy {} đơn (gửi {} email xin lỗi, {} lỗi).",
                     event.cinemaId(), cancelled, mailed, failed);
         } catch (Exception e) {
             // Bọc ngoài: sự cố toàn cục (vd query lỗi) không được ném ra khỏi luồng async

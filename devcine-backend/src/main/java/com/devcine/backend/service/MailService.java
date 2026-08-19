@@ -148,6 +148,86 @@ public class MailService {
     }
 
     /**
+     * Email ĐỢT 1 khi cụm rạp đóng cửa đột xuất: chỉ XIN LỖI + báo suất đã hủy, TUYỆT ĐỐI CHƯA
+     * kèm voucher. Thông tin đền bù sẽ gửi ở email Đợt 2 sau khi Admin phê duyệt phát hàng loạt.
+     * Best-effort & {@link Async}: một email lỗi không chặn cả batch; tắt mail thì bỏ qua.
+     */
+    @Async
+    public void sendEmergencyApologyEmail(CancellationEmailData data) {
+        if (!enabled) {
+            log.info("mail.enabled=false → bỏ qua email xin lỗi (Đợt 1) đơn {}", data.bookingCode());
+            return;
+        }
+        if (data.toEmail() == null || data.toEmail().isBlank()) {
+            log.warn("Bỏ qua email xin lỗi (Đợt 1) đơn {}: khách chưa có email", data.bookingCode());
+            return;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(data.toEmail());
+            helper.setSubject("DevCine • Thông báo hủy suất chiếu đơn " + data.bookingCode());
+            helper.setText(buildEmergencyApologyHtml(data), true);
+            mailSender.send(message);
+            log.info("Đã gửi email xin lỗi (Đợt 1) tới {} cho đơn {}", data.toEmail(), data.bookingCode());
+        } catch (Exception e) {
+            log.error("Gửi email xin lỗi (Đợt 1) thất bại cho đơn {}: {}", data.bookingCode(), e.getMessage(), e);
+        }
+    }
+
+    private String buildEmergencyApologyHtml(CancellationEmailData data) {
+        String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
+
+        StringBuilder seatBlock = new StringBuilder();
+        if (data.seatLabels() != null && !data.seatLabels().isEmpty()) {
+            seatBlock.append("<div style=\"margin-top:6px;\">");
+            for (String label : data.seatLabels()) {
+                seatBlock.append("<span style=\"display:inline-block;background:#fbecec;color:#8a1f1f;border-radius:6px;padding:4px 10px;margin:3px 4px 0 0;font-weight:700;font-size:13px;\">%s</span>"
+                        .formatted(escape(label)));
+            }
+            seatBlock.append("</div>");
+        }
+
+        return """
+                <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
+                  <div style="background:linear-gradient(135deg,#c0392b,#8a1f1f);padding:22px 24px;">
+                    <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
+                    <div style="color:#ffd9d3;font-size:13px;margin-top:4px;">Thông báo khẩn — Hủy suất chiếu</div>
+                  </div>
+                  <div style="padding:24px;">
+                    <p style="font-size:15px;color:#111;margin:0 0 4px;">Xin chào <b>%s</b>,</p>
+                    <p style="font-size:14px;color:#555;margin:0 0 18px;">DevCine vô cùng xin lỗi phải thông báo suất chiếu của bạn đã bị <b>hủy</b> do <b>%s</b>. Chúng tôi thành thật xin lỗi vì sự bất tiện ngoài ý muốn này.</p>
+
+                    <table style="width:100%%;border-collapse:collapse;background:#fafafa;border-radius:10px;">
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Mã đặt vé</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#8a1f1f;font-size:15px;">%s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Phim</td><td style="padding:8px 14px;text-align:right;font-weight:600;color:#111;">%s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Rạp / Phòng</td><td style="padding:8px 14px;text-align:right;color:#111;">%s • %s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Suất chiếu</td><td style="padding:8px 14px;text-align:right;color:#111;">%s</td></tr>
+                    </table>
+
+                    <div style="font-weight:700;color:#111;margin:18px 0 4px;">Ghế đã hủy</div>
+                    %s
+
+                    <div style="margin-top:22px;background:#fff8e6;border:1px solid #f0d98a;border-radius:12px;padding:16px 18px;">
+                      <div style="font-weight:700;color:#8a6d00;margin-bottom:4px;">Về việc đền bù</div>
+                      <div style="font-size:13px;color:#7a6a2f;line-height:1.6;">Bộ phận chăm sóc khách hàng của DevCine đang xử lý phương án đền bù xứng đáng cho bạn. Chúng tôi sẽ gửi <b>thông tin đền bù chi tiết trong một email tiếp theo</b> trong thời gian sớm nhất. Rất mong bạn thông cảm và chờ trong giây lát.</div>
+                    </div>
+
+                    <p style="font-size:12px;color:#999;margin-top:24px;line-height:1.6;">Nếu cần hỗ trợ thêm, vui lòng liên hệ hotline 1900 1234.<br/>Đây là email tự động, vui lòng không trả lời — DevCine Cinema</p>
+                  </div>
+                </div>
+                """.formatted(
+                escape(data.customerName()),
+                escape(data.reason() != null ? data.reason() : "sự cố tại rạp"),
+                escape(data.bookingCode()),
+                escape(data.movieTitle()),
+                escape(data.cinemaName()), escape(data.roomName()),
+                escape(time),
+                seatBlock.toString());
+    }
+
+    /**
      * Gửi mã OTP đặt lại mật khẩu (đồng bộ, NÉM lỗi để service báo người dùng
      * nếu SMTP lỗi).
      *
