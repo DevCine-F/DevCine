@@ -3,7 +3,9 @@ package com.devcine.backend.service;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.devcine.backend.dto.CancellationEmailData;
+import com.devcine.backend.dto.CompensationEmailData;
 import com.devcine.backend.dto.TicketEmailData;
 
 import jakarta.mail.internet.MimeMessage;
@@ -542,6 +545,194 @@ public class MailService {
                 mainBlock,
                 fnbBlock.toString(),
                 footer);   // footer chứa <br/> nên KHÔNG escape
+    }
+
+    // ===================== EMAIL ĐỀN BÙ ĐỢT 2 (4 MẪU) =====================
+
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    private String fmtDate(LocalDateTime dt) {
+        return dt != null ? dt.format(DATE_FMT) : "—";
+    }
+
+    /**
+     * Gửi email ĐỀN BÙ Đợt 2 sau khi Admin duyệt phát voucher (hoặc email đổi ghế Mẫu 3). Định tuyến
+     * 1 trong 4 mẫu theo {@link CompensationEmailData#templateType()} — giữ NGUYÊN VĂN nội dung mẫu.
+     * Best-effort & {@link Async}: một email lỗi không chặn cả batch; tắt mail thì bỏ qua.
+     */
+    @Async
+    public void sendCompensationEmail(CompensationEmailData data) {
+        if (!enabled) {
+            log.info("mail.enabled=false → bỏ qua email đền bù (Đợt 2) mẫu {}", data.templateType());
+            return;
+        }
+        if (data.toEmail() == null || data.toEmail().isBlank()) {
+            log.warn("Bỏ qua email đền bù (Đợt 2) mẫu {}: khách chưa có email", data.templateType());
+            return;
+        }
+        try {
+            String subject;
+            String html;
+            switch (data.templateType()) {
+                case CompensationEmailData.MONEY_VOUCHER -> {
+                    subject = "[DevCine] Gửi tặng Voucher đền bù sự cố hủy suất chiếu - Phim " + data.movieTitle();
+                    html = buildMoneyVoucherHtml(data);
+                }
+                case CompensationEmailData.TICKET_VOUCHER -> {
+                    subject = "[DevCine] Gửi tặng Voucher đền bù sự cố hủy suất chiếu - Phim " + data.movieTitle();
+                    html = buildTicketVoucherHtml(data);
+                }
+                case CompensationEmailData.SEAT_CHANGE -> {
+                    subject = "[DevCine] Cáo lỗi về sự cố vị trí ghế ngồi suất chiếu - Phim " + data.movieTitle();
+                    html = buildSeatChangeHtml(data);
+                }
+                case CompensationEmailData.DUAL -> {
+                    subject = "[DevCine] Cáo lỗi sự cố gián đoạn suất chiếu & Thông tin đền bù đặc biệt - Phim " + data.movieTitle();
+                    html = buildDualHtml(data);
+                }
+                default -> {
+                    log.warn("Loại email đền bù không hợp lệ: {} (đơn phim {})", data.templateType(), data.movieTitle());
+                    return;
+                }
+            }
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(data.toEmail());
+            helper.setSubject(subject);
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("Đã gửi email đền bù (mẫu {}) tới {} (phim {})", data.templateType(), data.toEmail(), data.movieTitle());
+        } catch (Exception e) {
+            log.error("Gửi email đền bù (mẫu {}) thất bại tới {}: {}", data.templateType(), data.toEmail(), e.getMessage(), e);
+        }
+    }
+
+    /** Khung chung (header DevCine + ghi chú email tự động) bọc quanh nội dung mẫu. */
+    private String compShell(String subtitle, String innerHtml) {
+        return """
+                <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
+                  <div style="background:linear-gradient(135deg,#c0392b,#8a1f1f);padding:22px 24px;">
+                    <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
+                    <div style="color:#ffd9d3;font-size:13px;margin-top:4px;">%s</div>
+                  </div>
+                  <div style="padding:24px;font-size:14px;color:#333;line-height:1.7;">
+                %s
+                  </div>
+                </div>
+                """.formatted(escape(subtitle), innerHtml);
+    }
+
+    /** Thẻ mã voucher + danh sách quyền lợi (lines đã là HTML an toàn — giá trị động đã escape khi dựng). */
+    private String voucherCard(String code, List<String> lines) {
+        StringBuilder li = new StringBuilder();
+        for (String l : lines) li.append("<li style=\"margin:4px 0;\">").append(l).append("</li>");
+        return """
+                <div style="text-align:center;background:#faf6e6;border:1px dashed #e0b400;border-radius:12px;padding:18px;margin:12px 0 6px;">
+                  <div style="font-size:12px;color:#8a6d00;margin-bottom:6px;">Mã Voucher</div>
+                  <span style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:4px;color:#111;">%s</span>
+                </div>
+                <ul style="font-size:13px;color:#444;line-height:1.7;padding-left:18px;margin:6px 0 0;">%s</ul>
+                """.formatted(escape(code), li.toString());
+    }
+
+    /** Mẫu 1 — Quy đổi thành Voucher mệnh giá tiền (đơn phức tạp, giá trị cao). */
+    private String buildMoneyVoucherHtml(CompensationEmailData d) {
+        String inner = """
+                <p>Chào bạn,</p>
+                <p>DevCine một lần nữa chân thành xin lỗi bạn vì sự cố kỹ thuật dẫn đến việc hủy suất chiếu <b>%s</b> vào ngày <b>%s</b> vừa qua.</p>
+                <p>Để hỗ trợ xử lý sự cố nhanh chóng và đảm bảo quyền lợi cho bạn, thay cho quy trình hoàn tiền qua cổng thanh toán, DevCine xin gửi tặng bạn 01 Mã Voucher Đặc Biệt có giá trị <b>%s</b> giá trị đơn hàng bạn đã thanh toán. Bạn có thể sử dụng mã này để đặt vé cho bất kỳ suất chiếu nào khác trong thời gian tới. Thông tin Voucher của bạn:</p>
+                %s
+                <p style="font-size:12px;color:#777;margin-top:10px;">(Lưu ý: Voucher có thể áp dụng đồng thời cho cả giao dịch mua bắp, nước tại rạp).</p>
+                <p>DevCine rất hy vọng mã voucher này sẽ giúp bạn có một trải nghiệm điện ảnh trọn vẹn và thoải mái hơn trong lần ghé thăm sắp tới. Nếu bạn cần bất kỳ hỗ trợ nào thêm, xin vui lòng liên hệ hotline hoặc phản hồi lại email này.</p>
+                <p>Cảm ơn bạn đã thấu hiểu và đồng hành cùng DevCine!</p>
+                <p style="margin-top:14px;">Trân trọng,<br/><b>DevCine Cinema</b></p>
+                """.formatted(
+                escape(d.movieTitle()),
+                escape(fmtDate(d.showDate())),
+                escape(d.voucherBenefitLabel()),
+                voucherCard(d.voucherCode(), List.of(
+                        "Giá trị ưu đãi: Giảm <b>" + escape(d.voucherBenefitLabel()) + "</b> cho tổng hóa đơn.",
+                        "Hạn sử dụng: Đến hết ngày <b>" + escape(fmtDate(d.voucherExpiry())) + "</b>.",
+                        "Phạm vi áp dụng: Đặt vé trực tuyến trên hệ thống DevCine hoặc mua trực tiếp tại quầy.")));
+        return compShell("Voucher đền bù sự cố hủy suất chiếu", inner);
+    }
+
+    /** Mẫu 2 — Quy đổi thành Voucher đổi vé xem phim miễn phí (đơn thuần vé). */
+    private String buildTicketVoucherHtml(CompensationEmailData d) {
+        String inner = """
+                <p>Chào bạn,</p>
+                <p>Liên quan đến sự cố hủy suất chiếu <b>%s</b> ngày <b>%s</b>, DevCine rất tiếc vì đã làm gián đoạn kế hoạch giải trí của bạn.</p>
+                <p>Thay cho lời tạ lỗi sâu sắc nhất và để đền bù cho đơn vé đã bị hủy, DevCine xin gửi tặng bạn Voucher giảm 100%% vé phim cho lần đặt tới, giúp bạn dễ dàng chọn lại một suất chiếu khác thay thế hoặc thưởng thức một bộ phim bất kỳ tại hệ thống rạp của chúng tôi. Thông tin Mã Đổi Vé:</p>
+                %s
+                <p>Mong bạn thông cảm cho sự cố ngoài ý muốn này. DevCine luôn mong muốn mang lại chất lượng phục vụ tốt nhất và rất mong sớm được gặp lại bạn tại rạp.</p>
+                <p style="margin-top:14px;">Thân mến,<br/><b>DevCine Cinema</b></p>
+                """.formatted(
+                escape(d.movieTitle()),
+                escape(fmtDate(d.showDate())),
+                voucherCard(d.voucherCode(), List.of(
+                        "Quyền lợi: Giảm 100% số tiền dựa trên số vé bị huỷ (Tương ứng với số vé bạn đã mua).",
+                        "Hạn sử dụng: Đến hết ngày <b>" + escape(fmtDate(d.voucherExpiry())) + "</b>.",
+                        "Hướng dẫn sử dụng: Bạn chỉ cần nhập mã Code này tại bước Thanh toán trên Website/App DevCine khi đặt vé online hoặc lưu vào kho ưu đãi trên tài khoản của bạn tại hệ thống DevCine.")));
+        return compShell("Voucher đền bù sự cố hủy suất chiếu", inner);
+    }
+
+    /** Mẫu 3 — Nhóm sự cố nhẹ (đổi ghế, khách vẫn xem phim). Hai block: quà tại quầy HOẶC voucher. */
+    private String buildSeatChangeHtml(CompensationEmailData d) {
+        String giftBlock;
+        if (d.counterGift()) {
+            giftBlock = """
+                    <p>Gửi tặng bạn <b>%s</b> miễn phí. Bạn chỉ cần đưa email này cho nhân viên tại quầy F&B trước khi vào phòng chiếu để nhận quà.</p>
+                    """.formatted(escape(d.counterGiftLabel() != null ? d.counterGiftLabel() : "phần quà"));
+        } else {
+            giftBlock = """
+                    <p>Gửi tặng bạn 01 Mã Voucher ưu đãi cho lần xem phim tiếp theo. Thông tin Voucher của bạn:</p>
+                    %s
+                    """.formatted(voucherCard(d.voucherCode(), List.of(
+                    "Giá trị ưu đãi: Giảm <b>" + escape(d.voucherBenefitLabel()) + "</b> cho hóa đơn đặt vé hoặc bắp nước.",
+                    "Hạn sử dụng: Đến hết ngày <b>" + escape(fmtDate(d.voucherExpiry())) + "</b>.")));
+        }
+        String inner = """
+                <p>Chào bạn,</p>
+                <p>DevCine chân thành xin lỗi bạn vì một số yếu tố kỹ thuật khách quan dẫn đến việc chúng tôi phải thay đổi vị trí ghế ngồi của bạn trong suất chiếu <b>%s</b> vào ngày <b>%s</b>.</p>
+                <p>Dù suất chiếu vẫn diễn ra bình thường, nhưng chúng tôi hiểu sự thay đổi đột xuất này có thể mang lại chút bất tiện và ảnh hưởng đến trải nghiệm xem phim của bạn.</p>
+                <p>Để gửi lời xin lỗi và cảm ơn sự thông cảm của bạn, DevCine xin gửi tặng bạn một phần quà nhỏ:</p>
+                %s
+                <p>DevCine luôn nỗ lực mang đến dịch vụ tốt nhất. Nếu bạn cần bất kỳ hỗ trợ nào thêm, xin vui lòng liên hệ hotline hoặc phản hồi lại email này.</p>
+                <p>Cảm ơn bạn đã thấu hiểu và đồng hành cùng DevCine!</p>
+                <p style="margin-top:14px;">Trân trọng,<br/><b>DevCine Cinema</b></p>
+                """.formatted(
+                escape(d.movieTitle()),
+                escape(fmtDate(d.showDate())),
+                giftBlock);
+        return compShell("Cáo lỗi về sự cố vị trí ghế ngồi", inner);
+    }
+
+    /** Mẫu 4 — Đền bù kép (Voucher hoàn giá trị đơn + Voucher F&B) cho khách VIP / đơn có F&B. */
+    private String buildDualHtml(CompensationEmailData d) {
+        String inner = """
+                <p>Chào bạn,</p>
+                <p>DevCine vô cùng xin lỗi bạn vì sự cố <b>%s</b> buộc chúng tôi phải tạm ngưng hoạt động phòng chiếu và hủy suất chiếu <b>%s</b> vào ngày <b>%s</b> vừa qua. Chúng tôi hiểu sự việc này đã ảnh hưởng lớn đến kế hoạch giải trí của bạn.</p>
+                <p>Thay cho lời tạ lỗi sâu sắc nhất và để đền bù xứng đáng cho sự bất tiện này, DevCine xin gửi tặng bạn <b>Gói Đền Bù Kép</b>, bao gồm Voucher hoàn trả toàn bộ giá trị đơn hàng và Quà tặng dịch vụ kèm theo. Thông tin chi tiết như sau:</p>
+                <div style="font-weight:700;color:#111;margin:16px 0 2px;">1. Voucher đền bù giá trị đơn hàng</div>
+                %s
+                <div style="font-weight:700;color:#111;margin:18px 0 2px;">2. Voucher quà tặng Bắp Nước (F&B)</div>
+                %s
+                <p style="font-size:12px;color:#777;margin-top:10px;">(Lưu ý: Cả 2 voucher đều có thể sử dụng trực tuyến trên hệ thống DevCine hoặc mua trực tiếp tại quầy, và có thể áp dụng đồng thời trong cùng một lần ghé thăm).</p>
+                <p>DevCine rất hy vọng gói đền bù này sẽ phần nào bù đắp được sự gián đoạn vừa qua, và mong bạn sẽ cho chúng tôi cơ hội được phục vụ bạn trọn vẹn hơn trong lần tới. Nếu bạn cần bất kỳ hỗ trợ nào thêm, xin vui lòng liên hệ hotline hoặc phản hồi lại email này.</p>
+                <p>Cảm ơn bạn đã thấu hiểu và tiếp tục ủng hộ DevCine!</p>
+                <p style="margin-top:14px;">Trân trọng,<br/><b>DevCine Cinema</b></p>
+                """.formatted(
+                escape(d.incidentReason() != null ? d.incidentReason() : "bảo trì đột xuất"),
+                escape(d.movieTitle()),
+                escape(fmtDate(d.showDate())),
+                voucherCard(d.voucherCode(), List.of(
+                        "Giá trị ưu đãi: Giảm <b>" + escape(d.voucherBenefitLabel()) + "</b> cho tổng hóa đơn đặt vé.",
+                        "Hạn sử dụng: Đến hết ngày <b>" + escape(fmtDate(d.voucherExpiry())) + "</b>.")),
+                voucherCard(d.fnbVoucherCode(), List.of(
+                        "Quyền lợi: Đổi miễn phí <b>" + escape(d.fnbBenefitLabel() != null ? d.fnbBenefitLabel() : "phần bắp nước") + "</b> tại quầy.",
+                        "Hạn sử dụng: Đến hết ngày <b>" + escape(fmtDate(d.fnbExpiry())) + "</b>.")));
+        return compShell("Thông tin đền bù đặc biệt", inner);
     }
 
     private String formatMoney(java.math.BigDecimal amount) {

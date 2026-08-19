@@ -56,6 +56,7 @@ public class SeatIncidentService {
     private final VoucherRepository voucherRepository;
     private final StaffRepository staffRepository;
     private final TicketService ticketService;
+    private final MailService mailService;
 
     // ===================== TRA CỨU =====================
 
@@ -276,6 +277,27 @@ public class SeatIncidentService {
         List<Integer> incidentIds = saved.stream().map(SeatIncident::getId).toList();
 
         boolean emailResent = ticketService.resendTicketEmailIfOnline(booking.getId());
+
+        // Mẫu 3: khách CÓ TÀI KHOẢN được phát voucher đền bù đổi ghế → gửi email cáo lỗi vị trí ghế.
+        // Khách vãng lai (counterGift) nhận quà trực tiếp tại quầy nên không gửi email.
+        if (comp.voucherIssued() && booking.getCustomer() != null
+                && booking.getCustomer().getUser() != null) {
+            User u = booking.getCustomer().getUser();
+            if (u.getEmail() != null && !u.getEmail().isBlank()) {
+                String benefit = "GIFT_FNB".equals(comp.type())
+                        ? "01 phần bắp nước (combo quà tặng)"
+                        : String.format("%,d", comp.value() != null ? comp.value().longValue() : 0L) + "đ";
+                mailService.sendCompensationEmail(new com.devcine.backend.dto.CompensationEmailData(
+                        com.devcine.backend.dto.CompensationEmailData.SEAT_CHANGE,
+                        u.getEmail(), u.getFullName(),
+                        st.getMovie() != null ? st.getMovie().getTitle() : "Phim",
+                        st.getStartTime(),
+                        comp.voucherCode(), benefit, LocalDateTime.now().plusDays(90),
+                        null, null, null,
+                        false, null, null));
+            }
+        }
+
         return IncidentResultResponse.builder()
                 .incidentIds(incidentIds).swaps(swapResults).compensation(comp)
                 .reprint(ticketService.buildPrintData(booking.getId()))
