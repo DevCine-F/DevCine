@@ -180,6 +180,9 @@ onMounted(fetchAll)
               <span class="material-symbols-outlined text-base text-primary">location_on</span> {{ fullAddress }}
             </p>
 
+            <!-- Mô tả rạp (phân cấp bằng opacity thấp hơn địa chỉ) -->
+            <p v-if="cinema.description" class="text-white/60 text-sm leading-relaxed mt-3 max-w-2xl line-clamp-3">{{ cinema.description }}</p>
+
             <!-- Thông tin nhanh -->
             <div class="flex flex-wrap items-center gap-x-7 gap-y-2 mt-7 pt-6 border-t border-white/15 text-sm text-white/75">
               <span v-if="cinema.rooms" class="flex items-center gap-2">
@@ -188,16 +191,24 @@ onMounted(fetchAll)
               <span v-if="cinema.hotline" class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-lg">call</span><span class="font-mono">{{ formatHotline(cinema.hotline) }}</span>
               </span>
+              <span v-if="cinema.openingTime && cinema.closingTime" class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-lg">schedule</span>{{ cinema.openingTime }} – {{ cinema.closingTime }}
+              </span>
               <span class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-lg">event_available</span>{{ availableDates.length }} ngày có suất chiếu
               </span>
+            </div>
+
+            <!-- Tiện ích: hàng chip nhỏ, màu hợp nền tối -->
+            <div v-if="amenitiesList.length" class="flex flex-wrap gap-2 mt-6">
+              <span v-for="a in amenitiesList" :key="a" class="px-3 py-1 rounded-full bg-white/10 border border-white/20 text-white/90 text-xs font-bold backdrop-blur-sm">{{ a }}</span>
             </div>
           </div>
         </section>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
           <!-- Lịch chiếu -->
-          <section class="lg:col-span-2 order-2 lg:order-1">
+          <section class="lg:col-span-2 order-1">
             <h2 class="text-2xl font-bold font-headline mb-6 flex items-center gap-3">
               <span class="material-symbols-outlined text-primary">event</span> Lịch chiếu
             </h2>
@@ -254,41 +265,9 @@ onMounted(fetchAll)
             </template>
           </section>
 
-          <!-- Thông tin rạp + bản đồ -->
-          <aside class="order-1 lg:order-2 space-y-6">
-            <div class="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/10">
-              <h3 class="font-bold font-headline text-lg mb-4">Thông tin rạp</h3>
-              <p v-if="cinema.description" class="text-sm text-on-surface-variant leading-relaxed mb-5">{{ cinema.description }}</p>
-
-              <div class="space-y-3 text-sm">
-                <div class="flex items-start gap-3">
-                  <span class="material-symbols-outlined text-primary text-lg">location_on</span>
-                  <span class="text-on-surface-variant">{{ fullAddress }}</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <span class="material-symbols-outlined text-primary text-lg">call</span>
-                  <span class="text-on-surface-variant font-mono">{{ formatHotline(cinema.hotline) }}</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <span class="material-symbols-outlined text-primary text-lg">meeting_room</span>
-                  <span class="text-on-surface-variant">{{ cinema.rooms }} phòng chiếu</span>
-                </div>
-                <div v-if="cinema.openingTime && cinema.closingTime" class="flex items-center gap-3">
-                  <span class="material-symbols-outlined text-primary text-lg">schedule</span>
-                  <span class="text-on-surface-variant">Giờ hoạt động: {{ cinema.openingTime }} – {{ cinema.closingTime }}</span>
-                </div>
-              </div>
-
-              <div v-if="amenitiesList.length" class="mt-5 pt-5 border-t border-outline-variant/10">
-                <p class="text-[0.7rem] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-3">Tiện ích</p>
-                <div class="flex flex-wrap gap-2">
-                  <span v-for="a in amenitiesList" :key="a" class="px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold">{{ a }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Bản đồ -->
-            <div class="rounded-3xl overflow-hidden border border-outline-variant/10 h-72">
+          <!-- Bản đồ (độc quyền cột phải, sticky + kéo giãn cho cân đối cột trái) -->
+          <aside class="order-2 lg:sticky lg:top-28 self-start">
+            <div class="rounded-3xl overflow-hidden border border-outline-variant/10 h-96 lg:h-[34rem]">
               <iframe :src="mapSrc" class="w-full h-full" style="border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
             </div>
           </aside>

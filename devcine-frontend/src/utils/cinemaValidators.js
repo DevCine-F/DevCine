@@ -11,14 +11,25 @@ export const titleCase = (s) =>
 
 export const rawDigits = (s) => (s || '').replace(/\D/g, '')
 
-// Định dạng hotline cho dễ đọc: tổng đài 1800/1900 -> nhóm 4; số khác -> 4-3-3...
-export const formatHotline = (s) => {
-  const d = rawDigits(s).slice(0, 11)
-  if (!d) return ''
-  if (d.startsWith('1800') || d.startsWith('1900')) {
-    return (d.slice(0, 4) + ' ' + d.slice(4).replace(/(\d{4})(?=\d)/g, '$1 ')).trim()
+// Cắt chuỗi số thành các cụm `size`, nhưng KHÔNG để lại 1 số lẻ mồ côi ở cuối:
+// nếu cụm cuối chỉ có 1 chữ số thì gộp ngược vào cụm trước. VD ("12345", 4) -> "12345".
+const groupDigits = (str, size) => {
+  const parts = []
+  for (let i = 0; i < str.length; i += size) parts.push(str.slice(i, i + size))
+  if (parts.length > 1 && parts[parts.length - 1].length === 1) {
+    parts[parts.length - 2] += parts.pop()
   }
-  return (d.slice(0, 4) + ' ' + d.slice(4).replace(/(\d{3})(?=\d)/g, '$1 ')).trim()
+  return parts.join(' ')
+}
+
+// Định dạng hotline cho dễ đọc: tổng đài 1800/1900 -> nhóm 4; số khác -> nhóm 3.
+// Làm sạch TƯỜNG MINH mọi khoảng trắng trước khi cắt (dù rawDigits cũng loại \D),
+// và nhóm số sao cho không bao giờ để lại 1 số lẻ đứng riêng ở cuối.
+export const formatHotline = (s) => {
+  const d = rawDigits(String(s ?? '').replace(/\s+/g, '')).slice(0, 11)
+  if (!d) return ''
+  const size = d.startsWith('1800') || d.startsWith('1900') ? 4 : 3
+  return (d.slice(0, 4) + ' ' + groupDigits(d.slice(4), size)).trim()
 }
 
 // Chuẩn hoá danh sách tiện ích: tách theo dấu phẩy, trim, bỏ rỗng/trùng, nối lại "a, b, c".
