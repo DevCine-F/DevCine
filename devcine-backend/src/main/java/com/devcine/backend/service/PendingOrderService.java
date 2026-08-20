@@ -25,6 +25,7 @@ public class PendingOrderService {
     private final BookingService bookingService;
     private final PosHoldService posHoldService;
     private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
     // Penalty Cache: key = "penalty:{posTerminalId}:{showtimeId}:{seatId}", value = expiresAt (System.currentTimeMillis + 5 mins)
     private final Map<String, Long> penaltyCache = new ConcurrentHashMap<>();
@@ -37,12 +38,24 @@ public class PendingOrderService {
     public void applyPenalty(String posTerminalId, Integer showtimeId, Integer seatId) {
         cleanExpiredPenalties();
         penaltyCache.put("penalty:" + posTerminalId + ":" + showtimeId + ":" + seatId, System.currentTimeMillis() + 300_000);
+        try {
+            redisTemplate.opsForValue().set("penalty:" + posTerminalId + ":" + showtimeId + ":" + seatId, "1", 300, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Không thể lưu penalty vào Redis: {}", e.getMessage());
+        }
     }
 
     private boolean isPenalized(String posTerminalId, Integer showtimeId, Integer seatId) {
         cleanExpiredPenalties();
         Long expiresAt = penaltyCache.get("penalty:" + posTerminalId + ":" + showtimeId + ":" + seatId);
-        return expiresAt != null && expiresAt > System.currentTimeMillis();
+        if (expiresAt != null && expiresAt > System.currentTimeMillis()) {
+            return true;
+        }
+        try {
+            return Boolean.TRUE.equals(redisTemplate.hasKey("penalty:" + posTerminalId + ":" + showtimeId + ":" + seatId));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Transactional
@@ -88,6 +101,15 @@ public class PendingOrderService {
         booking.setExpiresAt(expiresAt);
         bookingRepository.save(booking);
 
+        try {
+            long ttlSeconds = java.time.Duration.between(now, expiresAt).getSeconds();
+            if (ttlSeconds > 0) {
+                redisTemplate.opsForValue().set("booking:hold:" + booking.getId(), "HOLD", ttlSeconds, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        } catch (Exception e) {
+            log.warn("Không thể đăng ký TTL Redis cho POS booking #{}: {}", booking.getId(), e.getMessage());
+        }
+
         return booking;
     }
 
@@ -108,6 +130,12 @@ public class PendingOrderService {
         booking.setStatus("PAYING");
         booking.setExpiresAt(now.plusMinutes(2)); // Gia hạn thêm 2 phút để thanh toán
         bookingRepository.save(booking);
+
+        try {
+            redisTemplate.opsForValue().set("booking:hold:" + booking.getId(), "HOLD", 120, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Không thể gia hạn TTL Redis cho POS booking #{}: {}", booking.getId(), e.getMessage());
+        }
     }
     
     @Transactional(readOnly = true)
@@ -125,6 +153,11 @@ public class PendingOrderService {
         }
         
         posHoldService.releaseHold(bookingId); // Reuses the logic to release seats and emit WS
+        try {
+            redisTemplate.delete("booking:hold:" + bookingId);
+        } catch (Exception e) {
+            log.warn("Không thể xóa TTL Redis cho POS booking #{}: {}", bookingId, e.getMessage());
+        }
     }
     
     @Transactional

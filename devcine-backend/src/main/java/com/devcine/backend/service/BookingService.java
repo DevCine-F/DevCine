@@ -44,6 +44,8 @@ public class BookingService {
     private final VoucherService voucherService;
     private final PosHoldService posHoldService;
     private final SeatLayoutSnapshotService seatLayoutSnapshotService;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -242,6 +244,12 @@ public class BookingService {
             }
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = now.plusMinutes(10);
+        if (showtime.getStartTime() != null && showtime.getStartTime().isBefore(expiresAt)) {
+            expiresAt = showtime.getStartTime();
+        }
+
         Booking booking = Booking.builder()
                 .customer(customer)
                 .showtime(showtime)
@@ -249,7 +257,8 @@ public class BookingService {
                 .channel(channel) // ONLINE (khách đặt) | POS (bán quầy) — nguồn tin cậy tách email
                 .bookingCode(UUID.randomUUID().toString().substring(0, 10).toUpperCase())
                 .status("HOLD") // Initial status
-                .createdAt(LocalDateTime.now())
+                .createdAt(now)
+                .expiresAt(expiresAt)
                 .paymentMethod(request.getPaymentMethod())
                 .totalPrice(BigDecimal.ZERO)
                 .finalPrice(BigDecimal.ZERO)
@@ -397,6 +406,20 @@ public class BookingService {
         
         booking.setFinalPrice(finalPrice);
         bookingRepository.save(booking);
+
+        // Đăng ký TTL vào Redis để tự động nhả ghế khi hết hạn (Event-Driven)
+        if (booking.getExpiresAt() != null) {
+            try {
+                long ttlSeconds = java.time.Duration.between(LocalDateTime.now(), booking.getExpiresAt()).getSeconds();
+                if (ttlSeconds > 0) {
+                    redisTemplate.opsForValue().set("booking:hold:" + booking.getId(), "HOLD", ttlSeconds, java.util.concurrent.TimeUnit.SECONDS);
+                    log.info("Đã đăng ký Redis TTL {}s cho booking #{}", ttlSeconds, booking.getId());
+                }
+            } catch (Exception e) {
+                log.warn("Không thể đăng ký TTL Redis cho booking #{}: {}", booking.getId(), e.getMessage());
+            }
+        }
+
         return booking;
     }
 
@@ -563,6 +586,13 @@ public class BookingService {
             booking.setPaymentRef(paymentRef); // mã đối soát cổng thanh toán
         }
         bookingRepository.save(booking);
+
+        // Xóa key Redis để không bị nhả ghế nhầm do event hết hạn
+        try {
+            redisTemplate.delete("booking:hold:" + bookingId);
+        } catch (Exception e) {
+            log.warn("Không thể xóa TTL Redis cho booking #{}: {}", bookingId, e.getMessage());
+        }
         
         // Update seat status + sinh vé QR — gom saveAll thay vì lưu từng bản ghi (giảm round-trip).
         // Fetch kèm seat (+seatType) trong 1 query để dựng nhãn ghế cho email không bị N+1.
@@ -671,6 +701,49 @@ public class BookingService {
         } catch (Exception e) {
             // Không để lỗi dựng email ảnh hưởng giao dịch đặt vé đã hoàn tất
             log.error("Lỗi chuẩn bị email vé cho đơn {}: {}", booking.getBookingCode(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Tự động hủy đơn và giải phóng ghế khi nhận sự kiện hết hạn từ Redis (hoặc task dọn dẹp).
+     */
+    @Transactional
+    public void expireBooking(Integer bookingId) {
+        Booking lockedBooking = bookingRepository.findByIdWithPessimisticLock(bookingId).orElse(null);
+        if (lockedBooking == null) return;
+
+        String status = lockedBooking.getStatus();
+        // Chỉ xử lý các đơn chưa thanh toán
+        if ("PENDING_PAYMENT".equals(status) || "PAYING".equals(status) || "HOLD".equals(status)) {
+            lockedBooking.setStatus("EXPIRED");
+            bookingRepository.save(lockedBooking);
+
+            List<BookingSeat> seats = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId);
+            for (BookingSeat bs : seats) {
+                if ("HOLD".equals(bs.getStatus())) {
+                    bs.setStatus("EXPIRED");
+                    // Áp dụng penalty 5 phút nếu là đơn giữ từ POS
+                    if (lockedBooking.getPosTerminalId() != null) {
+                        try {
+                            String penaltyKey = "penalty:" + lockedBooking.getPosTerminalId() + ":" + lockedBooking.getShowtime().getId() + ":" + bs.getSeat().getId();
+                            redisTemplate.opsForValue().set(penaltyKey, "1", 300, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (Exception pe) {
+                            log.warn("Không thể lưu penalty Redis cho posTerminalId {}: {}", lockedBooking.getPosTerminalId(), pe.getMessage());
+                        }
+                    }
+                }
+            }
+            bookingSeatRepository.saveAll(seats);
+
+            log.info("Đã tự động nhả đơn quá hạn: booking #{}, posTerminalId: {}", lockedBooking.getId(), lockedBooking.getPosTerminalId());
+
+            try {
+                List<Integer> seatIds = seats.stream().map(bs -> bs.getSeat().getId()).collect(java.util.stream.Collectors.toList());
+                Object payload = java.util.Map.of("type", "SEAT_RELEASED", "seatIds", seatIds, "by", "SYSTEM_CLEANUP");
+                messagingTemplate.convertAndSend("/topic/showtime/" + lockedBooking.getShowtime().getId(), payload);
+            } catch (Exception e) {
+                log.warn("Mạng WebSocket ngắt kết nối đột ngột khi cleanup booking #{}: {}", lockedBooking.getId(), e.getMessage());
+            }
         }
     }
 }
