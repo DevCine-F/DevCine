@@ -83,6 +83,11 @@ public class BannerController {
             if (startDate == null) startDate = now; // để trống = bắt đầu ngay
             // endDate để trống = treo banner vô thời hạn (hiển thị đến khi tự tắt/xoá).
             if (endDate != null && !endDate.isAfter(startDate)) return badRequest("Ngày kết thúc phải lớn hơn ngày bắt đầu.");
+            // Banner theo phim: ngày bắt đầu không được vượt quá ngày kết thúc chiếu của phim.
+            if ("MOVIE".equalsIgnoreCase(mode)) {
+                String startErr = checkStartBeforeMovieEnd(movieId, startDate);
+                if (startErr != null) return badRequest(startErr);
+            }
 
             Banner banner = Banner.builder()
                     .title(title)
@@ -160,6 +165,11 @@ public class BannerController {
                     && !banner.getEndDate().isAfter(banner.getStartDate())) {
                 return badRequest("Ngày kết thúc phải lớn hơn ngày bắt đầu.");
             }
+            // Banner theo phim: ngày bắt đầu không được vượt quá ngày kết thúc chiếu của phim.
+            if ("MOVIE".equalsIgnoreCase(effMode)) {
+                String startErr = checkStartBeforeMovieEnd(effMovieId, banner.getStartDate());
+                if (startErr != null) return badRequest(startErr);
+            }
             bannerRepository.save(banner);
             // Đồng bộ cờ cho cả phim cũ (nếu đổi phim/bỏ chế độ MOVIE) lẫn phim mới.
             bannerSyncService.syncMovieFlag(oldMovieId);
@@ -236,6 +246,22 @@ public class BannerController {
         return null;
     }
 
+    /**
+     * Banner theo phim: ngày kết thúc kế thừa từ phim, nên ngày bắt đầu KHÔNG được vượt quá
+     * ngày kết thúc chiếu của phim. Trả về thông báo lỗi nếu vi phạm; null nếu hợp lệ hoặc không áp dụng
+     * (phim không có endDate = chiếu vô thời hạn, hoặc startDate để trống).
+     */
+    private String checkStartBeforeMovieEnd(Integer movieId, LocalDateTime startDate) {
+        if (movieId == null || startDate == null) return null;
+        Movie movie = movieRepository.findById(movieId).orElse(null);
+        if (movie == null || movie.getEndDate() == null) return null;
+        // Phim còn chiếu hết trọn ngày endDate -> chốt mốc 23:59:59 để so sánh.
+        if (startDate.isAfter(movie.getEndDate().atTime(23, 59, 59))) {
+            return "Ngày bắt đầu không được sau ngày kết thúc chiếu của phim.";
+        }
+        return null;
+    }
+
     /** Bắt buộc thứ tự ưu tiên là số nguyên 1–99. null = không truyền. */
     private Integer parsePriority(Object raw) {
         if (raw == null) return null;
@@ -273,10 +299,10 @@ public class BannerController {
         }
     }
 
-    /** Loại bỏ mọi thẻ HTML/script khỏi tiêu đề, tránh lưu mã độc vào DB. */
+    /** Loại bỏ mọi thẻ HTML/script khỏi tiêu đề + gộp khoảng trắng liên tiếp, tránh lưu mã độc/rác vào DB. */
     private String sanitizeTitle(String raw) {
         if (raw == null) return null;
-        String cleaned = HTML_TAG.matcher(raw).replaceAll("").trim();
+        String cleaned = HTML_TAG.matcher(raw).replaceAll("").replaceAll("\\s+", " ").trim();
         return cleaned.isEmpty() ? null : cleaned;
     }
 
