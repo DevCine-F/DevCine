@@ -23,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -55,6 +58,7 @@ public class SeatIncidentService {
     private final PromotionRepository promotionRepository;
     private final VoucherRepository voucherRepository;
     private final StaffRepository staffRepository;
+    private final BookingFnbRepository bookingFnbRepository;
     private final TicketService ticketService;
     private final MailService mailService;
 
@@ -477,6 +481,146 @@ public class SeatIncidentService {
                 null,
                 null,
                 reason);
+    }
+
+    // ===================== DUYỆT ĐỀN BÙ HÀNG LOẠT (ĐỢT 2) =====================
+
+    private static final BigDecimal THRESHOLD_MONEY_HIGH = new BigDecimal("300000");
+    private static final BigDecimal THRESHOLD_MONEY_MID = new BigDecimal("150000");
+    /** Hạng thành viên coi là VIP (đền gói kép). */
+    private static final Set<String> VIP_TIERS = Set.of("GOLD", "PLATINUM", "DIAMOND");
+
+    /**
+     * ĐỢT 2 — Admin/Manager duyệt phát voucher HÀNG LOẠT cho các sự cố đóng cửa đột xuất còn PENDING.
+     * Với mỗi đơn: định tuyến mẫu đền bù (theo F&B / hạng VIP / giá trị), phát voucher, gắn vào bản
+     * ghi sự cố (xóa dấu PENDING → idempotent) và gửi email Đợt 2. Mỗi đơn bọc try/catch riêng: một
+     * đơn lỗi chỉ log + bỏ qua, không kéo đổ cả lô. Chịu Strict Cinema Scoping qua {@link #resolveCinemaScope}.
+     *
+     * @return thống kê {approved, mailed, failed}
+     */
+    @Transactional
+    public Map<String, Integer> approveEmergencyBatch() {
+        Integer cinemaId = resolveCinemaScope();
+        List<SeatIncident> pending = incidentRepository.findPendingEmergency(cinemaId);
+        if (pending.isEmpty()) {
+            return Map.of("approved", 0, "mailed", 0, "failed", 0);
+        }
+
+        // Batch phát hiện đơn CÓ mua F&B (tránh N+1) — dùng để chọn gói đền bù kép.
+        List<Integer> bookingIds = pending.stream().map(si -> si.getBooking().getId()).distinct().collect(Collectors.toList());
+        Set<Integer> bookingsWithFnb = new HashSet<>();
+        for (Object[] row : bookingFnbRepository.countFnbByBookingIds(bookingIds)) {
+            bookingsWithFnb.add((Integer) row[0]);
+        }
+
+        // Nạp MỘT LẦN các template đền bù dùng chung cho cả lô.
+        Map<String, Promotion> tpl = new HashMap<>();
+        for (String code : List.of("COMP_TICKET_FULL", "COMP_100K", "COMP_50K", "COMP_FNB_COMBO")) {
+            promotionRepository.findByCode(code).ifPresent(p -> tpl.put(code, p));
+        }
+
+        int approved = 0, mailed = 0, failed = 0;
+        for (SeatIncident si : pending) {
+            try {
+                com.devcine.backend.dto.CompensationEmailData mail =
+                        approveOneEmergency(si, bookingsWithFnb.contains(si.getBooking().getId()), tpl);
+                approved++;
+                if (mail != null) {
+                    mailService.sendCompensationEmail(mail);
+                    mailed++;
+                }
+            } catch (Exception ex) {
+                failed++;
+                log.error("Duyệt đền bù sự cố #{} thất bại: {}", si.getId(), ex.getMessage(), ex);
+            }
+        }
+        log.info("Duyệt đền bù đóng cửa (Đợt 2): {} đơn (gửi {} email, {} lỗi).", approved, mailed, failed);
+        return Map.of("approved", approved, "mailed", mailed, "failed", failed);
+    }
+
+    /**
+     * Xử lý MỘT sự cố PENDING: định tuyến mẫu, phát voucher, gắn vào bản ghi (xóa PENDING), dựng dữ
+     * liệu email Đợt 2. Trả {@code null} nếu khách chưa có email (vẫn phát voucher vào ví "Ưu đãi").
+     */
+    private com.devcine.backend.dto.CompensationEmailData approveOneEmergency(
+            SeatIncident si, boolean hasFnb, Map<String, Promotion> tpl) {
+
+        Booking booking = si.getBooking();
+        Customer customer = booking.getCustomer();
+        User user = customer.getUser();
+        Showtime st = si.getShowtime();
+        String movieTitle = st != null && st.getMovie() != null ? st.getMovie().getTitle() : "Phim";
+        LocalDateTime showDate = st != null ? st.getStartTime() : null;
+        LocalDateTime expiry = LocalDateTime.now().plusDays(90);
+
+        String tier = customer.getMembershipTier() != null ? customer.getMembershipTier().toUpperCase() : "";
+        boolean vip = VIP_TIERS.contains(tier);
+        BigDecimal finalPrice = booking.getFinalPrice() != null ? booking.getFinalPrice() : BigDecimal.ZERO;
+
+        String templateType;
+        Promotion primary;
+        Promotion fnb = null;
+        String benefit;
+        String fnbBenefit = null;
+
+        if (hasFnb || vip) {
+            // Mẫu 4 — đền bù kép (voucher đền nguyên đơn + voucher F&B).
+            templateType = com.devcine.backend.dto.CompensationEmailData.DUAL;
+            primary = tpl.get("COMP_TICKET_FULL");
+            fnb = tpl.get("COMP_FNB_COMBO");
+            benefit = "100% giá trị đơn hàng (" + money(finalPrice) + ")";
+            fnbBenefit = "01 phần bắp nước (combo quà tặng)";
+        } else if (finalPrice.compareTo(THRESHOLD_MONEY_HIGH) >= 0) {
+            // Mẫu 1 — voucher mệnh giá tiền (đơn thuần vé giá trị cao).
+            templateType = com.devcine.backend.dto.CompensationEmailData.MONEY_VOUCHER;
+            primary = tpl.get("COMP_100K");
+            benefit = "100.000 VNĐ";
+        } else if (finalPrice.compareTo(THRESHOLD_MONEY_MID) >= 0) {
+            templateType = com.devcine.backend.dto.CompensationEmailData.MONEY_VOUCHER;
+            primary = tpl.get("COMP_50K");
+            benefit = "50.000 VNĐ";
+        } else {
+            // Mẫu 2 — voucher đổi vé miễn phí (đơn thuần vé giá trị thấp).
+            templateType = com.devcine.backend.dto.CompensationEmailData.TICKET_VOUCHER;
+            primary = tpl.get("COMP_TICKET_FULL");
+            benefit = "100% vé";
+        }
+        if (primary == null || (fnb == null && com.devcine.backend.dto.CompensationEmailData.DUAL.equals(templateType))) {
+            throw new IllegalStateException("Thiếu template voucher đền bù (chưa seed COMP_*).");
+        }
+
+        // Phát voucher chính + gắn vào bản ghi sự cố (xóa dấu PENDING → lần duyệt sau bỏ qua).
+        Voucher primaryVoucher = issueCompVoucher(primary, customer, expiry);
+        si.setVoucher(primaryVoucher);
+        si.setCompensationType(compTypeOf(primary));
+        si.setCompensationAmount(primary.getDiscountValue() != null ? primary.getDiscountValue() : BigDecimal.ZERO);
+
+        String fnbCode = null;
+        if (fnb != null) {
+            issueCompVoucher(fnb, customer, expiry); // voucher F&B thứ 2 (không gắn FK vào incident đơn trị)
+            fnbCode = fnb.getCode();
+        }
+        incidentRepository.save(si);
+
+        boolean canEmail = user.getEmail() != null && !user.getEmail().isBlank();
+        if (!canEmail) return null;
+
+        return new com.devcine.backend.dto.CompensationEmailData(
+                templateType, user.getEmail(), user.getFullName(),
+                movieTitle, showDate,
+                primary.getCode(), benefit, expiry,
+                fnbCode, fnbBenefit, fnb != null ? expiry : null,
+                false, null, si.getReason());
+    }
+
+    /** Phát một voucher đền bù (COMP_*) cho khách, hiệu lực đến {@code validUntil}. */
+    private Voucher issueCompVoucher(Promotion promo, Customer customer, LocalDateTime validUntil) {
+        return voucherRepository.save(Voucher.builder()
+                .promotion(promo).customer(customer).isUsed(false).validUntil(validUntil).build());
+    }
+
+    private String money(BigDecimal v) {
+        return String.format("%,d", v != null ? v.longValue() : 0L) + "đ";
     }
 
     // ===================== LỊCH SỬ =====================

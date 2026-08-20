@@ -345,8 +345,31 @@ function switchTab(tab) {
 
 const fmtPrice = (n) => (n != null ? Number(n).toLocaleString('vi-VN') + 'đ' : '0đ')
 const fmtTime = (s) => (s ? new Date(s).toLocaleString('vi-VN') : '')
-const typeLabel = (t) => ({ RELOCATE: 'Đổi ghế', CANCEL: 'Hủy chỗ', SEAT_MAINTENANCE: 'Khóa ghế' }[t] || t)
-const compLabel = (t) => ({ NONE: '—', DISCOUNT: 'Voucher giảm', GIFT_FNB: 'Quà F&B', GIFT_TICKET: 'Vé mời' }[t] || t)
+const typeLabel = (t) => ({ RELOCATE: 'Đổi ghế', CANCEL: 'Hủy chỗ', SEAT_MAINTENANCE: 'Khóa ghế', EMERGENCY_CLOSURE: 'Sự cố hệ thống' }[t] || t)
+const compLabel = (t) => ({ NONE: '—', PENDING: 'Chờ đền bù', DISCOUNT: 'Voucher giảm', GIFT_FNB: 'Quà F&B', GIFT_TICKET: 'Vé mời' }[t] || t)
+
+// ===== Đợt 2: phê duyệt phát voucher hàng loạt cho sự cố đóng cửa đột xuất =====
+const approving = ref(false)
+async function approveEmergency() {
+  const ok = await confirm.show({
+    title: 'Phê duyệt phát Voucher đợt sự cố',
+    message: 'Hệ thống sẽ phát voucher đền bù và gửi email cho TẤT CẢ đơn bị ảnh hưởng bởi sự cố đóng cửa còn đang chờ. Thao tác này không thể hoàn tác. Tiếp tục?',
+    confirmText: 'Phê duyệt phát Voucher',
+    tone: 'primary',
+  })
+  if (!ok) return
+  approving.value = true
+  try {
+    const { data } = await incidentApi.emergencyApprove()
+    const r = data.data ?? data
+    toast.success(`Đã duyệt ${r.approved || 0} đơn · gửi ${r.mailed || 0} email${r.failed ? ` · ${r.failed} lỗi` : ''}.`)
+    loadHistory(0)
+  } catch (e) {
+    toast.error(friendlyError(e, 'Không phê duyệt được đợt đền bù sự cố.'))
+  } finally {
+    approving.value = false
+  }
+}
 
 onMounted(async () => {
   try {
@@ -561,6 +584,7 @@ onMounted(async () => {
             <option value="RELOCATE">Đổi ghế</option>
             <option value="CANCEL">Hủy chỗ</option>
             <option value="SEAT_MAINTENANCE">Khóa ghế</option>
+            <option value="EMERGENCY_CLOSURE">Sự cố hệ thống tự động</option>
           </select>
         </div>
         <div>
@@ -576,6 +600,11 @@ onMounted(async () => {
           <input v-model="histFilters.to" type="date" class="block mt-1 py-2 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none" />
         </div>
         <button @click="loadHistory(0)" class="py-2 px-4 rounded-lg bg-primary text-on-primary font-bold text-sm hover:opacity-90">Lọc</button>
+        <button @click="approveEmergency" :disabled="approving"
+          class="ml-auto py-2 px-4 rounded-lg bg-amber-500/90 text-black font-bold text-sm hover:bg-amber-500 disabled:opacity-50 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-base">{{ approving ? 'progress_activity' : 'redeem' }}</span>
+          <span :class="approving ? 'animate-pulse' : ''">Phê duyệt phát Voucher đợt sự cố</span>
+        </button>
       </div>
 
       <div v-if="loadingHist" class="py-12 text-center text-on-surface-variant"><span class="material-symbols-outlined animate-spin">progress_activity</span></div>

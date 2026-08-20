@@ -101,4 +101,12 @@ public class SeatIncidentController {
     public ResponseEntity<ApiResponse<IncidentListItem>> detail(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(incidentService.detail(id)));
     }
+
+    /** ĐỢT 2: duyệt phát voucher hàng loạt cho các sự cố đóng cửa đột xuất còn chờ đền bù. */
+    @PostMapping("/emergency/approve")
+    @PreAuthorize("@perm.can('incident_handling','handle')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Integer>>> approveEmergencyBatch() {
+        return ResponseEntity.ok(ApiResponse.ok(
+                incidentService.approveEmergencyBatch(), "Đã duyệt & phát voucher đền bù đợt sự cố."));
+    }
 }

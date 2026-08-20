@@ -114,6 +114,8 @@ export const incidentApi = {
   cancel: (payload) => api.post('/staff/incidents/cancel', payload),
   history: (params) => api.get('/staff/incidents', { params }),
   detail: (id) => api.get(`/staff/incidents/${id}`),
+  // Đợt 2: duyệt phát voucher hàng loạt cho các sự cố đóng cửa đột xuất còn chờ đền bù
+  emergencyApprove: () => api.post('/staff/incidents/emergency/approve'),
 };
 
 export const posPendingOrderApi = {

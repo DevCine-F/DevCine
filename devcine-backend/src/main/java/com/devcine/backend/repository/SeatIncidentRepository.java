@@ -65,4 +65,20 @@ public interface SeatIncidentRepository extends JpaRepository<SeatIncident, Inte
            "LEFT JOIN FETCH si.voucher v LEFT JOIN FETCH v.promotion " +
            "WHERE si.id = :id")
     Optional<SeatIncident> findDetailById(@Param("id") Integer id);
+
+    /**
+     * Sự cố ĐÓNG CỬA ĐỘT XUẤT còn CHỜ đền bù (Đợt 1 đã hủy chỗ, đánh dấu PENDING, chưa phát voucher).
+     * Mỗi đơn bị ảnh hưởng chỉ có ĐÚNG MỘT bản ghi mỏ neo mang compensation_type='PENDING' → tránh
+     * phát trùng voucher. Nạp kèm khách/suất/phim để dựng email Đợt 2 & định tuyến mẫu (tránh N+1).
+     * cinemaId = null: ADMIN duyệt toàn hệ thống; khác null: chỉ cơ sở đó (canh ở Service).
+     */
+    @Query("SELECT si FROM SeatIncident si " +
+           "JOIN FETCH si.booking b " +
+           "JOIN FETCH b.customer cust JOIN FETCH cust.user " +
+           "JOIN FETCH si.showtime st JOIN FETCH st.movie " +
+           "WHERE si.incidentType = 'EMERGENCY_CLOSURE' AND si.compensationType = 'PENDING' " +
+           "AND si.voucher IS NULL " +
+           "AND (:cinemaId IS NULL OR si.cinema.id = :cinemaId) " +
+           "ORDER BY si.createdAt ASC")
+    java.util.List<SeatIncident> findPendingEmergency(@Param("cinemaId") Integer cinemaId);
 }
