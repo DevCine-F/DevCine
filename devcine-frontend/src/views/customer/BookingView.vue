@@ -19,16 +19,24 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToastStore()
 
+// Đã bấm "Xác nhận thanh toán": ghế của phiên này đã chốt vào đơn (giữ dưới bookingId ở server).
+// Từ mốc này KHÔNG để sự kiện real-time gỡ ghế / báo "đã bán ở nơi khác" nữa — vì chính lệnh
+// bán của mình sẽ broadcast SEAT_SOLD cho đúng những ghế này, và nếu bộ lọc mySeats hụt (chọn ghế
+// lúc WS chưa kết nối, WS reconnect mất session…) thì màn "Đặt vé thành công" sẽ mất ghế + toast lỗi ảo.
+const committing = ref(false)
+
 // ===== Khóa ghế real-time (WebSocket/STOMP) — đồng bộ với quầy POS & khách online khác =====
 const seatRealtime = useSeatRealtime({
   by: 'Khách online',
   onDenied: (seatId) => {
+    if (committing.value) return // đang chốt thanh toán → bỏ qua, ghế đã thuộc đơn của mình
     const seat = store.selectedSeats.find(s => s.seatId === seatId)
     if (seat) store.toggleSeat(seat) // gỡ ghế đã giành hụt khỏi lựa chọn
     const label = seatLabel(seat)
     toast.error(`Ghế ${label} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
   },
   onSold: (seatIds) => {
+    if (committing.value) return // đang chốt thanh toán → bỏ qua echo SEAT_SOLD của chính mình
     const lost = store.selectedSeats.filter(s => seatIds.includes(s.seatId))
     lost.forEach(seat => store.toggleSeat(seat))
     if (lost.length) {
@@ -998,38 +1006,53 @@ const getBookingSeatClass = (seat) => {
 }
 
 const proceedToPayment = async () => {
+  if (isPaying.value) return // chặn double-submit
   if (holdExpiredNow()) { handleHoldExpired(); return } // hết giờ giữ chỗ → chặn thanh toán
-  // Thường ghế đã được giữ sẵn ở nền khi mở bước 4 → ensureHeld trả về ngay; nếu chưa thì giữ ở đây
-  const success = await ensureHeld()
-  if (success) {
-    if (paymentMethod.value === 'VNPAY') {
-      try {
-        // Dùng giá cuối do backend tính ở bước giữ ghế (đã trừ voucher) để tránh lệch/giảm 2 lần
-        const { data } = await paymentApi.createPayment(store.finalPrice, store.bookingId);
-        if (data.code === '00') {
-          sessionStorage.setItem('bookingState', JSON.stringify(store.$state));
-          window.location.href = data.data; // Redirect to VNPAY Sandbox
-        } else {
-          toast.error('Không thể tạo liên kết thanh toán. Vui lòng thử lại.');
+  isPaying.value = true
+  // Chốt lựa chọn: từ đây bỏ qua sự kiện real-time gỡ ghế cho ĐÚNG những ghế đang mua (xem onSold/onDenied)
+  committing.value = true
+  let navigatingAway = false // true khi đã điều hướng rời trang → KHÔNG mở khoá cờ ở finally
+  try {
+    // Thường ghế đã được giữ sẵn ở nền khi mở bước 4 → ensureHeld trả về ngay; nếu chưa thì giữ ở đây
+    const success = await ensureHeld()
+    if (success) {
+      if (paymentMethod.value === 'VNPAY') {
+        try {
+          // Dùng giá cuối do backend tính ở bước giữ ghế (đã trừ voucher) để tránh lệch/giảm 2 lần
+          const { data } = await paymentApi.createPayment(store.finalPrice, store.bookingId);
+          if (data.code === '00') {
+            sessionStorage.setItem('bookingState', JSON.stringify(store.$state));
+            navigatingAway = true
+            window.location.href = data.data; // Redirect to VNPAY Sandbox (giữ isPaying/committing tới khi rời trang)
+            return
+          } else {
+            toast.error('Không thể tạo liên kết thanh toán. Vui lòng thử lại.');
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error(friendlyError(err, 'Không tạo được cổng thanh toán, vui lòng thử lại.'));
         }
-      } catch (err) {
-        console.error(err);
-        toast.error(friendlyError(err, 'Không tạo được cổng thanh toán, vui lòng thử lại.'));
+      } else {
+        const paid = await store.confirmPayment(paymentMethod.value)
+        if (paid) {
+          navigatingAway = true
+          router.push('/success') // rời trang (unmount) → không cần mở khoá cờ
+          return
+        } else {
+          toast.error('Thanh toán chưa thành công, vui lòng thử lại.')
+        }
       }
     } else {
-      const paid = await store.confirmPayment(paymentMethod.value)
-      if (paid) {
-        router.push('/success')
-      } else {
-        toast.error('Thanh toán chưa thành công, vui lòng thử lại.')
-      }
+      held.value = false
+      // store.lastHoldError là message backend → chuẩn hoá sang tiếng Việt, không lộ chuỗi kỹ thuật
+      toast.error(friendlyError(store.lastHoldError, 'Giữ ghế thất bại, vui lòng thử lại.'))
+      // Làm mới sơ đồ ghế để cập nhật trạng thái mới nhất
+      await store.fetchSeats()
     }
-  } else {
-    held.value = false
-    // store.lastHoldError là message backend → chuẩn hoá sang tiếng Việt, không lộ chuỗi kỹ thuật
-    toast.error(friendlyError(store.lastHoldError, 'Giữ ghế thất bại, vui lòng thử lại.'))
-    // Làm mới sơ đồ ghế để cập nhật trạng thái mới nhất
-    await store.fetchSeats()
+  } finally {
+    // Chỉ mở khoá khi thanh toán CHƯA thành công (không rời trang) → cho khách thử lại / chọn ghế khác.
+    // Khi đã điều hướng (VNPAY/redirect hoặc /success) thì giữ khoá tới lúc component unmount.
+    if (!navigatingAway) { isPaying.value = false; committing.value = false }
   }
 }
 
