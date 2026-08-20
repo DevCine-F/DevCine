@@ -150,9 +150,11 @@ public class VoucherService {
         if (promo == null) {
             return new VoucherEval(false, "Không tìm thấy chương trình ưu đãi.", BigDecimal.ZERO);
         }
-        if (promo.getMinOrderValue() != null && orderTotal.compareTo(promo.getMinOrderValue()) < 0) {
+        // Đơn tối thiểu: đọc từ SNAPSHOT của voucher (đóng băng lúc cấp)
+        BigDecimal minOrder = voucher.effectiveMinOrderValue();
+        if (minOrder != null && orderTotal.compareTo(minOrder) < 0) {
             return new VoucherEval(false,
-                    "Đơn tối thiểu " + promo.getMinOrderValue().toBigInteger() + "đ để áp dụng mã này.", BigDecimal.ZERO);
+                    "Đơn tối thiểu " + minOrder.toBigInteger() + "đ để áp dụng mã này.", BigDecimal.ZERO);
         }
         if (promo.getApplicableMovieId() != null && movieId != null
                 && !promo.getApplicableMovieId().equals(movieId)) {
@@ -198,7 +200,7 @@ public class VoucherService {
      * Public để BookingService cũng có thể gọi trước evaluate().
      */
     public void ensureSnapshotPublic(Voucher v) {
-        if (v.getDiscountValueSnapshot() == null) {
+        if (v.getDiscountValueSnapshot() == null || v.getMinOrderValueSnapshot() == null) {
             v.snapshotFrom(v.getPromotion());
             voucherRepository.save(v);
         }

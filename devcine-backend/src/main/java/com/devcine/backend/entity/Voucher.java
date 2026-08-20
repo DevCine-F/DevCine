@@ -59,12 +59,17 @@ public class Voucher {
     @Column(name = "max_ticket_qty_snapshot")
     private Integer maxTicketQuantitySnapshot;
 
+    /** Giá trị đơn tối thiểu snapshot (0/null = không yêu cầu) */
+    @Column(name = "min_order_value_snapshot", precision = 15, scale = 2)
+    private BigDecimal minOrderValueSnapshot;
+
     /** Copy thông số giảm giá từ Promotion vào snapshot — gọi khi tạo voucher. */
     public void snapshotFrom(Promotion promo) {
         this.discountTypeSnapshot = promo.getDiscountType();
         this.discountValueSnapshot = promo.getDiscountValue();
         this.maxDiscountAmountSnapshot = promo.getMaxDiscountAmount();
         this.maxTicketQuantitySnapshot = promo.getMaxTicketQuantity();
+        this.minOrderValueSnapshot = promo.getMinOrderValue();
     }
 
     // ═══ Getter an toàn: ưu tiên snapshot, fallback Promotion LIVE ═══
@@ -83,5 +88,9 @@ public class Voucher {
 
     public Integer effectiveMaxTicketQuantity() {
         return maxTicketQuantitySnapshot != null ? maxTicketQuantitySnapshot : promotion.getMaxTicketQuantity();
+    }
+
+    public BigDecimal effectiveMinOrderValue() {
+        return minOrderValueSnapshot != null ? minOrderValueSnapshot : promotion.getMinOrderValue();
     }
 }
