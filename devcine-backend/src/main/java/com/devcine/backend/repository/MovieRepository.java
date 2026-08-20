@@ -17,6 +17,16 @@ public interface MovieRepository extends JpaRepository<Movie, Integer> {
     @Query("SELECT DISTINCT m FROM Movie m LEFT JOIN FETCH m.genres ORDER BY m.id DESC")
     List<Movie> findAllWithGenres();
 
+    /**
+     * Nạp chỉ phim CÓ THỂ HIỂN THỊ (loại bỏ archived/cancelled/disabled ngay trong JPQL) —
+     * tránh over-fetch toàn bộ phim rồi lọc ở Java tầng service (Nạp dư dữ liệu).
+     * Dùng cho getNowShowing/getUpcoming/getAllMovies (public API).
+     */
+    @Query("SELECT DISTINCT m FROM Movie m LEFT JOIN FETCH m.genres " +
+           "WHERE LOWER(m.status) NOT IN ('archived', 'cancelled', 'disabled') " +
+           "ORDER BY m.id DESC")
+    List<Movie> findVisibleWithGenres();
+
     @Query("SELECT m FROM Movie m LEFT JOIN FETCH m.genres WHERE m.id = :id")
     Optional<Movie> findByIdWithGenres(@Param("id") Integer id);
 

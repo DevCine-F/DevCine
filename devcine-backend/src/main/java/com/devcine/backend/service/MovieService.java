@@ -53,7 +53,7 @@ public class MovieService {
             new java.util.concurrent.atomic.AtomicReference<>(null);
 
     public List<MovieSummaryDTO> getAllMovies() {
-        List<MovieSummaryDTO> list = movieRepository.findAllWithGenres().stream()
+        List<MovieSummaryDTO> list = movieRepository.findVisibleWithGenres().stream()
                 .map(this::toSummary)
                 .collect(Collectors.toList());
         return enrichAndSort(list);
@@ -80,8 +80,8 @@ public class MovieService {
     public List<MovieSummaryDTO> getNowShowing() {
         syncIfStale();
         LocalDate today = LocalDate.now(VN_ZONE);
-        List<MovieSummaryDTO> list = movieRepository.findAllWithGenres().stream()
-                .filter(this::isVisible)
+        // findVisibleWithGenres() đã loại archived/cancelled/disabled trong JPQL (tránh over-fetch)
+        List<MovieSummaryDTO> list = movieRepository.findVisibleWithGenres().stream()
                 .filter(m -> m.getReleaseDate() != null && !m.getReleaseDate().isAfter(today)) // releaseDate <= today
                 .filter(m -> m.getEndDate() == null || !m.getEndDate().isBefore(today))        // endDate == null || endDate >= today
                 .map(this::toSummary)
@@ -98,8 +98,8 @@ public class MovieService {
     public List<MovieSummaryDTO> getUpcoming() {
         syncIfStale();
         LocalDate today = LocalDate.now(VN_ZONE);
-        List<MovieSummaryDTO> list = movieRepository.findAllWithGenres().stream()
-                .filter(this::isVisible)
+        // findVisibleWithGenres() đã loại archived/cancelled/disabled trong JPQL (tránh over-fetch)
+        List<MovieSummaryDTO> list = movieRepository.findVisibleWithGenres().stream()
                 .filter(m -> m.getReleaseDate() != null && m.getReleaseDate().isAfter(today)) // releaseDate > today (nghiêm ngặt)
                 .map(this::toSummary)
                 .collect(Collectors.toList());

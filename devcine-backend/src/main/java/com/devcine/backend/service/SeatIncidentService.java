@@ -399,7 +399,9 @@ public class SeatIncidentService {
         // được đổi/hủy thủ công trước đó) → batch bền vững với dữ liệu hỗn hợp.
         // Nạp 1 lần tập ghế đã xử lý → tránh N query existsActiveForBookingSeat trong stream filter.
         java.util.Set<Integer> processedSeatIds = incidentRepository.findProcessedSeatIdsByBooking(bookingId);
-        List<Integer> bookingSeatIds = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId).stream()
+        // Nạp toàn bộ booking seats 1 lần (kể cả để lấy label sau này → tránh double-query)
+        List<BookingSeat> allBookingSeats = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId);
+        List<Integer> bookingSeatIds = allBookingSeats.stream()
                 .filter(bs -> "SOLD".equalsIgnoreCase(bs.getStatus()))
                 .filter(bs -> !processedSeatIds.contains(bs.getSeat().getId()))
                 .map(BookingSeat::getId)
@@ -428,8 +430,10 @@ public class SeatIncidentService {
         Showtime st = booking.getShowtime();
         Room room = st.getRoom();
         Cinema cinema = room != null ? room.getCinema() : null;
-        List<String> seatLabels = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId).stream()
-                .filter(bs -> bookingSeatIds.contains(bs.getId()))
+        // Tái dùng allBookingSeats đã nạp ở trên → tránh query thứ 2 chỉ để lấy seat label
+        java.util.Set<Integer> cancelledIds = new java.util.HashSet<>(bookingSeatIds);
+        List<String> seatLabels = allBookingSeats.stream()
+                .filter(bs -> cancelledIds.contains(bs.getId()))
                 .map(bs -> bs.getSeat().displayLabel())
                 .collect(Collectors.toList());
 

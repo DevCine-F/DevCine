@@ -50,7 +50,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "WHERE m.status = 'active' AND s.startTime >= :now ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimes(@Param("now") LocalDateTime now);
 
-    @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
+    @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
            "WHERE r.cinema.id = :cinemaId " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findByCinemaId(@Param("cinemaId") Integer cinemaId);
@@ -156,12 +156,14 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     // ===== Lịch chiếu có lọc + phân trang (trang /lich-chieu) =====
 
     // Suất của 1 RẠP trong khoảng [start, end] — chỉ phim đang chiếu (ẩn phim đã lưu trữ)
+    // cinema đã JOIN FETCH (tránh N+1 khi toPublicDTO gọi getRoom().getCinema())
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
            "WHERE c.id = :cinemaId AND m.status = 'active' AND s.startTime >= :start AND s.startTime <= :end ORDER BY m.title ASC, s.startTime ASC")
     List<Showtime> findByCinemaAndRange(@Param("cinemaId") Integer cinemaId,
                                         @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // Suất của 1 PHIM trong khoảng [start, end], lọc theo thành phố (rỗng = tất cả) — chỉ phim đang chiếu
+    // cinema đã JOIN FETCH (tránh N+1 khi toPublicDTO gọi getRoom().getCinema())
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
            "WHERE m.id = :movieId AND m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
            "ORDER BY c.name ASC, s.startTime ASC")
