@@ -336,15 +336,13 @@ const synopsisError = computed(() => {
 });
 const dateError = computed(() => {
   const { startDate, endDate } = newMovie.value;
-  // Ngày khởi chiếu ≥ hôm nay: chỉ áp dụng khi TẠO MỚI (sửa phim đang chiếu giữ nguyên ngày cũ).
-  if (!props.isEditing && startDate && startDate < todayStr.value) return "Ngày khởi chiếu phải từ hôm nay trở đi.";
   if (startDate && endDate && endDate <= startDate) return "Ngày kết thúc phải sau ngày khởi chiếu ít nhất 1 ngày.";
   return "";
 });
 
 // Gom tất cả điều kiện lỗi → khóa nút Xuất bản/Cập nhật khi bất kỳ trường nào vi phạm.
 // Áp dụng ĐỒNG NHẤT cho cả THÊM MỚI lẫn SỬA PHIM: giá trị sai luôn chặn, và các trường
-// bắt buộc cũng phải đủ ở cả 2 chế độ (chỉ riêng "ngày khởi chiếu ≥ hôm nay" là create-only).
+// bắt buộc cũng phải đủ ở cả 2 chế độ.
 const isFormInvalid = computed(() => {
   const m = newMovie.value;
 
@@ -407,7 +405,7 @@ const handleSave = async () => {
   if (selectedGenres.value.length === 0) e.genres = "Vui lòng chọn ít nhất 1 thể loại phim.";
   if (selectedFormats.value.length === 0) e.formats = "Vui lòng chọn ít nhất 1 định dạng hỗ trợ.";
 
-  // Ngày: bắt buộc + ràng buộc logic (riêng "≥ hôm nay" chỉ áp khi tạo mới, xử lý trong dateError).
+  // Ngày: bắt buộc + ràng buộc logic.
   if (!m.startDate) e.dates = "Vui lòng chọn ngày khởi chiếu.";
   else if (!m.endDate) e.dates = "Vui lòng chọn ngày kết thúc (dự kiến).";
   else if (dateError.value) e.dates = dateError.value;
@@ -685,12 +683,12 @@ const handleSave = async () => {
             <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày khởi chiếu <span class="text-red-500">*</span></label>
-                <input v-model="newMovie.startDate" @input="clearErr('dates')" type="date" :min="isEditing ? undefined : todayStr" :disabled="hasShowtimes" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="[ (errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20', hasShowtimes ? 'opacity-50 cursor-not-allowed bg-slate-800/50 pointer-events-none' : '' ]" />
+                <input v-model="newMovie.startDate" @input="clearErr('dates')" type="date" :disabled="hasShowtimes" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="[ (errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20', hasShowtimes ? 'opacity-50 cursor-not-allowed bg-slate-800/50 pointer-events-none' : '' ]" />
                 <p v-if="hasShowtimes" class="text-xs text-amber-400/80 mt-1.5 flex items-center gap-1 font-medium">Phim đang có lịch chiếu hoạt động, không thể thay đổi ngày khởi chiếu.</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Ngày kết thúc (Dự kiến) <span class="text-red-500">*</span></label>
-                <input v-model="newMovie.endDate" @input="clearErr('dates')" type="date" :min="newMovie.startDate || (isEditing ? undefined : todayStr)" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20'" />
+                <input v-model="newMovie.endDate" @input="clearErr('dates')" type="date" :min="newMovie.startDate || undefined" class="w-full bg-surface-container-high border-b focus:border-primary text-sm py-3 px-4 text-on-surface transition-all outline-none rounded-t-lg" :class="(errors.dates || dateError) ? 'border-red-500' : 'border-outline-variant/20'" />
               </div>
             </div>
             <p v-if="errors.dates || dateError" class="text-[10px] text-red-400 font-bold px-1 -mt-3">{{ errors.dates || dateError }}</p>
