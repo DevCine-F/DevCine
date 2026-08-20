@@ -26,8 +26,16 @@ public class DataSeeder {
     public CommandLineRunner initData(
             RoleRepository roleRepository,
             SystemSettingRepository systemSettingRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         return args -> {
+
+            // ===== MIGRATION CỘT TRÊN BẢNG PROMOTIONS & VOUCHERS =====
+            try {
+                jdbcTemplate.execute("ALTER TABLE promotions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;");
+                jdbcTemplate.execute("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_order_value_snapshot NUMERIC(15, 2);");
+            } catch (Exception ignored) {
+            }
 
             // ===== ROLES =====
             Role adminRole = roleRepository.findByName("ADMIN").orElseGet(()

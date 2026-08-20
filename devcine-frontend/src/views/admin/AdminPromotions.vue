@@ -284,7 +284,7 @@ const editStartLocked = ref(false)
 const openVoucherDrawer = () => {
   editingVoucherId.value = null
   editStartLocked.value = false
-  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', startDate: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: null, maxTicketQuantity: null, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
+  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', startDate: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: 0, maxTicketQuantity: 0, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
   voucherErrors.value = {}
   pctLimitWarn.value = ''
   movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
@@ -299,17 +299,19 @@ const openEditVoucher = (promo) => {
     type: promo.discountType || 'PERCENTAGE',
     value: promo.discountValue != null ? Number(promo.discountValue) : null,
     allowPointExchange: !!promo.allowPointRedemption,
-    pointsRequired: promo.pointsRequired || null,
-    title: promo.name || '', description: promo.description || '',
+    pointsRequired: promo.pointsRequired != null ? Number(promo.pointsRequired) : null,
+    title: promo.name || '',
+    description: promo.description || '',
     startDate: promo.startDate ? String(promo.startDate).slice(0, 10) : '',
     expiry: promo.endDate ? String(promo.endDate).slice(0, 10) : '',
-    minOrderValue: promo.minOrderValue != null ? Number(promo.minOrderValue) : null,
+    minOrderValue: promo.minOrderValue != null ? Number(promo.minOrderValue) : 0,
     applicableMovieId: promo.applicableMovieId != null ? promo.applicableMovieId : '',
     customerEligibility: promo.customerEligibility || 'ALL',
-    usageLimit: promo.usageLimit || null,
-    maxTicketQuantity: promo.maxTicketQuantity || null,
-    maxDiscountAmount: promo.maxDiscountAmount != null ? Number(promo.maxDiscountAmount) : null,
-    cinemaMode: 'all', selectedCinemas: []
+    usageLimit: promo.usageLimit != null ? Number(promo.usageLimit) : 0,
+    maxTicketQuantity: promo.maxTicketQuantity != null ? Number(promo.maxTicketQuantity) : 0,
+    maxDiscountAmount: promo.maxDiscountAmount != null ? Number(promo.maxDiscountAmount) : 0,
+    cinemaMode: 'all',
+    selectedCinemas: []
   }
   // Voucher ĐANG CHẠY (chưa có ngày bắt đầu = áp dụng ngay, hoặc bắt đầu <= hôm nay) → khóa ô ngày bắt đầu
   editStartLocked.value = !promo.startDate || String(promo.startDate).slice(0, 10) <= todayStr.value
@@ -455,15 +457,36 @@ const maxTicketError = computed(() => {
   return ''
 })
 
+// Lỗi "Đơn tối thiểu" theo thời gian thực (khi Tiền cố định: Min = giá trị giảm; Max = 999.999.999)
+const minOrderValueError = computed(() => {
+  const v = newVoucher.value
+  if (v.minOrderValue == null || v.minOrderValue === '') return ''
+  const mov = Number(v.minOrderValue)
+  if (Number.isNaN(mov)) return 'Đơn tối thiểu không hợp lệ.'
+  if (mov < 0) return 'Đơn tối thiểu phải là số nguyên ≥ 0.'
+  if (mov > MAX_MONEY) return 'Đơn tối thiểu không được vượt quá 999.999.999đ.'
+  if (isFixed.value && v.value != null && v.value !== '') {
+    const dv = Number(v.value)
+    if (!Number.isNaN(dv) && dv > 0 && mov < dv) {
+      return `Đơn tối thiểu phải từ ${fmtThousand(dv)}đ trở lên (≥ giá trị giảm).`
+    }
+  }
+  return ''
+})
+
 // ---- (3) RÀNG BUỘC CHÉO (phản ứng ngay khi đổi loại/giá trị) ----
-// Loại "Tiền cố định": trần Giảm tối đa = chính giá trị giảm và bị khoá.
+// Loại "Tiền cố định": trần Giảm tối đa & Đơn tối thiểu tự động lấy theo giá trị giảm
 const isFixed = computed(() => newVoucher.value.type === 'FIXED_AMOUNT')
 watch(
   () => [newVoucher.value.type, newVoucher.value.value],
   () => {
     if (isFixed.value) {
-      newVoucher.value.maxDiscountAmount = newVoucher.value.value != null ? Number(newVoucher.value.value) : null
+      const valNum = newVoucher.value.value != null && newVoucher.value.value !== '' ? Number(newVoucher.value.value) : null
+      newVoucher.value.maxDiscountAmount = valNum
       clearVErr('maxDiscountAmount')
+      // Đơn tối thiểu tự động đồng bộ theo Giá trị giảm (VNĐ)
+      newVoucher.value.minOrderValue = valNum
+      clearVErr('minOrderValue')
     }
   }
 )
@@ -517,23 +540,33 @@ const validateVoucher = () => {
     }
   }
 
-  // minOrderAmount: BẮT BUỘC, số nguyên >= 0 (nhập 0 nếu không yêu cầu)
+  // minOrderAmount: BẮT BUỘC, số nguyên >= 0 (nhập 0 nếu không yêu cầu; khi Tiền cố định: Min = giá trị giảm; Max = 999.999.999)
   const minOrder = Number(v.minOrderValue || 0)
-  if (v.minOrderValue == null || v.minOrderValue === '') e.minOrderValue = 'Vui lòng nhập đơn tối thiểu (nhập 0 nếu không yêu cầu).'
-  else if (!Number.isInteger(minOrder) || minOrder < 0) e.minOrderValue = 'Đơn tối thiểu phải là số nguyên ≥ 0.'
-  else if (minOrder > MAX_MONEY) e.minOrderValue = 'Đơn tối thiểu không được vượt quá 999.999.999đ.'
+  if (v.minOrderValue == null || v.minOrderValue === '') {
+    e.minOrderValue = isFixed.value ? 'Vui lòng nhập đơn tối thiểu (≥ giá trị giảm).' : 'Vui lòng nhập đơn tối thiểu (nhập 0 nếu không yêu cầu).'
+  } else if (!Number.isInteger(minOrder) || minOrder < 0) {
+    e.minOrderValue = 'Đơn tối thiểu phải là số nguyên ≥ 0.'
+  } else if (minOrder > MAX_MONEY) {
+    e.minOrderValue = 'Đơn tối thiểu không được vượt quá 999.999.999đ.'
+  } else if (isFixed.value && !Number.isNaN(dv) && dv > 0 && minOrder < dv) {
+    e.minOrderValue = `Đơn tối thiểu phải từ ${fmtThousand(dv)}đ trở lên (≥ giá trị giảm).`
+  }
 
-  // usageLimit: BẮT BUỘC, số nguyên >= 0 (0 = không giới hạn)
-  const usage = Number(v.usageLimit || 0)
-  if (v.usageLimit == null || v.usageLimit === '') e.usageLimit = 'Vui lòng nhập giới hạn lượt dùng (nhập 0 nếu không giới hạn).'
-  else if (!Number.isInteger(usage) || usage < 0) e.usageLimit = 'Giới hạn lượt dùng phải là số nguyên ≥ 0.'
-  else if (usage > MAX_USAGE) e.usageLimit = 'Giới hạn lượt dùng không được vượt quá 9.999.999.'
+  // usageLimit: số nguyên >= 0 (để trống hoặc 0 = không giới hạn)
+  const usage = v.usageLimit != null && v.usageLimit !== '' ? Number(v.usageLimit) : 0
+  if (Number.isNaN(usage) || !Number.isInteger(usage) || usage < 0) {
+    e.usageLimit = 'Giới hạn lượt dùng phải là số nguyên ≥ 0.'
+  } else if (usage > MAX_USAGE) {
+    e.usageLimit = 'Giới hạn lượt dùng không được vượt quá 9.999.999.'
+  }
 
-  // maxApplicableTickets: BẮT BUỘC, số nguyên >= 0 (0 = không giới hạn)
-  const maxTk = Number(v.maxTicketQuantity || 0)
-  if (v.maxTicketQuantity == null || v.maxTicketQuantity === '') e.maxTicketQuantity = 'Vui lòng nhập số vé tối đa được giảm (nhập 0 nếu không giới hạn).'
-  else if (!Number.isInteger(maxTk) || maxTk < 0) e.maxTicketQuantity = 'Số vé tối đa phải là số nguyên ≥ 0.'
-  else if (maxTk > MAX_TICKETS_PER_HALL) e.maxTicketQuantity = `Số vé tối đa/đơn không được vượt quá ${MAX_TICKETS_PER_HALL} (số ghế một phòng chiếu).`
+  // maxApplicableTickets: số nguyên >= 0 (để trống hoặc 0 = không giới hạn)
+  const maxTk = v.maxTicketQuantity != null && v.maxTicketQuantity !== '' ? Number(v.maxTicketQuantity) : 0
+  if (Number.isNaN(maxTk) || !Number.isInteger(maxTk) || maxTk < 0) {
+    e.maxTicketQuantity = 'Số vé tối đa phải là số nguyên ≥ 0.'
+  } else if (maxTk > MAX_TICKETS_PER_HALL) {
+    e.maxTicketQuantity = `Số vé tối đa/đơn không được vượt quá ${MAX_TICKETS_PER_HALL} (số ghế một phòng chiếu).`
+  }
 
   // maxDiscountAmount: BẮT BUỘC, số nguyên >= 0 (mã tiền cố định tự điền = giá trị giảm)
   const maxDisc = Number(v.maxDiscountAmount || 0)
@@ -545,16 +578,6 @@ const validateVoucher = () => {
   if (v.type === 'PERCENTAGE') {
     // % bắt buộc đặt trần Giảm tối đa để chặn đơn lớn giảm quá tay
     if (!maxDisc || maxDisc <= 0) e.maxDiscountAmount = 'Mã giảm % cần đặt trần Giảm tối đa (> 0).'
-  } else {
-    // Tiền cố định: cần Đơn tối thiểu ≥ giá trị giảm (tránh bán lỗ âm tiền)
-    if (!Number.isNaN(dv) && !e.value) {
-      if (minOrder <= 0) {
-        // Chưa nhập đơn tối thiểu → yêu cầu nhập trước (báo ngay tại ô Đơn tối thiểu)
-        e.minOrderValue = 'Mã tiền cố định cần nhập Đơn tối thiểu (≥ giá trị giảm).'
-      } else if (dv > minOrder) {
-        e.minOrderValue = 'Đơn tối thiểu phải ≥ giá trị giảm (tránh lỗ).'
-      }
-    }
   }
 
   // Đổi bằng điểm: bắt buộc nhập số điểm > 0
@@ -734,14 +757,29 @@ const handleIssueVoucher = async (customer) => {
   }
 }
 
-// Trạng thái hiệu lực suy ra từ ngày kết thúc
+// Trạng thái hiệu lực: Tạm dừng (paused) > Hết hạn (expired) > Đang chạy (active)
 const promoStatus = (promo) => {
-  if (!promo.endDate) return 'active'
+  if (promo?.isActive === false) return 'paused'
+  if (!promo?.endDate) return 'active'
   return new Date(promo.endDate) >= new Date() ? 'active' : 'expired'
 }
 const formatPromoDate = (iso) => {
   if (!iso) return 'Không giới hạn'
   return new Date(iso).toLocaleDateString('vi-VN')
+}
+
+// Bật / Tạm dừng voucher
+const handleToggleVoucher = async (promo) => {
+  const prev = promo.isActive
+  promo.isActive = prev === false ? true : false // optimistic update
+  try {
+    const { data } = await marketingApi.togglePromotion(promo.id)
+    showToast(data.message || (promo.isActive ? 'Đã kích hoạt voucher.' : 'Đã tạm dừng voucher.'))
+    await fetchMarketingData()
+  } catch (err) {
+    promo.isActive = prev // revert nếu lỗi
+    showToast(friendlyError(err, 'Đổi trạng thái voucher thất bại.'), 'error')
+  }
 }
 
 const fetchMarketingData = async () => {
@@ -758,6 +796,7 @@ const fetchMarketingData = async () => {
       discountValue: p.discountValue,
       startDate: p.startDate,
       endDate: p.endDate,
+      isActive: p.isActive,
       isStackable: p.isStackable,
       pointsRequired: p.pointsRequired,
       allowPointRedemption: p.allowPointRedemption,
@@ -872,9 +911,10 @@ onUnmounted(() => {
               <span class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
                 <span class="material-symbols-outlined text-xs">sell</span> Voucher
               </span>
-              <span :class="promoStatus(promo) === 'active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'" class="shrink-0 inline-flex items-center gap-1 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest">
+              <span :class="promoStatus(promo) === 'active' ? 'bg-green-500/15 text-green-400' : promoStatus(promo) === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'" class="shrink-0 inline-flex items-center gap-1 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest">
                 <span v-if="promoStatus(promo) === 'active'" class="w-1 h-1 rounded-full bg-green-400 animate-pulse"></span>
-                {{ promoStatus(promo) === 'active' ? 'Đang chạy' : 'Hết hạn' }}
+                <span v-else-if="promoStatus(promo) === 'paused'" class="w-1 h-1 rounded-full bg-amber-400"></span>
+                {{ promoStatus(promo) === 'active' ? 'Đang chạy' : promoStatus(promo) === 'paused' ? 'Tạm dừng' : 'Hết hạn' }}
               </span>
             </div>
 
@@ -910,7 +950,7 @@ onUnmounted(() => {
                 <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
                   <span class="material-symbols-outlined text-xs">schedule</span> Hết hạn
                 </span>
-                <span class="text-[11px] font-bold" :class="promoStatus(promo) === 'active' ? 'text-on-surface' : 'text-red-400'">{{ formatPromoDate(promo.endDate) }}</span>
+                <span class="text-[11px] font-bold" :class="promoStatus(promo) === 'active' ? 'text-on-surface' : promoStatus(promo) === 'paused' ? 'text-amber-400' : 'text-red-400'">{{ formatPromoDate(promo.endDate) }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
@@ -937,8 +977,10 @@ onUnmounted(() => {
               <button v-if="can('promotions', 'edit')" @click="openEditVoucher(promo)" title="Chỉnh sửa" class="w-8 h-8 rounded-lg hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors">
                 <span class="material-symbols-outlined text-sm">edit</span>
               </button>
-              <button v-if="can('promotions', 'delete')" @click="askDeleteVoucher(promo)" title="Xoá" class="w-8 h-8 rounded-lg hover:bg-red-500/15 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors">
-                <span class="material-symbols-outlined text-sm">delete</span>
+              <button v-if="can('promotions', 'edit')" @click.stop="handleToggleVoucher(promo)" :title="promo.isActive === false ? 'Kích hoạt voucher (đang tắt)' : 'Tạm dừng voucher (đang bật)'"
+                class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                :class="promo.isActive === false ? 'text-on-surface-variant/40 hover:text-green-400 hover:bg-green-500/10' : 'text-green-400 hover:text-amber-400 hover:bg-amber-500/10'">
+                <span class="material-symbols-outlined text-2xl leading-none">{{ promo.isActive === false ? 'toggle_off' : 'toggle_on' }}</span>
               </button>
             </div>
           </div>
@@ -1161,8 +1203,9 @@ onUnmounted(() => {
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đơn tối thiểu (VNĐ)</label>
-                <input :value="fmtThousand(newVoucher.minOrderValue)" @input="onMoneyInput($event, 'minOrderValue')" type="text" inputmode="numeric" data-field="minOrderValue" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.minOrderValue ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không yêu cầu" />
-                <p v-if="voucherErrors.minOrderValue" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.minOrderValue }}</p>
+                <input :value="fmtThousand(newVoucher.minOrderValue)" @input="onMoneyInput($event, 'minOrderValue')" type="text" inputmode="numeric" data-field="minOrderValue" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.minOrderValue || minOrderValueError) ? 'border-red-500' : 'border-outline-variant/20'" :placeholder="isFixed ? (newVoucher.value ? `Tối thiểu ${fmtThousand(newVoucher.value)}đ` : 'Tối thiểu = giá trị giảm') : '0 = không yêu cầu'" />
+                <p v-if="voucherErrors.minOrderValue || minOrderValueError" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.minOrderValue || minOrderValueError }}</p>
+                <p v-else-if="isFixed && newVoucher.value" class="text-[10px] text-on-surface-variant/70">Tự điền = giá trị giảm (tối thiểu {{ fmtThousand(newVoucher.value) }}đ, tối đa 999.999.999đ).</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giới hạn lượt dùng</label>
@@ -1271,7 +1314,7 @@ onUnmounted(() => {
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
           <button @click="isVoucherDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError || !!maxTicketError" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:hover:scale-100">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
+          <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError || !!maxTicketError || !!minOrderValueError" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:hover:scale-100">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
         </div>
       </div>
     </div>
@@ -1633,8 +1676,14 @@ onUnmounted(() => {
           <button @click="openIssueModal(detailTarget); closeDetail()" class="flex-1 px-4 py-3 rounded-xl bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-colors flex items-center justify-center gap-1">
             <span class="material-symbols-outlined text-sm">card_giftcard</span> Phát cho khách
           </button>
+          <button v-if="can('promotions', 'edit')" @click="handleToggleVoucher(detailTarget); closeDetail()"
+            class="flex-1 px-4 py-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+            :class="detailTarget.isActive === false ? 'border-green-500/30 text-green-400 hover:bg-green-500/10' : 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10'">
+            <span class="material-symbols-outlined text-lg leading-none">{{ detailTarget.isActive === false ? 'toggle_on' : 'toggle_off' }}</span>
+            {{ detailTarget.isActive === false ? 'Kích hoạt' : 'Tạm dừng' }}
+          </button>
           <button @click="openEditVoucher(detailTarget); closeDetail()" class="flex-1 px-4 py-3 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-sm">edit</span> Chỉnh sửa
+            <span class="material-symbols-outlined text-sm">edit</span> Sửa
           </button>
         </div>
       </div>

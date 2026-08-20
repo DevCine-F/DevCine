@@ -42,10 +42,10 @@ public class MarketingController {
     @GetMapping("/promotions/active")
     public ResponseEntity<?> getActivePromotions() {
         LocalDateTime now = LocalDateTime.now();
-        // Trả mọi promotion đang trong thời gian áp dụng (cả mã đổi-điểm lẫn mã lưu-miễn-phí);
-        // FE dựa vào allowPointRedemption + pointsRequired để chọn nút "Đổi điểm" hay "Lưu mã".
+        // Trả mọi promotion đang trong thời gian áp dụng và đang kích hoạt (isActive != false)
         List<Map<String, Object>> result = promotionRepository.findAll().stream()
                 .filter(p -> p.getCode() != null && !p.getCode().isBlank())
+                .filter(p -> !Boolean.FALSE.equals(p.getIsActive()))
                 .filter(p -> (p.getStartDate() == null || !p.getStartDate().isAfter(now))
                         && (p.getEndDate() == null || !p.getEndDate().isBefore(now)))
                 .map(p -> Map.<String, Object>of(
@@ -67,10 +67,9 @@ public class MarketingController {
     @GetMapping("/promotions/redeemable")
     public ResponseEntity<?> getRedeemablePromotions() {
         LocalDateTime now = LocalDateTime.now();
-        // Khách đang đăng nhập (nếu có) -> đánh dấu mã đã đổi để FE vô hiệu nút "Đổi ngay"
-        // (mỗi mã chỉ đổi 1 lần/khách). Khách vãng lai: currentUserId null -> redeemed = false.
         Integer currentUserId = com.devcine.backend.util.SecurityUtils.getCurrentUserId();
         List<Map<String, Object>> result = promotionRepository.findAll().stream()
+                .filter(p -> !Boolean.FALSE.equals(p.getIsActive()))
                 .filter(p -> Boolean.TRUE.equals(p.getAllowPointRedemption())
                         && p.getPointsRequired() != null && p.getPointsRequired() > 0)
                 .filter(p -> (p.getStartDate() == null || !p.getStartDate().isAfter(now))
@@ -198,6 +197,21 @@ public class MarketingController {
         }
     }
 
+    @PatchMapping("/promotions/{id}/toggle")
+    @PreAuthorize("@perm.can('promotions','edit')")
+    public ResponseEntity<?> togglePromotion(@PathVariable Integer id) {
+        try {
+            Promotion promo = promotionRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher."));
+            promo.setIsActive(promo.getIsActive() == null || !promo.getIsActive());
+            promotionRepository.save(promo);
+            String msg = (Boolean.TRUE.equals(promo.getIsActive()) ? "Đã kích hoạt" : "Đã tạm dừng") + " voucher '" + promo.getCode() + "'.";
+            return ResponseEntity.ok(ApiResponse.ok(promo, msg));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+        }
+    }
+
     @DeleteMapping("/promotions/{id}")
     @PreAuthorize("@perm.can('promotions','delete')")
     public ResponseEntity<?> deletePromotion(@PathVariable Integer id) {
@@ -205,7 +219,7 @@ public class MarketingController {
             promotionRepository.deleteById(id);
             return ResponseEntity.ok(ApiResponse.success("Đã xoá khuyến mãi."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Không thể xoá voucher do đã có khách hàng lưu hoặc sử dụng trong đơn hàng."));
         }
     }
 

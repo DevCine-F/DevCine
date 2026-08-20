@@ -44,10 +44,22 @@ public class PosPendingOrderController {
             // F&B
             List<Map<String, Object>> fnbsRaw = (List<Map<String, Object>>) body.get("fnbs");
             if (fnbsRaw != null) {
-                List<com.devcine.backend.dto.request.FnbSelectionDTO> fnbs = fnbsRaw.stream().map(m -> com.devcine.backend.dto.request.FnbSelectionDTO.builder()
-                        .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
-                        .quantity(Integer.parseInt(m.get("quantity").toString()))
-                        .build()).toList();
+                List<com.devcine.backend.dto.request.FnbSelectionDTO> fnbs = fnbsRaw.stream().map(m -> {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> optionsRaw = (List<Map<String, Object>>) m.get("options");
+                    List<com.devcine.backend.dto.request.FnbOptionSelectionDTO> options = optionsRaw == null ? List.of() : optionsRaw.stream()
+                            .map(opt -> com.devcine.backend.dto.request.FnbOptionSelectionDTO.builder()
+                                    .slotId(opt.get("slotId") != null ? Integer.parseInt(opt.get("slotId").toString()) : null)
+                                    .optionGroupId(opt.get("optionGroupId") != null ? Integer.parseInt(opt.get("optionGroupId").toString()) : null)
+                                    .optionItemId(opt.get("optionItemId") != null ? Integer.parseInt(opt.get("optionItemId").toString()) : null)
+                                    .build())
+                            .toList();
+                    return com.devcine.backend.dto.request.FnbSelectionDTO.builder()
+                            .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
+                            .quantity(Integer.parseInt(m.get("quantity").toString()))
+                            .options(options)
+                            .build();
+                }).toList();
                 req.setFnbs(fnbs);
             }
 

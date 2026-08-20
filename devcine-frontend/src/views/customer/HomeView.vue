@@ -166,6 +166,11 @@ const getGenreNames = (movie) => {
   // danh sách đầy đủ xem ở trang Chi tiết phim.
   return movie.genres.slice(0, 2).map(g => g.name).join(', ').toUpperCase()
 }
+
+// Phim chưa tới ngày chiếu -> chưa mở bán vé. Đồng bộ với admin (movie.status = 'upcoming').
+const isUpcoming = (movie) => String(movie?.status).toLowerCase() === 'upcoming'
+// Nhãn trạng thái hero lấy động theo trạng thái thực của phim (KHÔNG hardcode).
+const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 'Đang chiếu tại rạp'
 </script>
 
 <template>
@@ -203,7 +208,7 @@ const getGenreNames = (movie) => {
 
             <div class="relative z-10 h-full flex items-center px-10 md:px-16 max-w-[1440px] mx-auto">
               <div class="max-w-xl">
-                <span class="text-primary-container font-label text-xs font-bold tracking-[0.2em] mb-4 uppercase block">Đang chiếu tại rạp</span>
+                <span class="text-primary-container font-label text-xs font-bold tracking-[0.2em] mb-4 uppercase block">{{ heroStatusLabel(slide.movie) }}</span>
                 <router-link :to="`/movie/${slide.movie.id}`" class="block">
                   <!-- leading-[1.35]: chữ HOA tiếng Việt có dấu chồng (Ữ/Ệ/Ọ) cao 1.26em (Montserrat) -> leading
                        nhỏ hơn 1.3 sẽ bị overflow của line-clamp cắt mất dấu và để lọt mực dòng thứ 3 vào khung 2 dòng. -->
@@ -222,10 +227,18 @@ const getGenreNames = (movie) => {
                 <p v-if="slide.movie.description" class="text-base text-on-surface-variant/90 leading-relaxed line-clamp-3 mb-4">{{ slide.movie.description }}</p>
                 <p v-if="slide.movie.releaseDate" class="text-sm text-on-surface-variant mb-8"><span class="text-on-surface-variant/60">Khởi chiếu:</span> {{ formatDateDot(slide.movie.releaseDate) }}</p>
                 <div class="flex items-center gap-4 flex-wrap">
-                  <router-link :to="`/movie/${slide.movie.id}`" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
+                  <!-- Đang chiếu: mua vé ngay. Sắp chiếu (chưa mở bán): ưu tiên xem trailer, không có trailer thì xem chi tiết. -->
+                  <router-link v-if="!isUpcoming(slide.movie)" :to="`/movie/${slide.movie.id}`" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">confirmation_number</span> MUA VÉ NGAY
                   </router-link>
-                  <button v-if="slide.movie.trailerUrl" @click="openTrailer(slide.movie)" class="border border-outline-variant text-white px-10 py-4 rounded-lg font-headline font-bold hover:bg-white/10 active:scale-95 transition-all flex items-center gap-2">
+                  <button v-else-if="slide.movie.trailerUrl" @click="openTrailer(slide.movie)" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
+                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span> XEM TRAILER
+                  </button>
+                  <router-link v-else :to="`/movie/${slide.movie.id}`" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
+                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">info</span> XEM CHI TIẾT
+                  </router-link>
+                  <!-- Nút trailer phụ: chỉ khi ĐANG CHIẾU (sắp chiếu đã đưa trailer lên nút chính). -->
+                  <button v-if="!isUpcoming(slide.movie) && slide.movie.trailerUrl" @click="openTrailer(slide.movie)" class="border border-outline-variant text-white px-10 py-4 rounded-lg font-headline font-bold hover:bg-white/10 active:scale-95 transition-all flex items-center gap-2">
                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span> TRAILER
                   </button>
                 </div>

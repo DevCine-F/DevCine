@@ -42,6 +42,11 @@ public class Booking {
     @Column(name = "final_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal finalPrice;
 
+    /** Số tiền giảm từ voucher (snapshot tại thời điểm tạo đơn). 0 nếu không dùng voucher. */
+    @Column(name = "discount_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
     @Column(name = "payment_method", length = 50)
     private String paymentMethod;
 

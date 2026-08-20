@@ -506,7 +506,7 @@ const refreshVouchers = async () => {
 
 // Thông báo áp dụng thành công dùng SỐ GIẢM THỰC (từ server), không phải giá trị mã thô
 const appliedSuccessText = (amount) =>
-  `Áp dụng thành công! Được giảm ${Number(amount || 0).toLocaleString('vi-VN')} VNĐ`
+  `Áp dụng thành công! Được giảm ${Number(amount || 0).toLocaleString('vi-VN')}đ`
 
 // Chấm điều kiện voucher theo giỏ hiện tại (server = nguồn sự thật). Làm mờ mã không đủ điều kiện,
 // đồng bộ số giảm thực, và tự bỏ chọn nếu voucher đang chọn trở nên không hợp lệ.
@@ -519,7 +519,10 @@ const fetchVoucherEvals = async () => {
       const byAud = store.priceTable[seat.seatType]
       return (byAud && byAud[aud] != null) ? Number(byAud[aud]) : (seat.price || 0)
     })
-    const fnbTotal = store.selectedFnbs.reduce((acc, f) => acc + f.fnbItem.price * f.quantity, 0)
+    const fnbTotal = store.selectedFnbs.reduce((acc, f) => {
+      const surcharge = (f.options || []).reduce((s, o) => s + (o.surchargePrice || 0), 0)
+      return acc + (f.fnbItem.price + surcharge) * f.quantity
+    }, 0)
     const { data } = await voucherApi.preview({
       customerId: authStore.user.id,
       movieId: store.selectedMovie?.id ?? null,
@@ -618,7 +621,10 @@ const calculateDiscount = () => {
     return
   }
   const seatTotal = store.selectedSeats.reduce((acc, s) => acc + s.price, 0)
-  const fnbTotal = store.selectedFnbs.reduce((acc, f) => acc + f.fnbItem.price * f.quantity, 0)
+  const fnbTotal = store.selectedFnbs.reduce((acc, f) => {
+    const surcharge = (f.options || []).reduce((s, o) => s + (o.surchargePrice || 0), 0)
+    return acc + (f.fnbItem.price + surcharge) * f.quantity
+  }, 0)
   const total = seatTotal + fnbTotal
 
   // Base được tính giảm: mặc định cả đơn; nếu mã giới hạn số vé → chỉ X vé đắt nhất
@@ -1497,7 +1503,7 @@ const proceedToPayment = async () => {
             </div>
             <div class="flex justify-between text-sm pt-1">
               <span class="text-on-surface/60">{{ formattedSeatSummary }}</span>
-              <span class="font-semibold">{{ seatsSubtotal.toLocaleString('vi-VN') }} VNĐ</span>
+              <span class="font-semibold">{{ seatsSubtotal.toLocaleString('vi-VN') }}đ</span>
             </div>
           </div>
           <div class="pt-6 border-t border-outline-variant/10" v-if="store.selectedFnbs.length > 0">
@@ -1542,7 +1548,7 @@ const proceedToPayment = async () => {
               </div>
               <div class="flex flex-col gap-1 border-t border-outline-variant/10 pt-3 mb-2 mt-1">
                 <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tổng tiền</span>
-                <span class="text-3xl font-headline font-extrabold text-primary-container text-right leading-none">{{ finalPaymentPrice.toLocaleString('vi-VN') }}<span class="text-sm ml-1 text-primary-container/70">VNĐ</span></span>
+                <span class="text-3xl font-headline font-extrabold text-primary-container text-right leading-none">{{ finalPaymentPrice.toLocaleString('vi-VN') }}<span class="text-sm ml-1 text-primary-container/70">đ</span></span>
               </div>
               <p class="text-[10px] text-outline-variant text-right italic">(VAT & Phí dịch vụ đã bao gồm)</p>
             </div>

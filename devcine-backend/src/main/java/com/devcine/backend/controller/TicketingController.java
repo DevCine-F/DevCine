@@ -154,10 +154,22 @@ public class TicketingController {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> fnbsRaw = (List<Map<String, Object>>) body.get("fnbs");
             List<FnbSelectionDTO> fnbs = fnbsRaw == null ? List.of() : fnbsRaw.stream()
-                    .map(m -> FnbSelectionDTO.builder()
-                            .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
-                            .quantity(Integer.parseInt(m.get("quantity").toString()))
-                            .build())
+                    .map(m -> {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> optionsRaw = (List<Map<String, Object>>) m.get("options");
+                        List<com.devcine.backend.dto.request.FnbOptionSelectionDTO> options = optionsRaw == null ? List.of() : optionsRaw.stream()
+                                .map(opt -> com.devcine.backend.dto.request.FnbOptionSelectionDTO.builder()
+                                        .slotId(opt.get("slotId") != null ? Integer.parseInt(opt.get("slotId").toString()) : null)
+                                        .optionGroupId(opt.get("optionGroupId") != null ? Integer.parseInt(opt.get("optionGroupId").toString()) : null)
+                                        .optionItemId(opt.get("optionItemId") != null ? Integer.parseInt(opt.get("optionItemId").toString()) : null)
+                                        .build())
+                                .collect(Collectors.toList());
+                        return FnbSelectionDTO.builder()
+                                .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
+                                .quantity(Integer.parseInt(m.get("quantity").toString()))
+                                .options(options)
+                                .build();
+                    })
                     .collect(Collectors.toList());
 
             // Voucher: nhận voucherId trực tiếp, hoặc voucherCode -> tự lưu/áp cho khách (cần customerId)
@@ -300,10 +312,32 @@ public class TicketingController {
             Integer customerId = body.get("customerId") != null
                     ? Integer.parseInt(body.get("customerId").toString()) : null;
 
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> fnbsRaw = (List<Map<String, Object>>) body.get("fnbs");
+            List<FnbSelectionDTO> fnbs = fnbsRaw == null ? List.of() : fnbsRaw.stream()
+                    .map(m -> {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> optionsRaw = (List<Map<String, Object>>) m.get("options");
+                        List<com.devcine.backend.dto.request.FnbOptionSelectionDTO> options = optionsRaw == null ? List.of() : optionsRaw.stream()
+                                .map(opt -> com.devcine.backend.dto.request.FnbOptionSelectionDTO.builder()
+                                        .slotId(opt.get("slotId") != null ? Integer.parseInt(opt.get("slotId").toString()) : null)
+                                        .optionGroupId(opt.get("optionGroupId") != null ? Integer.parseInt(opt.get("optionGroupId").toString()) : null)
+                                        .optionItemId(opt.get("optionItemId") != null ? Integer.parseInt(opt.get("optionItemId").toString()) : null)
+                                        .build())
+                                .collect(Collectors.toList());
+                        return FnbSelectionDTO.builder()
+                                .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
+                                .quantity(Integer.parseInt(m.get("quantity").toString()))
+                                .options(options)
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+
             com.devcine.backend.dto.request.BookingRequestDTO req =
                     com.devcine.backend.dto.request.BookingRequestDTO.builder()
                             .showtimeId(showtimeId)
                             .seatIds(seatIds)
+                            .fnbs(fnbs)
                             .customerId(customerId)
                             .paymentMethod("POS_HOLD")
                             .allowOrphan(Boolean.parseBoolean(String.valueOf(body.getOrDefault("allowOrphan", "false"))))

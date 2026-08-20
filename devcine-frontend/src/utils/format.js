@@ -1,12 +1,9 @@
 /**
- * Định dạng tiền tệ VND
+ * Định dạng tiền tệ Việt Nam (đ)
  * @param {number} amount 
  */
 export const formatVND = (amount) => {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-  }).format(amount);
+  return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
 };
 
 /**

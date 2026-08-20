@@ -60,8 +60,8 @@ public class VoucherController {
                     return Map.<String, Object>of(
                             "id", v.getId(),
                             "code", v.getPromotion().getCode() != null ? v.getPromotion().getCode() : "",
-                            "discountType", v.getPromotion().getDiscountType() != null ? v.getPromotion().getDiscountType() : "",
-                            "discountValue", v.getPromotion().getDiscountValue() != null ? v.getPromotion().getDiscountValue() : 0,
+                            "discountType", v.effectiveDiscountType() != null ? v.effectiveDiscountType() : "",
+                            "discountValue", v.effectiveDiscountValue() != null ? v.effectiveDiscountValue() : 0,
                             "validUntil", v.getValidUntil() != null ? v.getValidUntil().toString() : "",
                             "usedAt", v.getUsedAt() != null ? v.getUsedAt().toString() : "",
                             "status", status
@@ -82,8 +82,8 @@ public class VoucherController {
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
             "id", voucher.getId(),
             "code", voucher.getPromotion().getCode(),
-            "discountType", voucher.getPromotion().getDiscountType(),
-            "discountValue", voucher.getPromotion().getDiscountValue(),
+            "discountType", voucher.effectiveDiscountType(),
+            "discountValue", voucher.effectiveDiscountValue(),
             "validUntil", voucher.getValidUntil().toString()
         )));
     }
@@ -123,14 +123,13 @@ public class VoucherController {
     public ResponseEntity<?> applyByCode(@RequestParam Integer customerId, @RequestParam String code) {
         try {
             Voucher voucher = voucherService.getOrClaimForCheckout(customerId, code);
-            Promotion p = voucher.getPromotion();
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "id", voucher.getId(),
-                "code", p.getCode() != null ? p.getCode() : "",
-                "discountType", p.getDiscountType() != null ? p.getDiscountType() : "",
-                "discountValue", p.getDiscountValue() != null ? p.getDiscountValue() : 0,
-                "maxTicketQuantity", p.getMaxTicketQuantity() != null ? p.getMaxTicketQuantity() : 0,
-                "maxDiscountAmount", p.getMaxDiscountAmount() != null ? p.getMaxDiscountAmount() : 0,
+                "code", voucher.getPromotion().getCode() != null ? voucher.getPromotion().getCode() : "",
+                "discountType", voucher.effectiveDiscountType() != null ? voucher.effectiveDiscountType() : "",
+                "discountValue", voucher.effectiveDiscountValue() != null ? voucher.effectiveDiscountValue() : 0,
+                "maxTicketQuantity", voucher.effectiveMaxTicketQuantity() != null ? voucher.effectiveMaxTicketQuantity() : 0,
+                "maxDiscountAmount", voucher.effectiveMaxDiscountAmount() != null ? voucher.effectiveMaxDiscountAmount() : 0,
                 "validUntil", voucher.getValidUntil() != null ? voucher.getValidUntil().toString() : ""
             )));
         } catch (RuntimeException ex) {

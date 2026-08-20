@@ -186,7 +186,7 @@ const getSelectedNames = (slot) => {
       <div v-if="!activeSlotId" class="p-6 border-t border-outline-variant/10 bg-surface-container-highest flex justify-between items-center">
         <div class="flex flex-col">
           <span class="text-xs text-on-surface-variant">Tạm tính</span>
-          <span class="font-headline font-bold text-lg text-primary-container">{{ totalPrice.toLocaleString('vi-VN') }} VNĐ</span>
+          <span class="font-headline font-bold text-lg text-primary-container">{{ totalPrice.toLocaleString('vi-VN') }}đ</span>
         </div>
         <button
           @click="confirm"
