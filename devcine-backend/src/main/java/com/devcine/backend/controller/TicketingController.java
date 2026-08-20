@@ -23,6 +23,7 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -70,15 +71,24 @@ public class TicketingController {
                 .filter(s -> isAdmin || (myCinemaId != null && myCinemaId.equals(cinemaIdOfShowtime(s))))
                 .collect(Collectors.toList());
 
-        List<Map<String, Object>> result = showtimes.stream().map(s -> Map.<String, Object>of(
-                "id", s.getId(),
-                "movieTitle", s.getMovie().getTitle(),
-                "moviePoster", s.getMovie().getPosterUrl() != null ? s.getMovie().getPosterUrl() : "",
-                "startTime", s.getStartTime().toString(),
-                "roomName", s.getRoom().getName(),
-                "formatName", s.getFormat().getName(),
-                "status", s.getStatus() != null ? s.getStatus() : "SCHEDULED"
-        )).collect(Collectors.toList());
+        List<Map<String, Object>> result = showtimes.stream().map(s -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("id", s.getId());
+            map.put("movieId", s.getMovie() != null ? s.getMovie().getId() : null);
+            map.put("movieTitle", s.getMovie() != null && s.getMovie().getTitle() != null ? s.getMovie().getTitle() : "Phim");
+            map.put("movieTitleVietnamese", s.getMovie() != null ? s.getMovie().getTitleVietnamese() : null);
+            map.put("moviePoster", s.getMovie() != null && s.getMovie().getPosterUrl() != null ? s.getMovie().getPosterUrl() : "");
+            map.put("durationMins", s.getMovie() != null && s.getMovie().getDurationMins() != null ? s.getMovie().getDurationMins() : 120);
+            map.put("ageRating", s.getMovie() != null && s.getMovie().getAgeRating() != null ? s.getMovie().getAgeRating() : "P");
+            map.put("startTime", s.getStartTime() != null ? s.getStartTime().toString() : "");
+            map.put("endTime", s.getEndTime() != null ? s.getEndTime().toString() : "");
+            map.put("roomId", s.getRoom() != null ? s.getRoom().getId() : null);
+            map.put("roomName", s.getRoom() != null && s.getRoom().getName() != null ? s.getRoom().getName() : "");
+            map.put("formatId", s.getFormat() != null ? s.getFormat().getId() : null);
+            map.put("formatName", s.getFormat() != null && s.getFormat().getName() != null ? s.getFormat().getName() : "2D");
+            map.put("status", s.getStatus() != null ? s.getStatus() : "SCHEDULED");
+            return map;
+        }).collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
