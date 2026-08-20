@@ -1422,11 +1422,13 @@ const buildInvoiceHtml = () => {
   const comboSection = comboRows ? `<tr class="grp"><td colspan="4">Bắp nước &amp; Combo</td></tr>${comboRows}` : ''
 
   // Số tiền giảm khi áp mã/voucher (0 nếu không có) + làm tròn tiền mặt (âm nếu tròn xuống). Ưu tiên số BE trả.
-  const discount = Number(completedBooking.value?.discountAmount || 0)
+  const discount = Number(completedBooking.value?.discountAmount || discountAmount.value || 0)
   const rounding = Number(completedBooking.value?.roundingAmount || 0)
-  const grandTotal = completedBooking.value?.finalAmount != null
-    ? Number(completedBooking.value.finalAmount)
-    : Math.max(0, seatTotal.value + comboTotal.value - discount + rounding)
+  const grandTotal = completedBooking.value?.finalPrice != null
+    ? Number(completedBooking.value.finalPrice)
+    : (completedBooking.value?.finalAmount != null
+        ? Number(completedBooking.value.finalAmount)
+        : Math.max(0, seatTotal.value + comboTotal.value - discount + rounding))
 
   return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
 <title>Hoá đơn ${bookingCode} — DevCine</title>
@@ -1845,11 +1847,9 @@ onUnmounted(() => {
               <div class="flex gap-6">
                 <!-- BÊN TRÁI: Ảnh Poster -->
                 <div class="w-24 shrink-0 flex flex-col items-center">
-                  <div class="w-24 h-36 bg-surface-container-highest rounded-xl overflow-hidden shadow-lg border border-outline-variant/10 mb-3">
+                  <div class="w-24 h-36 bg-surface-container-highest rounded-xl overflow-hidden shadow-lg border border-outline-variant/10">
                     <img :src="getPoster(movieGroup.movie)" class="w-full h-full object-cover" />
                   </div>
-                  <!-- Age Rating -->
-                  <span v-if="movieGroup.movie.ageRating" class="px-2 py-0.5 bg-error/20 text-error rounded-md text-[10px] font-black uppercase border border-error/30">{{ movieGroup.movie.ageRating }}</span>
                 </div>
                 
                 <!-- BÊN PHẢI: Thông tin & Suất chiếu -->
@@ -2231,11 +2231,22 @@ onUnmounted(() => {
                 <p class="text-xl font-black text-on-surface">{{ selectedShowtime?.roomName }}</p>
               </div>
             </div>
-            <div class="border-t border-dashed border-outline-variant/20 pt-6">
-              <p class="text-[10px] font-black text-on-surface-variant uppercase mb-2">Thông tin vé</p>
+            <div class="border-t border-dashed border-outline-variant/20 pt-6 space-y-2">
               <div class="flex justify-between text-sm font-bold text-on-surface">
                 <span>{{ selectedSeats.length }} ghế: {{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</span>
-                <span class="text-primary italic">{{ fmt(totalPrice) }}đ</span>
+                <span>{{ fmt(seatTotal) }}đ</span>
+              </div>
+              <div v-if="selectedCombos.length" class="flex justify-between text-xs text-on-surface-variant font-medium">
+                <span>F&B / Combo ({{ selectedCombos.reduce((a, c) => a + c.quantity, 0) }} phần)</span>
+                <span>{{ fmt(comboTotal) }}đ</span>
+              </div>
+              <div v-if="completedBooking?.discountAmount || discountAmount" class="flex justify-between text-xs text-green-400 font-bold">
+                <span>Giảm giá {{ appliedVoucher ? '(' + appliedVoucher.code + ')' : '' }}</span>
+                <span>-{{ fmt(completedBooking?.discountAmount ?? discountAmount) }}đ</span>
+              </div>
+              <div class="flex justify-between items-center pt-2 border-t border-outline-variant/10">
+                <span class="text-[10px] font-black text-primary uppercase">Tổng thanh toán</span>
+                <span class="text-xl font-black text-primary italic">{{ fmt(completedBooking?.finalPrice ?? payableTotal) }}đ</span>
               </div>
             </div>
           </div>
@@ -2612,7 +2623,7 @@ onUnmounted(() => {
               <div class="flex justify-between"><span class="text-on-surface-variant">Ngân hàng</span><span class="font-bold text-on-surface">{{ bankInfo.name }}</span></div>
               <div class="flex justify-between"><span class="text-on-surface-variant">Số tài khoản</span><span class="font-bold text-on-surface font-mono">{{ bankInfo.accountNo }}</span></div>
               <div class="flex justify-between"><span class="text-on-surface-variant">Chủ tài khoản</span><span class="font-bold text-on-surface uppercase">{{ bankInfo.accountName }}</span></div>
-              <div class="flex justify-between"><span class="text-on-surface-variant">Số tiền</span><span class="font-black text-primary italic">{{ fmt(totalPrice) }}đ</span></div>
+              <div class="flex justify-between"><span class="text-on-surface-variant">Số tiền</span><span class="font-black text-primary italic">{{ fmt(payableTotal) }}đ</span></div>
               <div class="flex justify-between"><span class="text-on-surface-variant">Nội dung</span><span class="font-bold text-on-surface">{{ transferContent }}</span></div>
             </div>
           </div>
