@@ -221,14 +221,18 @@ public class SeatIncidentService {
         Map<Integer, Seat> newSeats = seatRepository.findByIdInWithSeatType(newSeatIds).stream()
                 .collect(Collectors.toMap(Seat::getId, s -> s, (a, b) -> a));
 
+        // Nạp 1 lần tập ghế đã xử lý sự cố → tránh N query existsActiveForBookingSeat trong vòng lặp
+        java.util.Set<Integer> alreadyProcessedSeatIds = incidentRepository.findProcessedSeatIdsByBooking(booking.getId());
+
         List<IncidentResultResponse.SeatSwapResult> swapResults = new ArrayList<>();
         List<SeatIncident> toSave = new ArrayList<>();
+        List<BookingSeat> updatedSeats = new ArrayList<>();
         for (RelocateRequest.SeatSwap swap : req.swaps()) {
             BookingSeat bs = soldBySeatId.get(swap.oldSeatId());
             if (bs == null) {
                 throw new IllegalArgumentException("Ghế nguồn không thuộc đơn hoặc đã được xử lý.");
             }
-            if (incidentRepository.existsActiveForBookingSeat(booking.getId(), swap.oldSeatId())) {
+            if (alreadyProcessedSeatIds.contains(swap.oldSeatId())) {
                 throw new IllegalStateException("Ghế " + bs.getSeat().displayLabel() + " đã được xử lý sự cố trước đó.");
             }
             Seat newSeat = newSeats.get(swap.newSeatId());
@@ -248,7 +252,7 @@ public class SeatIncidentService {
             boolean downgrade = isDowngrade(oldSeat, newSeat);
 
             bs.setSeat(newSeat); // REPOINT tại chỗ → giữ QR/Ticket/giá
-            bookingSeatRepository.save(bs);
+            updatedSeats.add(bs);
 
             toSave.add(SeatIncident.builder()
                     .incidentType("RELOCATE")
@@ -262,6 +266,7 @@ public class SeatIncidentService {
             swapResults.add(IncidentResultResponse.SeatSwapResult.builder()
                     .oldLabel(oldLabel).newLabel(newLabel).downgrade(downgrade).build());
         }
+        bookingSeatRepository.saveAll(updatedSeats); // gom thành 1 batch thay vì N saves
 
         // Đền bù ÁP DỤNG MỘT LẦN cho cả lần xử lý → gắn vào dòng ghi vết đầu tiên (tránh cộng trùng trị giá)
         IncidentResultResponse.CompensationResult comp = applyCompensation(booking, req.compensation(), null, false);
@@ -314,21 +319,25 @@ public class SeatIncidentService {
         Map<Integer, BookingSeat> byId = bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())
                 .stream().collect(Collectors.toMap(BookingSeat::getId, bs -> bs, (a, b) -> a));
 
+        // Nạp 1 lần tập ghế đã xử lý sự cố → tránh N query existsActiveForBookingSeat trong vòng lặp
+        java.util.Set<Integer> alreadyProcessedSeatIds = incidentRepository.findProcessedSeatIdsByBooking(booking.getId());
+
         List<SeatIncident> toSave = new ArrayList<>();
+        List<BookingSeat> updatedSeats = new ArrayList<>();
         BigDecimal totalValue = BigDecimal.ZERO;
         for (Integer bsId : bookingSeatIds) {
             BookingSeat bs = byId.get(bsId);
             if (bs == null || !"SOLD".equalsIgnoreCase(bs.getStatus())) {
                 throw new IllegalArgumentException("Ghế cần hủy không thuộc đơn hoặc đã được xử lý.");
             }
-            if (incidentRepository.existsActiveForBookingSeat(booking.getId(), bs.getSeat().getId())) {
+            if (alreadyProcessedSeatIds.contains(bs.getSeat().getId())) {
                 throw new IllegalStateException("Ghế " + bs.getSeat().displayLabel() + " đã được xử lý sự cố trước đó.");
             }
             Seat seat = bs.getSeat();
             totalValue = totalValue.add(bs.getPriceSnapshot() != null ? bs.getPriceSnapshot() : BigDecimal.ZERO);
 
             bs.setStatus("CANCELLED"); // giải phóng ghế: query reserved chỉ đếm SOLD/HOLD
-            bookingSeatRepository.save(bs);
+            updatedSeats.add(bs);
 
             toSave.add(SeatIncident.builder()
                     .incidentType(incidentType)
@@ -339,6 +348,7 @@ public class SeatIncidentService {
                     .handledBy(handledBy).cinema(cinema)
                     .build());
         }
+        bookingSeatRepository.saveAll(updatedSeats); // gom thành 1 batch thay vì N saves
 
         // Hủy chỗ → đền bằng trị giá đúng giá vé đã mua; cho phép template GIFT_TICKET (đền nguyên vé)
         IncidentResultResponse.CompensationResult compResult = applyCompensation(booking, comp, totalValue, true);
@@ -387,9 +397,11 @@ public class SeatIncidentService {
 
         // Chỉ hủy ghế còn SOLD và CHƯA có ghi vết sự cố (tránh ném lỗi ở performCancel nếu ghế đã
         // được đổi/hủy thủ công trước đó) → batch bền vững với dữ liệu hỗn hợp.
+        // Nạp 1 lần tập ghế đã xử lý → tránh N query existsActiveForBookingSeat trong stream filter.
+        java.util.Set<Integer> processedSeatIds = incidentRepository.findProcessedSeatIdsByBooking(bookingId);
         List<Integer> bookingSeatIds = bookingSeatRepository.findAllByBookingIdWithSeat(bookingId).stream()
                 .filter(bs -> "SOLD".equalsIgnoreCase(bs.getStatus()))
-                .filter(bs -> !incidentRepository.existsActiveForBookingSeat(bookingId, bs.getSeat().getId()))
+                .filter(bs -> !processedSeatIds.contains(bs.getSeat().getId()))
                 .map(BookingSeat::getId)
                 .collect(Collectors.toList());
         if (bookingSeatIds.isEmpty()) {

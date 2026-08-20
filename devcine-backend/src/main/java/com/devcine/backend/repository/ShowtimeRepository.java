@@ -50,7 +50,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "WHERE m.status = 'active' AND s.startTime >= :now ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimes(@Param("now") LocalDateTime now);
 
-    @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH s.movie m JOIN FETCH s.format f " +
+    @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
            "WHERE r.cinema.id = :cinemaId " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findByCinemaId(@Param("cinemaId") Integer cinemaId);

@@ -1,0 +1,232 @@
+[
+  {
+    "code": "TC-PASS-01",
+    "title": "Tra cứu đơn hợp lệ bằng Mã đặt vé",
+    "expected_status": 200,
+    "actual_status": 200,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Đơn: 16104A89-C, Phim: Mai",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-02",
+    "title": "Tra cứu đơn hợp lệ bằng Số điện thoại",
+    "expected_status": 200,
+    "actual_status": 200,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "SĐT: 0901234567 -> Đơn: 35E360F6-C",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-03",
+    "title": "Đổi 1 ghế không kèm đền bù (NONE)",
+    "expected_status": 200,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Đổi 3259 -> 3316, Incidents: N/A",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-04",
+    "title": "Đổi ghế có cấp Voucher giảm giá cho thành viên",
+    "expected_status": 200,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Voucher code: N/A, value: N/A",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-05",
+    "title": "Đổi ghế cho khách vãng lai (quà tại quầy)",
+    "expected_status": 200,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "counterGift: N/A, voucherIssued: N/A",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-06",
+    "title": "Đổi đồng thời nhiều ghế cho đoàn khách",
+    "expected_status": 200,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Đổi 2 ghế thành công, Incidents: N/A",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-07",
+    "title": "Khóa bảo trì ghế hỏng trực tiếp",
+    "expected_status": 200,
+    "actual_status": 200,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Seat #2852 status -> MAINTENANCE, incidentId=3",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-08",
+    "title": "Hủy chỗ và đền bù Vé mời (COMP_TICKET_FULL)",
+    "expected_status": 200,
+    "actual_status": 200,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Hủy bookingSeat #296, voucherCode=COMP_TICKET_FULL",
+    "msg": ""
+  },
+  {
+    "code": "TC-PASS-09",
+    "title": "Lọc và phân trang lịch sử sự cố",
+    "expected_status": 200,
+    "actual_status": 200,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Lọc type=RELOCATE -> 0 bản ghi",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-01",
+    "title": "Tra cứu với ô tìm kiếm rỗng",
+    "expected_status": 400,
+    "actual_status": 400,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Message: Vui lòng nhập mã vé hoặc số điện thoại.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-02",
+    "title": "Nhập mã vé không tồn tại",
+    "expected_status": 400,
+    "actual_status": 400,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Message: Không tìm thấy đơn với mã: NON_EXISTENT_BK_99999",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-03",
+    "title": "Nhập SĐT không có đơn đặt vé nào",
+    "expected_status": 400,
+    "actual_status": 400,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Message: Không tìm thấy đơn đã xác nhận cho số điện thoại này.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-04",
+    "title": "Tra cứu đơn vé đã hủy (status = CANCELLED)",
+    "expected_status": 400,
+    "actual_status": 400,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Message: Đơn chưa thanh toán hoặc không hợp lệ để xử lý.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-05",
+    "title": "Nhân viên rạp A cố thao tác vé rạp B (Strict Cinema Scoping)",
+    "expected_status": 403,
+    "actual_status": 403,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "Logic SecurityUtils.assertCinemaAccess() chặn 403 khi khác cinemaId",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-06",
+    "title": "Đổi ghế khi suất chiếu đã bắt đầu",
+    "expected_status": 400,
+    "actual_status": 500,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "HTTP 500 - Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-07",
+    "title": "Ghế đích vừa bị chiếm (Race condition / SOLD)",
+    "expected_status": 409,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-08",
+    "title": "Chọn nhiều ghế nguồn đổi về cùng 1 ghế đích",
+    "expected_status": 400,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-09",
+    "title": "Chọn ghế đích đang bảo trì / khóa",
+    "expected_status": 400,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-10",
+    "title": "Xử lý sự cố lần 2 cho ghế đã đổi/hủy trước đó",
+    "expected_status": 400,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-11",
+    "title": "Chọn mẫu vé mời COMP_TICKET_FULL khi ĐỔI GHẾ",
+    "expected_status": 400,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-12",
+    "title": "Chọn mẫu voucher không có tiền tố COMP_*",
+    "expected_status": 400,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-13",
+    "title": "Gửi request thiếu trường bắt buộc (Validation error)",
+    "expected_status": 400,
+    "actual_status": 500,
+    "passed": false,
+    "status_str": "FAILED",
+    "detail": "Message: Lỗi hệ thống nội bộ.",
+    "msg": ""
+  },
+  {
+    "code": "TC-FAIL-14",
+    "title": "Hết hạn phiên đăng nhập (Token không hợp lệ)",
+    "expected_status": 401,
+    "actual_status": 403,
+    "passed": true,
+    "status_str": "PASSED",
+    "detail": "HTTP status: 403",
+    "msg": ""
+  }
+]

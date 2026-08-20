@@ -62,13 +62,28 @@ public class VoucherService {
         }
         // Dedup: khách ĐÃ nhận mã này rồi thì KHÔNG gửi lại (chống spam trùng người)
         Set<Integer> alreadySent = new HashSet<>(promoEmailLogRepository.findCustomerIdsByPromotionId(promoId));
+
+        // Pre-fetch 1 lần tập customerId đã có đơn CONFIRMED → tránh N query countConfirmedByCustomer()
+        // khi điều kiện là NEW_CUSTOMER (eligibilityReason gọi per-customer query → N+1 với nhiều khách).
+        String elig = promo.getCustomerEligibility();
+        Set<Integer> customerIdsWithBooking = ("NEW_CUSTOMER".equalsIgnoreCase(elig))
+                ? bookingRepository.findCustomerIdsWithConfirmedBookings()
+                : java.util.Collections.emptySet();
+
         LocalDateTime now = LocalDateTime.now();
         List<PromoEmailLog> newLogs = new ArrayList<>();
         for (Customer c : customerRepository.findAllWithUser()) {
             User u = c.getUser();
             if (u == null || u.getEmail() == null || u.getEmail().isBlank()) continue;
-            if (eligibilityReason(c.getUserId(), c, promo) != null) continue; // không thuộc đối tượng
-            if (alreadySent.contains(c.getUserId())) continue;                // đã nhận rồi → bỏ qua
+            if (alreadySent.contains(c.getUserId())) continue; // đã nhận rồi → bỏ qua
+
+            // Kiểm tra đối tượng in-memory nếu là NEW_CUSTOMER, gọi eligibilityReason() cho các trường hợp khác
+            if ("NEW_CUSTOMER".equalsIgnoreCase(elig)) {
+                if (customerIdsWithBooking.contains(c.getUserId())) continue; // không phải khách mới
+            } else if (eligibilityReason(c.getUserId(), c, promo) != null) {
+                continue; // không thuộc đối tượng
+            }
+
             mailService.sendPromotionEmail(u.getEmail(), u.getFullName(), promo);
             newLogs.add(PromoEmailLog.builder().promotionId(promoId).customerId(c.getUserId()).sentAt(now).build());
         }
@@ -83,6 +98,7 @@ public class VoucherService {
                 promoId, promo.getCode(), sent, alreadySent.size());
         return sent;
     }
+
 
     /** Kết quả chấm một voucher theo giỏ hàng. reason = null khi đủ điều kiện. discountAmount = số giảm THÔ. */
     public record VoucherEval(boolean applicable, String reason, BigDecimal discountAmount) {}

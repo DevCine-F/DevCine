@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface SeatIncidentRepository extends JpaRepository<SeatIncident, Integer> {
@@ -23,6 +24,15 @@ public interface SeatIncidentRepository extends JpaRepository<SeatIncident, Inte
            "AND si.incidentType IN ('RELOCATE', 'CANCEL')")
     boolean existsActiveForBookingSeat(@Param("bookingId") Integer bookingId,
                                        @Param("oldSeatId") Integer oldSeatId);
+
+    /**
+     * Batch version: lấy TẬP hợp oldSeat.id đã được xử lý (RELOCATE/CANCEL) của một đơn —
+     * dùng thay vì gọi existsActiveForBookingSeat() N lần trong vòng lặp (tránh N+1).
+     */
+    @Query("SELECT si.oldSeat.id FROM SeatIncident si " +
+           "WHERE si.booking.id = :bookingId " +
+           "AND si.incidentType IN ('RELOCATE', 'CANCEL')")
+    Set<Integer> findProcessedSeatIdsByBooking(@Param("bookingId") Integer bookingId);
 
     /**
      * Lịch sử sự cố (cinema-scoped + filter). Param luôn non-null để tránh bẫy null-param Postgres

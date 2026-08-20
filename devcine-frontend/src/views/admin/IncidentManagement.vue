@@ -68,11 +68,11 @@ const canSubmitRelocate = computed(() => selectedSwaps.value.length > 0 && !star
 const canSubmitCancel = computed(() => Object.values(cancelSel.value).some(Boolean))
 
 // ================= Tra cứu =================
-async function doLookup() {
+async function doLookup(preserveResult = false) {
   const q = searchQuery.value.trim()
   if (!q) { toast.warning('Nhập mã vé hoặc số điện thoại khách.'); return }
   loadingCtx.value = true
-  resetWorkspace()
+  resetWorkspace(preserveResult)
   try {
     const { data } = await incidentApi.lookup(q)
     ctx.value = data.data ?? data
@@ -100,44 +100,80 @@ async function loadSeatMap() {
   }
 }
 
-function resetWorkspace() {
+function resetWorkspace(preserveResult = false) {
   seatMap.value = null
   swaps.value = {}
   activeSource.value = null
   cancelSel.value = {}
   compChoice.value = 'NONE'
   compNote.value = ''
-  result.value = null
+  if (!preserveResult) {
+    result.value = null
+  }
 }
 
 // ================= Tương tác sơ đồ =================
+function isSeatMaintenance(cell) {
+  if (!cell) return false
+  return cell.status === 'MAINTENANCE' || cell.status === 'LOCKED' ||
+         cell.seatStatus === 'MAINTENANCE' || cell.seatStatus === 'LOCKED'
+}
+
 function seatState(cell) {
   if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return 'aisle'
-  if (bookingSeatIds.value.has(cell.seatId)) return 'source'
   if (chosenDest.value.has(cell.seatId)) return 'dest'
-  if (cell.status === 'MAINTENANCE' || cell.status === 'LOCKED') return 'blocked'
+  if (isSeatMaintenance(cell)) return 'blocked'
+  if (bookingSeatIds.value.has(cell.seatId)) return 'source'
   if (cell.status === 'AVAILABLE') return 'free'
   return 'occupied'
 }
 
 function seatClass(cell) {
-  const base = 'w-8 h-8 rounded-md flex items-center justify-center text-[9px] font-bold border transition-all leading-none'
-  switch (seatState(cell)) {
+  const base = 'w-8 h-8 rounded-md flex items-center justify-center text-[9px] font-bold border transition-all leading-none select-none'
+  const state = seatState(cell)
+  const isSource = cell.seatId != null && bookingSeatIds.value.has(cell.seatId)
+
+  switch (state) {
     case 'source': {
+      if (mode.value === 'cancel') {
+        const bs = soldSeats.value.find(s => s.seatId === cell.seatId)
+        const isCancelled = bs && cancelSel.value[bs.bookingSeatId]
+        return `${base} cursor-pointer ${isCancelled ? 'bg-red-500 border-red-300 text-white scale-105 shadow-lg shadow-red-500/30' : 'bg-blue-900/50 border-blue-500/50 text-blue-200 hover:border-blue-300'}`
+      }
       const active = activeSource.value === cell.seatId
       return `${base} cursor-pointer ${active ? 'bg-blue-500 border-blue-300 text-white scale-110 shadow-lg shadow-blue-500/30' : 'bg-blue-900/50 border-blue-500/50 text-blue-200 hover:border-blue-300'}`
     }
-    case 'dest': return `${base} bg-green-500 border-green-300 text-white cursor-pointer shadow-lg shadow-green-500/30`
-    case 'free': return `${base} bg-surface-container-high border-outline-variant/20 text-on-surface-variant/60 ${mode.value === 'cancel' ? 'opacity-50' : 'cursor-pointer hover:border-primary/50'}`
-    case 'blocked': return `${base} bg-surface-container-highest border-red-500/30 text-red-500 cursor-not-allowed opacity-70`
-    case 'occupied': return `${base} bg-surface-container-high border-white/5 text-on-surface-variant/20 cursor-not-allowed opacity-40`
-    default: return 'w-8 h-8'
+    case 'dest':
+      return `${base} bg-green-500 border-green-300 text-white cursor-pointer shadow-lg shadow-green-500/30`
+    case 'blocked': {
+      if (isSource) {
+        if (mode.value === 'cancel') {
+          const bs = soldSeats.value.find(s => s.seatId === cell.seatId)
+          const isCancelled = bs && cancelSel.value[bs.bookingSeatId]
+          return `${base} cursor-pointer bg-red-950/80 border-2 ${isCancelled ? 'border-red-400 ring-2 ring-red-500 text-white scale-105 shadow-lg' : 'border-red-500 text-red-300 hover:border-red-400'}`
+        }
+        const active = activeSource.value === cell.seatId
+        return `${base} cursor-pointer bg-red-950/80 border-2 ${active ? 'border-blue-400 ring-2 ring-blue-500 text-white scale-110 shadow-lg' : 'border-red-500 text-red-300 hover:border-red-400'}`
+      }
+      return `${base} bg-red-950/40 border border-red-500/40 text-red-400 cursor-not-allowed opacity-80`
+    }
+    case 'free':
+      return `${base} bg-surface-container-high border-outline-variant/20 text-on-surface-variant/60 ${mode.value === 'cancel' ? 'opacity-50' : 'cursor-pointer hover:border-primary/50'}`
+    case 'occupied':
+      return `${base} bg-surface-container-high border-white/5 text-on-surface-variant/20 cursor-not-allowed opacity-40`
+    default:
+      return 'w-8 h-8'
   }
 }
 
 function onSeatClick(cell) {
+  if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return
+  const isSource = bookingSeatIds.value.has(cell.seatId)
+  if (isSource) {
+    onSourceClick(cell.seatId)
+    return
+  }
   const state = seatState(cell)
-  if (state === 'source') { onSourceClick(cell.seatId); return }
   if (state === 'dest') {
     // bỏ chọn đích: tìm source đang trỏ tới ghế này
     const src = Object.keys(swaps.value).find(k => swaps.value[k] === cell.seatId)
@@ -156,7 +192,9 @@ function onSourceClick(seatId) {
     activeSource.value = activeSource.value === seatId ? null : seatId
   } else {
     const bsId = soldSeats.value.find(s => s.seatId === seatId)?.bookingSeatId
-    if (bsId != null) { cancelSel.value = { ...cancelSel.value, [bsId]: !cancelSel.value[bsId] } }
+    if (bsId != null) {
+      cancelSel.value[bsId] = !cancelSel.value[bsId]
+    }
   }
 }
 
@@ -170,20 +208,47 @@ function destLabel(oldSeatId) {
   return dest != null ? (seatById.value.get(dest)?.label || '?') : null
 }
 
-// ================= Khóa ghế hỏng =================
-async function lockSeat(seat) {
+function seatTooltip(cell) {
+  if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return ''
+  const isMaint = isSeatMaintenance(cell)
+  if (isMaint) return `Ghế ${cell.label} (Đang bảo trì / khóa) — Chuột phải để mở lại`
+  if (bookingSeatIds.value.has(cell.seatId)) return `Ghế ${cell.label} (Ghế của đơn đang xử lý)`
+  if (chosenDest.value.has(cell.seatId)) return `Ghế ${cell.label} (Ghế đích đã chọn)`
+  if (cell.status === 'AVAILABLE') return `Ghế ${cell.label} (Trống) — Chuột phải để khóa bảo trì`
+  return `Ghế ${cell.label} (Đã bán)`
+}
+
+function onSeatContextMenu(cell) {
+  if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return
+  toggleSeatMaintenance(cell)
+}
+
+// ================= Khóa / Mở ghế bảo trì =================
+async function toggleSeatMaintenance(seat) {
+  const seatId = seat.seatId || seat.id
+  const cell = seatById.value.get(seatId)
+  const isMaint = isSeatMaintenance(cell) || seat.seatStatus === 'MAINTENANCE'
+  const newStatus = isMaint ? 'AVAILABLE' : 'MAINTENANCE'
+  const label = seat.seatLabel || seat.label || cell?.label || `Ghế #${seatId}`
+
   const ok = await confirm.show({
-    title: 'Báo hỏng ghế',
-    message: `Đánh dấu ghế ${seat.seatLabel} là BẢO TRÌ? Ghế sẽ ngừng được bán ở mọi suất tiếp theo cho tới khi mở lại.`,
-    confirmText: 'Khóa ghế', tone: 'danger'
+    title: isMaint ? 'Mở khóa ghế' : 'Báo hỏng ghế',
+    message: isMaint
+      ? `Mở lại ghế ${label} để bán bình thường?`
+      : `Đánh dấu ghế ${label} là BẢO TRÌ? Ghế sẽ ngừng được bán ở mọi suất tiếp theo cho tới khi mở lại.`,
+    confirmText: isMaint ? 'Mở lại' : 'Khóa ghế',
+    tone: isMaint ? 'primary' : 'danger'
   })
   if (!ok) return
   try {
-    await incidentApi.setSeatStatus(seat.seatId, { status: 'MAINTENANCE', reason: `Báo hỏng khi xử lý đơn ${ctx.value?.bookingCode || ''}`.trim() })
-    toast.success(`Đã khóa ghế ${seat.seatLabel} (bảo trì).`)
+    await incidentApi.setSeatStatus(seatId, {
+      status: newStatus,
+      reason: isMaint ? 'Mở lại sau sửa chữa' : `Báo hỏng khi xử lý đơn ${ctx.value?.bookingCode || ''}`.trim()
+    })
+    toast.success(isMaint ? `Đã mở lại ghế ${label}.` : `Đã khóa ghế ${label} (bảo trì).`)
     await loadSeatMap()
   } catch (e) {
-    toast.error(friendlyError(e, 'Không thể khóa ghế.'))
+    toast.error(friendlyError(e, isMaint ? 'Không thể mở lại ghế.' : 'Không thể khóa ghế.'))
   }
 }
 
@@ -216,7 +281,7 @@ async function submitRelocate() {
     })
     result.value = data.data ?? data
     toast.success('Đã đổi ghế & xử lý đền bù.')
-    await doLookup()
+    await doLookup(true)
   } catch (e) {
     toast.error(friendlyError(e, 'Đổi ghế thất bại.'))
   } finally {
@@ -244,7 +309,7 @@ async function submitCancel() {
     })
     result.value = data.data ?? data
     toast.success('Đã hủy chỗ & xử lý đền bù.')
-    await doLookup()
+    await doLookup(true)
   } catch (e) {
     toast.error(friendlyError(e, 'Hủy chỗ thất bại.'))
   } finally {
@@ -315,9 +380,9 @@ onMounted(async () => {
         <div class="bg-surface-container-high rounded-2xl p-4 border border-outline-variant/10">
           <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tra cứu vé sự cố</label>
           <div class="flex gap-2 mt-2">
-            <input v-model="searchQuery" @keyup.enter="doLookup" placeholder="Mã vé hoặc SĐT khách..."
+            <input v-model="searchQuery" @keyup.enter="doLookup(false)" placeholder="Mã vé hoặc SĐT khách..."
                    class="flex-1 py-2.5 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none focus:border-primary transition-colors" />
-            <button @click="doLookup" :disabled="loadingCtx"
+            <button @click="doLookup(false)" :disabled="loadingCtx"
                     class="px-4 rounded-lg bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-50 flex items-center">
               <span class="material-symbols-outlined text-lg">{{ loadingCtx ? 'hourglass_empty' : 'search' }}</span>
             </button>
@@ -366,10 +431,13 @@ onMounted(async () => {
                   <span class="font-bold text-on-surface text-sm">{{ s.seatLabel }}</span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant">{{ s.seatType }}</span>
                   <span class="text-[10px] text-on-surface-variant">{{ s.ticketType }}</span>
+                  <span v-if="isSeatMaintenance(seatById.get(s.seatId))" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-0.5">
+                    <span class="material-symbols-outlined text-[11px]">build</span> Bảo trì
+                  </span>
                 </div>
-                <button @click="lockSeat(s)" title="Báo hỏng ghế này (bảo trì)"
-                        class="text-red-400 hover:text-red-300 flex items-center">
-                  <span class="material-symbols-outlined text-lg">build</span>
+                <button @click="toggleSeatMaintenance(s)" :title="isSeatMaintenance(seatById.get(s.seatId)) ? 'Mở khóa ghế này' : 'Báo hỏng ghế này (bảo trì)'"
+                        :class="['flex items-center p-1 rounded transition-colors', isSeatMaintenance(seatById.get(s.seatId)) ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' : 'text-red-400 hover:text-red-300 hover:bg-red-400/10']">
+                  <span class="material-symbols-outlined text-lg">{{ isSeatMaintenance(seatById.get(s.seatId)) ? 'lock_open' : 'build' }}</span>
                 </button>
               </div>
               <!-- Relocate: hiển thị đích -->
@@ -385,9 +453,11 @@ onMounted(async () => {
                 </div>
               </div>
               <!-- Cancel: checkbox -->
-              <label v-else class="flex items-center gap-2 mt-2 text-xs cursor-pointer">
-                <input type="checkbox" :checked="!!cancelSel[s.bookingSeatId]" @change="onSourceClick(s.seatId)" class="w-4 h-4 rounded accent-red-500" />
-                <span class="text-on-surface-variant">Hủy ghế này ({{ fmtPrice(s.priceSnapshot) }})</span>
+              <label v-else class="flex items-center gap-2 mt-2 text-xs cursor-pointer select-none">
+                <input type="checkbox" v-model="cancelSel[s.bookingSeatId]" class="w-4 h-4 rounded accent-red-500 cursor-pointer" />
+                <span :class="['transition-colors', cancelSel[s.bookingSeatId] ? 'text-red-400 font-bold' : 'text-on-surface-variant']">
+                  Hủy ghế này ({{ fmtPrice(s.priceSnapshot) }})
+                </span>
               </label>
             </div>
           </div>
@@ -417,11 +487,27 @@ onMounted(async () => {
           </div>
 
           <!-- Kết quả -->
-          <div v-if="result" class="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-xs text-green-300 space-y-1">
-            <p class="font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">check_circle</span> Xử lý thành công</p>
-            <p v-if="result.compensation?.voucherIssued">Đã phát voucher: <span class="font-mono font-bold">{{ result.compensation.voucherCode }}</span></p>
-            <p v-else-if="result.compensation?.counterGift">Đền trực tiếp tại quầy (khách vãng lai) — không phát voucher.</p>
-            <p v-if="result.emailResent">Đã gửi lại email vé cho khách.</p>
+          <div v-if="result" class="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-xs text-green-300 space-y-2">
+            <div class="flex items-center justify-between">
+              <p class="font-bold flex items-center gap-1.5 text-sm text-green-200">
+                <span class="material-symbols-outlined text-base text-green-400">check_circle</span>
+                Xử lý thành công
+              </p>
+              <button @click="result = null" class="text-on-surface-variant hover:text-white" title="Đóng thông báo">
+                <span class="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+            <div v-if="result.compensation?.voucherIssued" class="p-2.5 rounded-lg bg-green-950/60 border border-green-500/30 space-y-1">
+              <p class="text-green-200">Mã voucher đền bù cho khách:</p>
+              <p class="text-base font-mono font-black text-green-400 tracking-wider select-all">{{ result.compensation.voucherCode }}</p>
+              <p v-if="result.compensation.amount > 0" class="text-[11px] text-green-300/80">Trị giá: {{ fmtPrice(result.compensation.amount) }}</p>
+            </div>
+            <p v-else-if="result.compensation?.counterGift" class="text-amber-300">
+              ℹ Khách vãng lai: Đền trực tiếp tại quầy — hệ thống không phát voucher điện tử.
+            </p>
+            <p v-if="result.emailResent" class="flex items-center gap-1 text-green-300/80">
+              <span class="material-symbols-outlined text-xs">mark_email_read</span> Đã gửi lại email xác nhận cho khách.
+            </p>
           </div>
         </div>
       </div>
@@ -443,8 +529,12 @@ onMounted(async () => {
               <template v-for="c in cols" :key="`${r}-${c}`">
                 <div v-if="!cellAt(r, c)" class="w-8 h-8"></div>
                 <div v-else-if="cellAt(r, c).kind === 'AISLE'" class="w-8 h-8"></div>
-                <button v-else :class="seatClass(cellAt(r, c))" @click="onSeatClick(cellAt(r, c))">
-                  {{ cellAt(r, c).label }}
+                <button v-else :class="seatClass(cellAt(r, c))"
+                        @click="onSeatClick(cellAt(r, c))"
+                        @contextmenu.prevent="onSeatContextMenu(cellAt(r, c))"
+                        :title="seatTooltip(cellAt(r, c))">
+                  <span v-if="isSeatMaintenance(cellAt(r, c))" class="material-symbols-outlined text-[12px] leading-none">build</span>
+                  <span v-else>{{ cellAt(r, c).label }}</span>
                 </button>
               </template>
             </div>
@@ -454,7 +544,7 @@ onMounted(async () => {
             <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-blue-900/50 border border-blue-500/50"></span> Ghế của đơn</span>
             <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-green-500"></span> Ghế đích</span>
             <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-surface-container-high border border-outline-variant/20"></span> Trống</span>
-            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-surface-container-highest border border-red-500/30"></span> Bảo trì/khóa</span>
+            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-red-950/60 border border-red-500/50 text-red-400 flex items-center justify-center"><span class="material-symbols-outlined text-[10px]">build</span></span> Bảo trì/khóa</span>
             <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-surface-container-high opacity-40"></span> Đã bán</span>
           </div>
         </div>

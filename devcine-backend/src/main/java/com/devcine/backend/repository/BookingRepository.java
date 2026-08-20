@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+
 
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Integer> {
@@ -159,6 +161,13 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     /** Số đơn đã CONFIRMED của khách — dùng xác định "khách mới" cho voucher giới hạn đối tượng. */
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.customer.userId = :customerId AND b.status = 'CONFIRMED'")
     long countConfirmedByCustomer(@Param("customerId") Integer customerId);
+
+    /**
+     * Batch version: trả tập hợp customerId ĐÃ có ít nhất 1 đơn CONFIRMED —
+     * dùng thay vì gọi countConfirmedByCustomer() N lần trong sendCampaignEmails() (tránh N+1).
+     */
+    @Query("SELECT DISTINCT b.customer.userId FROM Booking b WHERE b.status = 'CONFIRMED' AND b.customer IS NOT NULL")
+    Set<Integer> findCustomerIdsWithConfirmedBookings();
 
     /** Khách đã từng mua vé (đơn CONFIRMED) cho 1 phim hay chưa — điều kiện được phép đánh giá. */
     @Query("SELECT COUNT(b) > 0 FROM Booking b JOIN b.showtime s " +
