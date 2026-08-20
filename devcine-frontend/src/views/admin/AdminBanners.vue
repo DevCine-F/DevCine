@@ -456,7 +456,8 @@ onMounted(() => { fetchBanners(); fetchMovies() })
     <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <div v-for="i in 4" :key="i" class="bg-surface-container-low border border-outline-variant/10 rounded-xl h-64 animate-pulse"></div>
     </div>
-    <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5 items-stretch content-start flex-1 overflow-y-auto pr-2 pb-10">
+    <div v-else class="flex-1 overflow-y-auto pr-2 pb-10">
+     <div class="grid grid-cols-[repeat(auto-fill,320px)] justify-start gap-5 items-stretch">
       <div v-for="(banner, i) in banners" :key="banner.id"
            draggable="true"
            @dragstart="onCardDragStart($event, i)"
@@ -573,6 +574,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
           </div>
         </div>
       </div>
+     </div>
     </div>
     <div v-if="!isLoading && banners.length === 0" class="flex flex-col items-center justify-center py-24 text-center">
       <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">add_photo_alternate</span>
