@@ -184,10 +184,8 @@ const formatTone = (name) => {
 
 // ===== Giữ ghế tạm thời (Seat Holding Timer) + đồng bộ trạng thái ghế real-time =====
 const HOLD_SECONDS = 5 * 60       // 5 phút giữ ghế
-const SEAT_POLL_MS = 12000        // 12s/lần kiểm tra ghế bị kênh khác đặt
 const holdRemaining = ref(0)      // giây còn lại
 let holdTimer = null
-let seatPollTimer = null
 const holdActive = computed(() => holdRemaining.value > 0 && selectedSeats.value.length > 0)
 const holdMmSs = computed(() => {
   const s = Math.max(0, holdRemaining.value)
@@ -212,36 +210,24 @@ const expireHold = () => {
   selectedSeats.value = []
   showToast('Hết thời gian giữ ghế — ghế đã được giải phóng cho khách khác. Vui lòng chọn lại.', 'error')
   currentStep.value = 2
-  refreshSeats()
 }
 
-// Tải lại trạng thái ghế; gỡ khỏi giỏ ghế vừa bị App/Web/quầy khác mua
-const refreshSeats = async () => {
-  if (!selectedShowtime.value) return
-  try {
-    const { data } = await ticketingApi.getSeats(selectedShowtime.value.id)
-    const fresh = data.seats
-      ? data
-      : { matrixRow: seatData.value.matrixRow, matrixCol: seatData.value.matrixCol, seats: Array.isArray(data) ? data : [] }
-    seatData.value = fresh
-    const freeIds = new Set(fresh.seats.filter(s => s.status === 'AVAILABLE').map(s => s.seatId))
-    const lost = selectedSeats.value.filter(s => !freeIds.has(s.seatId))
-    if (lost.length) {
-      selectedSeats.value = selectedSeats.value.filter(s => freeIds.has(s.seatId))
-      showToast(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa bị khách khác đặt — đã gỡ khỏi đơn.`, 'error')
-      if (selectedSeats.value.length === 0) stopHoldTimer()
-    }
-  } catch (_) { /* im lặng — lần poll sau thử lại */ }
+// Cập nhật trạng thái ghế trực tiếp từ WebSocket event (không cần gọi lại API)
+const applySeatStatusUpdate = (seatIds, newStatus) => {
+  if (!seatData.value?.seats) return
+  const idSet = new Set(seatIds)
+  seatData.value = {
+    ...seatData.value,
+    seats: seatData.value.seats.map(s =>
+      idSet.has(s.seatId) ? { ...s, status: newStatus } : s
+    )
+  }
 }
+
 const startSeatPolling = () => {
-  if (selectedShowtime.value) seatRealtime.connect(selectedShowtime.value.id) // khóa ghế real-time
-  if (seatPollTimer) clearInterval(seatPollTimer)
-  seatPollTimer = setInterval(() => {
-    if (selectedShowtime.value && currentStep.value >= 2 && currentStep.value <= 5) refreshSeats()
-  }, SEAT_POLL_MS)
+  if (selectedShowtime.value) seatRealtime.connect(selectedShowtime.value.id) // kết nối WebSocket
 }
 const stopSeatPolling = () => {
-  if (seatPollTimer) { clearInterval(seatPollTimer); seatPollTimer = null }
   seatRealtime.disconnect() // rời bước chọn ghế → nhả khóa của mình + ngắt WebSocket
 }
 
@@ -259,14 +245,28 @@ const seatRealtime = useSeatRealtime({
     const label = lost ? seatLabel(lost) : 'này'
     showToast(`Ghế ${label} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
   },
-  // Ghế bị bán ở nơi khác trong lúc đang chọn → gỡ khỏi đơn nếu có
+  // Ghế bị bán ở nơi khác → đánh dấu SOLD trực tiếp + gỡ khỏi đơn nếu đang chọn
   onSold: (seatIds) => {
+    applySeatStatusUpdate(seatIds, 'SOLD')
     const lost = selectedSeats.value.filter(s => seatIds.includes(s.seatId))
     if (lost.length) {
       selectedSeats.value = selectedSeats.value.filter(s => !seatIds.includes(s.seatId))
       if (selectedSeats.value.length === 0) stopHoldTimer()
       showToast(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được bán ở quầy khác — đã gỡ khỏi đơn.`, 'error')
     }
+  },
+  // Ghế vừa được nhả (hết hạn giữ chỗ / huỷ đơn) → cập nhật AVAILABLE ngay lập tức
+  onReleased: (seatIds) => {
+    applySeatStatusUpdate(seatIds, 'AVAILABLE')
+    // Gỡ khỏi danh sách bị chặn (nếu có)
+    const recovered = seatIds.filter(id => selectedSeats.value.some(s => s.seatId === id))
+    if (recovered.length > 0) {
+      showToast(`${recovered.length} ghế vừa được nhả lại — có thể chọn thêm.`, 'info')
+    }
+  },
+  // Ghế vừa bị giữ bởi quầy/khách khác → cập nhật HOLD ngay lập tức
+  onHeld: (seatIds) => {
+    applySeatStatusUpdate(seatIds, 'HOLD')
   },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)

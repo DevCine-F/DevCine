@@ -9,12 +9,14 @@ import { Client } from '@stomp/stompjs'
  *  - Khi một máy giữ/nhả/bán ghế, server broadcast tới mọi máy đang xem suất đó → cập nhật `othersLocked`.
  *
  * @param {Object} opts
- * @param {string} [opts.by]        Nhãn hiển thị máy này (vd "Quầy POS", "Khách online").
+ * @param {string} [opts.by]          Nhãn hiển thị máy này (vd "Quầy POS", "Khách online").
  * @param {Function} [opts.onDenied]  (seatId) → ghế bị quầy khác chiếm trước (để revert UI + toast).
  * @param {Function} [opts.onSold]    (seatIds) → ghế vừa được bán ở nơi khác.
+ * @param {Function} [opts.onReleased] (seatIds) → ghế vừa được nhả (hết hạn/huỷ) — cập nhật status sang AVAILABLE.
+ * @param {Function} [opts.onHeld]    (seatIds) → ghế vừa bị giữ bởi quầy khác — cập nhật status sang HOLD.
  * @param {Function} [opts.onChange]  () → trạng thái khóa của người khác vừa đổi (để ép re-render nếu cần).
  */
-export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onChange } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -55,9 +57,13 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onChang
     if (ev.type === 'SEAT_LOCKED') {
       ids.forEach(id => { if (!mySeats.has(id)) othersLocked.value.add(id) })
       touch()
+      // Thông báo để cập nhật status ghế → HOLD trong seatData
+      if (ids.some(id => !mySeats.has(id))) onHeld?.(ids.filter(id => !mySeats.has(id)))
     } else if (ev.type === 'SEAT_RELEASED') {
       ids.forEach(id => othersLocked.value.delete(id))
       touch()
+      // Thông báo để cập nhật status ghế → AVAILABLE trong seatData
+      onReleased?.(ids)
     } else if (ev.type === 'SEAT_SOLD') {
       // Bỏ qua ghế của chính mình (mình là người vừa bán) → không tự báo "đã bán ở quầy khác"
       const notMine = ids.filter(id => !mySeats.has(id))
@@ -124,3 +130,4 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onChang
 
   return { connected, othersLocked, connect, disconnect, select, deselect, isLockedByOthers }
 }
+
