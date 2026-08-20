@@ -25,16 +25,20 @@ public interface BannerRepository extends JpaRepository<Banner, Integer> {
     // sắp xếp theo thứ tự ưu tiên (displayOrder tăng dần, null coi như 0).
     //
     // Tự động ẩn banner theo phim khi phim không còn khả dụng: với banner mode = MOVIE,
-    // chỉ hiển thị nếu vẫn tồn tại phim tương ứng và phim CHƯA ngừng chiếu (status <> archived).
+    // chỉ hiển thị nếu vẫn tồn tại phim tương ứng, phim CHƯA ngừng chiếu (status <> archived)
+    // VÀ chưa quá ngày kết thúc chiếu của phim (m.endDate) — banner theo phim KẾ THỪA ngày kết thúc
+    // động từ phim: phim để trống endDate = chiếu vô thời hạn; đặt/đổi endDate bên phim thì banner tự
+    // ẩn ngay sau ngày đó mà không cần ai vào sửa banner. Dùng CURRENT_DATE nên còn hiển thị hết ngày endDate.
     // -> Phim ĐANG chiếu (active) và SẮP chiếu (upcoming) đều được quảng cáo trên trang chủ;
-    //    chỉ phim bị xoá (không còn dòng Movie) hoặc ngừng chiếu (archived) mới tự động biến mất
-    //    mà không cần ai vào sửa/xoá banner. Khớp với checkMovieAvailable lúc tạo banner (chỉ chặn archived).
+    //    phim bị xoá (không còn dòng Movie), ngừng chiếu (archived) hoặc quá ngày kết thúc chiếu mới tự
+    //    động biến mất. Khớp với checkMovieAvailable lúc tạo banner (chỉ chặn archived).
     @Query("SELECT b FROM Banner b WHERE b.isActive = true "
             + "AND (b.placement = :placement OR b.placement IS NULL) "
             + "AND (b.startDate IS NULL OR b.startDate <= :now) "
             + "AND (b.endDate IS NULL OR b.endDate >= :now) "
             + "AND (b.mode IS NULL OR b.mode <> 'MOVIE' OR EXISTS ("
-            + "    SELECT 1 FROM Movie m WHERE m.id = b.movieId AND lower(m.status) <> 'archived')) "
+            + "    SELECT 1 FROM Movie m WHERE m.id = b.movieId AND lower(m.status) <> 'archived' "
+            + "      AND (m.endDate IS NULL OR m.endDate >= CURRENT_DATE))) "
             + "ORDER BY COALESCE(b.displayOrder, 0) ASC, b.id DESC")
     List<Banner> findActiveBanners(@Param("placement") String placement, @Param("now") LocalDateTime now);
 }

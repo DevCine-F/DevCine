@@ -82,7 +82,7 @@ const fetchMovies = async () => {
     const { data } = await api.get('/movies')
     movies.value = (Array.isArray(data) ? data : (data.data ?? [])).map(m => ({
       id: m.id, title: m.title, status: m.status, posterUrl: m.posterUrl || null,
-      trailerUrl: m.trailerUrl || null,
+      trailerUrl: m.trailerUrl || null, endDate: m.endDate ?? null,
     }))
   } catch (e) {
     console.error('Failed to load movies', e)
@@ -202,7 +202,8 @@ const buildPayload = () => ({
   isActive: form.value.isActive,
   order: Number(form.value.order) || 0,
   startDate: form.value.startDate ? `${form.value.startDate}T00:00:00` : null,
-  endDate: form.value.endDate ? `${form.value.endDate}T23:59:59` : null,
+  // Banner theo phim KHÔNG lưu ngày kết thúc riêng — kế thừa động từ ngày kết thúc chiếu của phim.
+  endDate: form.value.mode === 'MOVIE' ? null : (form.value.endDate ? `${form.value.endDate}T23:59:59` : null),
 })
 
 // Khi đổi ngày bắt đầu: nếu ngày kết thúc đang chọn trước đó -> xóa để buộc chọn lại (đồng bộ với :min).
@@ -386,6 +387,21 @@ const bannerLink = (banner) =>
     ? (banner.movieId ? `/movie/${banner.movieId}` : null)
     : (banner.link || null)
 
+// Ngày kết thúc HIỆU LỰC của banner:
+// - Theo phim -> KẾ THỪA ngày kết thúc chiếu của phim (động: tự đổi khi admin sửa endDate bên phim,
+//   không lưu cứng trên banner). Phim để trống = vô thời hạn.
+// - Ảnh       -> dùng ngày kết thúc admin tự nhập trên banner.
+const bannerEndDate = (banner) =>
+  banner.mode === 'MOVIE'
+    ? (movies.value.find(m => m.id === banner.movieId)?.endDate || null)
+    : (banner.endDate || null)
+
+// Ngày kết thúc chiếu của phim đang chọn trong form (để hiển thị "kế thừa" ở modal banner theo phim).
+const selectedMovieEndDate = computed(() =>
+  form.value.mode === 'MOVIE' && form.value.movieId
+    ? (movies.value.find(m => m.id === form.value.movieId)?.endDate || null)
+    : null)
+
 // ===== Trạng thái hiển thị THỰC TẾ trên trang chủ =====
 // Số thứ tự (#N) chỉ là vị trí ưu tiên trong toàn bộ danh sách; nó KHÔNG cho biết banner có
 // đang xuất hiện với khách hay không. Ở đây tính lại đúng điều kiện findActiveBanners của backend
@@ -407,7 +423,10 @@ const toDateTime = (dt) => {
 const bannerVisibility = (b) => {
   if (!b.isActive) return { live: false, label: 'Đang tắt', tone: 'off' }
   const start = toDateTime(b.startDate)
-  const end = toDateTime(b.endDate)
+  // Ngày kết thúc hiệu lực (banner theo phim kế thừa từ phim). Phim chỉ có NGÀY nên coi như hết hạn
+  // vào cuối ngày endDate — khớp backend (m.endDate >= CURRENT_DATE: còn hiển thị hết ngày đó).
+  let end = toDateTime(bannerEndDate(b))
+  if (end && b.mode === 'MOVIE') end = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59)
   const t = now.value
   if (start && start > t) return { live: false, label: 'Chưa tới hạn', tone: 'scheduled' }
   if (end && end < t) return { live: false, label: 'Đã hết hạn', tone: 'expired' }
@@ -547,7 +566,7 @@ onMounted(() => { fetchBanners(); fetchMovies() })
           <!-- Luôn render (kể cả khi trống) để mọi card cao bằng nhau; truncate chống rớt dòng -->
           <div class="flex items-center gap-1.5 text-[11px] text-on-surface-variant min-w-0">
             <span class="material-symbols-outlined text-sm shrink-0">date_range</span>
-            <span class="truncate">{{ toDateInput(banner.startDate) || 'Bắt đầu ngay' }} → {{ toDateInput(banner.endDate) || 'Vô thời hạn' }}</span>
+            <span class="truncate">{{ toDateInput(banner.startDate) || 'Bắt đầu ngay' }} → {{ toDateInput(bannerEndDate(banner)) || 'Vô thời hạn' }}</span>
           </div>
 
           <div class="flex items-center justify-between mt-auto pt-3 border-t border-outline-variant/10">
@@ -694,9 +713,19 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             </div>
             <div class="space-y-2 flex-1">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày kết thúc</label>
-              <!-- Chặn cứng: min = ngày bắt đầu (khóa mọi ngày trước đó) · không gõ tay -->
-              <input v-model="form.endDate" type="date" :min="form.startDate || todayStr" onkeydown="event.preventDefault()" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface cursor-pointer">
-              <p class="text-[10px] text-on-surface-variant/60">Để trống = vô thời hạn · tự tính đến 23:59:59</p>
+              <!-- Banner theo phim: kế thừa ngày kết thúc chiếu của phim (chỉ đọc). Ảnh: admin tự nhập. -->
+              <template v-if="form.mode === 'MOVIE'">
+                <div class="w-full bg-surface-container-highest border-none text-sm rounded-lg py-2.5 px-4 text-on-surface-variant flex items-center gap-2">
+                  <span class="material-symbols-outlined text-base text-primary/60">movie</span>
+                  {{ toDateInput(selectedMovieEndDate) || 'Vô thời hạn' }}
+                </div>
+                <p class="text-[10px] text-on-surface-variant/60">Kế thừa từ ngày kết thúc chiếu của phim · tự đổi khi sửa phim</p>
+              </template>
+              <template v-else>
+                <!-- Chặn cứng: min = ngày bắt đầu (khóa mọi ngày trước đó) · không gõ tay -->
+                <input v-model="form.endDate" type="date" :min="form.startDate || todayStr" onkeydown="event.preventDefault()" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface cursor-pointer">
+                <p class="text-[10px] text-on-surface-variant/60">Để trống = vô thời hạn · tự tính đến 23:59:59</p>
+              </template>
             </div>
           </div>
 
