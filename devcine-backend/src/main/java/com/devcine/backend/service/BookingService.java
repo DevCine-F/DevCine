@@ -383,15 +383,14 @@ public class BookingService {
                 throw new RuntimeException("Voucher does not belong to this customer");
             }
 
-            Promotion promotion = voucher.getPromotion();
-
             // Chấm điều kiện (đơn tối thiểu / theo phim / đối tượng / lượt dùng) + tính giảm qua
-            // NGUỒN SỰ THẬT DUY NHẤT — dùng chung với bước preview để hai bên không lệch nhau.
+            // NGUỒN SỰ THẬT DUY NHẤT — dùng SNAPSHOT đóng băng trên voucher thay vì Promotion LIVE.
+            voucherService.ensureSnapshotPublic(voucher); // Lazy migration: đóng băng cho voucher cũ
             java.util.List<BigDecimal> seatPrices = bookingSeats.stream()
                     .map(BookingSeat::getPriceSnapshot)
                     .collect(java.util.stream.Collectors.toList());
             VoucherService.VoucherEval eval = voucherService.evaluate(
-                    customer.getUserId(), customer, promotion, totalPrice, showtime.getMovie().getId(), seatPrices);
+                    customer.getUserId(), customer, voucher, totalPrice, showtime.getMovie().getId(), seatPrices);
             if (!eval.applicable()) {
                 throw new RuntimeException(eval.reason());
             }
@@ -402,6 +401,7 @@ public class BookingService {
                 finalPrice = BigDecimal.ZERO;
             }
             booking.setVoucher(voucher);
+            booking.setDiscountAmount(discount); // ghi rõ số giảm cho đối soát
         }
         
         booking.setFinalPrice(finalPrice);
@@ -620,16 +620,25 @@ public class BookingService {
             seatLockService.markSold(booking.getShowtime().getId(), soldSeatIds);
         }
 
-        // Mark voucher as used + tăng lượt dùng của chương trình khuyến mãi
+        // Mark voucher as used + tăng lượt dùng ATOMIC (chống race condition khi 2 đơn cùng thanh toán)
         if (booking.getVoucher() != null) {
             Voucher v = booking.getVoucher();
             v.setIsUsed(true);
             v.setUsedAt(LocalDateTime.now()); // ghi mốc thời điểm sử dụng voucher
             voucherRepository.save(v);
             Promotion promo = v.getPromotion();
-            if (promo != null) {
-                promo.setUsedCount((promo.getUsedCount() != null ? promo.getUsedCount() : 0) + 1);
-                promotionRepository.save(promo);
+            if (promo != null && promo.getUsageLimit() != null && promo.getUsageLimit() > 0) {
+                int updated = promotionRepository.incrementUsedCountIfAllowed(promo.getId());
+                if (updated == 0) {
+                    // Hết lượt → rollback voucher về chưa dùng, từ chối đơn
+                    v.setIsUsed(false);
+                    v.setUsedAt(null);
+                    voucherRepository.save(v);
+                    throw new RuntimeException("Mã khuyến mãi đã hết lượt sử dụng, vui lòng bỏ voucher và thử lại.");
+                }
+            } else if (promo != null) {
+                // Không giới hạn lượt → tăng bình thường (atomic UPDATE vẫn an toàn)
+                promotionRepository.incrementUsedCountIfAllowed(promo.getId());
             }
         }
 

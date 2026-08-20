@@ -135,13 +135,20 @@ public class VoucherService {
      * {@code BookingService} để preview khớp với lúc đặt vé. Giữ đúng THỨ TỰ kiểm tra:
      * đơn tối thiểu → theo phim → đối tượng → lượt dùng; rồi tính base & số giảm (có trần).
      *
+     * <p><b>Thông số giảm giá</b> (loại/giá trị/trần/số vé) đọc từ <b>SNAPSHOT đóng băng</b>
+     * trên Voucher — không bị ảnh hưởng nếu Admin sửa Promotion sau khi voucher đã phát.</p>
+     *
+     * @param voucher    voucher cần chấm (chứa snapshot thông số giảm)
      * @param orderTotal tổng tiền đơn (ghế + bắp nước)
      * @param movieId    phim của suất đang đặt (null = bỏ qua kiểm theo phim)
      * @param seatPrices giá từng ghế — để tính base khi mã giới hạn số vé
      * @return số giảm THÔ (chưa kẹp về 0/tổng đơn); caller tự kẹp finalPrice.
      */
-    public VoucherEval evaluate(Integer customerId, Customer customer, Promotion promo,
+    public VoucherEval evaluate(Integer customerId, Customer customer, Voucher voucher,
                                 BigDecimal orderTotal, Integer movieId, List<BigDecimal> seatPrices) {
+        Promotion promo = voucher.getPromotion();
+        // Điều kiện áp dụng (đơn tối thiểu / theo phim / đối tượng / lượt dùng) đọc LIVE
+        // từ Promotion — admin thay đổi điều kiện có hiệu lực ngay.
         if (promo.getMinOrderValue() != null && orderTotal.compareTo(promo.getMinOrderValue()) < 0) {
             return new VoucherEval(false,
                     "Đơn tối thiểu " + promo.getMinOrderValue().toBigInteger() + "đ để áp dụng mã này.", BigDecimal.ZERO);
@@ -157,32 +164,52 @@ public class VoucherService {
             return new VoucherEval(false, "Mã đã hết lượt sử dụng.", BigDecimal.ZERO);
         }
 
+        // ═══ THÔNG SỐ GIẢM GIÁ: đọc từ SNAPSHOT (đóng băng lúc phát voucher) ═══
+        // Voucher cũ (trước fix) chưa có snapshot → fallback Promotion LIVE qua effective*().
+        String discountType = voucher.effectiveDiscountType();
+        BigDecimal discountValue = voucher.effectiveDiscountValue();
+        BigDecimal maxDiscAmt = voucher.effectiveMaxDiscountAmount();
+        Integer maxTk = voucher.effectiveMaxTicketQuantity();
+
         // Base tính giảm: mặc định cả đơn; nếu giới hạn số vé → chỉ X vé ĐẮT NHẤT
         BigDecimal base = orderTotal;
-        Integer maxTk = promo.getMaxTicketQuantity();
         if (maxTk != null && maxTk > 0 && seatPrices != null && !seatPrices.isEmpty()) {
             base = seatPrices.stream().filter(Objects::nonNull)
                     .sorted(Comparator.reverseOrder()).limit(maxTk)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
         }
         BigDecimal discount = BigDecimal.ZERO;
-        if ("PERCENTAGE".equalsIgnoreCase(promo.getDiscountType())) {
-            discount = base.multiply(promo.getDiscountValue()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-        } else if ("FIXED_AMOUNT".equalsIgnoreCase(promo.getDiscountType())) {
-            discount = promo.getDiscountValue().min(base);
+        if ("PERCENTAGE".equalsIgnoreCase(discountType)) {
+            discount = base.multiply(discountValue).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        } else if ("FIXED_AMOUNT".equalsIgnoreCase(discountType)) {
+            discount = discountValue.min(base);
         }
-        BigDecimal maxDisc = promo.getMaxDiscountAmount();
-        if (maxDisc != null && maxDisc.compareTo(BigDecimal.ZERO) > 0 && discount.compareTo(maxDisc) > 0) {
-            discount = maxDisc;
+        if (maxDiscAmt != null && maxDiscAmt.compareTo(BigDecimal.ZERO) > 0 && discount.compareTo(maxDiscAmt) > 0) {
+            discount = maxDiscAmt;
         }
         return new VoucherEval(true, null, discount);
     }
 
     /**
+     * Đảm bảo voucher đã có snapshot thông số giảm giá. Nếu snapshot rỗng (voucher cũ
+     * tạo trước khi có cơ chế snapshot), tự đóng băng từ Promotion hiện tại.
+     * Lazy migration — chỉ chạy 1 lần duy nhất cho mỗi voucher cũ.
+     * Public để BookingService cũng có thể gọi trước evaluate().
+     */
+    public void ensureSnapshotPublic(Voucher v) {
+        if (v.getDiscountValueSnapshot() == null) {
+            v.snapshotFrom(v.getPromotion());
+            voucherRepository.save(v);
+        }
+    }
+
+    private void ensureSnapshot(Voucher v) { ensureSnapshotPublic(v); }
+
+    /**
      * Preview toàn bộ voucher đang hiệu lực của khách theo giỏ hàng hiện tại — phục vụ bước
      * "Ưu đãi" khi đặt vé: FE làm mờ mã không đủ điều kiện và hiển thị số giảm THỰC.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<Map<String, Object>> previewActiveVouchers(VoucherPreviewRequest req) {
         Integer customerId = req.getCustomerId();
         if (customerId == null) return List.of();
@@ -194,8 +221,9 @@ public class VoucherService {
 
         List<Map<String, Object>> out = new ArrayList<>();
         for (Voucher v : voucherRepository.findActiveVouchersByCustomerId(customerId, LocalDateTime.now())) {
+            ensureSnapshot(v); // Lazy migration: đóng băng snapshot cho voucher cũ
             Promotion p = v.getPromotion();
-            VoucherEval eval = evaluate(customerId, customer, p, orderTotal, req.getMovieId(), req.getSeatPrices());
+            VoucherEval eval = evaluate(customerId, customer, v, orderTotal, req.getMovieId(), req.getSeatPrices());
             BigDecimal shown = eval.discountAmount().min(orderTotal); // số giảm thực (không vượt tổng đơn)
             Map<String, Object> m = new HashMap<>();
             m.put("voucherId", v.getId());
@@ -269,6 +297,7 @@ public class VoucherService {
                 .isUsed(false)
                 .validUntil(promo.getEndDate() != null ? promo.getEndDate() : now.plusMonths(1))
                 .build();
+        voucher.snapshotFrom(promo); // Đóng băng thông số giảm giá tại thời điểm đổi
         voucherRepository.save(voucher);
 
         log.info("Khách #{} đổi {} điểm lấy voucher từ promotion #{}", customerId, promo.getPointsRequired(), promoId);
@@ -313,6 +342,7 @@ public class VoucherService {
                 .isUsed(false)
                 .validUntil(promo.getEndDate() != null ? promo.getEndDate() : now.plusMonths(1))
                 .build();
+        voucher.snapshotFrom(promo); // Đóng băng thông số giảm giá tại thời điểm lưu mã
         voucherRepository.save(voucher);
 
         log.info("Khách #{} lưu voucher bằng mã '{}' (promotion #{})", customerId, promo.getCode(), promo.getId());
@@ -336,7 +366,12 @@ public class VoucherService {
         Customer customer = resolveOrCreateCustomer(customerId);
         assertEligibility(customerId, customer, promo);
 
-        return voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), LocalDateTime.now())
-                .orElseGet(() -> claimByCode(customerId, promo.getCode()));
+        Voucher existing = voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), LocalDateTime.now())
+                .orElse(null);
+        if (existing != null) {
+            ensureSnapshot(existing); // Lazy migration: đóng băng snapshot cho voucher cũ
+            return existing;
+        }
+        return claimByCode(customerId, promo.getCode());
     }
 }

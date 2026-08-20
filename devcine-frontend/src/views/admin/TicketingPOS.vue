@@ -1109,8 +1109,13 @@ const discountAmount = computed(() => {
   if (!appliedVoucher.value) return 0
   const v = appliedVoucher.value
   const base = totalPrice.value
-  if (String(v.discountType).toUpperCase() === 'PERCENTAGE') return Math.round(base * Number(v.discountValue || 0) / 100)
-  return Math.min(Number(v.discountValue || 0), base)
+  let disc = 0
+  if (String(v.discountType).toUpperCase() === 'PERCENTAGE') disc = Math.round(base * Number(v.discountValue || 0) / 100)
+  else disc = Math.min(Number(v.discountValue || 0), base)
+  // Trần giảm tối đa (maxDiscountAmount) — khớp logic backend evaluate()
+  const cap = Number(v.maxDiscountAmount || 0)
+  if (cap > 0 && disc > cap) disc = cap
+  return disc
 })
 // Số tiền khách thực trả sau giảm giá — dùng cho QR/tiền thối
 const payableTotal = computed(() => Math.max(0, totalPrice.value - discountAmount.value))
@@ -1272,7 +1277,7 @@ const applyVoucher = async () => {
   voucherError.value = ''
   try {
     const { data } = await ticketingApi.applyVoucher(member.value.customerId, code)
-    appliedVoucher.value = { id: data.id, code: data.code, discountType: data.discountType, discountValue: Number(data.discountValue || 0) }
+    appliedVoucher.value = { id: data.id, code: data.code, discountType: data.discountType, discountValue: Number(data.discountValue || 0), maxDiscountAmount: Number(data.maxDiscountAmount || 0) }
     voucherCodeInput.value = data.code
     showToast(`Đã áp mã ${data.code}.`, 'success')
     loadOwnedVouchers()
