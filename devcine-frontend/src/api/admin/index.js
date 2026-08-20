@@ -51,6 +51,7 @@ export const marketingApi = {
   getPromotions: () => api.get('/marketing/promotions'),
   createPromotion: (data) => api.post('/marketing/promotions', data),
   updatePromotion: (id, data) => api.put(`/marketing/promotions/${id}`, data),
+  togglePromotion: (id) => api.patch(`/marketing/promotions/${id}/toggle`),
   deletePromotion: (id) => api.delete(`/marketing/promotions/${id}`),
   issueVoucher: (promoId, customerId) => api.post(`/marketing/promotions/${promoId}/issue-voucher`, { customerId }),
   // Gửi email chiến dịch mã ưu đãi tới toàn bộ khách thuộc đối tượng áp dụng

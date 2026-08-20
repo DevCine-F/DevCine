@@ -147,8 +147,9 @@ public class VoucherService {
     public VoucherEval evaluate(Integer customerId, Customer customer, Voucher voucher,
                                 BigDecimal orderTotal, Integer movieId, List<BigDecimal> seatPrices) {
         Promotion promo = voucher.getPromotion();
-        // Điều kiện áp dụng (đơn tối thiểu / theo phim / đối tượng / lượt dùng) đọc LIVE
-        // từ Promotion — admin thay đổi điều kiện có hiệu lực ngay.
+        if (promo == null) {
+            return new VoucherEval(false, "Không tìm thấy chương trình ưu đãi.", BigDecimal.ZERO);
+        }
         if (promo.getMinOrderValue() != null && orderTotal.compareTo(promo.getMinOrderValue()) < 0) {
             return new VoucherEval(false,
                     "Đơn tối thiểu " + promo.getMinOrderValue().toBigInteger() + "đ để áp dụng mã này.", BigDecimal.ZERO);
@@ -264,6 +265,9 @@ public class VoucherService {
         Promotion promo = promotionRepository.findById(promoId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ưu đãi"));
 
+        if (Boolean.FALSE.equals(promo.getIsActive())) {
+            throw new RuntimeException("Ưu đãi này đang tạm dừng áp dụng.");
+        }
         if (!Boolean.TRUE.equals(promo.getAllowPointRedemption())
                 || promo.getPointsRequired() == null || promo.getPointsRequired() <= 0) {
             throw new RuntimeException("Ưu đãi này không cho phép đổi bằng điểm.");
@@ -316,6 +320,10 @@ public class VoucherService {
         Customer customer = resolveOrCreateCustomer(customerId);
         Promotion promo = promotionRepository.findByCodeIgnoreCase(code.trim())
                 .orElseThrow(() -> new RuntimeException("Mã ưu đãi không tồn tại."));
+
+        if (Boolean.FALSE.equals(promo.getIsActive())) {
+            throw new RuntimeException("Mã ưu đãi đang tạm dừng áp dụng.");
+        }
 
         if (Boolean.TRUE.equals(promo.getAllowPointRedemption())) {
             throw new RuntimeException("Mã này chỉ có thể đổi bằng điểm tích luỹ.");
@@ -371,6 +379,11 @@ public class VoucherService {
         if (existing != null) {
             ensureSnapshot(existing); // Lazy migration: đóng băng snapshot cho voucher cũ
             return existing;
+        }
+
+        // Khách chưa sở hữu -> chỉ cho claim mới khi promotion đang active
+        if (Boolean.FALSE.equals(promo.getIsActive())) {
+            throw new RuntimeException("Mã ưu đãi đang tạm dừng áp dụng.");
         }
         return claimByCode(customerId, promo.getCode());
     }

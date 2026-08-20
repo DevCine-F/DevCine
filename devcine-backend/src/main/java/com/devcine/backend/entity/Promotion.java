@@ -42,6 +42,10 @@ public class Promotion {
     @Column(name = "end_date")
     private LocalDateTime endDate;
 
+    @Column(name = "is_active", columnDefinition = "boolean not null default true")
+    @Builder.Default
+    private Boolean isActive = true;
+
     @Column(name = "is_stackable", nullable = false)
     @Builder.Default
     private Boolean isStackable = false;
