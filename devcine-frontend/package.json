@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:backend": "cd ../devcine-backend && .\\mvnw.cmd spring-boot:run",
+    "predev:all": "node scripts/check-redis.js",
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview"
