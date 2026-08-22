@@ -24,5 +24,13 @@ public record CompensationRequest(
 
         /** Ghi chú tay, ví dụ: "In phiếu bắp nước cứng đền tại quầy". */
         @Size(max = 255, message = "Ghi chú tối đa 255 ký tự.")
-        String note
-) {}
+        String note,
+
+        /** Số điện thoại nhận voucher (dành cho khách vãng lai hoặc đổi SĐT nhận voucher). */
+        String customerPhone
+) {
+    public CompensationRequest(String type, Integer promotionTemplateId, String note) {
+        this(type, promotionTemplateId, note, null);
+    }
+}
+

@@ -4,17 +4,15 @@ import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.dto.request.CancelSeatRequest;
 import com.devcine.backend.dto.request.RelocateRequest;
 import com.devcine.backend.dto.request.SeatPhysicalStatusRequest;
-import com.devcine.backend.dto.response.CompensationOption;
-import com.devcine.backend.dto.response.IncidentBookingContext;
-import com.devcine.backend.dto.response.IncidentListItem;
-import com.devcine.backend.dto.response.IncidentResultResponse;
-import com.devcine.backend.dto.response.SeatPhysicalStatusResponse;
+import com.devcine.backend.dto.response.*;
 import com.devcine.backend.service.SeatIncidentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -56,6 +54,13 @@ public class SeatIncidentController {
         return ResponseEntity.ok(ApiResponse.ok(incidentService.listCompensationTemplates()));
     }
 
+    /** Cảnh báo xung đột: các đơn ở suất tương lai đang giữ ghế này (Chain Lock). */
+    @GetMapping("/seats/{seatId}/future-conflicts")
+    @PreAuthorize("@perm.can('incident_handling','view')")
+    public ResponseEntity<ApiResponse<List<FutureSeatConflictDTO>>> futureConflicts(@PathVariable Integer seatId) {
+        return ResponseEntity.ok(ApiResponse.ok(incidentService.findConflictingFutureBookings(seatId)));
+    }
+
     /** Khóa/mở trạng thái vật lý của ghế (bảo trì ghế hỏng). */
     @PatchMapping("/seats/{seatId}/status")
     @PreAuthorize("@perm.can('incident_handling','handle')")
@@ -93,6 +98,23 @@ public class SeatIncidentController {
         LocalDateTime toTs = to != null ? to.atTime(23, 59, 59) : null;
         Page<IncidentListItem> result = incidentService.history(type, code, fromTs, toTs, PageRequest.of(page, size));
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /** Xuất danh sách sự cố ra file CSV phục vụ đối soát Kế toán - Vận hành. */
+    @GetMapping("/export")
+    @PreAuthorize("@perm.can('incident_handling','view')")
+    public ResponseEntity<byte[]> export(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        LocalDateTime fromTs = from != null ? from.atStartOfDay() : null;
+        LocalDateTime toTs = to != null ? to.atTime(23, 59, 59) : null;
+        byte[] csvBytes = incidentService.exportHistoryCsv(type, code, fromTs, toTs);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=incidents_" + LocalDate.now() + ".csv")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(csvBytes);
     }
 
     /** Chi tiết một sự cố. */

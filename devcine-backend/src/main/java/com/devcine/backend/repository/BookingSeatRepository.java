@@ -76,4 +76,14 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
            "WHERE b.showtime.id = :showtimeId AND bs.seat.id = :seatId AND bs.status = 'SOLD'")
     Optional<BookingSeat> findSoldSeatOccupant(@Param("showtimeId") Integer showtimeId,
                                                @Param("seatId") Integer seatId);
+
+    /**
+     * Tìm các đơn hàng ở các suất chiếu TƯƠNG LAI đang giữ ghế này (để cảnh báo xung đột Chain Lock).
+     */
+    @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.booking b JOIN FETCH b.showtime st JOIN FETCH st.movie " +
+           "JOIN FETCH st.room r LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user " +
+           "WHERE bs.seat.id = :seatId AND st.startTime > :now AND bs.status = 'SOLD' " +
+           "ORDER BY st.startTime ASC")
+    List<BookingSeat> findFutureBookingsBySeat(@Param("seatId") Integer seatId, @Param("now") LocalDateTime now);
 }
+

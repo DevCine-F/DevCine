@@ -91,13 +91,22 @@ public class SeatLockService {
         });
     }
 
-    /** Ghế đã được BÁN (thanh toán xong) — xóa khóa tạm và broadcast SOLD để mọi màn khóa cứng. */
+    /** Ghế đã được BÁN (thanh toán xong / đổi ghế đến) — xóa khóa tạm và broadcast SOLD để mọi màn khóa cứng. */
     public void markSold(Integer showtimeId, List<Integer> seatIds) {
         if (seatIds == null || seatIds.isEmpty()) return;
         Map<Integer, Lock> seatLocks = locksByShowtime.get(showtimeId);
         if (seatLocks != null) seatIds.forEach(seatLocks::remove);
         broadcast(showtimeId, "SEAT_SOLD", seatIds, null);
     }
+
+    /** Broadcast nhả ghế (khi đổi đi nơi khác hoặc hủy chỗ). */
+    public void broadcastReleased(Integer showtimeId, List<Integer> seatIds) {
+        if (seatIds == null || seatIds.isEmpty()) return;
+        Map<Integer, Lock> seatLocks = locksByShowtime.get(showtimeId);
+        if (seatLocks != null) seatIds.forEach(seatLocks::remove);
+        broadcast(showtimeId, "SEAT_RELEASED", seatIds, null);
+    }
+
 
     /** Danh sách ghế đang bị khóa tạm (còn hiệu lực) của một suất — cho client đồng bộ lúc mới vào. */
     public List<Integer> lockedSeatIds(Integer showtimeId) {

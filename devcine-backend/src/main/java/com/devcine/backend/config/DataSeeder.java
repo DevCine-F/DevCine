@@ -47,11 +47,11 @@ public class DataSeeder {
             roleRepository.findByName("CUSTOMER").orElseGet(()
                     -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
-            // ===== PERMISSION MATRIX V6 =====
-            // Đặt lại MỘT LẦN qua cờ PERMISSION_MATRIX_V6.
-            // V6: thêm feature incident_handling (view/handle) — Xử lý sự cố phòng chiếu / đổi ghế đền bù.
-            boolean permissionMatrixV6 = systemSettingRepository.findById("PERMISSION_MATRIX_V6").isPresent();
-            if (!permissionMatrixV6 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+            // ===== PERMISSION MATRIX V7 =====
+            // Đặt lại MỘT LẦN qua cờ PERMISSION_MATRIX_V7.
+            // V7: incident_handling chỉ mặc định cho ADMIN và MANAGER (chuẩn hóa cấp Quản lý theo mô hình Lotte).
+            boolean permissionMatrixV7 = systemSettingRepository.findById("PERMISSION_MATRIX_V7").isPresent();
+            if (!permissionMatrixV7 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
                         + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"dashboard_stats\":[\"view\",\"export\"],"
@@ -72,9 +72,8 @@ public class DataSeeder {
                         + "\"settings\":[\"view\",\"edit\"]}");
                 roleRepository.save(adminRole);
             }
-            if (!permissionMatrixV6 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+            if (!permissionMatrixV7 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
                 staffRole.setPermissionsMatrix("{"
-                        + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"movies\":[\"view\"],"
                         + "\"schedules\":[\"view\"],"
                         + "\"pos_ticketing\":[\"view\",\"add\"],"
@@ -84,7 +83,7 @@ public class DataSeeder {
                         + "\"support\":[\"view\"]}");
                 roleRepository.save(staffRole);
             }
-            if (!permissionMatrixV6 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
+            if (!permissionMatrixV7 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
                 managerRole.setPermissionsMatrix("{"
                         + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"dashboard_stats\":[\"view\"],"
@@ -104,11 +103,12 @@ public class DataSeeder {
                         + "\"settings\":[\"view\"]}");
                 roleRepository.save(managerRole);
             }
-            if (!permissionMatrixV6) {
+            if (!permissionMatrixV7) {
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("PERMISSION_MATRIX_V6").settingValue("true").build());
-                System.out.println("[DataSeeder] Đã áp dụng Permission Matrix V6.");
+                        .settingKey("PERMISSION_MATRIX_V7").settingValue("true").build());
+                System.out.println("[DataSeeder] Đã áp dụng Permission Matrix V7.");
             }
+
 
             // ===== TÀI KHOẢN ADMIN (bắt buộc để đăng nhập lần đầu) =====
             User adminUser = userRepository.findByUsername("admin").orElse(null);
