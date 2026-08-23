@@ -71,6 +71,14 @@ const formatMeta = computed(() => {
           ĐÃ HẾT HẠN
         </div>
       </div>
+
+      <!-- Badge Chiếu sớm — chỉ hiện khi phim sắp chiếu có suất mở bán sớm -->
+      <div v-if="!isExpired && movie.hasEarlyScreening"
+           class="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none">
+        <span class="early-screening-badge">
+          🎬 CHIẾU SỚM
+        </span>
+      </div>
     </div>
     
     <!-- Info -->
