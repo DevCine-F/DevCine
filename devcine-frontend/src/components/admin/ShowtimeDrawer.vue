@@ -48,7 +48,20 @@ const movieOptions = computed(() => {
   return [...movies.value]
     .filter(m => m.status === 'active' || m.status === 'upcoming')
     .sort((a, b) => (b.id || 0) - (a.id || 0))
-    .map(m => ({ value: m.id, label: m.title || m.name }));
+    .map(m => {
+      const isUpcoming = (m.status || '').toLowerCase() === 'upcoming';
+      return {
+        value: m.id,
+        label: m.title || m.name,
+        badge: {
+          text: isUpcoming ? 'Sắp chiếu' : 'Đang chiếu',
+          type: isUpcoming ? 'upcoming' : 'active',
+          class: isUpcoming
+            ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+        }
+      };
+    });
 });
 
 const roomOptions = computed(() => {
