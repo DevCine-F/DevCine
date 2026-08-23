@@ -113,19 +113,29 @@ const labelWidthClass = computed(() => {
   return 'w-6 text-label-sm'
 })
 
+const colTrackWidth = computed(() => {
+  if (effectiveSize.value === 'sm') return '1.75rem'
+  if (effectiveSize.value === 'compact') return '2rem'
+  return '2.5rem'
+})
+
+const gridColStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${props.matrixCol}, ${colTrackWidth.value})`
+}))
+
 // Kiểm tra ô (r, c) có bị che khuất bởi ghế SWEETBOX/Double ở cột trước đó (r, c - 1) hay không
 const isOccupiedBySweetbox = (r, c) => {
   if (c <= 0) return false
   const prev = seatAt(r, c - 1)
   if (!prev) return false
-  const type = (prev.seatType || '').toUpperCase()
-  return type === 'SWEETBOX' || type === 'DOUBLE' || prev.span === 2
+  if (!isDoubleSeat(prev)) return false
+  return !isOccupiedBySweetbox(r, c - 1)
 }
 
 const isDoubleSeat = (cell) => {
   if (!cell || !isSeat(cell)) return false
   const type = (cell.seatType || '').toUpperCase()
-  return type === 'SWEETBOX' || type === 'DOUBLE' || cell.span === 2
+  return ['SWEETBOX', 'DOUBLE', 'COUPLE'].includes(type) || cell.span === 2
 }
 
 const isSelected = (seat) => {
@@ -197,11 +207,11 @@ const computeSeatClass = (seat) => {
 
   let sizeClass = ''
   if (isSm) {
-    sizeClass = isDouble ? 'col-span-2 w-full h-7 rounded-md' : 'w-7 h-7 aspect-square rounded'
+    sizeClass = isDouble ? 'col-span-2 w-full h-7 rounded-lg justify-self-stretch' : 'w-7 h-7 aspect-square rounded'
   } else if (isCompact) {
-    sizeClass = isDouble ? 'col-span-2 w-full h-8 rounded-lg' : 'w-8 h-8 aspect-square rounded-lg'
+    sizeClass = isDouble ? 'col-span-2 w-full h-8 rounded-xl justify-self-stretch' : 'w-8 h-8 aspect-square rounded-lg'
   } else {
-    sizeClass = isDouble ? 'col-span-2 w-full h-10 rounded-t-2xl rounded-b-lg' : 'w-10 h-10 aspect-square rounded-lg'
+    sizeClass = isDouble ? 'col-span-2 w-full h-10 rounded-t-2xl rounded-b-xl justify-self-stretch' : 'w-10 h-10 aspect-square rounded-lg'
   }
 
   const baseClasses = `${sizeClass} flex items-center justify-center font-bold transition-all duration-150 leading-none shrink-0 select-none`
@@ -320,9 +330,7 @@ const handleSeatLeave = () => {
         <div
           class="grid items-center justify-items-center"
           :class="effectiveSize === 'compact' ? 'gap-1.5' : effectiveSize === 'sm' ? 'gap-1' : 'gap-2'"
-          :style="{
-            gridTemplateColumns: `repeat(${matrixCol}, minmax(0, 1fr))`
-          }"
+          :style="gridColStyle"
         >
           <div
             v-for="c in matrixCol"
@@ -356,9 +364,7 @@ const handleSeatLeave = () => {
         <div
           class="grid items-center justify-items-center"
           :class="effectiveSize === 'compact' ? 'gap-1.5' : effectiveSize === 'sm' ? 'gap-1' : 'gap-2'"
-          :style="{
-            gridTemplateColumns: `repeat(${matrixCol}, minmax(0, 1fr))`
-          }"
+          :style="gridColStyle"
         >
           <template v-for="c in matrixCol" :key="`cell-${r}-${c}`">
             <!-- 1. Ô bị che khuất bởi ghế SWEETBOX ở cột X-1: BỎ QUA HOÀN TOÀN, không render bất kỳ thẻ DOM nào -->
