@@ -8,6 +8,7 @@
 > - **Đã GỠ HOÀN TOÀN phân hệ Ca làm việc & Bàn giao ca** (01/08): không còn `Shift`/`StaffSchedule`/`ShiftHandover`/`WorkPosition`/check-in ca/đổi ghế. POS bán vé + Check-in QR chạy **RBAC thuần** (`@perm.can('pos_ticketing',...)`) — nhân viên đăng nhập là bán/soát được ngay.
 > - **Strict Cinema Scoping** (`SecurityUtils.assertCinemaAccess`): nhân viên chỉ thao tác trên cụm rạp của mình; bán/soát chéo rạp → **403**. Đơn POS lưu vết `sold_by` (Staff); đơn F&B thuần lưu thêm `cinema_id`.
 > - **Xử lý sự cố / Đổi ghế đền bù** (14/08): phân hệ mới `/admin/incidents` (feature quyền `incident_handling`). Đổi ghế = repoint `BookingSeat` tại chỗ (giữ QR); đền bù bằng Voucher template `COMP_*` (KHÔNG hoàn tiền); khóa ghế hỏng = `Seat.seat_status=MAINTENANCE`. Ghi vết bảng `seat_incidents`. Chi tiết ở `CLAUDE.md` + memory `devcine-incident-feature`.
+> - **Nghiệp vụ Xuất chiếu sớm (Early Screening)** (23/08): Tự động phát hiện khi `Showtime.startTime < Movie.releaseDate` $\rightarrow$ `Showtime.status = 'Xuất chiếu sớm'`. Toàn bộ 9 JPA query public (`ShowtimeRepository`) được mở rộng điều kiện `(m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm'))` để phim sắp chiếu vẫn mở bán vé bình thường. Giao diện đặt vé chạy tự nhiên, đồng nhất với phim thường (chuẩn Lotte Cinema).
 
 ---
 
