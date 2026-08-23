@@ -34,6 +34,11 @@ public class ShowtimeController {
         return ResponseEntity.ok(ApiResponse.ok(showtimeService.getAllUpcomingShowtimes()));
     }
 
+    @GetMapping("/cinemas-with-showtimes")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getCinemasWithUpcomingShowtimes() {
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getCinemasWithUpcomingShowtimes()));
+    }
+
     // ===== Trang Lịch chiếu: lọc phía server + phân trang =====
 
     @GetMapping("/cinemas")
@@ -63,7 +68,10 @@ public class ShowtimeController {
     public ResponseEntity<ApiResponse<List<PublicShowtimeDTO>>> getByCinema(
             @RequestParam Integer cinemaId,
             @RequestParam(required = false) String date) {
-        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getShowtimesByCinemaAndDate(cinemaId, date)));
+        if (date != null && !date.trim().isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(showtimeService.getShowtimesByCinemaAndDate(cinemaId, date)));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getUpcomingShowtimesByCinema(cinemaId)));
     }
 
     @GetMapping("/movie/{movieId}")
