@@ -237,11 +237,8 @@ export function useCinemaConfig(selectedCinema) {
     if (!c) return false;
 
     const ok = await confirm.show({
-      title: "Xác nhận đóng cụm rạp",
-      message:
-        `Bạn có chắc chắn muốn ĐÓNG cụm rạp "${c.name}"?\n` +
-        `Cụm rạp sẽ bị ẨN hoàn toàn khỏi giao diện người dùng (Client).\n` +
-        `Điều kiện bắt buộc: Cụm rạp không còn bất kỳ lịch chiếu nào trong tương lai.`,
+      title: "Đóng cụm rạp",
+      message: `Đóng và ẩn cụm rạp "${c.name}" khỏi hệ thống khách hàng?`,
       confirmText: "Đóng cụm rạp",
       cancelText: "Hủy",
       tone: "danger",
@@ -262,7 +259,7 @@ export function useCinemaConfig(selectedCinema) {
       toast.error(
         friendlyError(
           e,
-          "Không thể đóng cụm rạp. Vui lòng kiểm tra và hủy toàn bộ lịch chiếu trước khi đóng rạp."
+          "Không thể đóng cụm rạp do còn suất chiếu chưa kết thúc."
         )
       );
       return false;
@@ -278,7 +275,7 @@ export function useCinemaConfig(selectedCinema) {
 
     const ok = await confirm.show({
       title: "Mở lại cụm rạp",
-      message: `Kích hoạt cụm rạp "${c.name}" hoạt động trở lại và hiển thị cho khách hàng (Client)?`,
+      message: `Mở lại và hiển thị cụm rạp "${c.name}" cho khách hàng?`,
       confirmText: "Mở lại rạp",
       cancelText: "Hủy",
       tone: "primary",

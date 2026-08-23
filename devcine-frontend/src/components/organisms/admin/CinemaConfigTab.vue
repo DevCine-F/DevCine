@@ -298,66 +298,53 @@ const STATUS_META = {
       </div>
     </section>
 
-    <!-- ============ CARD: TRẠNG THÁI VẬN HÀNH CỤM RẠP ============ -->
-    <section class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden">
-      <header class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
-        <div class="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-          <span class="material-symbols-outlined text-amber-400 text-lg">storefront</span>
+    <!-- ============ VÙNG NGUY HIỂM ============ -->
+    <section class="bg-red-500/5 border border-red-500/30 rounded-2xl overflow-hidden">
+      <header class="flex items-center gap-4 px-6 py-5 border-b border-red-500/20">
+        <div class="w-10 h-10 rounded-2xl bg-red-500/15 flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-red-400 text-lg">warning</span>
         </div>
         <div class="flex-1">
-          <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Trạng thái vận hành cụm rạp</h4>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">Kiểm soát hoạt động và quyền hiển thị cụm rạp cho khách hàng</p>
+          <h4 class="text-sm font-black uppercase tracking-widest text-red-400">Vùng nguy hiểm</h4>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">Thao tác ảnh hưởng trực tiếp đến trạng thái hiển thị và vận hành rạp</p>
         </div>
       </header>
 
-      <div class="p-6">
-        <!-- Khi rạp Đang hoạt động -->
-        <div v-if="form.status !== 'CLOSED'" class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 rounded-2xl bg-surface-container border border-outline-variant/10">
-          <div class="space-y-1.5 max-w-xl">
-            <div class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <h5 class="text-sm font-bold text-on-surface">Cụm rạp đang hoạt động</h5>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Hiển thị Client</span>
-            </div>
-            <p class="text-xs text-on-surface-variant leading-relaxed">
-              Cụm rạp đang hiển thị công khai trên ứng dụng. Bạn chỉ có thể đóng cụm rạp (ẩn khỏi hệ thống người dùng) khi <strong class="text-on-surface">không còn bất kỳ lịch chiếu nào chưa kết thúc</strong>.
-            </p>
-          </div>
-
-          <button 
-            @click="closeCinema" 
-            :disabled="closingCinema"
-            class="shrink-0 px-6 py-3 rounded-xl bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-red-500 text-red-400 hover:text-white font-black text-[11px] uppercase tracking-wider transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-          >
-            <span v-if="closingCinema" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-            <span v-else class="material-symbols-outlined text-sm">block</span>
-            {{ closingCinema ? 'Đang kiểm tra & đóng...' : 'Đóng cụm rạp' }}
-          </button>
+      <div class="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div v-if="form.status !== 'CLOSED'" class="flex-1">
+          <p class="text-sm font-bold text-on-surface">Đóng cụm rạp này</p>
+          <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">
+            Ẩn hoàn toàn cụm rạp khỏi hệ thống người dùng (Client). Chỉ thực hiện được khi cụm rạp <b class="text-on-surface">KHÔNG còn bất kỳ suất chiếu nào</b> trong tương lai.
+          </p>
+        </div>
+        <div v-else class="flex-1">
+          <p class="text-sm font-bold text-on-surface">Mở lại cụm rạp này</p>
+          <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">
+            Cụm rạp đang bị đóng và ẩn khỏi toàn bộ trang đặt vé phía khách hàng. Bấm vào đây để mở lại hoạt động cho cụm rạp.
+          </p>
         </div>
 
-        <!-- Khi rạp Đã đóng cửa / Đã ẩn -->
-        <div v-else class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
-          <div class="space-y-1.5 max-w-xl">
-            <div class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
-              <h5 class="text-sm font-bold text-red-400">Cụm rạp đã đóng cửa / Đã ẩn</h5>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Ẩn khỏi Client</span>
-            </div>
-            <p class="text-xs text-on-surface-variant leading-relaxed">
-              Cụm rạp này hiện đã bị <strong class="text-red-400">ẩn hoàn toàn</strong> khỏi hệ thống khách hàng (không xuất hiện trên Trang chủ, Lịch chiếu, Đặt vé). Bạn có thể mở lại cụm rạp bất kỳ lúc nào để tiếp tục vận hành.
-            </p>
-          </div>
+        <button 
+          v-if="form.status !== 'CLOSED'"
+          @click="closeCinema" 
+          :disabled="closingCinema"
+          class="flex-shrink-0 bg-red-500 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-red-600 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-500/20"
+        >
+          <span v-if="closingCinema" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+          <span v-else class="material-symbols-outlined text-sm">block</span>
+          {{ closingCinema ? 'Đang kiểm tra...' : 'Đóng cụm rạp này' }}
+        </button>
 
-          <button 
-            @click="reopenCinema" 
-            :disabled="reopeningCinema"
-            class="shrink-0 px-6 py-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 hover:border-emerald-500 text-emerald-400 hover:text-white font-black text-[11px] uppercase tracking-wider transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-          >
-            <span v-if="reopeningCinema" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-            <span v-else class="material-symbols-outlined text-sm">lock_open</span>
-            {{ reopeningCinema ? 'Đang mở lại...' : 'Mở lại cụm rạp' }}
-          </button>
-        </div>
+        <button 
+          v-else
+          @click="reopenCinema" 
+          :disabled="reopeningCinema"
+          class="flex-shrink-0 bg-emerald-600 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-emerald-500 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/20"
+        >
+          <span v-if="reopeningCinema" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+          <span v-else class="material-symbols-outlined text-sm">lock_open</span>
+          {{ reopeningCinema ? 'Đang mở lại...' : 'Mở lại cụm rạp' }}
+        </button>
       </div>
     </section>
 
