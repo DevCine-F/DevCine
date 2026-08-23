@@ -61,7 +61,7 @@ export function useSeatLayout() {
 
           let seatType = "standard";
           if (seat.seatType === "VIP") seatType = "vip";
-          if (seat.seatType === "SWEETBOX") seatType = "double";
+          if (seat.seatType === "SWEETBOX" || seat.seatType === "DOUBLE" || seat.span === 2) seatType = "double";
 
           map[`${seat.gridRow}-${seat.gridCol}`] = {
             type: seatType,
@@ -72,6 +72,16 @@ export function useSeatLayout() {
             // Chỉ chốt cứng khi Admin thực sự gõ tay (cờ custom lưu ở DB), KHÔNG suy từ việc có label
             custom: !!seat.custom,
           };
+        });
+
+        // Dọn sạch các ô bị ghế đôi đè lên ở cột tiếp theo (tránh ghost seat)
+        Object.keys(map).forEach((key) => {
+          if (map[key]?.type === "double") {
+            const [rStr, cStr] = key.split("-");
+            const r = parseInt(rStr);
+            const c = parseInt(cStr);
+            delete map[`${r}-${c + 1}`];
+          }
         });
         currentSeatMap.value = map;
         viewingHall.value = hall;
@@ -141,6 +151,7 @@ export function useSeatLayout() {
           gridCol,
           kind: "SEAT",
           type: seatData.type,
+          span: seatData.type === "double" ? 2 : 1,
           label: seatData.label,
           status: seatData.status || "AVAILABLE",
           custom: !!seatData.custom,
