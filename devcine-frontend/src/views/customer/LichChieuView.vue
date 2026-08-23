@@ -100,10 +100,12 @@ const moviesForDate = computed(() => {
         durationMins: s.movieDurationMins, country: s.movieCountry, releaseDate: s.movieReleaseDate,
         genres: s.movieGenres && s.movieGenres.length ? Array.from(s.movieGenres).join(', ') : '',
         rating: s.movieRating, ratingCount: s.movieRatingCount, trailerUrl: s.movieTrailerUrl,
+        hasEarlyScreening: s.status === 'Xuất chiếu sớm',
         formatSet: new Set(), roomGroupsMap: new Map()
       })
     }
     const m = map.get(s.movieId)
+    if (s.status === 'Xuất chiếu sớm') m.hasEarlyScreening = true
     if (s.formatName) m.formatSet.add(s.formatName)
     const d = toDate(s.startTime)
     const isPast = selectedDate.value === todayStr && d && d.getTime() < Date.now()

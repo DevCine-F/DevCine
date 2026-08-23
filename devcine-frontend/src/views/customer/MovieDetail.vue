@@ -557,12 +557,6 @@ const groupShowtimesByFormat = (showtimes) => {
                     class="text-xs font-medium leading-tight whitespace-nowrap"
                     :class="isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-orange-400' : 'text-gray-400')"
                   >{{ isSoldOut(st) ? 'Hết ghế' : `${st.availableSeats} / ${st.totalSeats} Ghế` }}</span>
-                  <!-- Dòng 4: Badge chiếu sớm -->
-                  <span v-if="st.earlyScreening && !isSoldOut(st)"
-                        class="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded"
-                        style="background: linear-gradient(90deg,#f5c518,#ffb300,#f5c518); background-size:200% auto; animation: early-shimmer 2.4s linear infinite; color:#1a0f00;">
-                    🎬 Chiếu sớm
-                  </span>
                 </button>
               </div>
             </div>

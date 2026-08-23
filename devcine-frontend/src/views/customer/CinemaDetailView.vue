@@ -78,8 +78,12 @@ const moviesOfDay = computed(() => {
           ageRating: s.movieAgeRating,
           durationMins: s.movieDurationMins,
           genres: s.movieGenres ? [...s.movieGenres] : [],
+          hasEarlyScreening: s.status === 'Xuất chiếu sớm',
           shows: []
         })
+      }
+      if (s.status === 'Xuất chiếu sớm') {
+        map.get(s.movieId).hasEarlyScreening = true
       }
       map.get(s.movieId).shows.push(s)
     })
