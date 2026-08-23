@@ -200,24 +200,24 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     // Suất của 1 RẠP trong khoảng [start, end] — chỉ phim đang chiếu (ẩn phim đã lưu trữ)
     // cinema đã JOIN FETCH (tránh N+1 khi toPublicDTO gọi getRoom().getCinema())
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
-           "WHERE c.id = :cinemaId AND m.status = 'active' AND s.startTime >= :start AND s.startTime <= :end ORDER BY m.title ASC, s.startTime ASC")
+           "WHERE c.id = :cinemaId AND m.status = 'active' AND (c.status IS NULL OR c.status = 'ACTIVE') AND s.startTime >= :start AND s.startTime <= :end ORDER BY m.title ASC, s.startTime ASC")
     List<Showtime> findByCinemaAndRange(@Param("cinemaId") Integer cinemaId,
                                         @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // Suất của 1 PHIM trong khoảng [start, end], lọc theo thành phố (rỗng = tất cả) — chỉ phim đang chiếu
     // cinema đã JOIN FETCH (tránh N+1 khi toPublicDTO gọi getRoom().getCinema())
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
-           "WHERE m.id = :movieId AND m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+           "WHERE m.id = :movieId AND m.status = 'active' AND (c.status IS NULL OR c.status = 'ACTIVE') AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
            "ORDER BY c.name ASC, s.startTime ASC")
     List<Showtime> findByMovieAndRange(@Param("movieId") Integer movieId, @Param("city") String city,
                                        @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // Danh sách PHIM có suất trong (thành phố × khoảng ngày), tìm theo tên — phân trang — chỉ phim đang chiếu
     @Query(value = "SELECT DISTINCT m FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
-            "WHERE m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "WHERE m.status = 'active' AND (c.status IS NULL OR c.status = 'ACTIVE') AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
             "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY m.title ASC",
             countQuery = "SELECT COUNT(DISTINCT m) FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
-            "WHERE m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "WHERE m.status = 'active' AND (c.status IS NULL OR c.status = 'ACTIVE') AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
             "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Movie> findMoviesWithShowtimes(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
                                         @Param("city") String city, @Param("q") String q, Pageable pageable);
