@@ -1,7 +1,9 @@
 package com.devcine.backend.repository;
 
+import com.devcine.backend.entity.Cinema;
 import com.devcine.backend.entity.Movie;
 import com.devcine.backend.entity.Showtime;
+import com.devcine.backend.dto.projection.ShowtimePublicProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
@@ -35,6 +37,36 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     @Query("SELECT s FROM Showtime s WHERE s.room.id = :roomId AND s.endTime >= :now AND s.status <> 'Cancelled'")
     List<Showtime> findActiveByRoomId(@Param("roomId") Integer roomId, @Param("now") LocalDateTime now);
 
+    @Query("SELECT DISTINCT c FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m " +
+           "WHERE m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "ORDER BY c.city ASC, c.name ASC")
+    List<Cinema> findCinemasWithUpcomingShowtimes(@Param("now") LocalDateTime now);
+
+    @Query("SELECT s.id AS id, s.startTime AS startTime, s.endTime AS endTime, s.status AS status, " +
+           "c.id AS cinemaId, c.name AS cinemaName, c.address AS cinemaAddress, c.city AS cinemaCity, " +
+           "m.id AS movieId, m.title AS movieTitle, m.titleVietnamese AS movieTitleVietnamese, " +
+           "m.durationMins AS movieDurationMins, m.posterUrl AS moviePosterUrl, m.ageRating AS movieAgeRating, " +
+           "m.country AS movieCountry, m.releaseDate AS movieReleaseDate, m.description AS movieDescription, " +
+           "m.rating AS movieRating, m.ratingCount AS movieRatingCount, m.trailerUrl AS movieTrailerUrl, " +
+           "f.id AS formatId, f.name AS formatName, " +
+           "r.id AS roomId, r.name AS roomName, r.type AS roomType " +
+           "FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m JOIN s.format f " +
+           "WHERE m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "ORDER BY s.startTime ASC")
+    List<ShowtimePublicProjection> findAllUpcomingProjections(@Param("now") LocalDateTime now);
+
+    @Query("SELECT s.id AS id, s.startTime AS startTime, s.endTime AS endTime, s.status AS status, " +
+           "c.id AS cinemaId, c.name AS cinemaName, c.address AS cinemaAddress, c.city AS cinemaCity, " +
+           "m.id AS movieId, m.title AS movieTitle, m.titleVietnamese AS movieTitleVietnamese, " +
+           "m.durationMins AS movieDurationMins, m.posterUrl AS moviePosterUrl, m.ageRating AS movieAgeRating, " +
+           "m.country AS movieCountry, m.releaseDate AS movieReleaseDate, m.description AS movieDescription, " +
+           "m.rating AS movieRating, m.ratingCount AS movieRatingCount, m.trailerUrl AS movieTrailerUrl, " +
+           "f.id AS formatId, f.name AS formatName, " +
+           "r.id AS roomId, r.name AS roomName, r.type AS roomType " +
+           "FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m JOIN s.format f " +
+           "WHERE c.id = :cinemaId AND m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "ORDER BY s.startTime ASC")
+    List<ShowtimePublicProjection> findUpcomingProjectionsByCinemaId(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
            "WHERE s.movie.id = :movieId AND m.status = 'active' AND s.startTime >= :now " +
