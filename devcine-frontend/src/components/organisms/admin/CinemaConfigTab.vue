@@ -19,14 +19,16 @@ const {
   districts,
   loadingDistricts,
   saving,
-  deleting,
+  closingCinema,
+  reopeningCinema,
   isDirty,
   loadConfig,
   onCityChange,
   resetForm,
   validateField,
   saveConfig,
-  deleteCinema,
+  closeCinema,
+  reopenCinema,
 } = useCinemaConfig(cinemaRef)
 
 // ===== Textarea Mô tả auto-grow =====
@@ -127,26 +129,11 @@ const onAmenityKey = (e) => {
   }
 }
 
-// ===== Danger Zone: xoá cứng =====
-const onDelete = async () => {
-  const ok = await confirm.show({
-    tone: 'danger',
-    title: 'Xoá cụm rạp vĩnh viễn',
-    message: `Bạn sắp XOÁ VĨNH VIỄN cụm rạp "${props.cinema.name}". Hành động này KHÔNG THỂ hoàn tác. `
-      + 'Nếu rạp còn phòng/suất chiếu, hệ thống sẽ từ chối — khi đó hãy dùng "Tạm đóng cửa" thay thế.',
-    confirmText: 'Xoá vĩnh viễn',
-    cancelText: 'Huỷ',
-  })
-  if (!ok) return
-  const done = await deleteCinema()
-  if (done) emit('deleted', props.cinema.id)
-}
-
 // Nhãn/màu badge trạng thái
 const STATUS_META = {
-  ACTIVE: { label: 'Đang hoạt động', dot: 'bg-green-400' },
-  MAINTENANCE: { label: 'Bảo trì', dot: 'bg-amber-400' },
-  CLOSED: { label: 'Tạm đóng cửa', dot: 'bg-red-400' },
+  ACTIVE: { label: 'Đang hoạt động', dot: 'bg-emerald-400', badgeClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' },
+  MAINTENANCE: { label: 'Bảo trì', dot: 'bg-amber-400', badgeClass: 'bg-amber-500/10 text-amber-400 border border-amber-500/30' },
+  CLOSED: { label: 'Đã đóng cửa / Ẩn', dot: 'bg-red-400', badgeClass: 'bg-red-500/10 text-red-400 border border-red-500/30' },
 }
 </script>
 
@@ -160,11 +147,12 @@ const STATUS_META = {
         </div>
         <div class="flex-1">
           <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Thông tin cơ bản</h4>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">Tên, địa chỉ, phân loại &amp; trạng thái của cụm rạp</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">Tên, địa chỉ &amp; phân loại của cụm rạp</p>
         </div>
-        <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
-          <span class="w-2 h-2 rounded-full" :class="(STATUS_META[form.status] || {}).dot"></span>
-          {{ (STATUS_META[form.status] || {}).label || form.status }}
+        <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest"
+          :class="(STATUS_META[form.status] || STATUS_META.ACTIVE).badgeClass">
+          <span class="w-2 h-2 rounded-full" :class="(STATUS_META[form.status] || STATUS_META.ACTIVE).dot"></span>
+          {{ (STATUS_META[form.status] || STATUS_META.ACTIVE).label }}
         </span>
       </header>
 
@@ -240,7 +228,7 @@ const STATUS_META = {
         </div>
 
         <!-- Loại rạp -->
-        <div class="space-y-1.5">
+        <div class="md:col-span-2 space-y-1.5">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Loại cụm rạp</label>
           <select v-model="form.type"
             class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer">
@@ -248,18 +236,6 @@ const STATUS_META = {
             <option value="SUPERPLEX" class="bg-surface-container-high">Superplex</option>
             <option value="CINE_COMFORT" class="bg-surface-container-high">Cine Comfort</option>
           </select>
-        </div>
-
-        <!-- Trạng thái -->
-        <div class="space-y-1.5">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Trạng thái hoạt động</label>
-          <select v-model="form.status"
-            class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer">
-            <option value="ACTIVE" class="bg-surface-container-high">Đang hoạt động</option>
-            <option value="MAINTENANCE" class="bg-surface-container-high">Bảo trì</option>
-            <option value="CLOSED" class="bg-surface-container-high">Tạm đóng cửa</option>
-          </select>
-          <p class="text-[10px] text-on-surface-variant/60">Đặt "Tạm đóng cửa" để ngừng bán vé mà vẫn giữ toàn bộ dữ liệu (xoá mềm).</p>
         </div>
 
         <!-- Tiện ích (chip) -->
@@ -322,31 +298,66 @@ const STATUS_META = {
       </div>
     </section>
 
-    <!-- ============ DANGER ZONE ============ -->
-    <section class="bg-red-500/5 border border-red-500/30 rounded-2xl overflow-hidden">
-      <header class="flex items-center gap-4 px-6 py-5 border-b border-red-500/20">
-        <div class="w-10 h-10 rounded-2xl bg-red-500/15 flex items-center justify-center flex-shrink-0">
-          <span class="material-symbols-outlined text-red-400 text-lg">warning</span>
+    <!-- ============ CARD: TRẠNG THÁI VẬN HÀNH CỤM RẠP ============ -->
+    <section class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden">
+      <header class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
+        <div class="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-amber-400 text-lg">storefront</span>
         </div>
         <div class="flex-1">
-          <h4 class="text-sm font-black uppercase tracking-widest text-red-400">Vùng nguy hiểm</h4>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">Thao tác không thể hoàn tác</p>
+          <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Trạng thái vận hành cụm rạp</h4>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">Kiểm soát hoạt động và quyền hiển thị cụm rạp cho khách hàng</p>
         </div>
       </header>
-      <div class="p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-        <div class="flex-1">
-          <p class="text-sm font-bold text-on-surface">Xoá cụm rạp này</p>
-          <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">
-            Xoá vĩnh viễn toàn bộ dữ liệu cụm rạp. Chỉ thực hiện được khi rạp KHÔNG còn phòng/suất chiếu.
-            Nếu chỉ muốn ngừng hoạt động tạm thời, hãy đặt <b class="text-on-surface">Trạng thái = "Tạm đóng cửa"</b> ở trên.
-          </p>
+
+      <div class="p-6">
+        <!-- Khi rạp Đang hoạt động -->
+        <div v-if="form.status !== 'CLOSED'" class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 rounded-2xl bg-surface-container border border-outline-variant/10">
+          <div class="space-y-1.5 max-w-xl">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <h5 class="text-sm font-bold text-on-surface">Cụm rạp đang hoạt động</h5>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Hiển thị Client</span>
+            </div>
+            <p class="text-xs text-on-surface-variant leading-relaxed">
+              Cụm rạp đang hiển thị công khai trên ứng dụng. Bạn chỉ có thể đóng cụm rạp (ẩn khỏi hệ thống người dùng) khi <strong class="text-on-surface">không còn bất kỳ lịch chiếu nào chưa kết thúc</strong>.
+            </p>
+          </div>
+
+          <button 
+            @click="closeCinema" 
+            :disabled="closingCinema"
+            class="shrink-0 px-6 py-3 rounded-xl bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-red-500 text-red-400 hover:text-white font-black text-[11px] uppercase tracking-wider transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            <span v-if="closingCinema" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+            <span v-else class="material-symbols-outlined text-sm">block</span>
+            {{ closingCinema ? 'Đang kiểm tra & đóng...' : 'Đóng cụm rạp' }}
+          </button>
         </div>
-        <button @click="onDelete" :disabled="deleting"
-          class="flex-shrink-0 bg-red-500 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-red-600 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-          <span v-if="deleting" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-          <span v-else class="material-symbols-outlined text-sm">delete_forever</span>
-          {{ deleting ? 'Đang xoá...' : 'Xoá cụm rạp này' }}
-        </button>
+
+        <!-- Khi rạp Đã đóng cửa / Đã ẩn -->
+        <div v-else class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
+          <div class="space-y-1.5 max-w-xl">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+              <h5 class="text-sm font-bold text-red-400">Cụm rạp đã đóng cửa / Đã ẩn</h5>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Ẩn khỏi Client</span>
+            </div>
+            <p class="text-xs text-on-surface-variant leading-relaxed">
+              Cụm rạp này hiện đã bị <strong class="text-red-400">ẩn hoàn toàn</strong> khỏi hệ thống khách hàng (không xuất hiện trên Trang chủ, Lịch chiếu, Đặt vé). Bạn có thể mở lại cụm rạp bất kỳ lúc nào để tiếp tục vận hành.
+            </p>
+          </div>
+
+          <button 
+            @click="reopenCinema" 
+            :disabled="reopeningCinema"
+            class="shrink-0 px-6 py-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 hover:border-emerald-500 text-emerald-400 hover:text-white font-black text-[11px] uppercase tracking-wider transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            <span v-if="reopeningCinema" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+            <span v-else class="material-symbols-outlined text-sm">lock_open</span>
+            {{ reopeningCinema ? 'Đang mở lại...' : 'Mở lại cụm rạp' }}
+          </button>
+        </div>
       </div>
     </section>
 
