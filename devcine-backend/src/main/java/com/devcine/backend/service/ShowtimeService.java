@@ -345,6 +345,7 @@ public class ShowtimeService {
                         .duration(s.getMovie().getDurationMins())
                         .totalSeats(total)
                         .availableSeats(available)
+                        .earlyScreening("Xu\u1ea5t chi\u1ebfu s\u1edbm".equals(s.getStatus()))
                         .build();
 
                 showtimesByDate.computeIfAbsent(dateStr, k -> new ArrayList<>()).add(dto);
@@ -377,6 +378,7 @@ public class ShowtimeService {
                 .status(s.getStatus())
                 .movie(s.getMovie().getTitle())
                 .duration(s.getMovie().getDurationMins())
+                .earlyScreening("Xu\u1ea5t chi\u1ebfu s\u1edbm".equals(s.getStatus()))
                 .build()).collect(Collectors.toList());
     }
 

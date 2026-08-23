@@ -56,7 +56,18 @@ public class MovieService {
         List<MovieSummaryDTO> list = movieRepository.findVisibleWithGenres().stream()
                 .map(this::toSummary)
                 .collect(Collectors.toList());
-        return enrichAndSort(list);
+        List<MovieSummaryDTO> enriched = enrichAndSort(list);
+
+        // Populate hasEarlyScreening: 1 query batch, HomeView gọi /movies rồi filter upcoming
+        // client-side → nếu không populate ở đây thì badge không bao giờ hiện.
+        if (!enriched.isEmpty()) {
+            java.util.Set<Integer> earlyMovieIds =
+                    showtimeRepository.findMovieIdsWithEarlyScreening(LocalDateTime.now());
+            if (!earlyMovieIds.isEmpty()) {
+                enriched.forEach(m -> m.setHasEarlyScreening(earlyMovieIds.contains(m.getId())));
+            }
+        }
+        return enriched;
     }
 
     /** Trạng thái phim bị loại khỏi mọi danh sách công khai (ngừng chiếu / huỷ / vô hiệu hoá). */
