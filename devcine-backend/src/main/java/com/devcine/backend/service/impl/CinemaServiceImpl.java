@@ -124,9 +124,12 @@ public class CinemaServiceImpl implements CinemaService {
     public List<CinemaResponse> getAllCinemas() {
         List<Cinema> cinemas = cinemaRepository.findAllWithManager();
         // Chỉ giới hạn theo cơ sở với STAFF/MANAGER (nhân viên gắn 1 cụm rạp).
-        // ADMIN và khách/khách vãng lai (trang lịch chiếu công khai) đều xem TẤT CẢ rạp.
+        // ADMIN xem TẤT CẢ rạp (bao gồm rạp đã đóng).
+        // Khách/khách vãng lai (client công khai) CHỈ xem rạp đang hoạt động (ACTIVE).
+        boolean isAdmin = com.devcine.backend.util.SecurityUtils.hasRole("ADMIN");
         boolean scopedToCinema = com.devcine.backend.util.SecurityUtils.isManager()
                 || com.devcine.backend.util.SecurityUtils.hasRole("STAFF");
+
         if (scopedToCinema) {
             Integer cinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
             cinemas = cinemaId == null
@@ -134,7 +137,13 @@ public class CinemaServiceImpl implements CinemaService {
                     : cinemas.stream()
                         .filter(c -> c.getId().equals(cinemaId))
                         .collect(Collectors.toList());
+        } else if (!isAdmin) {
+            // Client / Public: Loại bỏ hoàn toàn cụm rạp đã đóng
+            cinemas = cinemas.stream()
+                    .filter(c -> c.getStatus() == null || "ACTIVE".equalsIgnoreCase(c.getStatus()))
+                    .collect(Collectors.toList());
         }
+
         return cinemas.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -143,8 +152,7 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public CinemaResponse getCinemaById(Integer id) {
-        // Chỉ STAFF/MANAGER bị giới hạn xem đúng cụm của mình. ADMIN và khách/khách vãng lai
-        // (trang chi tiết rạp công khai) đều được xem — đồng bộ với getAllCinemas.
+        boolean isAdmin = com.devcine.backend.util.SecurityUtils.hasRole("ADMIN");
         boolean scopedToCinema = com.devcine.backend.util.SecurityUtils.isManager()
                 || com.devcine.backend.util.SecurityUtils.hasRole("STAFF");
         if (scopedToCinema) {
@@ -153,10 +161,16 @@ public class CinemaServiceImpl implements CinemaService {
                 throw new RuntimeException("Bạn không có quyền truy cập cơ sở này");
             }
         }
-        // Dùng findByIdWithManager (LEFT JOIN FETCH) thay vì findById: tránh lỗi khi manager_id
-        // trỏ tới staff không còn tồn tại (lazy proxy sẽ ném EntityNotFoundException).
         Cinema cinema = cinemaRepository.findByIdWithManager(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp với ID: " + id));
+
+        // Khách hàng / Public: Không xem được cụm rạp đã đóng
+        if (!isAdmin && !scopedToCinema) {
+            if ("CLOSED".equalsIgnoreCase(cinema.getStatus())) {
+                throw new IllegalArgumentException("Không tìm thấy cụm rạp hoặc cụm rạp đã ngừng hoạt động.");
+            }
+        }
+
         return toResponse(cinema);
     }
 
@@ -199,8 +213,17 @@ public class CinemaServiceImpl implements CinemaService {
         Cinema cinema = cinemaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
 
-        // Trạng thái CŨ (trước khi ghi đè) — dùng phát hiện chuyển sang đóng cửa đột xuất.
+        // Trạng thái CŨ (trước khi ghi đè)
         String oldStatus = cinema.getStatus();
+
+        // Nếu cố gắng chuyển sang CLOSED: kiểm tra xem còn suất chiếu chưa kết thúc không
+        if (request.getStatus() != null && "CLOSED".equalsIgnoreCase(request.getStatus()) && !"CLOSED".equalsIgnoreCase(oldStatus)) {
+            LocalDateTime now = LocalDateTime.now();
+            long activeShowtimes = showtimeRepository.countFutureShowtimesByCinema(id, now);
+            if (activeShowtimes > 0) {
+                throw new IllegalArgumentException("Không thể đóng cụm rạp! Cụm rạp vẫn còn " + activeShowtimes + " suất chiếu chưa kết thúc. Vui lòng dọn dẹp hoặc hủy toàn bộ lịch chiếu trước khi đóng cụm rạp.");
+            }
+        }
 
         cinema.setName(request.getName());
         cinema.setAddress(request.getAddress());
@@ -235,31 +258,41 @@ public class CinemaServiceImpl implements CinemaService {
 
         Cinema updatedCinema = cinemaRepository.save(cinema);
 
-        // ===== Đóng cửa cụm rạp đột xuất =====
-        // Chỉ kích hoạt khi CHUYỂN từ trạng thái còn bán vé (null/ACTIVE) sang MAINTENANCE/CLOSED.
-        // Cập nhật lại status đã đóng (form lưu lại) sẽ KHÔNG chạy lần 2 (idempotent).
-        String newStatus = request.getStatus();
-        if (newStatus != null && isSellable(oldStatus)
-                && ("MAINTENANCE".equals(newStatus) || "CLOSED".equals(newStatus))) {
-            LocalDateTime now = LocalDateTime.now();
-            // (1) ĐỒNG BỘ, ngay trong transaction này: hủy mọi suất tương lai + nhả đơn HOLD/chờ.
-            //     Làm sync để chặn cửa sổ race — không cho đặt vé vào suất "sắp bị hủy".
-            int cancelledShows = showtimeRepository.cancelFutureShowtimesByCinema(id, now);
-            int expiredHolds = bookingRepository.expireActiveHoldsByCinema(id, now);
-            log.info("Đóng cửa cụm rạp #{} ({}→{}): hủy {} suất tương lai, nhả {} đơn giữ chỗ.",
-                    id, oldStatus, newStatus, cancelledShows, expiredHolds);
-
-            // (2) NỀN: phát sự kiện để hủy chỗ + đền bù + email cho đơn CONFIRMED SAU khi tx commit.
-            //     Chỉ mang ID → tránh Lazy khi luồng @Async xử lý.
-            eventPublisher.publishEvent(new CinemaEmergencyClosedEvent(id, SecurityUtils.getCurrentUserId()));
-        }
-
         return toResponse(updatedCinema);
     }
 
-    /** Trạng thái CÒN BÁN VÉ (chưa đóng cửa): null hoặc ACTIVE. */
-    private boolean isSellable(String status) {
-        return status == null || "ACTIVE".equalsIgnoreCase(status);
+    @Override
+    @Transactional
+    public CinemaResponse closeCinema(Integer id) {
+        Cinema cinema = cinemaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp với ID: " + id));
+
+        if ("CLOSED".equalsIgnoreCase(cinema.getStatus())) {
+            return toResponse(cinema);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        long activeShowtimes = showtimeRepository.countFutureShowtimesByCinema(id, now);
+        if (activeShowtimes > 0) {
+            throw new IllegalArgumentException("Không thể đóng cụm rạp! Cụm rạp vẫn còn " + activeShowtimes + " suất chiếu chưa kết thúc. Vui lòng dọn dẹp hoặc hủy toàn bộ lịch chiếu trước khi đóng cụm rạp.");
+        }
+
+        cinema.setStatus("CLOSED");
+        Cinema saved = cinemaRepository.save(cinema);
+        log.info("Cụm rạp #{} '{}' đã được đóng và ẩn khỏi client thành công.", id, cinema.getName());
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public CinemaResponse reopenCinema(Integer id) {
+        Cinema cinema = cinemaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp với ID: " + id));
+
+        cinema.setStatus("ACTIVE");
+        Cinema saved = cinemaRepository.save(cinema);
+        log.info("Cụm rạp #{} '{}' đã được mở lại và hiển thị cho client.", id, cinema.getName());
+        return toResponse(saved);
     }
 
     @Override

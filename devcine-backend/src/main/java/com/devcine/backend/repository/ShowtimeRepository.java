@@ -39,6 +39,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
 
     @Query("SELECT DISTINCT c FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m " +
            "WHERE m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY c.city ASC, c.name ASC")
     List<Cinema> findCinemasWithUpcomingShowtimes(@Param("now") LocalDateTime now);
 
@@ -52,6 +53,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "r.id AS roomId, r.name AS roomName, r.type AS roomType " +
            "FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m JOIN s.format f " +
            "WHERE m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<ShowtimePublicProjection> findAllUpcomingProjections(@Param("now") LocalDateTime now);
 
@@ -65,21 +67,26 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "r.id AS roomId, r.name AS roomName, r.type AS roomType " +
            "FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m JOIN s.format f " +
            "WHERE c.id = :cinemaId AND m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<ShowtimePublicProjection> findUpcomingProjectionsByCinemaId(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
-           "WHERE s.movie.id = :movieId AND m.status = 'active' AND s.startTime >= :now " +
+           "WHERE s.movie.id = :movieId AND m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimesByMovieId(@Param("movieId") Integer movieId, @Param("now") LocalDateTime now);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
-           "WHERE s.movie.id = :movieId AND m.status = 'active' AND c.city = :city AND s.startTime >= :now " +
+           "WHERE s.movie.id = :movieId AND m.status = 'active' AND c.city = :city AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimesByMovieIdAndCity(@Param("movieId") Integer movieId, @Param("city") String city, @Param("now") LocalDateTime now);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
-           "WHERE m.status = 'active' AND s.startTime >= :now ORDER BY s.startTime ASC")
+           "WHERE m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
+           "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimes(@Param("now") LocalDateTime now);
 
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
@@ -88,8 +95,11 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     List<Showtime> findByCinemaId(@Param("cinemaId") Integer cinemaId);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r " +
-           "WHERE r.cinema.id = :cinemaId AND s.endTime >= :now")
+           "WHERE r.cinema.id = :cinemaId AND s.endTime >= :now AND (s.status IS NULL OR s.status <> 'Cancelled')")
     List<Showtime> findFutureShowtimesByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
+
+    @Query("SELECT COUNT(s) FROM Showtime s WHERE s.room.cinema.id = :cinemaId AND s.endTime >= :now AND (s.status IS NULL OR s.status <> 'Cancelled')")
+    long countFutureShowtimesByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
 
     /**
      * Hủy HÀNG LOẠT các suất chiếu TƯƠNG LAI (startTime >= now) của một cụm rạp khi rạp

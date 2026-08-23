@@ -401,6 +401,9 @@ public class ShowtimeService {
 
         // ===== Constraint Engine: kiểm soát theo giờ hoạt động của cụm rạp =====
         Cinema cinema = room.getCinema();
+        if (cinema != null && "CLOSED".equalsIgnoreCase(cinema.getStatus())) {
+            throw new IllegalArgumentException("Không thể tạo suất chiếu cho cụm rạp đã đóng cửa.");
+        }
         int[] win = cinemaWindow(cinema); // [openMin, closeMin] (closeMin đã +1440 nếu qua nửa đêm)
         int startPos = posOf(startTime.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaround;
@@ -484,6 +487,12 @@ public class ShowtimeService {
         List<Integer> missing = req.getRoomIds().stream().filter(id -> !roomMap.containsKey(id)).toList();
         if (!missing.isEmpty()) {
             throw new IllegalArgumentException("Không tìm thấy phòng chiếu với ID: " + missing);
+        }
+
+        for (Room r : roomMap.values()) {
+            if (r.getCinema() != null && "CLOSED".equalsIgnoreCase(r.getCinema().getStatus())) {
+                throw new IllegalArgumentException("Không thể tạo lịch chiếu cho phòng '" + r.getName() + "' vì cụm rạp đã đóng cửa.");
+            }
         }
 
         // Parse các mốc giờ "HH:mm"
