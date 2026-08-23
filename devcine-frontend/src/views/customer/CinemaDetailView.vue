@@ -296,8 +296,7 @@ onMounted(fetchAll)
                             {{ group.formatName }}
                           </span>
                           <span class="text-xs text-on-surface-variant/40">·</span>
-                          <span class="text-xs font-bold text-on-surface/90 flex items-center gap-1">
-                            <span class="material-symbols-outlined text-[15px] text-primary/80">meeting_room</span>
+                          <span class="text-xs font-bold text-on-surface/90">
                             {{ group.roomName }}
                           </span>
                         </div>
