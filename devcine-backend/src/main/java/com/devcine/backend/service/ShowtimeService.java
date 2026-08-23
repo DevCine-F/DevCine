@@ -425,13 +425,20 @@ public class ShowtimeService {
                     + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
         }
 
+        // ===== Xuất chiếu sớm: suất trước ngày khởi chiếu chính thức của phim =====
+        // Phát hiện tự động — không cần input từ FE; status phân biệt để query public lọc được.
+        LocalDate showtimeDate = startTime.toLocalDate();
+        boolean isEarlyScreening = movie.getReleaseDate() != null
+                && showtimeDate.isBefore(movie.getReleaseDate());
+        String showtimeStatus = isEarlyScreening ? "Xuất chiếu sớm" : "Sắp chiếu";
+
         Showtime showtime = Showtime.builder()
                 .movie(movie)
                 .room(room)
                 .format(format)
                 .startTime(startTime)
                 .endTime(endTime)
-                .status("Sắp chiếu")
+                .status(showtimeStatus)
                 // Đông cứng sơ đồ ghế của phòng NGAY lúc tạo suất → suất này có sơ đồ riêng,
                 // bất biến.
                 .layoutData(seatLayoutSnapshotService.buildSnapshotJson(room.getId()))
@@ -441,6 +448,8 @@ public class ShowtimeService {
 
         return com.devcine.backend.dto.response.ShowtimeCreateResult.builder()
                 .requiresConfirmation(false)
+                .earlyScreening(isEarlyScreening)
+                .movieReleaseDate(isEarlyScreening ? movie.getReleaseDate() : null)
                 .showtime(ShowtimeDTO.builder()
                         .id(saved.getId())
                         .roomId(room.getId())
@@ -452,6 +461,7 @@ public class ShowtimeService {
                         .status(saved.getStatus())
                         .movie(movie.getTitle())
                         .duration(movie.getDurationMins())
+                        .earlyScreening(isEarlyScreening)
                         .build())
                 .build();
     }
@@ -577,10 +587,13 @@ public class ShowtimeService {
                         if (!req.isForce())
                             continue;
                     }
+                    // Tính status: "Xuất chiếu sớm" nếu suất nằm trước ngày khởi chiếu chính thức.
+                    boolean earlyBatch = movie.getReleaseDate() != null
+                            && date.isBefore(movie.getReleaseDate());
                     toSave.add(Showtime.builder()
                             .movie(movie).room(room).format(format)
                             .startTime(start).endTime(end)
-                            .status("Sắp chiếu")
+                            .status(earlyBatch ? "Xuất chiếu sớm" : "Sắp chiếu")
                             .layoutData(snapshotByRoom.computeIfAbsent(roomId,
                                     rid -> seatLayoutSnapshotService.buildSnapshotJson(rid)))
                             .build());
