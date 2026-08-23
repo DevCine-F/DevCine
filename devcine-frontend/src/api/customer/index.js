@@ -12,6 +12,7 @@ export const showtimeApi = {
   getForMovie: (movieId, city) => api.get(`/showtimes/movie/${movieId}`, { params: { city } }),
   // Trang Lịch chiếu (lọc phía server + phân trang)
   getCinemas: (city) => api.get('/showtimes/cinemas', { params: { city } }),
+  getCinemasWithShowtimes: () => api.get('/showtimes/cinemas-with-showtimes'),
   getMovies: ({ city, date, q, page = 0, size = 12 }) => api.get('/showtimes/movies', { params: { city, date, q, page, size } }),
   getByMovie: (movieId, date, city) => api.get('/showtimes/by-movie', { params: { movieId, date, city } }),
   getByCinema: (cinemaId, date) => api.get('/showtimes/by-cinema', { params: { cinemaId, date } }),
