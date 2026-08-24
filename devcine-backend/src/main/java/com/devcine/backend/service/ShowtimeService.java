@@ -44,6 +44,7 @@ public class ShowtimeService {
     private final SeatRepository seatRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final SeatLayoutSnapshotService seatLayoutSnapshotService;
+    private final SystemSettingService systemSettingService;
 
     public List<String> getAllCities() {
         return cinemaRepository.findAllCities();
@@ -52,8 +53,8 @@ public class ShowtimeService {
     /** Danh sách các rạp hiện có suất chiếu sắp tới (có cache) */
     @Cacheable(value = "cinemas_showtimes", unless = "#result == null")
     public List<Map<String, Object>> getCinemasWithUpcomingShowtimes() {
-        LocalDateTime now = LocalDateTime.now();
-        List<Cinema> cinemas = showtimeRepository.findCinemasWithUpcomingShowtimes(now);
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(systemSettingService.getBookingLateMinutes());
+        List<Cinema> cinemas = showtimeRepository.findCinemasWithUpcomingShowtimes(cutoff);
         return cinemas.stream().map(c -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", c.getId());
@@ -70,9 +71,9 @@ public class ShowtimeService {
      */
     @Cacheable(value = "showtimes_cinema", key = "#cinemaId", unless = "#result == null")
     public List<PublicShowtimeDTO> getUpcomingShowtimesByCinema(Integer cinemaId) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(systemSettingService.getBookingLateMinutes());
         List<ShowtimePublicProjection> projections = showtimeRepository.findUpcomingProjectionsByCinemaId(cinemaId,
-                now);
+                cutoff);
         if (projections.isEmpty())
             return Collections.emptyList();
 
@@ -108,8 +109,8 @@ public class ShowtimeService {
 
     @Cacheable(value = "upcomingShowtimes", unless = "#result == null")
     public List<PublicShowtimeDTO> getAllUpcomingShowtimes() {
-        LocalDateTime now = LocalDateTime.now();
-        List<ShowtimePublicProjection> projections = showtimeRepository.findAllUpcomingProjections(now);
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(systemSettingService.getBookingLateMinutes());
+        List<ShowtimePublicProjection> projections = showtimeRepository.findAllUpcomingProjections(cutoff);
         if (projections.isEmpty())
             return Collections.emptyList();
 
@@ -227,15 +228,16 @@ public class ShowtimeService {
     // ===== Trang Lịch chiếu: lọc phía server + phân trang =====
 
     /**
-     * Khoảng thời gian của một ngày; với hôm nay thì bắt đầu từ "bây giờ" để ẩn
-     * suất đã qua.
+     * Khoảng thời gian của một ngày; với hôm nay thì bắt đầu từ "cutoff" (now - lateMinutes) để ẩn
+     * suất đã quá 10 phút sau khi bắt đầu.
      */
     private LocalDateTime[] dayRange(String date) {
         LocalDate d = (date != null && !date.isBlank()) ? LocalDate.parse(date) : LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoff = now.minusMinutes(systemSettingService.getBookingLateMinutes());
         LocalDateTime start = d.atStartOfDay();
-        if (start.isBefore(now))
-            start = now; // hôm nay: ẩn suất đã chiếu
+        if (start.isBefore(cutoff))
+            start = cutoff; // hôm nay: ẩn suất đã quá 10 phút sau giờ bắt đầu
         return new LocalDateTime[] { start, d.atTime(23, 59, 59) };
     }
 
@@ -285,13 +287,13 @@ public class ShowtimeService {
     }
 
     public List<CinemaShowtimeDTO> getShowtimesForMovie(Integer movieId, String city) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(systemSettingService.getBookingLateMinutes());
         List<Showtime> showtimes;
 
         if (city != null && !city.trim().isEmpty()) {
-            showtimes = showtimeRepository.findUpcomingShowtimesByMovieIdAndCity(movieId, city, now);
+            showtimes = showtimeRepository.findUpcomingShowtimesByMovieIdAndCity(movieId, city, cutoff);
         } else {
-            showtimes = showtimeRepository.findUpcomingShowtimesByMovieId(movieId, now);
+            showtimes = showtimeRepository.findUpcomingShowtimesByMovieId(movieId, cutoff);
         }
 
         // Group by Cinema

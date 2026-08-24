@@ -6,6 +6,7 @@ import com.devcine.backend.repository.*;
 import com.devcine.backend.service.BookingService;
 import com.devcine.backend.service.ConcessionService;
 import com.devcine.backend.service.PosHoldService;
+import com.devcine.backend.service.SystemSettingService;
 import com.devcine.backend.service.VoucherService;
 import com.devcine.backend.util.SecurityUtils;
 import com.devcine.backend.dto.request.SeatSelectionDTO;
@@ -46,6 +47,7 @@ public class TicketingController {
     private final TicketRepository ticketRepository;
     private final StaffRepository staffRepository;
     private final VoucherService voucherService;
+    private final SystemSettingService systemSettingService;
 
     /** Nhân viên (Staff) đang đăng nhập, hoặc null nếu là ADMIN không phải nhân sự quầy. */
     private Staff currentStaffOrNull() {
@@ -59,16 +61,18 @@ public class TicketingController {
                 ? s.getRoom().getCinema().getId() : null;
     }
 
-    // Suất chiếu cho POS: từ đầu ngày hôm nay trở đi (chưa diễn ra hoặc đang trong ngày), sắp xếp tăng dần
+    // Suất chiếu cho POS: chỉ lấy các suất chưa quá 10 phút sau giờ bắt đầu, sắp xếp tăng dần
     @GetMapping("/showtimes")
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> getTodayShowtimes() {
         // Cách ly cụm rạp: nhân viên/quản lý chỉ thấy suất của cơ sở mình; ADMIN thấy toàn hệ thống.
         Integer myCinemaId = SecurityUtils.getCurrentUserCinemaId();
         boolean isAdmin = SecurityUtils.isAdmin();
-        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
-        List<Showtime> showtimes = showtimeRepository.findPOSShowtimesWithDetails(startOfToday).stream()
+        int lateMinutes = systemSettingService.getBookingLateMinutes();
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(lateMinutes);
+        List<Showtime> showtimes = showtimeRepository.findPOSShowtimesWithDetails(cutoff).stream()
                 .filter(s -> isAdmin || (myCinemaId != null && myCinemaId.equals(cinemaIdOfShowtime(s))))
+                .filter(s -> s.getStatus() == null || !"Cancelled".equalsIgnoreCase(s.getStatus()))
                 .collect(Collectors.toList());
 
         List<Map<String, Object>> result = showtimes.stream().map(s -> {
