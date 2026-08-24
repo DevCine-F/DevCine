@@ -128,6 +128,7 @@ async function loadSeatMap() {
 }
 
 function resetWorkspace(preserveResult = false) {
+  ctx.value = null
   seatMap.value = null
   swaps.value = {}
   activeSource.value = null
