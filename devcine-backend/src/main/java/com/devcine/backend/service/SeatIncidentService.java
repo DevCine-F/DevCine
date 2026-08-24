@@ -165,8 +165,9 @@ public class SeatIncidentService {
                                 .build())
                         .collect(Collectors.toList());
 
-        boolean started = st != null && st.getStartTime() != null && LocalDateTime.now().isAfter(st.getStartTime());
-        boolean expired = st != null && st.getEndTime() != null && LocalDateTime.now().isAfter(st.getEndTime());
+        LocalDateTime now = LocalDateTime.now();
+        boolean started = st != null && st.getStartTime() != null && now.isAfter(st.getStartTime());
+        boolean expired = st != null && st.getEndTime() != null && now.isAfter(st.getEndTime());
 
         IncidentBookingContext.ShowtimeBrief brief = IncidentBookingContext.ShowtimeBrief.builder()
                 .showtimeId(st != null ? st.getId() : null)

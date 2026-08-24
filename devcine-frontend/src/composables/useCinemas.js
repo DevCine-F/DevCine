@@ -92,7 +92,7 @@ export function useCinemas() {
   // trang tải lâu. Chi tiết (halls/shows/staff) nạp LƯỜI khi mở từng rạp.
   const fetchCinemas = async () => {
     try {
-      const res = await axios.get(API_BASE_URL);
+      const res = await axios.get(API_BASE_URL, { params: { all: true } });
       const list = Array.isArray(res.data) ? res.data : [];
       // Giữ lại chi tiết đã nạp (nếu có) để không mất dữ liệu rạp đang mở khi refresh list.
       const prev = new Map(cinemas.value.map(c => [String(c.id), c]));

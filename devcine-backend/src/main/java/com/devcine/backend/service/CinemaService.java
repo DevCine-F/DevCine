@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface CinemaService {
     List<CinemaResponse> getAllCinemas();
+    List<CinemaResponse> getAllCinemas(boolean all);
     CinemaResponse getCinemaById(Integer id);
     CinemaResponse createCinema(CinemaRequest request);
     CinemaResponse updateCinema(Integer id, CinemaRequest request);

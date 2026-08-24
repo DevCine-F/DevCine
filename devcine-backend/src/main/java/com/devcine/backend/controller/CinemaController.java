@@ -21,8 +21,10 @@ public class CinemaController {
     private final CinemaService cinemaService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CinemaResponse>>> getAllCinemas() {
-        return ResponseEntity.ok(ApiResponse.ok(cinemaService.getAllCinemas()));
+    public ResponseEntity<ApiResponse<List<CinemaResponse>>> getAllCinemas(
+            @RequestParam(required = false, defaultValue = "false") boolean all
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(cinemaService.getAllCinemas(all)));
     }
 
     @GetMapping("/{id}")
