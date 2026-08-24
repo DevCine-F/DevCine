@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { incidentApi } from '@/api/admin/index'
 import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 import { useSeatGridRender } from '@/composables/useSeatGridRender'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 
 const toast = useToastStore()
 const confirm = useConfirmStore()
@@ -46,6 +47,54 @@ const histPage = ref(0)
 const histTotal = ref(0)
 const histSize = 20
 const loadingHist = ref(false)
+
+// ===== WebSocket/STOMP real-time sơ đồ ghế =====
+const { connected, connect, disconnect } = useSeatRealtime({
+  by: 'Quầy sự cố',
+  onSold: (ids) => {
+    // Ghế vừa được bán/đổi ở nơi khác → cập nhật sơ đồ ngay lập tức
+    if (!seatMap.value?.seats) return
+    seatMap.value = {
+      ...seatMap.value,
+      seats: seatMap.value.seats.map(seat =>
+        ids.includes(seat.seatId) ? { ...seat, status: 'SOLD' } : seat
+      )
+    }
+  },
+  onReleased: (ids) => {
+    // Ghế vừa được giải phóng (hủy chỗ / nhả ghế) → chuyển sang AVAILABLE
+    if (!seatMap.value?.seats) return
+    seatMap.value = {
+      ...seatMap.value,
+      seats: seatMap.value.seats.map(seat =>
+        ids.includes(seat.seatId) ? { ...seat, status: 'AVAILABLE' } : seat
+      )
+    }
+  },
+  onHeld: (ids) => {
+    // Ghế đang bị giữ tạm ở nơi khác
+    if (!seatMap.value?.seats) return
+    seatMap.value = {
+      ...seatMap.value,
+      seats: seatMap.value.seats.map(seat =>
+        ids.includes(seat.seatId) ? { ...seat, status: 'HOLD' } : seat
+      )
+    }
+  },
+})
+
+// Kết nối STOMP khi có showtimeId, ngắt khi reset đơn
+watch(() => ctx.value?.showtime?.showtimeId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    connect(newId)
+  } else if (!newId) {
+    disconnect()
+  }
+}, { immediate: false })
+
+onUnmounted(() => {
+  disconnect()
+})
 
 // ---- Chỉ mục hỗ trợ ----
 const soldSeats = computed(() => (ctx.value?.seats || []).filter(s => s.status === 'SOLD'))
@@ -445,7 +494,7 @@ onMounted(async () => {
         </div>
 
         <!-- Vé đang xử lý -->
-        <div v-if="ctx" class="bg-surface-container-high rounded-2xl p-4 border border-outline-variant/10 flex flex-col gap-3">
+        <div v-if="ctx && !expired" class="bg-surface-container-high rounded-2xl p-4 border border-outline-variant/10 flex flex-col gap-3">
           <div class="flex items-center justify-between">
             <span class="font-black text-on-surface">#{{ ctx.bookingCode }}</span>
             <span :class="['text-[10px] font-bold px-2 py-0.5 rounded uppercase', ctx.channel === 'POS' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300']">{{ ctx.channel }}</span>
