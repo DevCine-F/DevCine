@@ -17,10 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +37,8 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>Đổi ghế = REPOINT {@code BookingSeat.seat_id} TẠI CHỖ → giữ nguyên Ticket/QR/giá, nhãn ghế
  *       suy live → reprint & email tự đúng. Không sinh Ticket/QR mới.</li>
+ *   <li>Chống trùng ghế 100%: Redis Distributed Lock + DB Pessimistic Write Lock (Showtime & Booking).</li>
+ *   <li>Realtime sơ đồ ghế: WebSocket STOMP broadcast tới {@code /topic/showtime/{id}}.</li>
  *   <li>Không hoàn tiền — đền bằng Voucher (từ Promotion-template "COMP_*") hoặc đền trực tiếp tại
  *       quầy cho khách vãng lai (không sinh Voucher, chỉ ghi vết).</li>
  *   <li>Mọi ghi đều qua {@link SecurityUtils#assertCinemaAccess} → chặn thao tác chéo cụm rạp (403).</li>
@@ -45,17 +50,24 @@ import java.util.stream.Collectors;
 public class SeatIncidentService {
 
     private static final String PREFIX_COMP = "COMP_";
+    private static final String REDIS_LOCK_PREFIX = "lock:showtime:";
+    private static final Duration REDIS_LOCK_TTL = Duration.ofSeconds(10);
+
     /** Xếp hạng loại ghế để suy "hạ hạng vật lý" (chỉ gợi ý đền bù, không enforce). */
     private static final Map<String, Integer> SEAT_RANK = Map.of("NORMAL", 0, "VIP", 1, "SWEETBOX", 2);
 
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
+    private final ShowtimeRepository showtimeRepository;
     private final SeatRepository seatRepository;
     private final SeatIncidentRepository incidentRepository;
     private final PromotionRepository promotionRepository;
     private final VoucherRepository voucherRepository;
     private final StaffRepository staffRepository;
     private final TicketService ticketService;
+    private final SeatLockService seatLockService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     // ===================== TRA CỨU =====================
 
@@ -104,7 +116,6 @@ public class SeatIncidentService {
             throw new IllegalArgumentException("Số điện thoại không hợp lệ.");
         }
         LocalDateTime cutoff = LocalDateTime.now().minusHours(INCIDENT_WINDOW_HOURS + 3);
-        // Lấy tối đa 10 đơn — trên thực tế rất hiếm khách mua hơn 10 đơn cùng suất
         List<Booking> bookings = bookingRepository.findConfirmedByCustomerPhone(
                 phone.trim(), cutoff, PageRequest.of(0, 10));
         if (bookings.isEmpty()) {
@@ -153,9 +164,7 @@ public class SeatIncidentService {
                                 .build())
                         .collect(Collectors.toList());
 
-        boolean now_after_start = st != null && st.getStartTime() != null && st.getStartTime().isBefore(LocalDateTime.now());
-        boolean expired = st != null && st.getEndTime() != null
-                && LocalDateTime.now().isAfter(st.getEndTime().plusHours(INCIDENT_WINDOW_HOURS));
+        boolean expired = st != null && st.getEndTime() != null && LocalDateTime.now().isAfter(st.getEndTime().plusHours(INCIDENT_WINDOW_HOURS));
 
         IncidentBookingContext.ShowtimeBrief brief = IncidentBookingContext.ShowtimeBrief.builder()
                 .showtimeId(st != null ? st.getId() : null)
@@ -229,6 +238,16 @@ public class SeatIncidentService {
                     .build());
             incidentId = si.getId();
         }
+
+        // REALTIME WEBSOCKET STOMP: Broadcast tới tất cả suất chiếu active của phòng này
+        if (seat.getRoom() != null && seat.getRoom().getId() != null) {
+            List<Showtime> activeShowtimes = showtimeRepository.findActiveByRoomId(seat.getRoom().getId(), LocalDateTime.now());
+            String eventType = "AVAILABLE".equals(status) ? "SEAT_RELEASED" : "SEAT_LOCKED";
+            for (Showtime activeSt : activeShowtimes) {
+                broadcastSeatEvent(activeSt.getId(), eventType, List.of(seat.getId()));
+            }
+        }
+
         return SeatPhysicalStatusResponse.builder()
                 .seatId(seat.getId()).seatLabel(seat.displayLabel()).status(status).incidentId(incidentId)
                 .build();
@@ -238,6 +257,12 @@ public class SeatIncidentService {
 
     @Transactional
     public IncidentResultResponse relocate(RelocateRequest req) {
+        List<Integer> newSeatIds = req.swaps().stream().map(RelocateRequest.SeatSwap::newSeatId).toList();
+        List<Integer> oldSeatIds = req.swaps().stream().map(RelocateRequest.SeatSwap::oldSeatId).toList();
+        if (newSeatIds.stream().distinct().count() != newSeatIds.size()) {
+            throw new IllegalArgumentException("Không thể đổi nhiều ghế về cùng một vị trí đích.");
+        }
+
         Booking booking = loadConfirmedBooking(req.bookingId());
         Cinema cinema = cinemaOf(booking);
         SecurityUtils.assertCinemaAccess(cinema != null ? cinema.getId() : null);
@@ -250,85 +275,106 @@ public class SeatIncidentService {
             throw new IllegalArgumentException("Suất đã bắt đầu — chỉ có thể hủy chỗ, không đổi ghế.");
         }
 
-        // Ghế nguồn phải thuộc đơn & đang SOLD
-        Map<Integer, BookingSeat> soldBySeatId = bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())
-                .stream().filter(bs -> "SOLD".equalsIgnoreCase(bs.getStatus()))
-                .collect(Collectors.toMap(bs -> bs.getSeat().getId(), bs -> bs, (a, b) -> a));
+        // Lớp bảo vệ 1: REDIS DISTRIBUTED LOCK cho toàn bộ ghế đích (chống race condition giữa các server/instance)
+        List<String> lockedKeys = acquireRedisLocks(st.getId(), newSeatIds);
+        try {
+            // Lớp bảo vệ 2: TRANSACTION PESSIMISTIC WRITE LOCK trên Suất chiếu và Đơn đặt vé
+            showtimeRepository.findByIdForUpdate(st.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy suất chiếu."));
+            bookingRepository.findByIdWithPessimisticLock(booking.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn đặt vé."));
 
-        List<Integer> newSeatIds = req.swaps().stream().map(RelocateRequest.SeatSwap::newSeatId).toList();
-        if (newSeatIds.stream().distinct().count() != newSeatIds.size()) {
-            throw new IllegalArgumentException("Không thể đổi nhiều ghế về cùng một vị trí đích.");
+            // Check transient lock từ quầy POS / Online đang click giữ
+            List<Integer> transientLocks = seatLockService.lockedSeatIds(st.getId());
+            for (Integer newId : newSeatIds) {
+                if (transientLocks.contains(newId)) {
+                    throw new IllegalStateException("Ghế đích đang được giữ tạm bởi giao dịch khác. Vui lòng chọn ghế khác.");
+                }
+            }
+
+            // Ghế nguồn phải thuộc đơn & đang SOLD
+            Map<Integer, BookingSeat> soldBySeatId = bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())
+                    .stream().filter(bs -> "SOLD".equalsIgnoreCase(bs.getStatus()))
+                    .collect(Collectors.toMap(bs -> bs.getSeat().getId(), bs -> bs, (a, b) -> a));
+
+            // Race check: ghế đích vừa bị chiếm (quầy khác / khách online) → 409
+            List<Integer> conflicts = bookingSeatRepository.findConflictingSeats(st.getId(), newSeatIds, LocalDateTime.now());
+            if (!conflicts.isEmpty()) {
+                throw new IllegalStateException("Ghế đích vừa bị chiếm bởi giao dịch khác. Vui lòng chọn ghế trống khác.");
+            }
+
+            Map<Integer, Seat> newSeats = seatRepository.findByIdInWithSeatType(newSeatIds).stream()
+                    .collect(Collectors.toMap(Seat::getId, s -> s, (a, b) -> a));
+
+            // Nạp 1 lần tập ghế đã xử lý sự cố → tránh N query existsActiveForBookingSeat trong vòng lặp
+            java.util.Set<Integer> alreadyProcessedSeatIds = incidentRepository.findProcessedSeatIdsByBooking(booking.getId());
+
+            List<IncidentResultResponse.SeatSwapResult> swapResults = new ArrayList<>();
+            List<SeatIncident> toSave = new ArrayList<>();
+            List<BookingSeat> updatedSeats = new ArrayList<>();
+            for (RelocateRequest.SeatSwap swap : req.swaps()) {
+                BookingSeat bs = soldBySeatId.get(swap.oldSeatId());
+                if (bs == null) {
+                    throw new IllegalArgumentException("Ghế nguồn không thuộc đơn hoặc đã được xử lý.");
+                }
+                if (alreadyProcessedSeatIds.contains(swap.oldSeatId())) {
+                    throw new IllegalStateException("Ghế " + bs.getSeat().displayLabel() + " đã được xử lý sự cố trước đó.");
+                }
+                Seat newSeat = newSeats.get(swap.newSeatId());
+                if (newSeat == null || !newSeat.isSeatCell() || !Boolean.TRUE.equals(newSeat.getIsActive())) {
+                    throw new IllegalArgumentException("Ghế đích không hợp lệ.");
+                }
+                if (newSeat.getSeatStatus() != null && !"AVAILABLE".equals(newSeat.getSeatStatus())) {
+                    throw new IllegalArgumentException("Ghế đích đang bảo trì/khóa, không thể chuyển tới.");
+                }
+                if (newSeat.getRoom() == null || !newSeat.getRoom().getId().equals(st.getRoom().getId())) {
+                    throw new IllegalArgumentException("Ghế đích không thuộc phòng của suất chiếu.");
+                }
+
+                Seat oldSeat = bs.getSeat();
+                String oldLabel = oldSeat.displayLabel();
+                String newLabel = newSeat.displayLabel();
+                boolean downgrade = isDowngrade(oldSeat, newSeat);
+
+                bs.setSeat(newSeat); // REPOINT tại chỗ → giữ QR/Ticket/giá
+                updatedSeats.add(bs);
+
+                toSave.add(SeatIncident.builder()
+                        .incidentType("RELOCATE")
+                        .booking(booking).showtime(st)
+                        .oldSeat(oldSeat).newSeat(newSeat)
+                        .oldSeatLabel(oldLabel).newSeatLabel(newLabel)
+                        .compensationType("NONE")
+                        .reason(req.reason())
+                        .handledBy(currentStaffOrNull()).cinema(cinema)
+                        .build());
+                swapResults.add(IncidentResultResponse.SeatSwapResult.builder()
+                        .oldLabel(oldLabel).newLabel(newLabel).downgrade(downgrade).build());
+            }
+            bookingSeatRepository.saveAll(updatedSeats); // gom thành 1 batch thay vì N saves
+
+            // Đền bù ÁP DỤNG MỘT LẦN cho cả lần xử lý → gắn vào dòng ghi vết đầu tiên (tránh cộng trùng trị giá)
+            IncidentResultResponse.CompensationResult comp = applyCompensation(booking, req.compensation(), null, false);
+            attachCompensation(toSave.get(0), comp);
+
+            List<SeatIncident> saved = incidentRepository.saveAll(toSave);
+            List<Integer> incidentIds = saved.stream().map(SeatIncident::getId).toList();
+
+            // REALTIME WEBSOCKET STOMP:
+            // 1. Ghế mới -> SEAT_SOLD (đồng thời dọn transient lock)
+            seatLockService.markSold(st.getId(), newSeatIds);
+            // 2. Ghế cũ -> SEAT_RELEASED
+            broadcastSeatEvent(st.getId(), "SEAT_RELEASED", oldSeatIds);
+
+            boolean emailResent = ticketService.resendTicketEmailIfOnline(booking.getId());
+            return IncidentResultResponse.builder()
+                    .incidentIds(incidentIds).swaps(swapResults).compensation(comp)
+                    .reprint(ticketService.buildPrintData(booking.getId()))
+                    .emailResent(emailResent)
+                    .build();
+        } finally {
+            releaseRedisLockKeys(lockedKeys);
         }
-
-        // Race check: ghế đích vừa bị chiếm (quầy khác / khách online) → 409
-        List<Integer> conflicts = bookingSeatRepository.findConflictingSeats(st.getId(), newSeatIds, LocalDateTime.now());
-        if (!conflicts.isEmpty()) {
-            throw new IllegalStateException("Ghế đích vừa bị chiếm bởi giao dịch khác. Vui lòng chọn ghế trống khác.");
-        }
-
-        Map<Integer, Seat> newSeats = seatRepository.findByIdInWithSeatType(newSeatIds).stream()
-                .collect(Collectors.toMap(Seat::getId, s -> s, (a, b) -> a));
-
-        // Nạp 1 lần tập ghế đã xử lý sự cố → tránh N query existsActiveForBookingSeat trong vòng lặp
-        java.util.Set<Integer> alreadyProcessedSeatIds = incidentRepository.findProcessedSeatIdsByBooking(booking.getId());
-
-        List<IncidentResultResponse.SeatSwapResult> swapResults = new ArrayList<>();
-        List<SeatIncident> toSave = new ArrayList<>();
-        List<BookingSeat> updatedSeats = new ArrayList<>();
-        for (RelocateRequest.SeatSwap swap : req.swaps()) {
-            BookingSeat bs = soldBySeatId.get(swap.oldSeatId());
-            if (bs == null) {
-                throw new IllegalArgumentException("Ghế nguồn không thuộc đơn hoặc đã được xử lý.");
-            }
-            if (alreadyProcessedSeatIds.contains(swap.oldSeatId())) {
-                throw new IllegalStateException("Ghế " + bs.getSeat().displayLabel() + " đã được xử lý sự cố trước đó.");
-            }
-            Seat newSeat = newSeats.get(swap.newSeatId());
-            if (newSeat == null || !newSeat.isSeatCell() || !Boolean.TRUE.equals(newSeat.getIsActive())) {
-                throw new IllegalArgumentException("Ghế đích không hợp lệ.");
-            }
-            if (newSeat.getSeatStatus() != null && !"AVAILABLE".equals(newSeat.getSeatStatus())) {
-                throw new IllegalArgumentException("Ghế đích đang bảo trì/khóa, không thể chuyển tới.");
-            }
-            if (newSeat.getRoom() == null || !newSeat.getRoom().getId().equals(st.getRoom().getId())) {
-                throw new IllegalArgumentException("Ghế đích không thuộc phòng của suất chiếu.");
-            }
-
-            Seat oldSeat = bs.getSeat();
-            String oldLabel = oldSeat.displayLabel();
-            String newLabel = newSeat.displayLabel();
-            boolean downgrade = isDowngrade(oldSeat, newSeat);
-
-            bs.setSeat(newSeat); // REPOINT tại chỗ → giữ QR/Ticket/giá
-            updatedSeats.add(bs);
-
-            toSave.add(SeatIncident.builder()
-                    .incidentType("RELOCATE")
-                    .booking(booking).showtime(st)
-                    .oldSeat(oldSeat).newSeat(newSeat)
-                    .oldSeatLabel(oldLabel).newSeatLabel(newLabel)
-                    .compensationType("NONE")
-                    .reason(req.reason())
-                    .handledBy(currentStaffOrNull()).cinema(cinema)
-                    .build());
-            swapResults.add(IncidentResultResponse.SeatSwapResult.builder()
-                    .oldLabel(oldLabel).newLabel(newLabel).downgrade(downgrade).build());
-        }
-        bookingSeatRepository.saveAll(updatedSeats); // gom thành 1 batch thay vì N saves
-
-        // Đền bù ÁP DỤNG MỘT LẦN cho cả lần xử lý → gắn vào dòng ghi vết đầu tiên (tránh cộng trùng trị giá)
-        IncidentResultResponse.CompensationResult comp = applyCompensation(booking, req.compensation(), null, false);
-        attachCompensation(toSave.get(0), comp);
-
-        List<SeatIncident> saved = incidentRepository.saveAll(toSave);
-        List<Integer> incidentIds = saved.stream().map(SeatIncident::getId).toList();
-
-        boolean emailResent = ticketService.resendTicketEmailIfOnline(booking.getId());
-        return IncidentResultResponse.builder()
-                .incidentIds(incidentIds).swaps(swapResults).compensation(comp)
-                .reprint(ticketService.buildPrintData(booking.getId()))
-                .emailResent(emailResent)
-                .build();
     }
 
     // ===================== HỦY CHỖ =====================
@@ -366,6 +412,12 @@ public class SeatIncidentService {
         Cinema cinema = cinemaOf(booking);
         Showtime st = booking.getShowtime();
 
+        // Transaction DB Lock trên Showtime & Booking
+        if (st != null && st.getId() != null) {
+            showtimeRepository.findByIdForUpdate(st.getId()).orElse(null);
+        }
+        bookingRepository.findByIdWithPessimisticLock(booking.getId()).orElse(null);
+
         // Nạp toàn bộ BookingSeat của đơn 1 lần (cả byId map lẫn để kiểm tra hủy-toàn-bộ sau này)
         List<BookingSeat> allBookingSeats = bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId());
         Map<Integer, BookingSeat> byId = allBookingSeats.stream()
@@ -376,6 +428,7 @@ public class SeatIncidentService {
 
         List<SeatIncident> toSave = new ArrayList<>();
         List<BookingSeat> updatedSeats = new ArrayList<>();
+        List<Integer> releasedSeatIds = new ArrayList<>();
         BigDecimal totalValue = BigDecimal.ZERO;
         for (Integer bsId : bookingSeatIds) {
             BookingSeat bs = byId.get(bsId);
@@ -390,6 +443,7 @@ public class SeatIncidentService {
 
             bs.setStatus("CANCELLED"); // giải phóng ghế: query reserved chỉ đếm SOLD/HOLD
             updatedSeats.add(bs);
+            releasedSeatIds.add(seat.getId());
 
             toSave.add(SeatIncident.builder()
                     .incidentType(incidentType)
@@ -426,6 +480,12 @@ public class SeatIncidentService {
         attachCompensation(toSave.get(0), compResult);
 
         List<SeatIncident> saved = incidentRepository.saveAll(toSave);
+
+        // REALTIME WEBSOCKET STOMP: Giải phóng các ghế đã hủy cho mọi quầy / khách online
+        if (st != null && st.getId() != null && !releasedSeatIds.isEmpty()) {
+            broadcastSeatEvent(st.getId(), "SEAT_RELEASED", releasedSeatIds);
+        }
+
         return IncidentResultResponse.builder()
                 .incidentIds(saved.stream().map(SeatIncident::getId).toList())
                 .swaps(List.of())
@@ -686,6 +746,58 @@ public class SeatIncidentService {
                     + st.getEndTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"))
                     + " — hết thời gian xử lý sự cố (phải xử lý trong vòng "
                     + INCIDENT_WINDOW_HOURS + " giờ sau khi chiếu xong).");
+        }
+    }
+
+    // ===================== REDIS LOCK & STOMP HELPERS =====================
+
+    /**
+     * Khóa phân tán (Redis Distributed Lock) theo từng ghế đích trước khi thực hiện đổi ghế.
+     * Đảm bảo chống race condition 100% giữa nhiều server/instance và giữa các quầy/khách online.
+     */
+    private List<String> acquireRedisLocks(Integer showtimeId, List<Integer> seatIds) {
+        if (seatIds == null || seatIds.isEmpty() || redisTemplate == null) return List.of();
+        List<String> acquiredKeys = new ArrayList<>();
+        String lockValue = "INCIDENT:" + System.currentTimeMillis() + ":" + java.util.UUID.randomUUID();
+        try {
+            for (Integer seatId : seatIds) {
+                String key = REDIS_LOCK_PREFIX + showtimeId + ":seat:" + seatId;
+                Boolean success = redisTemplate.opsForValue().setIfAbsent(key, lockValue, REDIS_LOCK_TTL);
+                if (Boolean.TRUE.equals(success)) {
+                    acquiredKeys.add(key);
+                } else {
+                    // Không lấy được lock -> rollback các lock đã lấy trong đợt này
+                    releaseRedisLockKeys(acquiredKeys);
+                    throw new IllegalStateException("Ghế #" + seatId + " đang được xử lý đồng thời bởi giao dịch khác. Vui lòng thử lại sau.");
+                }
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[SeatIncident] Không thể kết nối Redis để tạo lock (fallback to DB lock): {}", e.getMessage());
+        }
+        return acquiredKeys;
+    }
+
+    /** Giải phóng các Redis locks đã acquire. */
+    private void releaseRedisLockKeys(List<String> keys) {
+        if (keys == null || keys.isEmpty() || redisTemplate == null) return;
+        try {
+            redisTemplate.delete(keys);
+        } catch (Exception e) {
+            log.warn("[SeatIncident] Lỗi giải phóng Redis lock: {}", e.getMessage());
+        }
+    }
+
+    /** Broadcast sự kiện trạng thái ghế qua WebSocket STOMP tới topic /topic/showtime/{id}. */
+    private void broadcastSeatEvent(Integer showtimeId, String type, List<Integer> seatIds) {
+        if (showtimeId == null || seatIds == null || seatIds.isEmpty() || messagingTemplate == null) return;
+        try {
+            Object payload = Map.of("type", type, "seatIds", seatIds, "by", "INCIDENT_HANDLER");
+            messagingTemplate.convertAndSend("/topic/showtime/" + showtimeId, payload);
+            log.info("[SeatIncident] Broadcast STOMP {} cho suất #{}: ghế {}", type, showtimeId, seatIds);
+        } catch (Exception e) {
+            log.warn("[SeatIncident] Broadcast STOMP {} cho suất #{} thất bại: {}", type, showtimeId, e.getMessage());
         }
     }
 }
