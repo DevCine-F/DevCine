@@ -1,7 +1,7 @@
 # DevCine — Project Context
 
 > File ngữ cảnh tổng hợp để đính kèm vào đầu mỗi phiên chat mới, giúp AI nắm nhanh dự án mà không phải đọc lại toàn bộ lịch sử hội thoại.
-> Cập nhật lần cuối: 24/06/2026 (một số mục 4.x đã cũ — **nguồn trạng thái chuẩn nhất là `CLAUDE.md` mục "Tiến độ hiện tại"** + memory `devcine-progress` / `devcine-permission-architecture`).
+> Cập nhật lần cuối: **24/08/2026** (một số mục 4.x đã cũ — **nguồn trạng thái chuẩn nhất là `CLAUDE.md` mục "Tiến độ hiện tại"** + memory `devcine-progress` / `devcine-permission-architecture`).
 
 > **⚠️ Thay đổi kiến trúc lớn (cập nhật sau 24/06):**
 > - **Đã GỠ HOÀN TOÀN Kho/Định mức BOM** (11/07): tồn kho VÔ HẠN, chỉ bán/hiển thị F&B.
@@ -9,6 +9,7 @@
 > - **Strict Cinema Scoping** (`SecurityUtils.assertCinemaAccess`): nhân viên chỉ thao tác trên cụm rạp của mình; bán/soát chéo rạp → **403**. Đơn POS lưu vết `sold_by` (Staff); đơn F&B thuần lưu thêm `cinema_id`.
 > - **Xử lý sự cố / Đổi ghế đền bù** (14/08): phân hệ mới `/admin/incidents` (feature quyền `incident_handling`). Đổi ghế = repoint `BookingSeat` tại chỗ (giữ QR); đền bù bằng Voucher template `COMP_*` (KHÔNG hoàn tiền); khóa ghế hỏng = `Seat.seat_status=MAINTENANCE`. Ghi vết bảng `seat_incidents`. Chi tiết ở `CLAUDE.md` + memory `devcine-incident-feature`.
 > - **Nghiệp vụ Xuất chiếu sớm (Early Screening)** (23/08): Tự động phát hiện khi `Showtime.startTime < Movie.releaseDate` $\rightarrow$ `Showtime.status = 'Xuất chiếu sớm'`. Toàn bộ 9 JPA query public (`ShowtimeRepository`) được mở rộng điều kiện `(m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm'))` để phim sắp chiếu vẫn mở bán vé bình thường. Giao diện đặt vé chạy tự nhiên, đồng nhất với phim thường (chuẩn Lotte Cinema).
+> - **Fix Voucher — Case 1 & 2** (24/08): **(Case 1)** Ẩn hoàn toàn voucher hết lượt/sai đối tượng/sai phim khỏi màn đặt vé và profile: `VoucherService.shouldHideFromUI()` + field `hideFromUI` trong preview API; `VoucherController` gán status `EXHAUSTED` (thay vì `ACTIVE` sai) cho voucher hết lượt toàn hệ thống; `BookingView.vue` dùng computed `visibleVouchers`; `VouchersView.vue` đưa EXHAUSTED vào tab lịch sử badge amber; thêm skeleton `animate-pulse` + cờ `isVoucherEvalsReady` chống flash of content. **(Case 2)** Sửa race condition vượt `usageLimit`: `@Modifying(clearAutomatically=true)` tránh đọc `usedCount` stale từ persistence context cache; `createBooking()` load Promotion FRESH từ DB và chặn ngay khi hết lượt; `completePayment()` đảo thứ tự — atomic increment TRƯỚC, đánh dấu `isUsed=true` SAU (fail-fast, bỏ save-then-rollback).
 
 ---
 
@@ -94,7 +95,7 @@ Phân trang: `data: { content, page, size, totalElements, totalPages }`.
 ## 4. Tiến độ hiện tại (~94% tổng thể)
 
 ### 4.1 ĐÃ hoàn thiện (kết nối FE↔BE↔DB thật)
-**Khách hàng:** Đăng ký/Đăng nhập (JWT), Trang chủ & danh sách phim, Lịch chiếu, Hệ thống rạp, Chi tiết phim + **đánh giá sao/bình luận**, Đặt vé (chọn ghế + F&B + voucher, hold ghế 10', tính giá server), Thanh toán VNPAY + tích điểm/nâng hạng, Hồ sơ cá nhân (xem+sửa), Lịch sử đặt vé, Đổi mật khẩu, **Voucher của tôi**, **Tìm kiếm phim (debounce)**, **Khuyến mãi (Promotion thật)**, **Thông báo (badge + đánh dấu đã đọc)**.
+**Khách hàng:** Đăng ký/Đăng nhập (JWT), Trang chủ & danh sách phim, Lịch chiếu, Hệ thống rạp, Chi tiết phim + **đánh giá sao/bình luận**, Đặt vé (chọn ghế + F&B + voucher, hold ghế 10', tính giá server), Thanh toán VNPAY + tích điểm/nâng hạng, Hồ sơ cá nhân (xem+sửa), Lịch sử đặt vé, Đổi mật khẩu, **Voucher của tôi** (ẩn đúng voucher hết lượt/hết hạn, skeleton loading, status EXHAUSTED), **Tìm kiếm phim (debounce)**, **Khuyến mãi (Promotion thật)**, **Thông báo (badge + đánh dấu đã đọc)**.
 
 **Quản trị:** Đăng nhập admin (JWT + chặn role), Dashboard, Quản lý phim (CRUD + Cloudinary), Danh mục phim, Banner, Điều phối lịch chiếu (Master Scheduling), Quản lý rạp/phòng, Sơ đồ ghế, Nhân sự, POS bán vé, Check-in QR, Khuyến mãi & phát voucher, Định giá, Thực đơn F&B, CSKH, Cài đặt, **Nhật ký hệ thống (ghi thật)**, **Phân quyền chi tiết (@PreAuthorize + ma trận DB)**, **Phê duyệt hủy hóa đơn F&B (FnB Void)**.
 
