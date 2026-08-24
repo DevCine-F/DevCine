@@ -397,7 +397,7 @@ const voucherCode = ref('')
 const voucherError = ref('')
 const voucherSuccess = ref('')
 const discountAmount = ref(0)
-// Kết quả preview từ server theo giỏ hiện tại: voucherId -> { applicable, reason, discountAmount }
+// Kết quả preview từ server theo giỏ hiện tại: voucherId -> { applicable, reason, discountAmount, hideFromUI }
 const voucherEvals = ref({})
 
 const finalPaymentPrice = computed(() => {
@@ -657,6 +657,21 @@ watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
 })
 // Vào bước "Ưu đãi" (3): chấm điều kiện toàn bộ voucher theo giỏ hiện tại để làm mờ mã không đủ
 watch(currentStep, (s) => { if (s === 3) fetchVoucherEvals() })
+
+/**
+ * Danh sách voucher HIỆN THỊ cho khách tại bước ĐẶT VÉ:
+ * - Loại bỏ hoàn toàn (hideFromUI=true): hết lượt, sai đối tượng, sai phim, chương trình bị ẩn.
+ * - Giữ lại (kể cả applicable=false): chưa đủ đơn tối thiểu → hiển mờ, có thể đủ khi thêm ghế/FnB.
+ * Khi server chưa trả kết quả preview (voucherEvals rỗng), giữ tất cả để tránh UI nhấp nháy.
+ */
+const visibleVouchers = computed(() => {
+  if (Object.keys(voucherEvals.value).length === 0) return vouchers.value
+  return vouchers.value.filter(v => {
+    const ev = voucherEvals.value[v.id]
+    if (!ev) return true          // chưa có kết quả → giữ (sẽ ẩn sau khi eval xong nếu cần)
+    return !ev.hideFromUI         // hideFromUI=true → loại bỏ
+  })
+})
 
 // ══════ BLOCK SELECTOR (chọn theo khối ghế liền nhau — mô hình Lotte) ══════
 let blockCounter = 0
@@ -1395,11 +1410,11 @@ const proceedToPayment = async () => {
           </div>
 
           <!-- Active Vouchers list -->
-          <div v-if="vouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
+          <div v-if="visibleVouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
             <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Voucher của bạn:</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div
-                v-for="v in vouchers"
+                v-for="v in visibleVouchers"
                 :key="v.id"
                 @click="selectVoucher(v)"
                 :class="[
