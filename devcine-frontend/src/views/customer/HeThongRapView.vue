@@ -13,8 +13,9 @@ const searchQuery = ref('')
 
 const fetchCinemas = async () => {
   try {
-    const { data } = await api.get('/v1/cinemas')
+    const { data } = await api.get('/v1/cinemas/active')
     cinemas.value = data
+    // Endpoint /active trả về toàn bộ rạp ACTIVE, không bị scope theo cinemaId của STAFF/MANAGER.
   } catch (error) {
     console.error('Error fetching cinemas:', error)
     toast.error(friendlyError(error, 'Không tải được danh sách rạp.'))
@@ -23,9 +24,8 @@ const fetchCinemas = async () => {
   }
 }
 
-const activeCinemas = computed(() =>
-  (cinemas.value || []).filter(c => !c.status || c.status.toUpperCase() === 'ACTIVE')
-)
+// Trả về toàn bộ cinemas vì endpoint /active đã lọc ACTIVE rồi
+const activeCinemas = computed(() => cinemas.value || [])
 
 const cities = computed(() => {
   if (!activeCinemas.value.length) return ['Tất cả']
