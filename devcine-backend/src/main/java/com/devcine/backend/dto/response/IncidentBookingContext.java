@@ -31,7 +31,8 @@ public record IncidentBookingContext(
             LocalDateTime startTime,
             Integer cinemaId,
             String cinemaName,
-            boolean started        // suất đã bắt đầu → chặn đổi ghế, chỉ cho hủy/goodwill (Edge #5)
+            boolean started,        // suất đã bắt đầu → chặn đổi ghế, chỉ cho hủy/goodwill (Edge #5)
+            boolean expired         // suất kết thúc > 2h → chặn TOÀN BỘ thao tác xử lý sự cố
     ) {}
 
     @Builder

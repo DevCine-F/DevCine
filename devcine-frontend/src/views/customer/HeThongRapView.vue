@@ -13,8 +13,9 @@ const searchQuery = ref('')
 
 const fetchCinemas = async () => {
   try {
-    const { data } = await api.get('/v1/cinemas')
+    const { data } = await api.get('/v1/cinemas/active')
     cinemas.value = data
+    // Endpoint /active trả về toàn bộ rạp ACTIVE, không bị scope theo cinemaId của STAFF/MANAGER.
   } catch (error) {
     console.error('Error fetching cinemas:', error)
     toast.error(friendlyError(error, 'Không tải được danh sách rạp.'))
@@ -23,27 +24,35 @@ const fetchCinemas = async () => {
   }
 }
 
+// Trả về toàn bộ cinemas vì endpoint /active đã lọc ACTIVE rồi
+const activeCinemas = computed(() => cinemas.value || [])
+
 const cities = computed(() => {
-  const activeCinemas = (cinemas.value || []).filter(c => !c.status || c.status.toUpperCase() === 'ACTIVE')
-  if (!activeCinemas.length) return ['Tất cả']
-  const all = activeCinemas.map(c => c.city).filter(Boolean)
+  if (!activeCinemas.value.length) return ['Tất cả']
+  const all = activeCinemas.value.map(c => c.city).filter(Boolean)
   return ['Tất cả', ...new Set(all)]
 })
 
 const totalRooms = computed(() => 
-  (cinemas.value || [])
-    .filter(c => !c.status || c.status.toUpperCase() === 'ACTIVE')
-    .reduce((sum, c) => sum + (c.rooms || 0), 0)
+  activeCinemas.value.reduce((sum, c) => sum + (c.rooms || 0), 0)
 )
 
 const filteredCinemas = computed(() => {
-  let list = (cinemas.value || []).filter(c => !c.status || c.status.toUpperCase() === 'ACTIVE')
+  let list = activeCinemas.value
   if (selectedCity.value !== 'Tất cả') list = list.filter(c => c.city === selectedCity.value)
   const q = searchQuery.value.trim().toLowerCase()
   if (q) list = list.filter(c =>
     c.name?.toLowerCase().includes(q) || c.address?.toLowerCase().includes(q)
   )
   return list
+})
+
+const operatingLocationsText = computed(() => {
+  const provinceList = cities.value.filter(c => c !== 'Tất cả')
+  if (!provinceList.length) return ''
+  if (provinceList.length === 1) return `tại ${provinceList[0]}`
+  if (provinceList.length <= 3) return `tại ${provinceList.join(', ')}`
+  return `tại ${provinceList.length} tỉnh thành trên toàn quốc`
 })
 
 const statusLabel = (s) => ({ ACTIVE: 'Đang hoạt động', MAINTENANCE: 'Bảo trì', CLOSED: 'Tạm đóng' }[s] || 'Đang hoạt động')
@@ -64,7 +73,7 @@ onMounted(fetchCinemas)
               Trải nghiệm<br/><span class="text-primary italic">Điện ảnh</span> Đẳng cấp
             </h1>
             <p class="text-on-surface-variant text-base md:text-lg leading-loose mb-8">
-              DevCine hiện vận hành <span class="text-on-surface font-bold">{{ cinemas.length }} cụm rạp</span> tại TP. Hồ Chí Minh, với phòng chiếu <span class="text-on-surface font-bold">Superplex &amp; 3D</span>, ghế <span class="text-on-surface font-bold">VIP</span> và <span class="text-on-surface font-bold">Sweetbox</span> ghế đôi. Đặt vé, chọn ghế và thanh toán trực tuyến chỉ trong vài bước.
+              DevCine hiện vận hành <span class="text-on-surface font-bold">{{ activeCinemas.length }} cụm rạp</span> {{ operatingLocationsText ? operatingLocationsText + ', ' : '' }}với phòng chiếu <span class="text-on-surface font-bold">Superplex &amp; 3D</span>, ghế <span class="text-on-surface font-bold">VIP</span> và <span class="text-on-surface font-bold">Sweetbox</span> ghế đôi. Đặt vé, chọn ghế và thanh toán trực tuyến chỉ trong vài bước.
             </p>
             <!-- Chip tính năng thực tế của hệ thống -->
             <div class="flex flex-wrap gap-2.5">
@@ -78,11 +87,11 @@ onMounted(fetchCinemas)
           <!-- Thống kê (kích thước đồng nhất) -->
           <div class="grid grid-cols-3 gap-3 shrink-0">
             <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
-              <div class="text-3xl font-bold text-primary">{{ cinemas.length }}</div>
+              <div class="text-3xl font-bold text-primary">{{ activeCinemas.length }}</div>
               <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Cụm rạp</div>
             </div>
             <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
-              <div class="text-3xl font-bold text-primary">{{ cities.length - 1 }}</div>
+              <div class="text-3xl font-bold text-primary">{{ Math.max(0, cities.length - 1) }}</div>
               <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Tỉnh / Thành</div>
             </div>
             <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
@@ -122,7 +131,7 @@ onMounted(fetchCinemas)
                 :class="selectedCity === city ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'hover:bg-surface-container-high'"
               >
                 <span class="font-bold text-sm">{{ city }}</span>
-                <span class="text-xs opacity-60 font-mono">{{ city === 'Tất cả' ? cinemas.length : cinemas.filter(c => c.city === city).length }}</span>
+                <span class="text-xs opacity-60 font-mono">{{ city === 'Tất cả' ? activeCinemas.length : activeCinemas.filter(c => c.city === city).length }}</span>
               </button>
             </div>
           </div>

@@ -21,8 +21,19 @@ public class CinemaController {
     private final CinemaService cinemaService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CinemaResponse>>> getAllCinemas() {
-        return ResponseEntity.ok(ApiResponse.ok(cinemaService.getAllCinemas()));
+    public ResponseEntity<ApiResponse<List<CinemaResponse>>> getAllCinemas(
+            @RequestParam(required = false, defaultValue = "false") boolean all
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(cinemaService.getAllCinemas(all)));
+    }
+
+    /**
+     * Public endpoint - trả tất cả rạp ACTIVE, không áp dụng cinema scoping.
+     * Dùng cho trang client công khai (HeThongRapView, MovieDetail).
+     */
+    @GetMapping("/active")
+    public ResponseEntity<ApiResponse<List<CinemaResponse>>> getActiveCinemas() {
+        return ResponseEntity.ok(ApiResponse.ok(cinemaService.getAllActiveCinemas()));
     }
 
     @GetMapping("/{id}")

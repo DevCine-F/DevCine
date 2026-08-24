@@ -4,7 +4,12 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 const props = defineProps({
   initialRows: { type: Number, default: 10 },
   initialCols: { type: Number, default: 12 },
-  initialSeatMap: { type: Object, default: () => ({}) }
+  initialSeatMap: { type: Object, default: () => ({}) },
+  /**
+   * Chế độ Chỉ đọc: hiển thị sơ đồ với đầy đủ loại ghế (màu sắc, label) nhưng không cho
+   * thao tác đổi loại, đổi tên, xóa, kéo vẽ hay điều chỉnh kích thước ma trận.
+   */
+  readOnly: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:layout', 'dirty'])
@@ -107,6 +112,7 @@ const onDimensionChange = () => {
 }
 
 const applyTool = (r, c) => {
+  if (props.readOnly) return // Chế độ Chỉ đọc: không cho phép thao tác
   if (!selectedTool.value) return
 
   const key = `${r}-${c}`
@@ -148,6 +154,7 @@ const applyTool = (r, c) => {
 
 // ===== Sửa label thủ công =====
 const openLabelEditor = (r, c) => {
+  if (props.readOnly) return // Chế độ Chỉ đọc: không cho sửa tên ghế
   const key = `${r}-${c}`
   const cell = seatMap[key]
   if (!isSeatCell(cell)) return // chỉ ghế thật mới sửa được tên
@@ -257,7 +264,8 @@ onUnmounted(() => {
             <span class="material-symbols-outlined text-sm">tune</span> Cấu hình & Thống kê
         </h3>
         
-        <div class="grid grid-cols-2 gap-4">
+        <!-- Khi đang sửa thì mới hiển thị input điều chỉnh kích thước -->
+        <div v-if="!readOnly" class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Hàng (Rows)</label>
             <input v-model.number="rows" @change="onDimensionChange" type="number" min="1" max="26" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all font-headline">
@@ -265,6 +273,17 @@ onUnmounted(() => {
           <div class="space-y-2">
             <label class="text-[9px] font-bold uppercase text-outline-variant">Cột (Cols)</label>
             <input v-model.number="cols" @change="onDimensionChange" type="number" min="1" max="25" class="w-full bg-black/40 border border-white/5 text-sm rounded-xl py-2 px-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all font-headline">
+          </div>
+        </div>
+        <!-- ReadOnly: hiển thị kích thước dưới dạng text tĩnh -->
+        <div v-else class="grid grid-cols-2 gap-4">
+          <div class="px-3 py-2.5 bg-black/40 rounded-xl border border-white/5 text-center">
+            <p class="text-[9px] font-bold text-outline-variant uppercase tracking-widest mb-1">Hàng</p>
+            <p class="text-xl font-black font-headline text-on-surface">{{ rows }}</p>
+          </div>
+          <div class="px-3 py-2.5 bg-black/40 rounded-xl border border-white/5 text-center">
+            <p class="text-[9px] font-bold text-outline-variant uppercase tracking-widest mb-1">Cột</p>
+            <p class="text-xl font-black font-headline text-on-surface">{{ cols }}</p>
           </div>
         </div>
 
@@ -293,7 +312,8 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
+      <!-- Công cụ thiết kế: chỉ hiển thị khi đang ở chế độ chỉnh sửa (không phải readOnly) -->
+      <div v-if="!readOnly" class="bg-surface-container-low/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl shadow-xl">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6 flex items-center gap-2">
             <span class="material-symbols-outlined text-sm">design_services</span> Công cụ thiết kế
         </h3>
@@ -351,12 +371,12 @@ onUnmounted(() => {
                 <div v-for="r in rows" :key="r" class="flex gap-3">
                   <template v-for="c in cols" :key="c">
                     <div v-if="!isOccupiedByDouble(r-1, c-1)"
-                      @mousedown="handleMouseDown($event, r-1, c-1)"
-                      @mouseenter="handleMouseEnter(r-1, c-1)"
-                      @dblclick="openLabelEditor(r-1, c-1)"
-                      @contextmenu.prevent="openLabelEditor(r-1, c-1)"
+                      @mousedown="readOnly ? null : handleMouseDown($event, r-1, c-1)"
+                      @mouseenter="readOnly ? null : handleMouseEnter(r-1, c-1)"
+                      @dblclick="readOnly ? null : openLabelEditor(r-1, c-1)"
+                      @contextmenu.prevent="readOnly ? null : openLabelEditor(r-1, c-1)"
                       :class="[getSeatClass(seatMap[`${r-1}-${c-1}`], r-1, c-1), seatMap[`${r-1}-${c-1}`]?.type === 'double' ? 'w-[92px]' : 'w-10', 'h-10 flex items-center justify-center text-[10px] font-black leading-none transition-all duration-75 group relative select-none shrink-0']"
-                      style="cursor: pointer">
+                      :style="readOnly ? 'cursor: default' : 'cursor: pointer'">
                     <!-- Tên/số ghế: luôn ưu tiên hiển thị to, rõ, ở giữa ô -->
                     <span class="relative z-[1] pointer-events-none">{{ seatMap[`${r-1}-${c-1}`]?.type !== 'aisle' ? seatMap[`${r-1}-${c-1}`]?.label : '' }}</span>
                     <!-- Marker bảo trì: chấm đỏ nhỏ góc trên phải (không che text) -->

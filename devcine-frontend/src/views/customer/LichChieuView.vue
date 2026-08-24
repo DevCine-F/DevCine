@@ -108,7 +108,7 @@ const moviesForDate = computed(() => {
     if (s.status === 'Xuất chiếu sớm') m.hasEarlyScreening = true
     if (s.formatName) m.formatSet.add(s.formatName)
     const d = toDate(s.startTime)
-    const isPast = selectedDate.value === todayStr && d && d.getTime() < Date.now()
+    const isPast = selectedDate.value === todayStr && d && d.getTime() < (Date.now() - 15 * 60 * 1000)
     
     const formatName = s.formatName || '2D PHỤ ĐỀ'
     const roomName = s.roomName || 'PHÒNG'

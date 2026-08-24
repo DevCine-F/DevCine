@@ -26,7 +26,8 @@ public record IncidentResultResponse(
     public record CompensationResult(
             String type,                  // NONE | DISCOUNT | GIFT_FNB | GIFT_TICKET
             boolean voucherIssued,
-            String voucherCode,           // null nếu đền trực tiếp tại quầy / NONE
+            Integer voucherId,            // ID của Voucher vừa sinh (null nếu NONE / khách vãng lai)
+            String voucherCode,           // Code của Promotion template (vd: COMP_50K) — dùng để giao tiếp với khách
             boolean counterGift,          // true = đền trực tiếp tại quầy (khách vãng lai)
             BigDecimal value
     ) {}

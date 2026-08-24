@@ -89,6 +89,7 @@ const {
   tempCols,
   isSavingLayout,
   hasChanges,
+  hasBookings,
   markDirty,
   openHallDetail,
   resetMap,
@@ -439,6 +440,7 @@ onUnmounted(() => {
         :temp-cols="tempCols"
         :is-saving-layout="isSavingLayout"
         :has-changes="hasChanges"
+        :has-bookings="hasBookings"
         @back="viewingHall = null"
         @reset="resetMap"
         @save="saveSeatLayout"

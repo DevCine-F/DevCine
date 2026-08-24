@@ -21,4 +21,9 @@ public class ShowtimeSeatResponse {
     private Map<String, String> audienceLabels;
     /** Tên loại ghế -> (mã đối tượng -> giá). Để FE đổi loại vé không cần gọi lại server. */
     private Map<String, Map<String, BigDecimal>> priceTable;
+    /**
+     * Cờ hiệu báo phòng chiếu đã phát sinh vé đặt (SOLD/HOLD) ở ít nhất một suất.
+     * FE dùng để khóa Trình thiết kế sơ đồ ghế ở chế độ Chỉ đọc (Read-only).
+     */
+    private Boolean hasBookings;
 }

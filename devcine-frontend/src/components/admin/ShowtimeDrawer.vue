@@ -580,7 +580,7 @@ const handleSave = async () => {
                class="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 flex items-start gap-3">
             <span class="material-symbols-outlined text-yellow-400 text-[18px] shrink-0 mt-0.5">movie_filter</span>
             <div>
-              <p class="text-[11px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">🎬 Xuất chiếu sớm</p>
+              <p class="text-[11px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">Xuất chiếu sớm</p>
               <p class="text-[11px] text-yellow-300/80 leading-snug">{{ isEarlyScreeningWarning }}</p>
             </div>
           </div>

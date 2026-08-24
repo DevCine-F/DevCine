@@ -21,7 +21,7 @@ const outOfStockMessage = ref('')
 
 const restoredBookingId = ref(null)
 
-const lateBookingMinutes = ref(30)
+const lateBookingMinutes = ref(15)
 
 const getTodayYmd = () => {
   const d = new Date()
@@ -164,7 +164,7 @@ const setTicketCount = (code, delta) => {
 watch(currentStep, (step) => { if (step === 3) syncTicketCountsFromSeats() })
 
 // ===== Định dạng & validate suất chiếu =====
-const isPastShowtime = (st) => !!(st?.startTime) && new Date(st.startTime).getTime() < (Date.now() - lateBookingMinutes.value * 60 * 1000)
+const isPastShowtime = (st) => !!(st?.startTime) && new Date(st.startTime).getTime() < (nowTs.value - lateBookingMinutes.value * 60 * 1000)
 // Giờ 24h (HH:mm)
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
 // Mã suất chiếu theo chuẩn nội bộ: SC-YYYYMMDD-<id>
@@ -548,6 +548,10 @@ const selectPosDate = (val) => {
 // Lọc suất chiếu theo tab ngày và cấu hình Bán vé trễ (chỉ áp dụng cho ngày hôm nay)
 const visibleShowtimes = computed(() => {
   if (!showtimes.value || !showtimes.value.length) return [];
+  const nowTsVal = nowTs.value;
+  const lateMs = lateBookingMinutes.value * 60 * 1000;
+  const cutoffTime = nowTsVal - lateMs;
+  const todayYmd = getTodayYmd();
   
   const result = showtimes.value.filter(st => {
     // 1. Kiểm tra ngày trùng với selectedPosDate
@@ -555,18 +559,16 @@ const visibleShowtimes = computed(() => {
     if (stYmd !== selectedPosDate.value) return false;
     
     // 2. Logic kiểm tra giờ trễ cho TAB HÔM NAY
-    const isTodayTab = selectedPosDate.value === getTodayYmd();
+    const isTodayTab = selectedPosDate.value === todayYmd;
     if (isTodayTab) {
       const d = parseToDate(st);
       if (!d) return false;
-      const cutoffTime = Date.now() - (lateBookingMinutes.value * 60 * 1000);
-      return d.getTime() >= cutoffTime; // Giữ lại suất chiếu chưa quá hạn trễ
+      return d.getTime() >= cutoffTime; // Giữ lại suất chiếu chưa quá hạn trễ (10 phút)
     }
     
     return true; // Các ngày tương lai: Giữ lại toàn bộ
   });
   
-  console.log("Selected Date:", selectedPosDate.value, "Filtered Visible Showtimes:", result.length);
   return result;
 })
 
@@ -1679,9 +1681,22 @@ const handleGlobalKeydown = (e) => {
   // Các phím tắt thu ngân có thể xử lý ở đây (ví dụ: F2, F4...)
 }
 
+const loadSettings = async () => {
+  try {
+    const { data } = await settingsApi.getAll()
+    const list = data?.data || data || []
+    const lateSetting = list.find(s => s.settingKey === 'BOOKING_LATE_MINUTES')
+    if (lateSetting && !isNaN(Number(lateSetting.settingValue))) {
+      lateBookingMinutes.value = Number(lateSetting.settingValue)
+    }
+  } catch (e) {
+    // fallback 10 minutes
+  }
+}
+
 onMounted(() => {
   nowTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
-  fetchData(); loadBankInfo();
+  fetchData(); loadBankInfo(); loadSettings();
   window.addEventListener('keydown', handleGlobalKeydown)
 })
 onUnmounted(() => {

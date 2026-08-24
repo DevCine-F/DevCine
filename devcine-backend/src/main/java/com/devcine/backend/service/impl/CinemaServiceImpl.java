@@ -122,10 +122,30 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public List<CinemaResponse> getAllCinemas() {
+        return getAllCinemas(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CinemaResponse> getAllActiveCinemas() {
+        // Public endpoint - chỉ trả rạp ACTIVE, KHÔNG áp dụng cinema scoping cho STAFF/MANAGER.
+        // Dùng cho trang client công khai (HeThongRapView, MovieDetail).
+        List<Cinema> cinemas = cinemaRepository.findAllWithManager();
+        cinemas = cinemas.stream()
+                .filter(c -> c.getStatus() == null || "ACTIVE".equalsIgnoreCase(c.getStatus()))
+                .collect(Collectors.toList());
+        return cinemas.stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CinemaResponse> getAllCinemas(boolean all) {
         List<Cinema> cinemas = cinemaRepository.findAllWithManager();
         // Chỉ giới hạn theo cơ sở với STAFF/MANAGER (nhân viên gắn 1 cụm rạp).
-        // ADMIN xem TẤT CẢ rạp (bao gồm rạp đã đóng).
-        // Khách/khách vãng lai (client công khai) CHỈ xem rạp đang hoạt động (ACTIVE).
+        // ADMIN xem TẤT CẢ rạp (bao gồm rạp đã đóng) khi all=true (ví dụ ở trang quản trị rạp).
+        // Khi all=false hoặc với khách/khách vãng lai/client công khai: CHỈ xem rạp đang hoạt động (ACTIVE).
         boolean isAdmin = com.devcine.backend.util.SecurityUtils.hasRole("ADMIN");
         boolean scopedToCinema = com.devcine.backend.util.SecurityUtils.isManager()
                 || com.devcine.backend.util.SecurityUtils.hasRole("STAFF");
@@ -137,8 +157,8 @@ public class CinemaServiceImpl implements CinemaService {
                     : cinemas.stream()
                         .filter(c -> c.getId().equals(cinemaId))
                         .collect(Collectors.toList());
-        } else if (!isAdmin) {
-            // Client / Public: Loại bỏ hoàn toàn cụm rạp đã đóng
+        } else if (!isAdmin || !all) {
+            // Client / Public hoặc Admin xem giao diện Client (all=false): Loại bỏ hoàn toàn cụm rạp đã đóng
             cinemas = cinemas.stream()
                     .filter(c -> c.getStatus() == null || "ACTIVE".equalsIgnoreCase(c.getStatus()))
                     .collect(Collectors.toList());
