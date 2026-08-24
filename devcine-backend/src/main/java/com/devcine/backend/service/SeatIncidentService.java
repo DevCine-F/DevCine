@@ -115,9 +115,10 @@ public class SeatIncidentService {
         if (phone == null || !phone.trim().matches("\\d{9,11}")) {
             throw new IllegalArgumentException("Số điện thoại không hợp lệ.");
         }
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(INCIDENT_WINDOW_HOURS + 3);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoff = now.minusHours(INCIDENT_WINDOW_HOURS + 3);
         List<Booking> bookings = bookingRepository.findConfirmedByCustomerPhone(
-                phone.trim(), cutoff, PageRequest.of(0, 10));
+                phone.trim(), cutoff, now, PageRequest.of(0, 10));
         if (bookings.isEmpty()) {
             throw new IllegalArgumentException(
                 "Không tìm thấy đơn hợp lệ cho SĐT " + phone.trim() + ". " +
@@ -164,7 +165,7 @@ public class SeatIncidentService {
                                 .build())
                         .collect(Collectors.toList());
 
-        boolean expired = st != null && st.getEndTime() != null && LocalDateTime.now().isAfter(st.getEndTime().plusHours(INCIDENT_WINDOW_HOURS));
+        boolean expired = st != null && st.getEndTime() != null && LocalDateTime.now().isAfter(st.getEndTime());
 
         IncidentBookingContext.ShowtimeBrief brief = IncidentBookingContext.ShowtimeBrief.builder()
                 .showtimeId(st != null ? st.getId() : null)

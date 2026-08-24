@@ -290,8 +290,10 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "JOIN FETCH b.customer c JOIN FETCH c.user u " +
            "WHERE u.phone = :phone AND b.status = 'CONFIRMED' " +
            "AND s.startTime >= :cutoff " +
+           "AND s.endTime > :now " +
            "ORDER BY s.startTime DESC, b.createdAt DESC, b.id DESC")
     List<Booking> findConfirmedByCustomerPhone(@Param("phone") String phone,
                                                @Param("cutoff") LocalDateTime cutoff,
+                                               @Param("now") LocalDateTime now,
                                                Pageable pageable);
 }
