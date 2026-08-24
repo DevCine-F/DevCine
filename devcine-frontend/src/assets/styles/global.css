@@ -179,3 +179,38 @@
     left: 90%;
   }
 }
+
+/* ===== Badge: Xuất chiếu sớm ===== */
+@keyframes early-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.early-screening-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #1a0f00;
+  padding: 4px 10px;
+  border-radius: 4px;
+  /* Gradient vàng-cam shimmer */
+  background: linear-gradient(
+    90deg,
+    #f5c518 0%,
+    #ffb300 25%,
+    #fff8dc 50%,
+    #ffb300 75%,
+    #f5c518 100%
+  );
+  background-size: 200% auto;
+  animation: early-shimmer 2.4s linear infinite;
+  box-shadow: 0 2px 8px rgba(245, 197, 24, 0.45);
+  /* chặn text select trên badge */
+  user-select: none;
+  white-space: nowrap;
+}

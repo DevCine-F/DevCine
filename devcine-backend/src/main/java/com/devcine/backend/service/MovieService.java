@@ -56,7 +56,18 @@ public class MovieService {
         List<MovieSummaryDTO> list = movieRepository.findVisibleWithGenres().stream()
                 .map(this::toSummary)
                 .collect(Collectors.toList());
-        return enrichAndSort(list);
+        List<MovieSummaryDTO> enriched = enrichAndSort(list);
+
+        // Populate hasEarlyScreening: 1 query batch, HomeView gọi /movies rồi filter upcoming
+        // client-side → nếu không populate ở đây thì badge không bao giờ hiện.
+        if (!enriched.isEmpty()) {
+            java.util.Set<Integer> earlyMovieIds =
+                    showtimeRepository.findMovieIdsWithEarlyScreening(LocalDateTime.now());
+            if (!earlyMovieIds.isEmpty()) {
+                enriched.forEach(m -> m.setHasEarlyScreening(earlyMovieIds.contains(m.getId())));
+            }
+        }
+        return enriched;
     }
 
     /** Trạng thái phim bị loại khỏi mọi danh sách công khai (ngừng chiếu / huỷ / vô hiệu hoá). */
@@ -90,9 +101,10 @@ public class MovieService {
     }
 
     /**
-     * Phim SẮP CHIẾU — CHỈ lấy phim NGHIÊM NGẶT chưa tới ngày khởi chiếu: {@code releaseDate > today}.
+     * Phìm SẮP CHIếu — CHỈ lấy phim NGHIÊM NGẶT chưa tới ngày khởi chiếu: {@code releaseDate > today}.
      * Loại bỏ mọi phim đã tới/qua ngày khởi chiếu (releaseDate <= today) dù status còn 'upcoming',
      * và loại phim ở trạng thái ẩn.
+     * Phim có ít nhất 1 suất chiếu sớm đang mở bán sẽ được đánh dấu {@code hasEarlyScreening=true}.
      */
     @Transactional
     public List<MovieSummaryDTO> getUpcoming() {
@@ -103,7 +115,17 @@ public class MovieService {
                 .filter(m -> m.getReleaseDate() != null && m.getReleaseDate().isAfter(today)) // releaseDate > today (nghiêm ngặt)
                 .map(this::toSummary)
                 .collect(Collectors.toList());
-        return enrichAndSort(list);
+        List<MovieSummaryDTO> enriched = enrichAndSort(list);
+
+        // Populate hasEarlyScreening: 1 query batch, không gây N+1.
+        if (!enriched.isEmpty()) {
+            java.util.Set<Integer> earlyMovieIds =
+                    showtimeRepository.findMovieIdsWithEarlyScreening(LocalDateTime.now());
+            if (!earlyMovieIds.isEmpty()) {
+                enriched.forEach(m -> m.setHasEarlyScreening(earlyMovieIds.contains(m.getId())));
+            }
+        }
+        return enriched;
     }
 
     public List<MovieSummaryDTO> searchMovies(String keyword) {

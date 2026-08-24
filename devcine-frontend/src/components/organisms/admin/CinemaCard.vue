@@ -14,7 +14,7 @@ defineEmits(['click'])
 const statusMeta = computed(() => {
   const s = (props.cinema.status || 'ACTIVE').toString().toUpperCase()
   if (s === 'MAINTENANCE') return { label: 'Bảo trì', dot: 'bg-amber-400', text: 'text-amber-400' }
-  if (s === 'CLOSED') return { label: 'Ngừng hoạt động', dot: 'bg-red-400', text: 'text-red-400' }
+  if (s === 'CLOSED') return { label: 'Đã đóng cửa / Ẩn', dot: 'bg-red-400', text: 'text-red-400' }
   return { label: 'Đang hoạt động', dot: 'bg-emerald-400', text: 'text-emerald-400' }
 })
 

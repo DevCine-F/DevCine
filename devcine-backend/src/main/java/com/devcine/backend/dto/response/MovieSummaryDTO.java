@@ -26,6 +26,13 @@ public class MovieSummaryDTO {
     private Long ticketSales;
     private Set<CategorySummaryDTO> genres;
 
+    /**
+     * true nếu phim sắp chiếu (releaseDate > today) đã có ít nhất 1 suất chiếu sớm
+     * còn mở bán (status = "Xuất chiếu sớm" và startTime >= now).
+     * FE dùng để hiện nút "Đặt vé sớm" và badge trên card phim sắp chiếu.
+     */
+    private boolean hasEarlyScreening;
+
     @Data
     @Builder
     public static class CategorySummaryDTO {

@@ -42,7 +42,7 @@ const activeVouchers = computed(() => vouchers.value
     expiry: formatDate(v.validUntil)
   })))
 
-// Voucher đã dùng / hết hạn -> tab "Lịch sử"
+// Voucher đã dùng / hết hạn / hết lượt -> tab "Lịch sử"
 const historyVouchers = computed(() => vouchers.value
   .filter(v => v.status !== 'ACTIVE')
   .map(v => ({
@@ -50,7 +50,9 @@ const historyVouchers = computed(() => vouchers.value
     date: formatDate(v.validUntil),
     code: v.code,
     description: formatDiscount(v),
-    status: v.status === 'USED' ? 'Đã sử dụng' : 'Đã hết hạn'
+    status: v.status === 'USED' ? 'Đã sử dụng'
+           : v.status === 'EXHAUSTED' ? 'Hết lượt dùng'
+           : 'Đã hết hạn'
   })))
 
 // Phân trang lịch sử voucher
@@ -380,7 +382,9 @@ onUnmounted(() => {
               <td class="py-4 px-6 whitespace-nowrap text-right">
                 <span :class="[
                   'text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm inline-block',
-                  item.status === 'Đã sử dụng' ? 'bg-primary-container/20 text-primary-container' : 'bg-error/20 text-error'
+                  item.status === 'Đã sử dụng'  ? 'bg-primary-container/20 text-primary-container'
+                  : item.status === 'Hết lượt dùng' ? 'bg-amber-500/20 text-amber-400'
+                  : 'bg-error/20 text-error'
                 ]">
                   {{ item.status }}
                 </span>

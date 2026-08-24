@@ -48,7 +48,20 @@ const movieOptions = computed(() => {
   return [...movies.value]
     .filter(m => m.status === 'active' || m.status === 'upcoming')
     .sort((a, b) => (b.id || 0) - (a.id || 0))
-    .map(m => ({ value: m.id, label: m.title || m.name }));
+    .map(m => {
+      const isUpcoming = (m.status || '').toLowerCase() === 'upcoming';
+      return {
+        value: m.id,
+        label: m.title || m.name,
+        badge: {
+          text: isUpcoming ? 'Sắp chiếu' : 'Đang chiếu',
+          type: isUpcoming ? 'upcoming' : 'active',
+          class: isUpcoming
+            ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+        }
+      };
+    });
 });
 
 const roomOptions = computed(() => {
@@ -347,6 +360,27 @@ const timeConflictError = computed(() => {
 // Dòng đỏ dưới trường thời gian: lỗi bỏ trống (khi bấm Lưu) hoặc lỗi khung giờ (real-time).
 const timeError = computed(() => fieldErrors.time || timeConflictError.value);
 
+/**
+ * Phát hiện "Xuất chiếu sớm": ngày chiếu đang chọn nằm trước releaseDate của phim.
+ * Chỉ cảnh báo (không chặn) — admin vẫn có thể lưu; backend sẽ tự set status = "Xuất chiếu sớm".
+ */
+const isEarlyScreeningWarning = computed(() => {
+  if (!form.movieId || !props.selectedDate) return null;
+  const selectedMovie = movies.value.find(m => m.id === form.movieId);
+  if (!selectedMovie?.releaseDate) return null;
+
+  const year = new Date().getFullYear();
+  const [day, month] = props.selectedDate.split('/');
+  const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
+  const releaseDate = new Date(`${selectedMovie.releaseDate}T00:00:00`);
+
+  if (showDate < releaseDate) {
+    const releaseFmt = releaseDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `Ngày chiếu (${props.selectedDate}/${year}) nằm trước ngày khởi chiếu chính thức (${releaseFmt}). Suất này sẽ được đánh dấu là “Xuất chiếu sớm”.`;
+  }
+  return null;
+});
+
 const suggestedSlots = computed(() => {
   if (!form.movieId || !form.roomId || !props.selectedDate) return [];
   const movie = movies.value.find(m => m.id === form.movieId);
@@ -539,6 +573,18 @@ const handleSave = async () => {
           <span class="material-symbols-outlined text-amber-400">lock</span>
           <p class="text-[11px] text-amber-400 font-bold">Suất chiếu đã có vé đặt, không thể thay đổi thời gian/phòng chiếu.</p>
         </div>
+
+        <!-- Banner cảnh báo Xuất chiếu sớm -->
+        <Transition name="fade">
+          <div v-if="isEarlyScreeningWarning && !editData"
+               class="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 flex items-start gap-3">
+            <span class="material-symbols-outlined text-yellow-400 text-[18px] shrink-0 mt-0.5">movie_filter</span>
+            <div>
+              <p class="text-[11px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">🎬 Xuất chiếu sớm</p>
+              <p class="text-[11px] text-yellow-300/80 leading-snug">{{ isEarlyScreeningWarning }}</p>
+            </div>
+          </div>
+        </Transition>
 
         <div ref="movieField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>

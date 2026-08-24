@@ -333,15 +333,6 @@ const handleDragStart = (event, show) => {
           >Sắp chiếu</span
         >
       </div>
-      <div class="flex items-center gap-2">
-        <div
-          class="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"
-        ></div>
-        <span
-          class="text-[8px] font-black uppercase tracking-widest text-red-500"
-          >Xung đột / Sai định dạng</span
-        >
-      </div>
       <div
         class="ml-auto text-[7px] font-black uppercase tracking-[0.3em] text-on-surface-variant opacity-20 italic"
       >

@@ -38,7 +38,9 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     List<Showtime> findActiveByRoomId(@Param("roomId") Integer roomId, @Param("now") LocalDateTime now);
 
     @Query("SELECT DISTINCT c FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m " +
-           "WHERE m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "WHERE (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY c.city ASC, c.name ASC")
     List<Cinema> findCinemasWithUpcomingShowtimes(@Param("now") LocalDateTime now);
 
@@ -51,7 +53,9 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "f.id AS formatId, f.name AS formatName, " +
            "r.id AS roomId, r.name AS roomName, r.type AS roomType " +
            "FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m JOIN s.format f " +
-           "WHERE m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "WHERE (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<ShowtimePublicProjection> findAllUpcomingProjections(@Param("now") LocalDateTime now);
 
@@ -64,22 +68,34 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
            "f.id AS formatId, f.name AS formatName, " +
            "r.id AS roomId, r.name AS roomName, r.type AS roomType " +
            "FROM Showtime s JOIN s.room r JOIN r.cinema c JOIN s.movie m JOIN s.format f " +
-           "WHERE c.id = :cinemaId AND m.status = 'active' AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "WHERE c.id = :cinemaId " +
+           "AND (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<ShowtimePublicProjection> findUpcomingProjectionsByCinemaId(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
-           "WHERE s.movie.id = :movieId AND m.status = 'active' AND s.startTime >= :now " +
+           "WHERE s.movie.id = :movieId " +
+           "AND (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimesByMovieId(@Param("movieId") Integer movieId, @Param("now") LocalDateTime now);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m JOIN FETCH s.format f " +
-           "WHERE s.movie.id = :movieId AND m.status = 'active' AND c.city = :city AND s.startTime >= :now " +
+           "WHERE s.movie.id = :movieId AND c.city = :city " +
+           "AND (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimesByMovieIdAndCity(@Param("movieId") Integer movieId, @Param("city") String city, @Param("now") LocalDateTime now);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
-           "WHERE m.status = 'active' AND s.startTime >= :now ORDER BY s.startTime ASC")
+           "WHERE (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND s.startTime >= :now AND s.status <> 'Cancelled' " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') " +
+           "ORDER BY s.startTime ASC")
     List<Showtime> findUpcomingShowtimes(@Param("now") LocalDateTime now);
 
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
@@ -88,8 +104,11 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     List<Showtime> findByCinemaId(@Param("cinemaId") Integer cinemaId);
 
     @Query("SELECT s FROM Showtime s JOIN FETCH s.room r " +
-           "WHERE r.cinema.id = :cinemaId AND s.endTime >= :now")
+           "WHERE r.cinema.id = :cinemaId AND s.endTime >= :now AND (s.status IS NULL OR s.status <> 'Cancelled')")
     List<Showtime> findFutureShowtimesByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
+
+    @Query("SELECT COUNT(s) FROM Showtime s WHERE s.room.cinema.id = :cinemaId AND s.endTime >= :now AND (s.status IS NULL OR s.status <> 'Cancelled')")
+    long countFutureShowtimesByCinema(@Param("cinemaId") Integer cinemaId, @Param("now") LocalDateTime now);
 
     /**
      * Hủy HÀNG LOẠT các suất chiếu TƯƠNG LAI (startTime >= now) của một cụm rạp khi rạp
@@ -190,28 +209,44 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     // Suất của 1 RẠP trong khoảng [start, end] — chỉ phim đang chiếu (ẩn phim đã lưu trữ)
     // cinema đã JOIN FETCH (tránh N+1 khi toPublicDTO gọi getRoom().getCinema())
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
-           "WHERE c.id = :cinemaId AND m.status = 'active' AND s.startTime >= :start AND s.startTime <= :end ORDER BY m.title ASC, s.startTime ASC")
+           "WHERE c.id = :cinemaId " +
+           "AND (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') AND s.startTime >= :start AND s.startTime <= :end ORDER BY m.title ASC, s.startTime ASC")
     List<Showtime> findByCinemaAndRange(@Param("cinemaId") Integer cinemaId,
                                         @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // Suất của 1 PHIM trong khoảng [start, end], lọc theo thành phố (rỗng = tất cả) — chỉ phim đang chiếu
     // cinema đã JOIN FETCH (tránh N+1 khi toPublicDTO gọi getRoom().getCinema())
     @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.format f " +
-           "WHERE m.id = :movieId AND m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+           "WHERE m.id = :movieId " +
+           "AND (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xuất chiếu sớm')) " +
+           "AND (c.status IS NULL OR c.status = 'ACTIVE') AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
            "ORDER BY c.name ASC, s.startTime ASC")
     List<Showtime> findByMovieAndRange(@Param("movieId") Integer movieId, @Param("city") String city,
                                        @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    // Danh sách PHIM có suất trong (thành phố × khoảng ngày), tìm theo tên — phân trang — chỉ phim đang chiếu
+    // Danh sách PHIM có suất trong (thành phố × khoảng ngày), tìm theo tên — phân trang — phim đang chiếu & phim có xuất chiếu sớm
     @Query(value = "SELECT DISTINCT m FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
-            "WHERE m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "WHERE (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xu\u1ea5t chi\u1ebfu s\u1edbm')) " +
+            "AND (c.status IS NULL OR c.status = 'ACTIVE') AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
             "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY m.title ASC",
             countQuery = "SELECT COUNT(DISTINCT m) FROM Showtime s JOIN s.movie m JOIN s.room r JOIN r.cinema c " +
-            "WHERE m.status = 'active' AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
+            "WHERE (m.status = 'active' OR (m.status = 'upcoming' AND s.status = 'Xu\u1ea5t chi\u1ebfu s\u1edbm')) " +
+            "AND (c.status IS NULL OR c.status = 'ACTIVE') AND (:city = '' OR LOWER(c.city) = LOWER(:city)) AND s.startTime >= :start AND s.startTime <= :end " +
             "AND LOWER(m.title) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Movie> findMoviesWithShowtimes(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
                                         @Param("city") String city, @Param("q") String q, Pageable pageable);
 
     @Query("SELECT DISTINCT s FROM Showtime s LEFT JOIN FETCH s.movie LEFT JOIN FETCH s.room r LEFT JOIN FETCH r.cinema LEFT JOIN FETCH s.format WHERE s.startTime >= :fromTime ORDER BY s.startTime ASC")
     List<Showtime> findPOSShowtimesWithDetails(@Param("fromTime") LocalDateTime fromTime);
+
+    /**
+     * Trả tập hợp movieId của các phim CÓ ÍT NHẤT 1 suất chiếu sớm còn mở bán
+     * (status = 'Xuất chiếu sớm' và startTime >= now).
+     * Dùng bởi {@link com.devcine.backend.service.MovieService} để populate
+     * {@code hasEarlyScreening} trong MovieSummaryDTO mà không gây N+1.
+     */
+    @Query("SELECT DISTINCT s.movie.id FROM Showtime s " +
+           "WHERE s.status = 'Xuất chiếu sớm' AND s.startTime >= :now")
+    java.util.Set<Integer> findMovieIdsWithEarlyScreening(@Param("now") LocalDateTime now);
 }
