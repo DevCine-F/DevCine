@@ -218,10 +218,14 @@ public class SeatService {
                     .build();
         }).collect(Collectors.toList());
 
+        // Kiểm tra phòng đã phát sinh vé đặt ở bất kỳ suất nào chưa → trả FE để khóa Trình thiết kế.
+        boolean hasBookings = !bookingSeatRepository.findShowtimeIdsWithReservedSeatsByRoom(roomId).isEmpty();
+
         return ShowtimeSeatResponse.builder()
                 .matrixRow(room.getMatrixRow() != null ? room.getMatrixRow() : 9)
                 .matrixCol(room.getMatrixCol() != null ? room.getMatrixCol() : 10)
                 .seats(seatDTOs)
+                .hasBookings(hasBookings)
                 .build();
     }
 
@@ -313,6 +317,17 @@ public class SeatService {
     public void saveSeatLayout(Integer roomId, SeatLayoutRequest request) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        // ===== GUARD: Chặn sửa sơ đồ nếu phòng đã phát sinh vé đặt (SOLD/HOLD) =====
+        // Mục tiêu: bảo vệ tính nhất quán dữ liệu – không được dịch ghế/đổi vị trí khi
+        // khách đã cầm vé. Trường hợp ghế hỏng → dùng luồng Xử lý sự cố ghế (/admin/incidents).
+        boolean hasBookings = !bookingSeatRepository.findShowtimeIdsWithReservedSeatsByRoom(roomId).isEmpty();
+        if (hasBookings) {
+            throw new IllegalArgumentException(
+                "Phòng chiếu đã phát sinh vé đặt, không thể chỉnh sửa sơ đồ ghế. " +
+                "Nếu có sự cố ghế bị hỏng, vui lòng sử dụng tính năng Xử lý sự cố ghế."
+            );
+        }
 
         room.setMatrixRow(request.getMatrixRow());
         room.setMatrixCol(request.getMatrixCol());
