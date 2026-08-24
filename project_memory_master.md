@@ -73,3 +73,15 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 - **Regex Bóc Tách STT Phòng:** Sử dụng Regex `/Phòng\s*(\d+)/i` hoặc `/\d+/` trên danh sách `room.name` hiện hữu để lọc ra số thứ tự lớn nhất.
 - **Loop Until Unique:** Chạy vòng lặp `while` tịnh tiến `nextNum` và đối chiếu thực tế mảng tên phòng để ra con số tiếp theo chắc chắn không bị trùng.
 - **Giao diện Dynamic Chips:** Các chip gợi ý đổi từ trạng thái hardcode tĩnh sang render động `[ Phòng 0X ]` kết hợp check trùng lặp Realtime (`isDuplicateName`) để ngăn form submit.
+
+### 13. Chuẩn Hóa Kích Thước & Hiển Thị Ghế Đôi Sweetbox (Fixed-Track CSS Grid & Clean Layout)
+- **Chuẩn hóa hiển thị CSS Grid (`SeatGridRenderer.vue`):** 
+  - Thay thế `gridTemplateColumns: repeat(matrixCol, minmax(0, 1fr))` bằng kích thước track cột cố định theo size (`2.5rem` cho normal / `2rem` cho compact / `1.75rem` cho sm) kết hợp `justify-self-stretch` và `col-span-2 w-full`.
+  - Đảm bảo ghế Sweetbox mở rộng chiếm trọn vẹn **đúng bằng độ dài 2 ghế thường + khoảng cách giữa 2 ghế** (`2 * trackWidth + gap`), căn thẳng hàng 100% với các cột ghế đơn từ hàng A đến hàng cuối.
+  - Tinh chỉnh hàm `isOccupiedBySweetbox(r, c)` để nhận diện chính xác ô thứ 2 của ghế đôi và bỏ qua DOM element tương ứng, không gây cascade lỗi sang các ô kế tiếp.
+- **Dọn dẹp Ghost Seat & Đồng bộ Composable (`useSeatLayout.js`):**
+  - Tự động nhận diện ghế đôi (`SWEETBOX`, `DOUBLE`, `span === 2`) và xóa các ô bị ghế đôi đè lên ở cột liền kề (`r-(c+1)`) khi nạp từ Database/API để tránh lỗi chồng lấn/ghost seat.
+  - Gửi kèm thuộc tính `span: 2` khi lưu sơ đồ phòng chiếu lên server.
+- **Nghiệp vụ chọn vé & Sức chứa:** 
+  - Ghế Sweetbox tính đúng sức chứa 2 chỗ, chọn 1 ghế Sweetbox tự động chọn cả cặp 2 vé và áp dụng đúng bảng giá.
+

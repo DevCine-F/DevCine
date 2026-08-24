@@ -24,15 +24,20 @@ const fetchCinemas = async () => {
 }
 
 const cities = computed(() => {
-  if (!cinemas.value?.length) return ['Tất cả']
-  const all = cinemas.value.map(c => c.city).filter(Boolean)
+  const activeCinemas = (cinemas.value || []).filter(c => !c.status || c.status.toUpperCase() === 'ACTIVE')
+  if (!activeCinemas.length) return ['Tất cả']
+  const all = activeCinemas.map(c => c.city).filter(Boolean)
   return ['Tất cả', ...new Set(all)]
 })
 
-const totalRooms = computed(() => cinemas.value.reduce((sum, c) => sum + (c.rooms || 0), 0))
+const totalRooms = computed(() => 
+  (cinemas.value || [])
+    .filter(c => !c.status || c.status.toUpperCase() === 'ACTIVE')
+    .reduce((sum, c) => sum + (c.rooms || 0), 0)
+)
 
 const filteredCinemas = computed(() => {
-  let list = cinemas.value
+  let list = (cinemas.value || []).filter(c => !c.status || c.status.toUpperCase() === 'ACTIVE')
   if (selectedCity.value !== 'Tất cả') list = list.filter(c => c.city === selectedCity.value)
   const q = searchQuery.value.trim().toLowerCase()
   if (q) list = list.filter(c =>

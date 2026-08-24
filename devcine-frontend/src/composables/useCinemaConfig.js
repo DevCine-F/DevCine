@@ -57,7 +57,8 @@ export function useCinemaConfig(selectedCinema) {
   const districts = ref([]);
   const loadingDistricts = ref(false);
   const saving = ref(false);
-  const deleting = ref(false);
+  const closingCinema = ref(false);
+  const reopeningCinema = ref(false);
 
   // ===== Chuẩn hoá để so sánh isDirty (không nhiễu bởi format hiển thị) =====
   const normalize = (f) => ({
@@ -179,29 +180,6 @@ export function useCinemaConfig(selectedCinema) {
       return;
     }
 
-    // ===== CHỐT CHẶN AN TOÀN: đóng cửa cụm rạp đột xuất =====
-    // Chuyển từ trạng thái CÒN BÁN VÉ (ACTIVE/rỗng) sang MAINTENANCE/CLOSED sẽ kích hoạt luồng
-    // "sức công phá lớn" ở backend (hủy toàn bộ suất tương lai + phát voucher đền + gửi email
-    // hàng loạt). Bắt buộc Admin xác nhận trước khi gọi PUT.
-    const newStatus = (form.status || "ACTIVE").toUpperCase();
-    const isDangerousClosure =
-      isSellableStatus(original.value.status) &&
-      (newStatus === "MAINTENANCE" || newStatus === "CLOSED");
-    if (isDangerousClosure) {
-      const ok = await confirm.show({
-        title: "Cảnh báo Đóng cửa cụm rạp!",
-        message:
-          "Hành động này sẽ lập tức HỦY TOÀN BỘ các suất chiếu trong tương lai của rạp này, " +
-          "đồng thời hệ thống sẽ tự động phát Voucher đền bù 100% và gửi Email xin lỗi đến các " +
-          "khách hàng đã đặt vé. Hành động này KHÔNG THỂ hoàn tác. " +
-          "Bạn có chắc chắn muốn đóng cửa rạp?",
-        confirmText: "Đóng cửa rạp",
-        cancelText: "Huỷ",
-        tone: "danger",
-      });
-      if (!ok) return; // Admin bấm Huỷ -> không gửi API, giữ nguyên form
-    }
-
     const n = normalize(form);
     saving.value = true;
     try {
@@ -210,7 +188,7 @@ export function useCinemaConfig(selectedCinema) {
         address: n.address,
         city: n.city,
         district: n.district,
-        hotline: n.hotline, // API yêu cầu chuỗi số thuần
+        hotline: n.hotline,
         type: n.type,
         amenities: n.amenities || null,
         description: n.description || null,
@@ -224,7 +202,6 @@ export function useCinemaConfig(selectedCinema) {
       };
       await axios.put(`${API_BASE_URL}/${c.id}`, payload);
 
-      // Đồng bộ ngược vào cụm rạp đang chọn để card/list & timeline phản ánh ngay.
       Object.assign(c, {
         name: n.name,
         address: n.address,
@@ -241,7 +218,7 @@ export function useCinemaConfig(selectedCinema) {
         longitude: n.longitude,
       });
 
-      original.value = normalize(form); // reset dirty
+      original.value = normalize(form);
       toast.success("Đã lưu cấu hình cụm rạp.");
     } catch (e) {
       console.error("[Config] Lưu cấu hình thất bại:", e);
@@ -255,38 +232,71 @@ export function useCinemaConfig(selectedCinema) {
       saving.value = false;
     }
   };
-
-  // ===== Xoá cứng cụm rạp (Danger Zone) =====
-  // Trả về true nếu xoá thành công (để component emit 'deleted'). BE là HARD DELETE:
-  // rạp còn phòng/suất chiếu -> vỡ ràng buộc khoá ngoại -> hướng dẫn dùng "Tạm đóng".
-  const deleteCinema = async () => {
+  const closeCinema = async () => {
     const c = selectedCinema.value;
     if (!c) return false;
-    deleting.value = true;
+
+    const ok = await confirm.show({
+      title: "Đóng cụm rạp",
+      message: `Đóng và ẩn cụm rạp "${c.name}" khỏi hệ thống khách hàng?`,
+      confirmText: "Đóng cụm rạp",
+      cancelText: "Hủy",
+      tone: "danger",
+    });
+    if (!ok) return false;
+
+    closingCinema.value = true;
     try {
-      await axios.delete(`${API_BASE_URL}/${c.id}`);
-      toast.success(`Đã xoá cụm rạp "${c.name}".`);
+      const { data } = await axios.patch(`${API_BASE_URL}/${c.id}/close`);
+      const updated = data?.data || data;
+      c.status = "CLOSED";
+      form.status = "CLOSED";
+      original.value = normalize(form);
+      toast.success(`Đã đóng cụm rạp "${c.name}" và ẩn khỏi hệ thống client.`);
       return true;
     } catch (e) {
-      console.error("[Config] Xoá cụm rạp thất bại:", e);
-      const status = e?.response?.status;
-      const msg = (e?.response?.data?.message || "") + "";
-      const looksFk =
-        status === 409 ||
-        status === 500 ||
-        /constraint|foreign|violat|referen|ràng buộc|liên kết|đang có/i.test(msg);
-      if (looksFk) {
-        toast.error(
-          "Không thể xoá cụm rạp này. Nguyên nhân thường gặp: rạp vẫn còn phòng chiếu " +
-            'hoặc suất chiếu liên kết. Hãy cuộn lên phần "Trạng thái" và đổi sang ' +
-            '"Tạm đóng cửa" để ngừng hoạt động mà không mất dữ liệu.'
-        );
-      } else {
-        toast.error(friendlyError(e, "Xoá cụm rạp thất bại."));
-      }
+      console.error("[Config] Đóng cụm rạp thất bại:", e);
+      toast.error(
+        friendlyError(
+          e,
+          "Không thể đóng cụm rạp do còn suất chiếu chưa kết thúc."
+        )
+      );
       return false;
     } finally {
-      deleting.value = false;
+      closingCinema.value = false;
+    }
+  };
+
+  // ===== Mở lại cụm rạp =====
+  const reopenCinema = async () => {
+    const c = selectedCinema.value;
+    if (!c) return false;
+
+    const ok = await confirm.show({
+      title: "Mở lại cụm rạp",
+      message: `Mở lại và hiển thị cụm rạp "${c.name}" cho khách hàng?`,
+      confirmText: "Mở lại rạp",
+      cancelText: "Hủy",
+      tone: "primary",
+    });
+    if (!ok) return false;
+
+    reopeningCinema.value = true;
+    try {
+      const { data } = await axios.patch(`${API_BASE_URL}/${c.id}/reopen`);
+      const updated = data?.data || data;
+      c.status = "ACTIVE";
+      form.status = "ACTIVE";
+      original.value = normalize(form);
+      toast.success(`Đã mở lại cụm rạp "${c.name}" thành công.`);
+      return true;
+    } catch (e) {
+      console.error("[Config] Mở lại cụm rạp thất bại:", e);
+      toast.error(friendlyError(e, "Mở lại cụm rạp thất bại."));
+      return false;
+    } finally {
+      reopeningCinema.value = false;
     }
   };
 
@@ -298,7 +308,8 @@ export function useCinemaConfig(selectedCinema) {
     districts,
     loadingDistricts,
     saving,
-    deleting,
+    closingCinema,
+    reopeningCinema,
     isDirty,
     hasErrors,
     // actions
@@ -307,6 +318,7 @@ export function useCinemaConfig(selectedCinema) {
     resetForm,
     validateField,
     saveConfig,
-    deleteCinema,
+    closeCinema,
+    reopenCinema,
   };
 }

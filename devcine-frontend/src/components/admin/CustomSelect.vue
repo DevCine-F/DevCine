@@ -17,6 +17,10 @@ const props = defineProps({
   searchable: {
     type: Boolean,
     default: false
+  },
+  disabled: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -38,6 +42,7 @@ const filteredOptions = computed(() => {
 });
 
 const toggleOpen = () => {
+  if (props.disabled) return;
   isOpen.value = !isOpen.value;
   if (isOpen.value && props.searchable) {
     setTimeout(() => {
@@ -47,6 +52,7 @@ const toggleOpen = () => {
 };
 
 const selectOption = (option) => {
+  if (option.disabled) return;
   emit('update:modelValue', option.value);
   isOpen.value = false;
   searchQuery.value = '';
@@ -73,14 +79,29 @@ onUnmounted(() => {
     <!-- Selected Value Display -->
     <div 
       @click="toggleOpen"
-      class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer transition-colors"
-      :class="isOpen ? 'border-primary/50 text-white' : 'hover:border-white/20 text-white/80'"
+      class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between transition-colors"
+      :class="[
+        disabled ? 'opacity-60 cursor-not-allowed bg-black/40' : 'cursor-pointer',
+        isOpen ? 'border-primary/50 text-white' : (disabled ? '' : 'hover:border-white/20 text-white/80')
+      ]"
     >
-      <span class="truncate pr-4" :class="{ 'text-white/40': !selectedOption }">
-        {{ selectedOption ? selectedOption.label : placeholder }}
+      <div v-if="selectedOption" class="flex items-center gap-2 truncate pr-2 min-w-0">
+        <span class="truncate">{{ selectedOption.label }}</span>
+        <span
+          v-if="selectedOption.badge"
+          class="shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border inline-flex items-center"
+          :class="selectedOption.badge.class || (selectedOption.badge.type === 'upcoming' 
+            ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' 
+            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30')"
+        >
+          {{ selectedOption.badge.text }}
+        </span>
+      </div>
+      <span v-else class="truncate pr-4 text-white/40">
+        {{ placeholder }}
       </span>
       <span 
-        class="material-symbols-outlined text-lg transition-transform duration-300"
+        class="material-symbols-outlined text-lg transition-transform duration-300 shrink-0 ml-2"
         :class="{ 'rotate-180 text-primary': isOpen, 'text-white/40': !isOpen }"
       >
         expand_more
@@ -90,7 +111,7 @@ onUnmounted(() => {
     <!-- Dropdown Options -->
     <Transition name="fade-slide">
       <div 
-        v-if="isOpen" 
+        v-if="isOpen && !disabled" 
         class="absolute z-[100] mt-2 w-full bg-[#1A1C1E] border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-x-hidden scrollbar-thin custom-scrollbar flex flex-col"
       >
         <!-- Search Bar -->
@@ -119,12 +140,24 @@ onUnmounted(() => {
             v-for="option in filteredOptions"
             :key="option.value"
             @click="selectOption(option)"
-            class="px-4 py-3 cursor-pointer transition-colors truncate"
-            :class="option.value === modelValue 
-              ? 'bg-primary/10 text-primary font-bold border-l-2 border-primary' 
-              : 'text-white/80 hover:bg-white/5 hover:text-white border-l-2 border-transparent'"
+            class="px-4 py-3 cursor-pointer transition-colors flex items-center justify-between gap-2"
+            :class="[
+              option.disabled ? 'opacity-40 cursor-not-allowed' : '',
+              option.value === modelValue 
+                ? 'bg-primary/10 text-primary font-bold border-l-2 border-primary' 
+                : 'text-white/80 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
+            ]"
           >
-            {{ option.label }}
+            <span class="truncate">{{ option.label }}</span>
+            <span
+              v-if="option.badge"
+              class="shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border inline-flex items-center"
+              :class="option.badge.class || (option.badge.type === 'upcoming' 
+                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' 
+                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30')"
+            >
+              {{ option.badge.text }}
+            </span>
           </div>
         </div>
       </div>

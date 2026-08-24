@@ -55,7 +55,16 @@ public class VoucherController {
                     } else if (v.getValidUntil() != null && v.getValidUntil().isBefore(now)) {
                         status = "EXPIRED";
                     } else {
-                        status = "ACTIVE";
+                        // Voucher chưa dùng và còn hạn, nhưng cần kiểm tra thêm:
+                        // Nếu promotion đã hết lượt toàn hệ thống → đánh dấu EXHAUSTED.
+                        // Khách không thể dùng và không nên thấy ở tab "Ưu đãi hiện tại".
+                        var promo = v.getPromotion();
+                        boolean exhausted = promo != null
+                                && promo.getUsageLimit() != null
+                                && promo.getUsageLimit() > 0
+                                && promo.getUsedCount() != null
+                                && promo.getUsedCount() >= promo.getUsageLimit();
+                        status = exhausted ? "EXHAUSTED" : "ACTIVE";
                     }
                     return Map.<String, Object>of(
                             "id", v.getId(),

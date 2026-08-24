@@ -227,8 +227,9 @@ const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 
                 <p v-if="slide.movie.description" class="text-base text-on-surface-variant/90 leading-relaxed line-clamp-3 mb-4">{{ slide.movie.description }}</p>
                 <p v-if="slide.movie.releaseDate" class="text-sm text-on-surface-variant mb-8"><span class="text-on-surface-variant/60">Khởi chiếu:</span> {{ formatDateDot(slide.movie.releaseDate) }}</p>
                 <div class="flex items-center gap-4 flex-wrap">
-                  <!-- Đang chiếu: mua vé ngay. Sắp chiếu (chưa mở bán): ưu tiên xem trailer, không có trailer thì xem chi tiết. -->
-                  <router-link v-if="!isUpcoming(slide.movie)" :to="`/movie/${slide.movie.id}`" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
+                  <!-- Đang chiếu hoặc có suất chiếu sớm: mua vé ngay.
+                       Sắp chiếu chưa có suất: ưu tiên xem trailer, không có trailer thì xem chi tiết. -->
+                  <router-link v-if="!isUpcoming(slide.movie) || slide.movie.hasEarlyScreening" :to="`/movie/${slide.movie.id}`" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">confirmation_number</span> MUA VÉ NGAY
                   </router-link>
                   <button v-else-if="slide.movie.trailerUrl" @click="openTrailer(slide.movie)" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
@@ -237,8 +238,9 @@ const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 
                   <router-link v-else :to="`/movie/${slide.movie.id}`" class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/10">
                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">info</span> XEM CHI TIẾT
                   </router-link>
-                  <!-- Nút trailer phụ: chỉ khi ĐANG CHIẾU (sắp chiếu đã đưa trailer lên nút chính). -->
-                  <button v-if="!isUpcoming(slide.movie) && slide.movie.trailerUrl" @click="openTrailer(slide.movie)" class="border border-outline-variant text-white px-10 py-4 rounded-lg font-headline font-bold hover:bg-white/10 active:scale-95 transition-all flex items-center gap-2">
+                  <!-- Nút trailer phụ: chỉ khi ĐANG CHIẾU (sắp chiếu đã đưa trailer lên nút chính).
+                       Cũng hiện khi sắp chiếu có chiếu sớm + có trailer. -->
+                  <button v-if="(!isUpcoming(slide.movie) || slide.movie.hasEarlyScreening) && slide.movie.trailerUrl" @click="openTrailer(slide.movie)" class="border border-outline-variant text-white px-10 py-4 rounded-lg font-headline font-bold hover:bg-white/10 active:scale-95 transition-all flex items-center gap-2">
                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span> TRAILER
                   </button>
                 </div>

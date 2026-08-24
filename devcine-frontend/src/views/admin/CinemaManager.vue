@@ -140,6 +140,30 @@ const closeDetail = () => {
   activeTab.value = "infrastructure";
 };
 
+// Trạng thái hoạt động của rạp đang chọn (đồng bộ màu + nhãn với card & tab cấu hình)
+const selectedCinemaStatusMeta = computed(() => {
+  const s = (selectedCinema.value?.status || 'ACTIVE').toString().toUpperCase();
+  if (s === 'MAINTENANCE') {
+    return {
+      label: 'Bảo trì',
+      dot: 'bg-amber-400',
+      badgeClass: 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+    };
+  }
+  if (s === 'CLOSED') {
+    return {
+      label: 'Đã đóng cửa / Ẩn',
+      dot: 'bg-red-400',
+      badgeClass: 'bg-red-500/10 text-red-400 border border-red-500/30'
+    };
+  }
+  return {
+    label: 'Đang hoạt động',
+    dot: 'bg-emerald-400',
+    badgeClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+  };
+});
+
 // Cụm rạp vừa bị xoá cứng từ tab Cấu hình -> gỡ khỏi list & đóng panel chi tiết.
 const handleCinemaDeleted = (id) => {
   cinemas.value = cinemas.value.filter((c) => String(c.id) !== String(id));
@@ -321,9 +345,13 @@ onUnmounted(() => {
           </button>
           <div>
             <div class="flex items-center gap-3 mb-1">
-              <span class="px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-black rounded uppercase tracking-widest">{{ selectedCinema.type }}</span>
-              <span class="flex items-center gap-1 text-green-500 text-[10px] font-black uppercase tracking-widest">
-                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Hoạt động
+              <span class="px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-black rounded uppercase tracking-widest">{{ selectedCinema.type || 'STANDARD' }}</span>
+              <span
+                class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border"
+                :class="selectedCinemaStatusMeta.badgeClass"
+              >
+                <span class="w-1.5 h-1.5 rounded-full" :class="[selectedCinemaStatusMeta.dot, selectedCinema.status !== 'CLOSED' && 'animate-pulse']"></span>
+                {{ selectedCinemaStatusMeta.label }}
               </span>
               <span v-if="isLoadingDetail" class="flex items-center gap-1.5 text-on-surface-variant text-[10px] font-black uppercase tracking-widest">
                 <span class="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span> Đang tải chi tiết

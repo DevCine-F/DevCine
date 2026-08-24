@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { showtimeApi } from '@/api/customer'
 import api from '@/api/axios'
@@ -8,8 +8,8 @@ import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
 const toast = useToastStore()
-
 const router = useRouter()
+const route = useRoute()
 const store = useBookingStore()
 
 // ===== Dải ngày (7 ngày tới) =====
@@ -33,13 +33,14 @@ const todayStr = availableDates.value[0].dateStr
 const selectedDate = ref(todayStr)
 
 // ===== Dữ liệu =====
-const loading = ref(false)
+const loadingCinemas = ref(false)     // Đang tải danh sách rạp (bước 1)
+const loadingShowtimes = ref(false)   // Đang tải suất chiếu của rạp đã chọn (bước 2)
 const loadError = ref(false)
-const allShowtimes = ref([])
-const cinemas = ref([])               // danh sách rạp (lấy city/ảnh từ /v1/cinemas)
-const selectedCinemaId = ref(null)    // rạp đang chọn — null = chưa chọn (hiện màn chọn rạp)
-const cityFilter = ref('Tất cả')      // lọc theo tỉnh/thành ở màn chọn rạp
-const cinemaSearch = ref('')          // ô tìm rạp theo tên/địa chỉ
+const cinemaList = ref([])             // Danh sách rạp có suất chiếu
+const cinemaShowtimes = ref([])        // Suất chiếu của rạp đang chọn
+const selectedCinemaId = ref(null)    // ID rạp đang chọn (null = màn chọn rạp)
+const cityFilter = ref('Tất cả')      // Lọc theo tỉnh/thành ở màn chọn rạp
+const cinemaSearch = ref('')          // Ô tìm rạp theo tên/địa chỉ
 
 // ===== Modal trailer =====
 const trailer = ref(null)             // { title, url } khi mở modal; null = đóng
@@ -88,11 +89,10 @@ const ageDescription = (rating) => {
   return ''
 }
 
-// Gom suất chiếu theo phim cho ngày đã chọn (gộp mọi rạp/định dạng vào 1 hàng giờ)
+// Gom suất chiếu theo phim cho ngày đã chọn từ cinemaShowtimes
 const moviesForDate = computed(() => {
   const map = new Map()
-  for (const s of allShowtimes.value) {
-    if (selectedCinemaId.value && s.cinemaId !== selectedCinemaId.value) continue
+  for (const s of cinemaShowtimes.value) {
     if (dateKey(s.startTime) !== selectedDate.value) continue
     if (!map.has(s.movieId)) {
       map.set(s.movieId, {
@@ -100,10 +100,12 @@ const moviesForDate = computed(() => {
         durationMins: s.movieDurationMins, country: s.movieCountry, releaseDate: s.movieReleaseDate,
         genres: s.movieGenres && s.movieGenres.length ? Array.from(s.movieGenres).join(', ') : '',
         rating: s.movieRating, ratingCount: s.movieRatingCount, trailerUrl: s.movieTrailerUrl,
+        hasEarlyScreening: s.status === 'Xuất chiếu sớm',
         formatSet: new Set(), roomGroupsMap: new Map()
       })
     }
     const m = map.get(s.movieId)
+    if (s.status === 'Xuất chiếu sớm') m.hasEarlyScreening = true
     if (s.formatName) m.formatSet.add(s.formatName)
     const d = toDate(s.startTime)
     const isPast = selectedDate.value === todayStr && d && d.getTime() < Date.now()
@@ -137,8 +139,7 @@ const moviesForDate = computed(() => {
 // Tập ngày (yyyy-mm-dd) có suất chiếu tại rạp đang chọn — để chấm nhấn trên thanh ngày
 const datesWithShowtimes = computed(() => {
   const set = new Set()
-  for (const s of allShowtimes.value) {
-    if (selectedCinemaId.value && s.cinemaId !== selectedCinemaId.value) continue
+  for (const s of cinemaShowtimes.value) {
     const k = dateKey(s.startTime)
     if (k) set.add(k)
   }
@@ -146,33 +147,11 @@ const datesWithShowtimes = computed(() => {
 })
 
 // ===== Bước chọn rạp =====
-// Chi tiết rạp (city/ảnh) theo id từ /v1/cinemas
-const cinemaDetailById = computed(() => {
-  const m = new Map()
-  for (const c of cinemas.value) m.set(c.id, c)
-  return m
-})
-
-// Chỉ những rạp ĐANG CÓ suất chiếu (distinct theo cinemaId trong allShowtimes),
-// bổ sung city từ /v1/cinemas (fallback nếu thiếu).
-const availableCinemas = computed(() => {
-  const seen = new Map()
-  for (const s of allShowtimes.value) {
-    if (seen.has(s.cinemaId)) continue
-    const detail = cinemaDetailById.value.get(s.cinemaId)
-    seen.set(s.cinemaId, {
-      id: s.cinemaId,
-      name: detail?.name || s.cinemaName,
-      address: detail?.address || s.cinemaAddress,
-      city: detail?.city || 'Khác'
-    })
-  }
-  return Array.from(seen.values())
-})
+const availableCinemas = computed(() => cinemaList.value)
 
 // Danh sách tỉnh/thành (kèm 'Tất cả') cho hàng chip lọc
 const cityOptions = computed(() => {
-  const set = new Set(availableCinemas.value.map(c => c.city))
+  const set = new Set(availableCinemas.value.map(c => c.city).filter(Boolean))
   return ['Tất cả', ...Array.from(set)]
 })
 
@@ -191,11 +170,26 @@ const filteredCinemas = computed(() => {
 
 const selectedCinema = computed(() => availableCinemas.value.find(c => c.id === selectedCinemaId.value) || null)
 
-const selectCinema = (id) => {
+// Chọn rạp -> Tải ngay lịch chiếu của riêng rạp đó (nhẹ & nhanh <50ms)
+const selectCinema = async (id) => {
   selectedCinemaId.value = id
   selectedDate.value = todayStr
+  cinemaShowtimes.value = []
+  loadingShowtimes.value = true
+  try {
+    const res = await showtimeApi.getByCinema(id)
+    cinemaShowtimes.value = res.data || []
+  } catch (e) {
+    toast.error(friendlyError(e, 'Không tải được lịch chiếu của rạp.'))
+  } finally {
+    loadingShowtimes.value = false
+  }
 }
-const changeCinema = () => { selectedCinemaId.value = null }
+
+const changeCinema = () => {
+  selectedCinemaId.value = null
+  cinemaShowtimes.value = []
+}
 
 const goToBooking = (st) => {
   if (st.past) return
@@ -208,22 +202,32 @@ const goToBooking = (st) => {
   router.push('/booking')
 }
 
-const loadShowtimes = async () => {
-  loading.value = true; loadError.value = false
+// Tải danh sách rạp ban đầu (cực nhanh ~10-100ms)
+const loadInitialCinemas = async () => {
+  loadingCinemas.value = true; loadError.value = false
   try {
-    const [stRes, cinemaRes] = await Promise.all([
-      showtimeApi.getUpcoming(),
-      api.get('/v1/cinemas').catch(() => ({ data: [] }))  // city/ảnh — lỗi cũng không chặn
-    ])
-    allShowtimes.value = stRes.data || []
-    cinemas.value = cinemaRes.data || []
+    // Ưu tiên API rạp có suất chiếu, fallback sang danh sách rạp
+    const res = await showtimeApi.getCinemasWithShowtimes().catch(() => api.get('/showtimes/cinemas'))
+    const list = res.data || []
+    cinemaList.value = list
+
+    // Nếu URL có sẵn query ?cinema=ID, tự động chọn rạp đó
+    const queryCinemaId = route.query.cinema || route.query.cinemaId
+    if (queryCinemaId) {
+      const match = list.find(c => String(c.id) === String(queryCinemaId))
+      if (match) {
+        selectCinema(match.id)
+      }
+    }
   } catch (e) {
     loadError.value = true
-    toast.error(friendlyError(e, 'Không tải được lịch chiếu.'))
-  } finally { loading.value = false }
+    toast.error(friendlyError(e, 'Không tải được danh sách rạp.'))
+  } finally {
+    loadingCinemas.value = false
+  }
 }
 
-onMounted(loadShowtimes)
+onMounted(loadInitialCinemas)
 </script>
 
 <template>
@@ -233,30 +237,35 @@ onMounted(loadShowtimes)
       <div class="w-3/4 max-w-md h-[1px] bg-gradient-to-r from-transparent via-[#f5c518]/50 to-transparent"></div>
     </header>
 
-    <!-- Loading ban đầu -->
-    <div v-if="loading" class="grid grid-cols-1 2xl:grid-cols-2 gap-6">
-      <div v-for="i in 4" :key="i" class="flex gap-5 p-5 bg-surface-container-low rounded-2xl animate-pulse">
-        <div class="w-[120px] aspect-[2/3] bg-white/5 rounded-lg shrink-0"></div>
-        <div class="flex-1 space-y-3 py-2">
-          <div class="h-5 bg-white/5 rounded w-2/3"></div>
-          <div class="h-3 bg-white/5 rounded w-1/3"></div>
-          <div class="h-3 bg-white/5 rounded w-1/2"></div>
-          <div class="h-9 bg-white/5 rounded w-3/4 mt-8"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Error -->
-    <div v-else-if="loadError" class="text-center py-16 bg-surface-container-low rounded-2xl">
+    <!-- Error chung -->
+    <div v-if="loadError" class="text-center py-16 bg-surface-container-low rounded-2xl">
       <span class="material-symbols-outlined text-5xl text-error mb-3 block">error</span>
-      <p class="text-on-surface-variant mb-4">Không tải được lịch chiếu.</p>
-      <button @click="loadShowtimes" class="px-5 py-2 bg-[#f5c518] text-black rounded-lg font-bold">Thử lại</button>
+      <p class="text-on-surface-variant mb-4">Không tải được dữ liệu.</p>
+      <button @click="loadInitialCinemas" class="px-5 py-2 bg-[#f5c518] text-black rounded-lg font-bold">Thử lại</button>
     </div>
 
     <!-- ===== BƯỚC 1: Chọn rạp (chưa chọn rạp) ===== -->
     <section v-else-if="!selectedCinemaId">
+      <!-- Loading danh sách rạp -->
+      <div v-if="loadingCinemas">
+        <div class="flex justify-center mb-8">
+          <div class="h-6 bg-white/5 rounded-full w-72 animate-pulse"></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div v-for="i in 6" :key="i" class="p-6 pl-7 bg-surface-container-low rounded-2xl border border-outline-variant/10 animate-pulse space-y-4">
+            <div class="h-5 bg-white/10 rounded-full w-24"></div>
+            <div class="h-6 bg-white/10 rounded w-3/4"></div>
+            <div class="h-4 bg-white/5 rounded w-5/6"></div>
+            <div class="pt-4 border-t border-outline-variant/10 flex justify-between items-center">
+              <div class="h-3 bg-white/5 rounded w-24"></div>
+              <div class="w-8 h-8 rounded-full bg-white/5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Không có rạp nào đang có suất chiếu -->
-      <div v-if="!availableCinemas.length" class="text-center py-20 bg-surface-container-low rounded-2xl">
+      <div v-else-if="!availableCinemas.length" class="text-center py-20 bg-surface-container-low rounded-2xl">
         <span class="material-symbols-outlined text-on-surface-variant/50 text-6xl mb-4 block">theaters</span>
         <h3 class="font-headline text-2xl font-bold text-on-surface">Chưa có rạp nào mở suất chiếu</h3>
         <p class="text-on-surface-variant mt-2">Vui lòng quay lại sau nhé.</p>
@@ -366,8 +375,21 @@ onMounted(loadShowtimes)
         </button>
       </div>
 
+      <!-- Loading suất chiếu của rạp -->
+      <div v-if="loadingShowtimes" class="grid grid-cols-1 2xl:grid-cols-2 gap-6">
+        <div v-for="i in 4" :key="i" class="flex gap-5 p-5 bg-surface-container-low rounded-2xl animate-pulse">
+          <div class="w-[120px] aspect-[2/3] bg-white/5 rounded-lg shrink-0"></div>
+          <div class="flex-1 space-y-3 py-2">
+            <div class="h-5 bg-white/5 rounded w-2/3"></div>
+            <div class="h-3 bg-white/5 rounded w-1/3"></div>
+            <div class="h-3 bg-white/5 rounded w-1/2"></div>
+            <div class="h-9 bg-white/5 rounded w-3/4 mt-8"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Empty -->
-      <div v-if="!moviesForDate.length" class="text-center py-20 bg-surface-container-low rounded-2xl">
+      <div v-else-if="!moviesForDate.length" class="text-center py-20 bg-surface-container-low rounded-2xl">
         <span class="material-symbols-outlined text-on-surface-variant/50 text-6xl mb-4 block">event_busy</span>
         <h3 class="font-headline text-2xl font-bold text-on-surface">Không có suất chiếu</h3>
         <p class="text-on-surface-variant mt-2">Rạp này chưa có phim nào chiếu trong ngày này. Thử chọn ngày khác.</p>

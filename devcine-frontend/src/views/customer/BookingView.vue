@@ -397,8 +397,10 @@ const voucherCode = ref('')
 const voucherError = ref('')
 const voucherSuccess = ref('')
 const discountAmount = ref(0)
-// Kết quả preview từ server theo giỏ hiện tại: voucherId -> { applicable, reason, discountAmount }
+// Kết quả preview từ server theo giỏ hiện tại: voucherId -> { applicable, reason, discountAmount, hideFromUI }
 const voucherEvals = ref({})
+// Flag: đợi server trả kết quả preview lần đầu (chặn render để tránh flash of content)
+const isVoucherEvalsReady = ref(false)
 
 const finalPaymentPrice = computed(() => {
   const total = store.totalPrice
@@ -511,7 +513,9 @@ const appliedSuccessText = (amount) =>
 // Chấm điều kiện voucher theo giỏ hiện tại (server = nguồn sự thật). Làm mờ mã không đủ điều kiện,
 // đồng bộ số giảm thực, và tự bỏ chọn nếu voucher đang chọn trở nên không hợp lệ.
 const fetchVoucherEvals = async () => {
-  if (!authStore.user?.id || vouchers.value.length === 0) { voucherEvals.value = {}; return }
+  if (!authStore.user?.id || vouchers.value.length === 0) { voucherEvals.value = {}; isVoucherEvalsReady.value = true; return }
+  // isVoucherEvalsReady khởi tạo = false → lần đầu: skeleton hiển thị cho đến khi finally set true.
+  // Các lần refresh sau: isVoucherEvalsReady đã = true → danh sách giữ nguyên, silent update.
   try {
     const assign = store.audienceAssignment
     const seatPrices = store.selectedSeats.map((seat, i) => {
@@ -544,6 +548,9 @@ const fetchVoucherEvals = async () => {
       }
     }
   } catch (e) { /* preview lỗi → không chặn luồng, giữ nguyên hiển thị */ }
+  finally {
+    isVoucherEvalsReady.value = true  // luôn mở khóa dù thành công hay lỗi
+  }
 }
 
 const applyVoucherCode = async () => {
@@ -657,6 +664,21 @@ watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
 })
 // Vào bước "Ưu đãi" (3): chấm điều kiện toàn bộ voucher theo giỏ hiện tại để làm mờ mã không đủ
 watch(currentStep, (s) => { if (s === 3) fetchVoucherEvals() })
+
+/**
+ * Danh sách voucher HIỆN THỊ cho khách tại bước ĐẶT VÉ:
+ * - Return [] khi evals chưa load xong → chặn hoàn toàn, không flash.
+ * - Loại bỏ hoàn toàn (hideFromUI=true): hết lượt, sai đối tượng, sai phim.
+ * - Giữ lại (applicable=false, hideFromUI=false): chưa đủ đơn tối thiểu → hiển mờ.
+ */
+const visibleVouchers = computed(() => {
+  if (!isVoucherEvalsReady.value) return []  // chưa ready → hoàn toàn trống, tránh flash
+  return vouchers.value.filter(v => {
+    const ev = voucherEvals.value[v.id]
+    if (!ev) return true          // chưa có kết quả → giữ (server lỗi fallback)
+    return !ev.hideFromUI         // hideFromUI=true → loại bỏ
+  })
+})
 
 // ══════ BLOCK SELECTOR (chọn theo khối ghế liền nhau — mô hình Lotte) ══════
 let blockCounter = 0
@@ -1394,12 +1416,29 @@ const proceedToPayment = async () => {
             </button>
           </div>
 
-          <!-- Active Vouchers list -->
-          <div v-if="vouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
+          <!-- Voucher list: skeleton khi đang load evals, real list khi đã sẵn sàng -->
+          <!-- Skeleton: hiển thị khi user đã có voucher nhưng evals chưa load xong -->
+          <div v-if="!isVoucherEvalsReady && vouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Voucher của bạn:</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div v-for="i in Math.min(vouchers.length, 4)" :key="i"
+                class="border border-outline-variant/20 p-4 rounded-xl flex items-center justify-between animate-pulse bg-surface-container-high/20"
+              >
+                <div class="space-y-2 flex-1">
+                  <div class="h-3.5 w-28 bg-white/10 rounded"></div>
+                  <div class="h-2.5 w-20 bg-white/5 rounded"></div>
+                </div>
+                <div class="h-5 w-5 bg-white/5 rounded-full ml-4"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Vouchers list: chỉ render sau khi evals đã có — không có flash -->
+          <div v-else-if="isVoucherEvalsReady && visibleVouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
             <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Voucher của bạn:</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div
-                v-for="v in vouchers"
+                v-for="v in visibleVouchers"
                 :key="v.id"
                 @click="selectVoucher(v)"
                 :class="[

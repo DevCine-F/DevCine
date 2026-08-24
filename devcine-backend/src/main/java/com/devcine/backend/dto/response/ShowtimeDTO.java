@@ -25,4 +25,10 @@ public class ShowtimeDTO {
     // Tình trạng ghế cho card suất chiếu (client): tổng ghế bán được của phòng & số còn trống
     private Integer totalSeats;      // ghế đang hoạt động, bán được (loại trừ ghế bảo trì/khóa)
     private Integer availableSeats;  // totalSeats − ghế đã bán/đang giữ (SOLD/HOLD)
+
+    /**
+     * true nếu suất này là xuất chiếu sớm (startTime.toLocalDate() < movie.releaseDate).
+     * FE dùng để hiện badge "Chiếu sớm 🎬" trên từng slot giờ chiếu.
+     */
+    private boolean earlyScreening;
 }

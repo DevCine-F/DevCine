@@ -64,7 +64,7 @@ const dateLabel = (ds) => {
   return { weekday: wd, day: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}` }
 }
 
-// Nhóm suất chiếu của ngày đang chọn theo phim
+// Nhóm suất chiếu của ngày đang chọn theo phim và theo phòng/định dạng
 const moviesOfDay = computed(() => {
   const map = new Map()
   showtimes.value
@@ -78,14 +78,37 @@ const moviesOfDay = computed(() => {
           ageRating: s.movieAgeRating,
           durationMins: s.movieDurationMins,
           genres: s.movieGenres ? [...s.movieGenres] : [],
+          hasEarlyScreening: s.status === 'Xuất chiếu sớm',
           shows: []
         })
       }
+      if (s.status === 'Xuất chiếu sớm') {
+        map.get(s.movieId).hasEarlyScreening = true
+      }
       map.get(s.movieId).shows.push(s)
     })
-  // sắp xếp suất theo giờ
+
   const arr = [...map.values()]
-  arr.forEach(m => m.shows.sort((a, b) => getTimeString(a.startTime).localeCompare(getTimeString(b.startTime))))
+  arr.forEach(m => {
+    // Sắp xếp các suất chiếu theo thời gian bắt đầu
+    m.shows.sort((a, b) => getTimeString(a.startTime).localeCompare(getTimeString(b.startTime)))
+
+    // Nhóm theo Định dạng & Phòng chiếu
+    const groupMap = new Map()
+    m.shows.forEach(s => {
+      const key = `${s.formatName || '2D'}|||${s.roomName || 'Phòng chiếu'}`
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          formatName: s.formatName || '2D',
+          roomName: s.roomName || 'Phòng chiếu',
+          roomType: s.roomType || '',
+          shows: []
+        })
+      }
+      groupMap.get(key).shows.push(s)
+    })
+    m.roomGroups = [...groupMap.values()]
+  })
   return arr
 })
 
@@ -265,16 +288,35 @@ onMounted(fetchAll)
                       <span v-if="m.durationMins">{{ m.durationMins }} phút</span>
                       <span v-if="m.genres.length"> • {{ m.genres.join(', ') }}</span>
                     </p>
-                    <p class="text-[0.7rem] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2">Suất chiếu</p>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="s in m.shows" :key="s.id"
-                        @click="goToBooking(s)"
-                        class="px-4 py-2 rounded-lg bg-surface-container-high border border-outline-variant/20 hover:border-primary hover:text-primary transition-all flex items-center gap-2 group"
+                    <div class="space-y-3 mt-3">
+                      <div
+                        v-for="group in m.roomGroups"
+                        :key="`${group.formatName}-${group.roomName}`"
+                        class="p-3 rounded-2xl bg-surface-container-high/40 border border-outline-variant/10"
                       >
-                        <span class="font-bold text-sm">{{ getTimeString(s.startTime) }}</span>
-                        <span class="text-[0.6rem] uppercase tracking-widest opacity-60 group-hover:opacity-100">{{ s.formatName }}</span>
-                      </button>
+                        <!-- Tiêu đề nhóm: Định dạng + Tên phòng chiếu -->
+                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                          <span class="px-2 py-0.5 rounded bg-primary/15 border border-primary/30 text-primary text-[0.65rem] font-black uppercase tracking-wider">
+                            {{ group.formatName }}
+                          </span>
+                          <span class="text-xs text-on-surface-variant/40">·</span>
+                          <span class="text-xs font-bold text-on-surface/90">
+                            {{ group.roomName }}
+                          </span>
+                        </div>
+
+                        <!-- Danh sách nút giờ chiếu trong phòng -->
+                        <div class="flex flex-wrap gap-2">
+                          <button
+                            v-for="s in group.shows"
+                            :key="s.id"
+                            @click="goToBooking(s)"
+                            class="px-3.5 py-1.5 rounded-lg bg-surface-container-high border border-outline-variant/20 hover:border-primary hover:bg-primary/10 hover:text-primary hover:-translate-y-0.5 transition-all text-center group"
+                          >
+                            <span class="font-extrabold text-sm tracking-wide">{{ getTimeString(s.startTime) }}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -17,6 +17,9 @@ import com.devcine.backend.repository.SeatRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.dto.response.MovieCardDTO;
 import com.devcine.backend.dto.response.PublicShowtimeDTO;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import com.devcine.backend.dto.projection.ShowtimePublicProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,15 +49,39 @@ public class ShowtimeService {
         return cinemaRepository.findAllCities();
     }
 
-    public List<PublicShowtimeDTO> getAllUpcomingShowtimes() {
+    /** Danh sách các rạp hiện có suất chiếu sắp tới (có cache) */
+    @Cacheable(value = "cinemas_showtimes", unless = "#result == null")
+    public List<Map<String, Object>> getCinemasWithUpcomingShowtimes() {
         LocalDateTime now = LocalDateTime.now();
-        List<Showtime> showtimes = showtimeRepository.findUpcomingShowtimes(now);
+        List<Cinema> cinemas = showtimeRepository.findCinemasWithUpcomingShowtimes(now);
+        return cinemas.stream().map(c -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", c.getId());
+            m.put("name", c.getName());
+            m.put("address", c.getAddress());
+            m.put("city", c.getCity());
+            return m;
+        }).collect(Collectors.toList());
+    }
 
-        // Tình trạng ghế tính 1 LẦN cho toàn bộ suất (2 query gộp, tránh N+1):
-        //  - sellable/phòng = ghế active & không bảo trì/khóa
-        //  - reserved/suất  = ghế SOLD/HOLD
-        Set<Integer> roomIds = showtimes.stream().map(s -> s.getRoom().getId()).collect(Collectors.toSet());
-        Set<Integer> showtimeIds = showtimes.stream().map(Showtime::getId).collect(Collectors.toSet());
+    /**
+     * Suất chiếu sắp tới của 1 RẠP (dùng cho /lich-chieu sau khi chọn rạp, có
+     * cache)
+     */
+    @Cacheable(value = "showtimes_cinema", key = "#cinemaId", unless = "#result == null")
+    public List<PublicShowtimeDTO> getUpcomingShowtimesByCinema(Integer cinemaId) {
+        LocalDateTime now = LocalDateTime.now();
+        List<ShowtimePublicProjection> projections = showtimeRepository.findUpcomingProjectionsByCinemaId(cinemaId,
+                now);
+        if (projections.isEmpty())
+            return Collections.emptyList();
+
+        Map<Integer, Set<String>> genresByMovieId = getActiveMovieGenresMap();
+
+        Set<Integer> roomIds = projections.stream().map(ShowtimePublicProjection::getRoomId)
+                .collect(Collectors.toSet());
+        Set<Integer> showtimeIds = projections.stream().map(ShowtimePublicProjection::getId)
+                .collect(Collectors.toSet());
         Map<Integer, Integer> sellableByRoom = new HashMap<>();
         Map<Integer, Integer> reservedByShowtime = new HashMap<>();
         if (!roomIds.isEmpty()) {
@@ -68,17 +95,103 @@ public class ShowtimeService {
             }
         }
 
-        return showtimes.stream().map(s -> {
-            PublicShowtimeDTO dto = toPublicDTO(s);
-            int total = sellableByRoom.getOrDefault(s.getRoom().getId(), 0);
-            int reserved = reservedByShowtime.getOrDefault(s.getId(), 0);
+        return projections.stream().map(p -> {
+            PublicShowtimeDTO dto = toPublicDTOFromProjection(p,
+                    genresByMovieId.getOrDefault(p.getMovieId(), Collections.emptySet()));
+            int total = sellableByRoom.getOrDefault(p.getRoomId(), 0);
+            int reserved = reservedByShowtime.getOrDefault(p.getId(), 0);
             dto.setTotalSeats(total);
             dto.setAvailableSeats(Math.max(0, total - reserved));
             return dto;
         }).collect(Collectors.toList());
     }
 
-    /** Mapper dùng chung: Showtime -> PublicShowtimeDTO (DTO phẳng cho FE tự nhóm). */
+    @Cacheable(value = "upcomingShowtimes", unless = "#result == null")
+    public List<PublicShowtimeDTO> getAllUpcomingShowtimes() {
+        LocalDateTime now = LocalDateTime.now();
+        List<ShowtimePublicProjection> projections = showtimeRepository.findAllUpcomingProjections(now);
+        if (projections.isEmpty())
+            return Collections.emptyList();
+
+        Map<Integer, Set<String>> genresByMovieId = getActiveMovieGenresMap();
+
+        // Tình trạng ghế tính 1 LẦN cho toàn bộ suất (2 query gộp, tránh N+1):
+        // - sellable/phòng = ghế active & không bảo trì/khóa
+        // - reserved/suất = ghế SOLD/HOLD
+        Set<Integer> roomIds = projections.stream().map(ShowtimePublicProjection::getRoomId)
+                .collect(Collectors.toSet());
+        Set<Integer> showtimeIds = projections.stream().map(ShowtimePublicProjection::getId)
+                .collect(Collectors.toSet());
+        Map<Integer, Integer> sellableByRoom = new HashMap<>();
+        Map<Integer, Integer> reservedByShowtime = new HashMap<>();
+        if (!roomIds.isEmpty()) {
+            for (Object[] row : seatRepository.countSellableSeatsByRoomIds(roomIds)) {
+                sellableByRoom.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+        if (!showtimeIds.isEmpty()) {
+            for (Object[] row : bookingSeatRepository.countReservedByShowtimeIds(showtimeIds)) {
+                reservedByShowtime.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+
+        return projections.stream().map(p -> {
+            PublicShowtimeDTO dto = toPublicDTOFromProjection(p,
+                    genresByMovieId.getOrDefault(p.getMovieId(), Collections.emptySet()));
+            int total = sellableByRoom.getOrDefault(p.getRoomId(), 0);
+            int reserved = reservedByShowtime.getOrDefault(p.getId(), 0);
+            dto.setTotalSeats(total);
+            dto.setAvailableSeats(Math.max(0, total - reserved));
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    /** Bản đồ thể loại của phim đang chiếu (chống Cartesian product trong SQL). */
+    private Map<Integer, Set<String>> getActiveMovieGenresMap() {
+        Map<Integer, Set<String>> map = new HashMap<>();
+        for (Movie m : movieRepository.findVisibleWithGenres()) {
+            if (m.getGenres() != null) {
+                map.put(m.getId(), m.getGenres().stream().map(com.devcine.backend.entity.Category::getName)
+                        .collect(Collectors.toSet()));
+            }
+        }
+        return map;
+    }
+
+    /** Mapper từ Projection (không chứa layout_data) -> PublicShowtimeDTO. */
+    private PublicShowtimeDTO toPublicDTOFromProjection(ShowtimePublicProjection p, Set<String> genres) {
+        return PublicShowtimeDTO.builder()
+                .id(p.getId())
+                .startTime(p.getStartTime())
+                .endTime(p.getEndTime())
+                .status(p.getStatus())
+                .cinemaId(p.getCinemaId())
+                .cinemaName(p.getCinemaName())
+                .cinemaAddress(p.getCinemaAddress())
+                .movieId(p.getMovieId())
+                .movieTitle(p.getMovieTitle())
+                .movieTitleVietnamese(p.getMovieTitleVietnamese())
+                .movieDurationMins(p.getMovieDurationMins())
+                .moviePosterUrl(p.getMoviePosterUrl())
+                .movieAgeRating(p.getMovieAgeRating())
+                .movieCountry(p.getMovieCountry())
+                .movieReleaseDate(p.getMovieReleaseDate())
+                .movieDescription(p.getMovieDescription())
+                .movieGenres(genres != null ? genres : Collections.emptySet())
+                .movieRating(p.getMovieRating())
+                .movieRatingCount(p.getMovieRatingCount())
+                .movieTrailerUrl(p.getMovieTrailerUrl())
+                .formatId(p.getFormatId())
+                .formatName(p.getFormatName())
+                .roomId(p.getRoomId())
+                .roomName(p.getRoomName())
+                .roomTypeName(p.getRoomType() != null ? p.getRoomType().replace("_", " ") : null)
+                .build();
+    }
+
+    /**
+     * Mapper dùng chung: Showtime -> PublicShowtimeDTO (DTO phẳng cho FE tự nhóm).
+     */
     private PublicShowtimeDTO toPublicDTO(Showtime s) {
         return PublicShowtimeDTO.builder()
                 .id(s.getId())
@@ -97,8 +210,9 @@ public class ShowtimeService {
                 .movieCountry(s.getMovie().getCountry())
                 .movieReleaseDate(s.getMovie().getReleaseDate())
                 .movieDescription(s.getMovie().getDescription())
-                .movieGenres(s.getMovie().getGenres() != null ?
-                    s.getMovie().getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new HashSet<>())
+                .movieGenres(s.getMovie().getGenres() != null
+                        ? s.getMovie().getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet())
+                        : new HashSet<>())
                 .movieRating(s.getMovie().getRating())
                 .movieRatingCount(s.getMovie().getRatingCount())
                 .movieTrailerUrl(s.getMovie().getTrailerUrl())
@@ -112,13 +226,17 @@ public class ShowtimeService {
 
     // ===== Trang Lịch chiếu: lọc phía server + phân trang =====
 
-    /** Khoảng thời gian của một ngày; với hôm nay thì bắt đầu từ "bây giờ" để ẩn suất đã qua. */
+    /**
+     * Khoảng thời gian của một ngày; với hôm nay thì bắt đầu từ "bây giờ" để ẩn
+     * suất đã qua.
+     */
     private LocalDateTime[] dayRange(String date) {
         LocalDate d = (date != null && !date.isBlank()) ? LocalDate.parse(date) : LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime start = d.atStartOfDay();
-        if (start.isBefore(now)) start = now; // hôm nay: ẩn suất đã chiếu
-        return new LocalDateTime[]{ start, d.atTime(23, 59, 59) };
+        if (start.isBefore(now))
+            start = now; // hôm nay: ẩn suất đã chiếu
+        return new LocalDateTime[] { start, d.atTime(23, 59, 59) };
     }
 
     public List<Map<String, Object>> getCinemasByCity(String city) {
@@ -149,7 +267,8 @@ public class ShowtimeService {
                 .durationMins(m.getDurationMins())
                 .country(m.getCountry())
                 .releaseDate(m.getReleaseDate())
-                .genres(m.getGenres() != null ? m.getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet()) : new HashSet<>())
+                .genres(m.getGenres() != null ? m.getGenres().stream().map(g -> g.getName()).collect(Collectors.toSet())
+                        : new HashSet<>())
                 .build());
     }
 
@@ -168,7 +287,7 @@ public class ShowtimeService {
     public List<CinemaShowtimeDTO> getShowtimesForMovie(Integer movieId, String city) {
         LocalDateTime now = LocalDateTime.now();
         List<Showtime> showtimes;
-        
+
         if (city != null && !city.trim().isEmpty()) {
             showtimes = showtimeRepository.findUpcomingShowtimesByMovieIdAndCity(movieId, city, now);
         } else {
@@ -180,8 +299,8 @@ public class ShowtimeService {
                 .collect(Collectors.groupingBy(s -> s.getRoom().getCinema()));
 
         // Tính tình trạng ghế 1 LẦN cho tất cả suất (tránh N+1):
-        //  - sellable/phòng = ghế active & không bảo trì/khóa
-        //  - reserved/suất  = ghế SOLD/HOLD
+        // - sellable/phòng = ghế active & không bảo trì/khóa
+        // - reserved/suất = ghế SOLD/HOLD
         Set<Integer> roomIds = showtimes.stream().map(s -> s.getRoom().getId()).collect(Collectors.toSet());
         Set<Integer> showtimeIds = showtimes.stream().map(Showtime::getId).collect(Collectors.toSet());
 
@@ -207,7 +326,7 @@ public class ShowtimeService {
 
             // Group by Date
             Map<String, List<ShowtimeDTO>> showtimesByDate = new TreeMap<>();
-            
+
             for (Showtime s : cinemaShowtimes) {
                 String dateStr = s.getStartTime().format(dateFormatter);
                 int total = sellableByRoom.getOrDefault(s.getRoom().getId(), 0);
@@ -226,6 +345,7 @@ public class ShowtimeService {
                         .duration(s.getMovie().getDurationMins())
                         .totalSeats(total)
                         .availableSeats(available)
+                        .earlyScreening("Xu\u1ea5t chi\u1ebfu s\u1edbm".equals(s.getStatus()))
                         .build();
 
                 showtimesByDate.computeIfAbsent(dateStr, k -> new ArrayList<>()).add(dto);
@@ -238,7 +358,7 @@ public class ShowtimeService {
                     .city(cinema.getCity())
                     .showtimesByDate(showtimesByDate)
                     .build();
-                    
+
             result.add(cinemaDto);
         }
 
@@ -258,27 +378,35 @@ public class ShowtimeService {
                 .status(s.getStatus())
                 .movie(s.getMovie().getTitle())
                 .duration(s.getMovie().getDurationMins())
+                .earlyScreening("Xu\u1ea5t chi\u1ebfu s\u1edbm".equals(s.getStatus()))
                 .build()).collect(Collectors.toList());
     }
 
+    @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
     @org.springframework.transaction.annotation.Transactional
     public com.devcine.backend.dto.response.ShowtimeCreateResult createShowtime(ShowtimeRequest request) {
         Movie movie = movieRepository.findById(request.getMovieId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim với ID: " + request.getMovieId()));
         Room room = roomRepository.findById(request.getRoomId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng chiếu với ID: " + request.getRoomId()));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Không tìm thấy phòng chiếu với ID: " + request.getRoomId()));
         MovieFormat format = movieFormatRepository.findById(request.getFormatId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng với ID: " + request.getFormatId()));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Không tìm thấy định dạng với ID: " + request.getFormatId()));
 
         LocalDateTime startTime = request.getStartTime();
-        // NGUỒN DUY NHẤT: thời gian dọn dẹp bốc từ chính phòng (Room.turnaroundTimeMins), không nhận từ FE.
+        // NGUỒN DUY NHẤT: thời gian dọn dẹp bốc từ chính phòng
+        // (Room.turnaroundTimeMins), không nhận từ FE.
         int turnaround = turnaroundOf(room);
         int duration = movie.getDurationMins() != null ? movie.getDurationMins() : 120;
         LocalDateTime endTime = startTime.plusMinutes(duration + turnaround);
 
         // ===== Constraint Engine: kiểm soát theo giờ hoạt động của cụm rạp =====
         Cinema cinema = room.getCinema();
-        int[] win = cinemaWindow(cinema);       // [openMin, closeMin] (closeMin đã +1440 nếu qua nửa đêm)
+        if (cinema != null && "CLOSED".equalsIgnoreCase(cinema.getStatus())) {
+            throw new IllegalArgumentException("Không thể tạo suất chiếu cho cụm rạp đã đóng cửa.");
+        }
+        int[] win = cinemaWindow(cinema); // [openMin, closeMin] (closeMin đã +1440 nếu qua nửa đêm)
         int startPos = posOf(startTime.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaround;
         // RULE A — chặn cứng: suất bắt đầu ngoài giờ hoạt động.
@@ -289,14 +417,22 @@ public class ShowtimeService {
 
         boolean hasConflict = showtimeRepository.hasConflict(room.getId(), startTime, endTime);
         if (hasConflict) {
-            throw new IllegalStateException("Phòng chiếu đã có lịch trong khung giờ này (Bao gồm thời gian dọn dẹp). Vui lòng chọn giờ khác.");
+            throw new IllegalStateException(
+                    "Phòng chiếu đã có lịch trong khung giờ này (Bao gồm thời gian dọn dẹp). Vui lòng chọn giờ khác.");
         }
 
         // RULE B — chặn cứng: suất kết thúc quá giờ đóng cửa.
         if (endPos > win[1]) {
             throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
-                            + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
+                    + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
         }
+
+        // ===== Xuất chiếu sớm: suất trước ngày khởi chiếu chính thức của phim =====
+        // Phát hiện tự động — không cần input từ FE; status phân biệt để query public lọc được.
+        LocalDate showtimeDate = startTime.toLocalDate();
+        boolean isEarlyScreening = movie.getReleaseDate() != null
+                && showtimeDate.isBefore(movie.getReleaseDate());
+        String showtimeStatus = isEarlyScreening ? "Xuất chiếu sớm" : "Sắp chiếu";
 
         Showtime showtime = Showtime.builder()
                 .movie(movie)
@@ -304,8 +440,9 @@ public class ShowtimeService {
                 .format(format)
                 .startTime(startTime)
                 .endTime(endTime)
-                .status("Sắp chiếu")
-                // Đông cứng sơ đồ ghế của phòng NGAY lúc tạo suất → suất này có sơ đồ riêng, bất biến.
+                .status(showtimeStatus)
+                // Đông cứng sơ đồ ghế của phòng NGAY lúc tạo suất → suất này có sơ đồ riêng,
+                // bất biến.
                 .layoutData(seatLayoutSnapshotService.buildSnapshotJson(room.getId()))
                 .build();
 
@@ -313,6 +450,8 @@ public class ShowtimeService {
 
         return com.devcine.backend.dto.response.ShowtimeCreateResult.builder()
                 .requiresConfirmation(false)
+                .earlyScreening(isEarlyScreening)
+                .movieReleaseDate(isEarlyScreening ? movie.getReleaseDate() : null)
                 .showtime(ShowtimeDTO.builder()
                         .id(saved.getId())
                         .roomId(room.getId())
@@ -324,15 +463,20 @@ public class ShowtimeService {
                         .status(saved.getStatus())
                         .movie(movie.getTitle())
                         .duration(movie.getDurationMins())
+                        .earlyScreening(isEarlyScreening)
                         .build())
                 .build();
     }
 
     /**
-     * Tạo lịch chiếu HÀNG LOẠT cho một phim: sinh tích Descartes (phòng × ngày × khung giờ),
-     * bỏ qua suất trùng lịch (với DB lẫn giữa các suất trong lô) và suất đã qua giờ.
-     * Chống N+1: nạp một lần toàn bộ suất hiện có trong cửa sổ rồi kiểm tra trong bộ nhớ.
+     * Tạo lịch chiếu HÀNG LOẠT cho một phim: sinh tích Descartes (phòng × ngày ×
+     * khung giờ),
+     * bỏ qua suất trùng lịch (với DB lẫn giữa các suất trong lô) và suất đã qua
+     * giờ.
+     * Chống N+1: nạp một lần toàn bộ suất hiện có trong cửa sổ rồi kiểm tra trong
+     * bộ nhớ.
      */
+    @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
     @org.springframework.transaction.annotation.Transactional
     public com.devcine.backend.dto.response.BatchShowtimeResult createBatchShowtimes(
             com.devcine.backend.dto.request.BatchShowtimeRequest req) {
@@ -340,7 +484,8 @@ public class ShowtimeService {
         Movie movie = movieRepository.findById(req.getMovieId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim với ID: " + req.getMovieId()));
         MovieFormat format = movieFormatRepository.findById(req.getFormatId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng với ID: " + req.getFormatId()));
+                .orElseThrow(
+                        () -> new IllegalArgumentException("Không tìm thấy định dạng với ID: " + req.getFormatId()));
 
         if (req.getDateFrom().isAfter(req.getDateTo())) {
             throw new IllegalArgumentException("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
@@ -356,6 +501,12 @@ public class ShowtimeService {
             throw new IllegalArgumentException("Không tìm thấy phòng chiếu với ID: " + missing);
         }
 
+        for (Room r : roomMap.values()) {
+            if (r.getCinema() != null && "CLOSED".equalsIgnoreCase(r.getCinema().getStatus())) {
+                throw new IllegalArgumentException("Không thể tạo lịch chiếu cho phòng '" + r.getName() + "' vì cụm rạp đã đóng cửa.");
+            }
+        }
+
         // Parse các mốc giờ "HH:mm"
         List<java.time.LocalTime> times = new ArrayList<>();
         for (String t : req.getStartTimes()) {
@@ -367,34 +518,40 @@ public class ShowtimeService {
         }
 
         Set<Integer> daysFilter = (req.getDaysOfWeek() != null && !req.getDaysOfWeek().isEmpty())
-                ? new HashSet<>(req.getDaysOfWeek()) : null;
+                ? new HashSet<>(req.getDaysOfWeek())
+                : null;
 
         // Cửa sổ thời gian bao trùm cả lô để nạp suất hiện có 1 lần.
-        // Nới đuôi thêm 1 ngày để bắt cả suất hiện có rơi sang rạng sáng hôm sau (qua nửa đêm).
+        // Nới đuôi thêm 1 ngày để bắt cả suất hiện có rơi sang rạng sáng hôm sau (qua
+        // nửa đêm).
         LocalDateTime windowStart = req.getDateFrom().atStartOfDay();
         LocalDateTime windowEnd = req.getDateTo().plusDays(1).atTime(23, 59, 59);
 
-        // roomId -> danh sách khoảng [start, end) đã chiếm (DB + các suất đã nhận trong lô)
+        // roomId -> danh sách khoảng [start, end) đã chiếm (DB + các suất đã nhận trong
+        // lô)
         Map<Integer, List<LocalDateTime[]>> busyByRoom = new HashMap<>();
         for (Showtime s : showtimeRepository.findByRoomsAndWindow(req.getRoomIds(), windowStart, windowEnd)) {
             busyByRoom.computeIfAbsent(s.getRoom().getId(), k -> new ArrayList<>())
-                    .add(new LocalDateTime[]{ s.getStartTime(), s.getEndTime() });
+                    .add(new LocalDateTime[] { s.getStartTime(), s.getEndTime() });
         }
 
-        // Giờ hoạt động theo TỪNG phòng (mỗi phòng có thể thuộc cụm rạp khác nhau) — tính 1 lần.
+        // Giờ hoạt động theo TỪNG phòng (mỗi phòng có thể thuộc cụm rạp khác nhau) —
+        // tính 1 lần.
         Map<Integer, int[]> windowByRoom = new HashMap<>();
         roomMap.forEach((rid, r) -> windowByRoom.put(rid, cinemaWindow(r.getCinema())));
 
         LocalDateTime now = LocalDateTime.now();
         List<Showtime> toSave = new ArrayList<>();
-        // Snapshot sơ đồ theo TỪNG phòng, dựng 1 lần rồi tái dùng cho mọi suất cùng phòng trong lô (tránh N+1).
+        // Snapshot sơ đồ theo TỪNG phòng, dựng 1 lần rồi tái dùng cho mọi suất cùng
+        // phòng trong lô (tránh N+1).
         Map<Integer, String> snapshotByRoom = new HashMap<>();
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> skipped = new ArrayList<>();
         // Suất hợp lệ nhưng KẾT THÚC quá giờ đóng cửa — chỉ tạo khi force.
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> warnings = new ArrayList<>();
 
         for (LocalDate date = req.getDateFrom(); !date.isAfter(req.getDateTo()); date = date.plusDays(1)) {
-            if (daysFilter != null && !daysFilter.contains(date.getDayOfWeek().getValue())) continue;
+            if (daysFilter != null && !daysFilter.contains(date.getDayOfWeek().getValue()))
+                continue;
 
             for (java.time.LocalTime time : times) {
                 LocalDateTime start = date.atTime(time);
@@ -423,18 +580,22 @@ public class ShowtimeService {
                         continue;
                     }
                     // Giữ chỗ để các suất sau trong lô không đè (kể cả suất khuya cảnh báo).
-                    busy.add(new LocalDateTime[]{ start, end });
+                    busy.add(new LocalDateTime[] { start, end });
                     boolean afterClosing = endPos > win[1];
                     if (afterClosing) {
                         warnings.add(skip(roomId, room.getName(), start,
                                 "Kết thúc " + fmtMin(endPos) + " quá giờ đóng cửa (" + fmtMin(win[1]) + ")"));
                         // Chỉ đưa vào danh sách ghi khi admin đã xác nhận (force).
-                        if (!req.isForce()) continue;
+                        if (!req.isForce())
+                            continue;
                     }
+                    // Tính status: "Xuất chiếu sớm" nếu suất nằm trước ngày khởi chiếu chính thức.
+                    boolean earlyBatch = movie.getReleaseDate() != null
+                            && date.isBefore(movie.getReleaseDate());
                     toSave.add(Showtime.builder()
                             .movie(movie).room(room).format(format)
                             .startTime(start).endTime(end)
-                            .status("Sắp chiếu")
+                            .status(earlyBatch ? "Xuất chiếu sớm" : "Sắp chiếu")
                             .layoutData(snapshotByRoom.computeIfAbsent(roomId,
                                     rid -> seatLayoutSnapshotService.buildSnapshotJson(rid)))
                             .build());
@@ -442,12 +603,14 @@ public class ShowtimeService {
             }
         }
 
-        // All-or-nothing: còn suất khuya chưa xác nhận ⇒ chưa ghi, yêu cầu FE xác nhận rồi gửi lại force.
+        // All-or-nothing: còn suất khuya chưa xác nhận ⇒ chưa ghi, yêu cầu FE xác nhận
+        // rồi gửi lại force.
         boolean requiresConfirmation = !warnings.isEmpty() && !req.isForce();
         int toCreate = toSave.size() + (req.isForce() ? 0 : warnings.size());
 
         int created = 0;
-        // Chỉ ghi khi KHÔNG dryRun VÀ không còn suất khuya chờ xác nhận (all-or-nothing).
+        // Chỉ ghi khi KHÔNG dryRun VÀ không còn suất khuya chờ xác nhận
+        // (all-or-nothing).
         if (!req.isDryRun() && !requiresConfirmation && !toSave.isEmpty()) {
             showtimeRepository.saveAll(toSave);
             created = toSave.size();
@@ -471,13 +634,17 @@ public class ShowtimeService {
     }
 
     /**
-     * Backfill snapshot sơ đồ cho các suất cũ (layout_data = null) — chạy 1 lần sau khi bật tính năng.
-     * Mỗi phòng chỉ dựng snapshot 1 lần rồi tái dùng cho mọi suất cùng phòng (tránh N+1). Trả số suất đã vá.
+     * Backfill snapshot sơ đồ cho các suất cũ (layout_data = null) — chạy 1 lần sau
+     * khi bật tính năng.
+     * Mỗi phòng chỉ dựng snapshot 1 lần rồi tái dùng cho mọi suất cùng phòng (tránh
+     * N+1). Trả số suất đã vá.
      */
+    @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
     @org.springframework.transaction.annotation.Transactional
     public int backfillLayoutSnapshots() {
         List<Showtime> legacy = showtimeRepository.findWithoutLayoutSnapshot();
-        if (legacy.isEmpty()) return 0;
+        if (legacy.isEmpty())
+            return 0;
         Map<Integer, String> snapshotByRoom = new HashMap<>();
         for (Showtime s : legacy) {
             Integer roomId = s.getRoom().getId();
@@ -488,6 +655,7 @@ public class ShowtimeService {
         return legacy.size();
     }
 
+    @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
     @org.springframework.transaction.annotation.Transactional
     public void updateShowtime(Integer id, java.util.Map<String, Object> updates) {
         Showtime showtime = showtimeRepository.findById(id)
@@ -508,7 +676,8 @@ public class ShowtimeService {
             targetStart = LocalDateTime.parse((String) updates.get("startTime"));
         }
 
-        // endTime luôn tính lại từ thời lượng phim + turnaround của PHÒNG ĐÍCH (nguồn duy nhất).
+        // endTime luôn tính lại từ thời lượng phim + turnaround của PHÒNG ĐÍCH (nguồn
+        // duy nhất).
         int duration = showtime.getMovie().getDurationMins() != null ? showtime.getMovie().getDurationMins() : 120;
         LocalDateTime targetEnd = targetStart.plusMinutes(duration + turnaroundOf(targetRoom));
 
@@ -522,17 +691,19 @@ public class ShowtimeService {
         int startPos = posOf(targetStart.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaroundOf(targetRoom);
         if (startPos < win[0] || startPos >= win[1]) {
-            throw new IllegalArgumentException("Suất chiếu bắt đầu ngoài giờ hoạt động của rạp. Vui lòng chọn giờ khác.");
+            throw new IllegalArgumentException(
+                    "Suất chiếu bắt đầu ngoài giờ hoạt động của rạp. Vui lòng chọn giờ khác.");
         }
         if (endPos > win[1]) {
             throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
-                            + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
+                    + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
         }
 
         showtime.setRoom(targetRoom);
         showtime.setStartTime(targetStart);
         showtime.setEndTime(targetEnd);
-        // Đổi sang phòng khác → chụp lại sơ đồ của phòng mới (giữ đúng nguyên tắc snapshot).
+        // Đổi sang phòng khác → chụp lại sơ đồ của phòng mới (giữ đúng nguyên tắc
+        // snapshot).
         // Sửa phòng gốc thì KHÔNG re-snapshot: suất giữ nguyên sơ đồ đã đông cứng.
         if (!targetRoom.getId().equals(originalRoomId) || showtime.getLayoutData() == null) {
             showtime.setLayoutData(seatLayoutSnapshotService.buildSnapshotJson(targetRoom.getId()));
@@ -541,9 +712,11 @@ public class ShowtimeService {
     }
 
     /**
-     * Xoá một suất chiếu. Guard: nếu suất đã có vé BÁN/GIỮ (BookingSeat SOLD/HOLD) thì TỪ CHỐI —
+     * Xoá một suất chiếu. Guard: nếu suất đã có vé BÁN/GIỮ (BookingSeat SOLD/HOLD)
+     * thì TỪ CHỐI —
      * phải hoàn tiền/huỷ vé trước, tránh xoá suất làm mồ côi đơn hàng.
      */
+    @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
     @org.springframework.transaction.annotation.Transactional
     public void deleteShowtime(Integer id) {
         Showtime showtime = showtimeRepository.findById(id)
@@ -556,7 +729,10 @@ public class ShowtimeService {
         showtimeRepository.delete(showtime);
     }
 
-    /** Chi tiết một suất chiếu kèm số liệu vé/doanh thu THỰC TẾ (cho drawer quản trị). */
+    /**
+     * Chi tiết một suất chiếu kèm số liệu vé/doanh thu THỰC TẾ (cho drawer quản
+     * trị).
+     */
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public com.devcine.backend.dto.response.ShowtimeDetailResponse getShowtimeDetail(Integer id) {
         Showtime s = showtimeRepository.findById(id)
@@ -604,46 +780,66 @@ public class ShowtimeService {
                 .build();
     }
 
-    /** Thời gian dọn dẹp (phút) của phòng — nguồn duy nhất; mặc định 15 nếu chưa cấu hình. */
+    /**
+     * Thời gian dọn dẹp (phút) của phòng — nguồn duy nhất; mặc định 15 nếu chưa cấu
+     * hình.
+     */
     private int turnaroundOf(Room room) {
         return room.getTurnaroundTimeMins() != null ? room.getTurnaroundTimeMins() : 15;
     }
 
     /**
      * Cửa sổ giờ hoạt động của cụm rạp theo phút [openMin, closeMin].
-     * Nếu giờ đóng ≤ giờ mở ⇒ đóng cửa RẠNG SÁNG hôm sau → closeMin += 1440 (suất khuya vắt qua nửa đêm).
+     * Nếu giờ đóng ≤ giờ mở ⇒ đóng cửa RẠNG SÁNG hôm sau → closeMin += 1440 (suất
+     * khuya vắt qua nửa đêm).
      */
     private int[] cinemaWindow(Cinema cinema) {
-        java.time.LocalTime open = cinema.getOpeningTime() != null ? cinema.getOpeningTime() : java.time.LocalTime.of(8, 0);
-        java.time.LocalTime close = cinema.getClosingTime() != null ? cinema.getClosingTime() : java.time.LocalTime.of(23, 30);
+        java.time.LocalTime open = cinema.getOpeningTime() != null ? cinema.getOpeningTime()
+                : java.time.LocalTime.of(8, 0);
+        java.time.LocalTime close = cinema.getClosingTime() != null ? cinema.getClosingTime()
+                : java.time.LocalTime.of(23, 30);
         int openMin = open.getHour() * 60 + open.getMinute();
         int closeMin = close.getHour() * 60 + close.getMinute();
-        if (closeMin <= openMin) closeMin += 1440;
-        return new int[]{ openMin, closeMin };
+        if (closeMin <= openMin)
+            closeMin += 1440;
+        return new int[] { openMin, closeMin };
     }
 
-    /** Vị trí (phút) của một mốc giờ trên trục ngày vận hành: giờ < giờ mở ⇒ +1440 (thuộc phần khuya). */
+    /**
+     * Vị trí (phút) của một mốc giờ trên trục ngày vận hành: giờ < giờ mở ⇒ +1440
+     * (thuộc phần khuya).
+     */
     private int posOf(java.time.LocalTime t, int openMin) {
         int m = t.getHour() * 60 + t.getMinute();
-        if (m < openMin) m += 1440;
+        if (m < openMin)
+            m += 1440;
         return m;
     }
 
-    /** Định dạng phút-trong-ngày-vận-hành thành "HH:mm" (chia dư 1440 để hiển thị giờ đồng hồ). */
+    /**
+     * Định dạng phút-trong-ngày-vận-hành thành "HH:mm" (chia dư 1440 để hiển thị
+     * giờ đồng hồ).
+     */
     private String fmtMin(int min) {
         int m = ((min % 1440) + 1440) % 1440;
         return String.format("%02d:%02d", m / 60, m % 60);
     }
 
-    /** Validate xem giờ mở/đóng mới có làm "tàng hình" suất chiếu chưa kết thúc nào không */
+    /**
+     * Validate xem giờ mở/đóng mới có làm "tàng hình" suất chiếu chưa kết thúc nào
+     * không
+     */
     public void validateCinemaHoursUpdate(Cinema cinema, java.time.LocalTime newOpen, java.time.LocalTime newClose) {
-        if (newOpen == null || newClose == null) return;
-        
+        if (newOpen == null || newClose == null)
+            return;
+
         int openMin = newOpen.getHour() * 60 + newOpen.getMinute();
         int closeMin = newClose.getHour() * 60 + newClose.getMinute();
-        if (closeMin <= openMin) closeMin += 1440;
-        
-        List<Showtime> futureShows = showtimeRepository.findFutureShowtimesByCinema(cinema.getId(), LocalDateTime.now());
+        if (closeMin <= openMin)
+            closeMin += 1440;
+
+        List<Showtime> futureShows = showtimeRepository.findFutureShowtimesByCinema(cinema.getId(),
+                LocalDateTime.now());
         int violations = 0;
         for (Showtime s : futureShows) {
             int sStart = s.getStartTime().getHour() * 60 + s.getStartTime().getMinute();
@@ -657,19 +853,20 @@ public class ShowtimeService {
             }
 
             if (sStart < openMin || sEnd > closeMin) {
-                System.out.println("VIOLATION - Showtime ID: " + s.getId() + 
-                    " | Start: " + s.getStartTime() + 
-                    " | End: " + s.getEndTime() + 
-                    " | sStart: " + sStart + 
-                    " | sEnd: " + sEnd + 
-                    " | openMin: " + openMin + 
-                    " | closeMin: " + closeMin);
+                System.out.println("VIOLATION - Showtime ID: " + s.getId() +
+                        " | Start: " + s.getStartTime() +
+                        " | End: " + s.getEndTime() +
+                        " | sStart: " + sStart +
+                        " | sEnd: " + sEnd +
+                        " | openMin: " + openMin +
+                        " | closeMin: " + closeMin);
                 violations++;
             }
         }
-        
+
         if (violations > 0) {
-            throw new IllegalArgumentException("Không thể đổi giờ hoạt động! Đang có " + violations + " suất chiếu chưa kết thúc nằm ngoài khung giờ mới. Vui lòng hủy hoặc dời lịch các suất chiếu này trước!");
+            throw new IllegalArgumentException("Không thể đổi giờ hoạt động! Đang có " + violations
+                    + " suất chiếu chưa kết thúc nằm ngoài khung giờ mới. Vui lòng hủy hoặc dời lịch các suất chiếu này trước!");
         }
     }
 }
