@@ -127,6 +127,20 @@ public class CinemaServiceImpl implements CinemaService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<CinemaResponse> getAllActiveCinemas() {
+        // Public endpoint - chỉ trả rạp ACTIVE, KHÔNG áp dụng cinema scoping cho STAFF/MANAGER.
+        // Dùng cho trang client công khai (HeThongRapView, MovieDetail).
+        List<Cinema> cinemas = cinemaRepository.findAllWithManager();
+        cinemas = cinemas.stream()
+                .filter(c -> c.getStatus() == null || "ACTIVE".equalsIgnoreCase(c.getStatus()))
+                .collect(Collectors.toList());
+        return cinemas.stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<CinemaResponse> getAllCinemas(boolean all) {
         List<Cinema> cinemas = cinemaRepository.findAllWithManager();
         // Chỉ giới hạn theo cơ sở với STAFF/MANAGER (nhân viên gắn 1 cụm rạp).
