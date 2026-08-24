@@ -262,6 +262,14 @@ const handleHoldExpired = async () => {
 watch(secondsLeft, (s) => { if (s === 0) handleHoldExpired() })
 
 onMounted(async () => {
+  if (store.selectedShowtime?.startTime) {
+    const stTime = new Date(store.selectedShowtime.startTime).getTime()
+    if (stTime < (Date.now() - 15 * 60 * 1000)) {
+      toast.error('Suất chiếu đã quá 15 phút sau khi bắt đầu, không thể tiếp tục đặt vé.')
+      router.replace('/lich-chieu')
+      return
+    }
+  }
   try {
     const { data } = await settingsApi.getAll()
     const v = parseInt(data.find(i => i.settingKey === 'SEAT_HOLD_MINUTES')?.settingValue)
