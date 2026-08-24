@@ -107,7 +107,11 @@ const moviesOfDay = computed(() => {
       }
       groupMap.get(key).shows.push(s)
     })
-    m.roomGroups = [...groupMap.values()]
+    m.roomGroups = [...groupMap.values()].sort((a, b) => {
+      const roomCmp = (a.roomName || '').localeCompare(b.roomName || '', 'vi', { numeric: true, sensitivity: 'base' })
+      if (roomCmp !== 0) return roomCmp
+      return (a.formatName || '').localeCompare(b.formatName || '', 'vi', { numeric: true, sensitivity: 'base' })
+    })
   })
   return arr
 })

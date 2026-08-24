@@ -119,7 +119,7 @@ const moviesForDate = computed(() => {
     }
     
     if (!m.roomGroupsMap.has(groupLabel)) {
-      m.roomGroupsMap.set(groupLabel, { groupLabel, showtimes: [] })
+      m.roomGroupsMap.set(groupLabel, { groupLabel, roomName, formatName, showtimes: [] })
     }
     
     m.roomGroupsMap.get(groupLabel).showtimes.push({
@@ -129,10 +129,16 @@ const moviesForDate = computed(() => {
   return Array.from(map.values()).map(m => ({
     ...m,
     formats: Array.from(m.formatSet),
-    roomGroups: Array.from(m.roomGroupsMap.values()).map(g => ({
-      ...g,
-      showtimes: g.showtimes.sort((a, b) => a.sort - b.sort)
-    }))
+    roomGroups: Array.from(m.roomGroupsMap.values())
+      .map(g => ({
+        ...g,
+        showtimes: g.showtimes.sort((a, b) => a.sort - b.sort)
+      }))
+      .sort((a, b) => {
+        const roomCmp = (a.roomName || '').localeCompare(b.roomName || '', 'vi', { numeric: true, sensitivity: 'base' })
+        if (roomCmp !== 0) return roomCmp
+        return (a.groupLabel || '').localeCompare(b.groupLabel || '', 'vi', { numeric: true, sensitivity: 'base' })
+      })
   }))
 })
 
