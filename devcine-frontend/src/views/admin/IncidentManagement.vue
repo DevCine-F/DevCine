@@ -15,7 +15,8 @@ const activeTab = ref('handle') // 'handle' | 'history'
 // ===== Tra cứu & ngữ cảnh vé =====
 const searchQuery = ref('')
 const loadingCtx = ref(false)
-const ctx = ref(null)          // IncidentBookingContext
+const ctx = ref(null)          // IncidentBookingContext (đơn đã chọn)
+const phoneBookings = ref([])  // List<IncidentBookingContext> khi tìm theo SĐT có nhiều đơn
 
 // ===== Sơ đồ ghế của suất =====
 const seatMap = ref(null)      // { matrixRow, matrixCol, seats[] }
@@ -56,6 +57,8 @@ const seatById = computed(() => {
 })
 const chosenDest = computed(() => new Set(Object.values(swaps.value)))
 const started = computed(() => ctx.value?.showtime?.started === true)
+// expired: suất chiếu đã kết thúc quá 2 giờ → chặn toàn bộ thao tác xử lý sự cố
+const expired = computed(() => ctx.value?.showtime?.expired === true)
 
 const visibleCompOptions = computed(() =>
   compOptions.value.filter(o => mode.value === 'cancel' ? true : !o.cancelOnly))
@@ -64,25 +67,49 @@ const selectedSwaps = computed(() =>
   Object.entries(swaps.value).filter(([, dest]) => dest != null)
     .map(([oldSeatId, newSeatId]) => ({ oldSeatId: Number(oldSeatId), newSeatId })))
 
-const canSubmitRelocate = computed(() => selectedSwaps.value.length > 0 && !started.value)
-const canSubmitCancel = computed(() => Object.values(cancelSel.value).some(Boolean))
+const canSubmitRelocate = computed(() => selectedSwaps.value.length > 0 && !started.value && !expired.value)
+const canSubmitCancel = computed(() => Object.values(cancelSel.value).some(Boolean) && !expired.value)
 
 // ================= Tra cứu =================
 async function doLookup(preserveResult = false) {
   const q = searchQuery.value.trim()
   if (!q) { toast.warning('Nhập mã vé hoặc số điện thoại khách.'); return }
   loadingCtx.value = true
+  phoneBookings.value = []
   resetWorkspace(preserveResult)
   try {
-    const { data } = await incidentApi.lookup(q)
-    ctx.value = data.data ?? data
-    await loadSeatMap()
+    if (/^\d{9,11}$/.test(q)) {
+      // --- Tra theo SĐT → có thể có nhiều đơn ---
+      const { data } = await incidentApi.lookupByPhone(q)
+      const list = data.data ?? data
+      if (list.length === 1) {
+        // Chỉ 1 đơn → load thẳng vào workspace
+        ctx.value = list[0]
+        await loadSeatMap()
+      } else {
+        // Nhiều đơn → hiện picker để nhân viên chọn
+        phoneBookings.value = list
+      }
+    } else {
+      // --- Tra theo mã vé → luôn 1 đơn duy nhất ---
+      const { data } = await incidentApi.lookup(q)
+      ctx.value = data.data ?? data
+      await loadSeatMap()
+    }
   } catch (e) {
     ctx.value = null
+    phoneBookings.value = []
     toast.error(friendlyError(e, 'Không tìm thấy vé phù hợp.'))
   } finally {
     loadingCtx.value = false
   }
+}
+
+// Nhân viên click chọn 1 đơn từ danh sách SĐT
+async function selectPhoneBooking(booking) {
+  phoneBookings.value = []
+  ctx.value = booking
+  await loadSeatMap()
 }
 
 async function loadSeatMap() {
@@ -345,7 +372,8 @@ function switchTab(tab) {
 
 const fmtPrice = (n) => (n != null ? Number(n).toLocaleString('vi-VN') + 'đ' : '0đ')
 const fmtTime = (s) => (s ? new Date(s).toLocaleString('vi-VN') : '')
-const typeLabel = (t) => ({ RELOCATE: 'Đổi ghế', CANCEL: 'Hủy chỗ', SEAT_MAINTENANCE: 'Khóa ghế' }[t] || t)
+// BUG-12 FIX: Thêm label cho EMERGENCY_CLOSURE
+const typeLabel = (t) => ({ RELOCATE: 'Đổi ghế', CANCEL: 'Hủy chỗ', SEAT_MAINTENANCE: 'Khóa ghế', EMERGENCY_CLOSURE: 'Đóng cửa khẩn cấp' }[t] || t)
 const compLabel = (t) => ({ NONE: '—', DISCOUNT: 'Voucher giảm', GIFT_FNB: 'Quà F&B', GIFT_TICKET: 'Vé mời' }[t] || t)
 
 onMounted(async () => {
@@ -389,8 +417,28 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Picker: nhiều đơn cùng SĐT → nhân viên chọn -->
+        <div v-if="phoneBookings.length > 0" class="bg-surface-container-high rounded-2xl p-4 border border-amber-500/20 flex flex-col gap-2">
+          <p class="text-[11px] font-bold text-amber-400 uppercase tracking-widest">
+            📋 Tìm thấy {{ phoneBookings.length }} đơn — chọn đơn cần xử lý:
+          </p>
+          <button
+            v-for="bk in phoneBookings" :key="bk.bookingId"
+            @click="selectPhoneBooking(bk)"
+            class="w-full text-left rounded-xl border border-outline-variant/20 bg-surface px-3 py-2.5 hover:border-primary/50 hover:bg-primary/5 transition-all group"
+          >
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="font-black text-on-surface text-sm group-hover:text-primary transition-colors">#{{ bk.bookingCode }}</span>
+              <span :class="['text-[10px] font-bold px-2 py-0.5 rounded uppercase', bk.channel === 'POS' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300']">{{ bk.channel }}</span>
+            </div>
+            <p class="text-[11px] text-on-surface-variant">
+              {{ bk.showtime?.roomName }} · {{ bk.seats?.filter(s => s.status === 'SOLD').map(s => s.seatLabel).join(', ') || '—' }}
+            </p>
+          </button>
+        </div>
+
         <!-- Empty state -->
-        <div v-if="!ctx && !loadingCtx" class="bg-surface-container rounded-2xl p-8 text-center text-on-surface-variant border border-dashed border-outline-variant/20">
+        <div v-else-if="!ctx && !loadingCtx" class="bg-surface-container rounded-2xl p-8 text-center text-on-surface-variant border border-dashed border-outline-variant/20">
           <span class="material-symbols-outlined text-4xl opacity-40">receipt_long</span>
           <p class="text-sm mt-2">Nhập mã vé hoặc SĐT để bắt đầu xử lý sự cố.</p>
         </div>
@@ -410,7 +458,10 @@ onMounted(async () => {
             </p>
           </div>
 
-          <div v-if="started" class="text-[11px] font-semibold text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
+          <div v-if="expired" class="text-[11px] font-semibold text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+            ⛔ Suất chiếu đã kết thúc — đã qua cửa sổ xử lý sự cố (2 giờ sau khi chiếu xong). Không thể thực hiện thao tác.
+          </div>
+          <div v-else-if="started" class="text-[11px] font-semibold text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
             ⚠ Suất đã bắt đầu — chỉ có thể HỦY CHỖ, không đổi ghế.
           </div>
           <div v-if="!ctx.hasCustomer" class="text-[11px] font-semibold text-blue-300 bg-blue-500/10 rounded-lg px-3 py-2">
@@ -500,7 +551,8 @@ onMounted(async () => {
             <div v-if="result.compensation?.voucherIssued" class="p-2.5 rounded-lg bg-green-950/60 border border-green-500/30 space-y-1">
               <p class="text-green-200">Mã voucher đền bù cho khách:</p>
               <p class="text-base font-mono font-black text-green-400 tracking-wider select-all">{{ result.compensation.voucherCode }}</p>
-              <p v-if="result.compensation.amount > 0" class="text-[11px] text-green-300/80">Trị giá: {{ fmtPrice(result.compensation.amount) }}</p>
+              <!-- BUG-13 FIX: field đúng là .value (không phải .amount) theo CompensationResult Java record -->
+              <p v-if="result.compensation.value > 0" class="text-[11px] text-green-300/80">Trị giá: {{ fmtPrice(result.compensation.value) }}</p>
             </div>
             <p v-else-if="result.compensation?.counterGift" class="text-amber-300">
               ℹ Khách vãng lai: Đền trực tiếp tại quầy — hệ thống không phát voucher điện tử.
@@ -561,6 +613,8 @@ onMounted(async () => {
             <option value="RELOCATE">Đổi ghế</option>
             <option value="CANCEL">Hủy chỗ</option>
             <option value="SEAT_MAINTENANCE">Khóa ghế</option>
+            <!-- BUG-11 FIX: Thêm EMERGENCY_CLOSURE vào filter -->
+            <option value="EMERGENCY_CLOSURE">Đóng cửa khẩn cấp</option>
           </select>
         </div>
         <div>

@@ -59,30 +59,69 @@ public class SeatIncidentService {
 
     // ===================== TRA CỨU =====================
 
-    /** Tra vé theo Mã đặt vé hoặc SĐT khách (auto-detect). */
+    /** Cửa sổ xử lý sự cố sau khi suất kết thúc: 2 giờ (120 phút). */
+    private static final int INCIDENT_WINDOW_HOURS = 2;
+
+    /** Tra vé theo Mã đặt vé. Input là booking code (KHÔNG phải SĐT — dùng lookupByPhone() cho SĐT). */
     @Transactional(readOnly = true)
     public IncidentBookingContext lookup(String query) {
         if (query == null || query.isBlank()) {
             throw new IllegalArgumentException("Vui lòng nhập mã vé hoặc số điện thoại.");
         }
         String q = query.trim();
-        Booking booking;
-        if (q.matches("\\d{9,11}")) { // SĐT Việt Nam 9–11 chữ số
-            List<Booking> found = bookingRepository.findConfirmedByCustomerPhone(q, PageRequest.of(0, 1));
-            if (found.isEmpty()) {
-                throw new IllegalArgumentException("Không tìm thấy đơn đã xác nhận cho số điện thoại này.");
-            }
-            booking = found.get(0);
-        } else {
-            booking = bookingRepository.findByBookingCodeForPrint(q)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn với mã: " + q));
-            if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
-                throw new IllegalArgumentException("Đơn chưa thanh toán hoặc không hợp lệ để xử lý.");
+        if (q.matches("\\d{9,11}")) {
+            // SĐT → dùng lookupByPhone() thay vì trả 1 đơn tuỳ tiện
+            throw new IllegalArgumentException(
+                    "Vui lòng dùng tìm kiếm theo SĐT ở bên trên để chọn đúng đơn cần xử lý.");
+        }
+        Booking booking = bookingRepository.findByBookingCodeForPrint(q)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn với mã: " + q));
+        if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
+            throw new IllegalArgumentException("Đơn chưa thanh toán hoặc không hợp lệ để xử lý.");
+        }
+        // Kiểm tra cửa sổ xử lý sự cố
+        Showtime st = booking.getShowtime();
+        if (st != null && st.getEndTime() != null) {
+            LocalDateTime deadline = st.getEndTime().plusHours(INCIDENT_WINDOW_HOURS);
+            if (LocalDateTime.now().isAfter(deadline)) {
+                throw new IllegalArgumentException(
+                    "Suất chiếu đã kết thúc từ lúc " +
+                    st.getEndTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")) +
+                    " — hết thời gian xử lý sự cố (trong vòng " + INCIDENT_WINDOW_HOURS + " giờ sau khi chiếu).");
             }
         }
         SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
         return buildContext(booking);
     }
+
+    /**
+     * Tra cứu toàn bộ đơn CONFIRMED còn trong cửa sổ xử lý sự cố theo SĐT khách.
+     * Trả danh sách để nhân viên chọn đơn đúng (trường hợp khách mua nhiều đơn / mua thêm cho người thân).
+     */
+    @Transactional(readOnly = true)
+    public List<IncidentBookingContext> lookupByPhone(String phone) {
+        if (phone == null || !phone.trim().matches("\\d{9,11}")) {
+            throw new IllegalArgumentException("Số điện thoại không hợp lệ.");
+        }
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(INCIDENT_WINDOW_HOURS + 3);
+        // Lấy tối đa 10 đơn — trên thực tế rất hiếm khách mua hơn 10 đơn cùng suất
+        List<Booking> bookings = bookingRepository.findConfirmedByCustomerPhone(
+                phone.trim(), cutoff, PageRequest.of(0, 10));
+        if (bookings.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Không tìm thấy đơn hợp lệ cho SĐT " + phone.trim() + ". " +
+                "Suất chiếu phải chưa kết thúc quá " + INCIDENT_WINDOW_HOURS + " giờ.");
+        }
+        // Lọc qua cinema scoping: chỉ trả đơn thuộc rạp hiện tại (STAFF/MANAGER), ADMIN thấy tất cả
+        return bookings.stream()
+                .filter(b -> {
+                    try { SecurityUtils.assertCinemaAccess(cinemaIdOf(b)); return true; }
+                    catch (Exception e) { return false; }
+                })
+                .map(this::buildContext)
+                .collect(Collectors.toList());
+    }
+
 
     /** Chọn theo Phòng→Suất→Ghế: truy ngược đơn đang giữ ghế đã bán đó. */
     @Transactional(readOnly = true)
@@ -114,6 +153,10 @@ public class SeatIncidentService {
                                 .build())
                         .collect(Collectors.toList());
 
+        boolean now_after_start = st != null && st.getStartTime() != null && st.getStartTime().isBefore(LocalDateTime.now());
+        boolean expired = st != null && st.getEndTime() != null
+                && LocalDateTime.now().isAfter(st.getEndTime().plusHours(INCIDENT_WINDOW_HOURS));
+
         IncidentBookingContext.ShowtimeBrief brief = IncidentBookingContext.ShowtimeBrief.builder()
                 .showtimeId(st != null ? st.getId() : null)
                 .movieTitle(st != null && st.getMovie() != null ? st.getMovie().getTitle() : null)
@@ -122,7 +165,8 @@ public class SeatIncidentService {
                 .startTime(st != null ? st.getStartTime() : null)
                 .cinemaId(cinema != null ? cinema.getId() : null)
                 .cinemaName(cinema != null ? cinema.getName() : null)
-                .started(st != null && st.getStartTime() != null && st.getStartTime().isBefore(LocalDateTime.now()))
+                .started(now_after_start)
+                .expired(expired)
                 .build();
 
         return IncidentBookingContext.builder()
@@ -198,6 +242,10 @@ public class SeatIncidentService {
         Cinema cinema = cinemaOf(booking);
         SecurityUtils.assertCinemaAccess(cinema != null ? cinema.getId() : null);
         Showtime st = booking.getShowtime();
+
+        // Guard: suất kết thúc > INCIDENT_WINDOW_HOURS → chặn toàn bộ thao tác
+        assertWithinIncidentWindow(st);
+
         if (st.getStartTime() != null && st.getStartTime().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Suất đã bắt đầu — chỉ có thể hủy chỗ, không đổi ghế.");
         }
@@ -290,6 +338,8 @@ public class SeatIncidentService {
         Booking booking = loadConfirmedBooking(req.bookingId());
         Cinema cinema = cinemaOf(booking);
         SecurityUtils.assertCinemaAccess(cinema != null ? cinema.getId() : null);
+        // Guard: suất kết thúc > INCIDENT_WINDOW_HOURS → chặn toàn bộ thao tác
+        assertWithinIncidentWindow(booking.getShowtime());
         // Thao tác quầy tương tác: người xử lý = nhân viên đang đăng nhập; ghi vết loại "CANCEL".
         return performCancel(booking, req.bookingSeatIds(), req.compensation(), req.reason(),
                 currentStaffOrNull(), "CANCEL");
@@ -316,8 +366,10 @@ public class SeatIncidentService {
         Cinema cinema = cinemaOf(booking);
         Showtime st = booking.getShowtime();
 
-        Map<Integer, BookingSeat> byId = bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())
-                .stream().collect(Collectors.toMap(BookingSeat::getId, bs -> bs, (a, b) -> a));
+        // Nạp toàn bộ BookingSeat của đơn 1 lần (cả byId map lẫn để kiểm tra hủy-toàn-bộ sau này)
+        List<BookingSeat> allBookingSeats = bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId());
+        Map<Integer, BookingSeat> byId = allBookingSeats.stream()
+                .collect(Collectors.toMap(BookingSeat::getId, bs -> bs, (a, b) -> a));
 
         // Nạp 1 lần tập ghế đã xử lý sự cố → tránh N query existsActiveForBookingSeat trong vòng lặp
         java.util.Set<Integer> alreadyProcessedSeatIds = incidentRepository.findProcessedSeatIdsByBooking(booking.getId());
@@ -349,6 +401,25 @@ public class SeatIncidentService {
                     .build());
         }
         bookingSeatRepository.saveAll(updatedSeats); // gom thành 1 batch thay vì N saves
+
+        // BUG-08 FIX: Nếu toàn bộ BookingSeat của đơn bị hủy → chuyển Booking.status = CANCELLED
+        // để khách không còn thấy đơn CONFIRMED trong lịch sử khi tất cả ghế đã bị thu hồi.
+        // Điều kiện: không còn ghế SOLD hoặc HOLD nào còn hoạt động sau khi batch update hiện tại xong.
+        // (Ghế đang bị hủy trong batch này đã set CANCELLED ở bước trên → tính vào byId cập nhật)
+        boolean allCancelled = allBookingSeats.stream()
+                .allMatch(bs -> {
+                    // Ghế đang được hủy trong lần này → đã set CANCELLED ở bước trên
+                    if (bookingSeatIds.contains(bs.getId())) return true;
+                    // Ghế khác: không được ở trạng thái SOLD hoặc HOLD
+                    String st2 = bs.getStatus() != null ? bs.getStatus().toUpperCase() : "";
+                    return !st2.equals("SOLD") && !st2.equals("HOLD");
+                });
+        if (allCancelled) {
+            booking.setStatus("CANCELLED");
+            bookingRepository.save(booking);
+            log.info("[SeatIncident] Đơn #{} hủy toàn bộ ghế → Booking.status = CANCELLED (incidentType={}).",
+                    booking.getBookingCode(), incidentType);
+        }
 
         // Hủy chỗ → đền bằng trị giá đúng giá vé đã mua; cho phép template GIFT_TICKET (đền nguyên vé)
         IncidentResultResponse.CompensationResult compResult = applyCompensation(booking, comp, totalValue, true);
@@ -420,6 +491,8 @@ public class SeatIncidentService {
         Staff handledBy = handledByStaffId != null
                 ? staffRepository.findById(handledByStaffId).orElse(null) : null;
 
+        // performCancel() đã xử lý BUG-08 — cập nhật Booking.status = CANCELLED khi toàn bộ ghế bị hủy.
+        // Với EMERGENCY_CLOSURE luôn hủy toàn bộ ghế còn SOLD → Booking sẽ luôn được set CANCELLED.
         IncidentResultResponse res = performCancel(booking, bookingSeatIds, comp, reason, handledBy, INCIDENT_EMERGENCY);
 
         // Dựng dữ liệu email PHẲNG ngay trong transaction (mọi lazy access còn trong session).
@@ -510,28 +583,31 @@ public class SeatIncidentService {
             throw new IllegalArgumentException("Mẫu đền nguyên vé chỉ dùng cho luồng hủy chỗ.");
         }
 
-        Voucher voucher = voucherRepository.save(Voucher.builder()
+        // BUG-03 FIX: snapshot giá trị tại thời điểm phát để tránh thay đổi khi Admin sửa Promotion sau này
+        Voucher voucher = Voucher.builder()
                 .promotion(promo)
                 .customer(booking.getCustomer())
                 .isUsed(false)
                 .validUntil(LocalDateTime.now().plusDays(90))
-                .build());
+                .build();
+        voucher.snapshotFrom(promo);
+        voucher = voucherRepository.save(voucher);
 
         BigDecimal value = overrideValue != null ? overrideValue
                 : ("DISCOUNT".equals(type) && promo.getDiscountValue() != null ? promo.getDiscountValue() : BigDecimal.ZERO);
         return IncidentResultResponse.CompensationResult.builder()
-                .type(type).voucherIssued(true).voucherCode(promo.getCode())
+                // BUG-05/BUG-01 FIX: trả voucherId chính xác để attachCompensation() không phải query lại
+                .type(type).voucherIssued(true).voucherId(voucher.getId()).voucherCode(promo.getCode())
                 .counterGift(false).value(value).build();
     }
 
     private void attachCompensation(SeatIncident si, IncidentResultResponse.CompensationResult comp) {
         si.setCompensationType(comp.type());
         si.setCompensationAmount(comp.value() != null ? comp.value() : BigDecimal.ZERO);
-        if (comp.voucherIssued() && comp.voucherCode() != null) {
-            // Nạp lại voucher vừa tạo để gắn FK (đã lưu trong applyCompensation)
-            voucherRepository.findActiveVoucherByCustomerAndCode(
-                            si.getBooking().getCustomer().getUserId(), comp.voucherCode(), LocalDateTime.now())
-                    .ifPresent(si::setVoucher);
+        // BUG-05/BUG-01 FIX: dùng voucherId (ID chính xác) thay vì query lại theo code
+        // — tránh match nhầm voucher cũ cùng promotion khi khách đã từng nhận cùng loại đền bù trước đó.
+        if (comp.voucherIssued() && comp.voucherId() != null) {
+            voucherRepository.findById(comp.voucherId()).ifPresent(si::setVoucher);
         }
     }
 
@@ -595,5 +671,21 @@ public class SeatIncidentService {
                     "Tài khoản chưa gắn cơ sở nên không thể xem lịch sử sự cố.");
         }
         return cinemaId;
+    }
+
+    /**
+     * Chặn cứng thao tác đổi ghế/hủy chỗ nếu suất đã kết thúc quá {@link #INCIDENT_WINDOW_HOURS} giờ.
+     * EMERGENCY_CLOSURE được miễn vì hệ thống tự gọi không qua guard này.
+     */
+    private void assertWithinIncidentWindow(Showtime st) {
+        if (st == null || st.getEndTime() == null) return; // không có endTime → bỏ qua (an toàn mặc định)
+        LocalDateTime deadline = st.getEndTime().plusHours(INCIDENT_WINDOW_HOURS);
+        if (LocalDateTime.now().isAfter(deadline)) {
+            throw new IllegalArgumentException(
+                    "Suất chiếu đã kết thúc từ lúc "
+                    + st.getEndTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"))
+                    + " — hết thời gian xử lý sự cố (phải xử lý trong vòng "
+                    + INCIDENT_WINDOW_HOURS + " giờ sau khi chiếu xong).");
+        }
     }
 }

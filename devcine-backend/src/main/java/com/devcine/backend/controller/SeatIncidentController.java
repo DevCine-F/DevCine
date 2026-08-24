@@ -34,11 +34,21 @@ public class SeatIncidentController {
 
     private final SeatIncidentService incidentService;
 
-    /** Tra vé theo Mã đặt vé hoặc SĐT khách. */
+    /** Tra vé theo Mã đặt vé (code, không phải SĐT). */
     @GetMapping("/lookup")
     @PreAuthorize("@perm.can('incident_handling','view')")
     public ResponseEntity<ApiResponse<IncidentBookingContext>> lookup(@RequestParam String query) {
         return ResponseEntity.ok(ApiResponse.ok(incidentService.lookup(query)));
+    }
+
+    /**
+     * Tra cứu theo SĐT khách — trả DANH SÁCH các đơn active để nhân viên chọn.
+     * Nghiệp vụ: khách có thể mua nhiều đơn cho cùng suất (mua thêm cho người thân).
+     */
+    @GetMapping("/lookup-by-phone")
+    @PreAuthorize("@perm.can('incident_handling','view')")
+    public ResponseEntity<ApiResponse<List<IncidentBookingContext>>> lookupByPhone(@RequestParam String phone) {
+        return ResponseEntity.ok(ApiResponse.ok(incidentService.lookupByPhone(phone)));
     }
 
     /** Chọn theo Phòng→Suất→Ghế: truy ngược đơn đang giữ ghế đã bán. */

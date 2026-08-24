@@ -107,6 +107,7 @@ export const ticketingApi = {
 // Xử lý sự cố phòng chiếu / đổi ghế đền bù (feature quyền: incident_handling)
 export const incidentApi = {
   lookup: (query) => api.get('/staff/incidents/lookup', { params: { query } }),
+  lookupByPhone: (phone) => api.get('/staff/incidents/lookup-by-phone', { params: { phone } }),
   seatOccupant: (showtimeId, seatId) => api.get('/staff/incidents/seat-occupant', { params: { showtimeId, seatId } }),
   compensationOptions: () => api.get('/staff/incidents/compensation-options'),
   seats: (showtimeId) => api.get(`/seats/showtime/${showtimeId}`, { params: { channel: 'POS' } }),
