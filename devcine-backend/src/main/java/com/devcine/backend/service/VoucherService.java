@@ -209,8 +209,25 @@ public class VoucherService {
     private void ensureSnapshot(Voucher v) { ensureSnapshotPublic(v); }
 
     /**
+     * Phân loại lý do không hợp lệ:
+     * - TRUE  → "cố định" trong phiên này (hết lượt, sai đối tượng, sai phim) → ẩn khỏi UI đặt vé
+     * - FALSE → "theo ngữ cảnh đơn" (chưa đủ giá trị tối thiểu) → hiển thị mờ, có thể đủ khi thêm ghế/FnB
+     */
+    private boolean shouldHideFromUI(String reason) {
+        if (reason == null) return false;
+        return reason.startsWith("Mã đã hết lượt")
+                || reason.startsWith("Mã chỉ dành cho khách hàng")
+                || reason.startsWith("Mã chỉ áp dụng cho phim khác")
+                || reason.startsWith("Không tìm thấy chương trình ưu đãi");
+    }
+
+    /**
      * Preview toàn bộ voucher đang hiệu lực của khách theo giỏ hàng hiện tại — phục vụ bước
      * "Ưu đãi" khi đặt vé: FE làm mờ mã không đủ điều kiện và hiển thị số giảm THỰC.
+     *
+     * <p>Trường {@code hideFromUI}: khi {@code true} FE nên ẨN hoàn toàn voucher khỏi danh sách
+     * (hết lượt, sai đối tượng, sai phim — không thể dùng được trong phiên này dù giỏ thay đổi).
+     * Khi {@code false} và {@code applicable = false} → FE hiển thị mờ (ví dụ: chưa đủ đơn tối thiểu).
      */
     @Transactional
     public List<Map<String, Object>> previewActiveVouchers(VoucherPreviewRequest req) {
@@ -228,12 +245,14 @@ public class VoucherService {
             Promotion p = v.getPromotion();
             VoucherEval eval = evaluate(customerId, customer, v, orderTotal, req.getMovieId(), req.getSeatPrices());
             BigDecimal shown = eval.discountAmount().min(orderTotal); // số giảm thực (không vượt tổng đơn)
+            boolean hide = !eval.applicable() && shouldHideFromUI(eval.reason());
             Map<String, Object> m = new HashMap<>();
             m.put("voucherId", v.getId());
             m.put("code", p.getCode() != null ? p.getCode() : "");
             m.put("applicable", eval.applicable());
             m.put("reason", eval.reason() != null ? eval.reason() : "");
             m.put("discountAmount", eval.applicable() ? shown : BigDecimal.ZERO);
+            m.put("hideFromUI", hide);
             out.add(m);
         }
         return out;
