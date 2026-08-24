@@ -17,6 +17,8 @@ export function useSeatLayout() {
   const isSavingLayout = ref(false);
   // Dirty check: chỉ cho phép Lưu khi sơ đồ thực sự có thay đổi so với lần tải/lưu gần nhất
   const hasChanges = ref(false);
+  // Cờ báo phòng đã phát sinh vé đặt → Trình thiết kế chuyển sang chế độ Chỉ đọc (Read-only)
+  const hasBookings = ref(false);
 
   // Đánh dấu có thay đổi (gọi từ mọi thao tác Admin làm biến đổi cấu trúc)
   const markDirty = () => { hasChanges.value = true; };
@@ -45,6 +47,8 @@ export function useSeatLayout() {
         const data = res.data;
         tempRows.value = data.matrixRow || hall.rows;
         tempCols.value = data.matrixCol || hall.cols;
+        // Nhận cờ từ BE: phòng đã có vé đặt → khóa Trình thiết kế
+        hasBookings.value = !!data.hasBookings;
 
         const map = {};
         data.seats.forEach((seat) => {
@@ -95,6 +99,7 @@ export function useSeatLayout() {
     initializeSeatMap();
     viewingHall.value = hall;
     hasChanges.value = false; // baseline cho phòng mới/chưa có sơ đồ
+    hasBookings.value = false; // phòng mới chưa có vé
   };
 
   const resetMap = () => {
@@ -182,6 +187,7 @@ export function useSeatLayout() {
     tempCols,
     isSavingLayout,
     hasChanges,
+    hasBookings,
     markDirty,
     openHallDetail,
     resetMap,
