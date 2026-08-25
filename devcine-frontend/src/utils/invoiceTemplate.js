@@ -1,236 +1,622 @@
-// Bộ dựng hoá đơn DevCine dùng chung (POS in hoá đơn & Quản lý hoá đơn in lại).
-// inv = {
-//   bookingCode, movie, room, format, dateStr, counter,
-//   seatRows: [{ label, seats, count, unit, subtotal }],
-//   combos: [{ name, quantity, price }],
-//   seatTotal, comboTotal, discount, grandTotal, seatCount,
-//   paymentLabel, memberName, memberTier,
-//   tickets: [{ seatLabel, qrCode }]
-// }
+// Bộ dựng hoá đơn & vé giấy DevCine chuẩn in nhiệt K80 (80mm).
+// Phân tách tự động thành 2 phiếu độc lập:
+//   - Phiếu 1: Vé xem phim (theo mẫu Phieu_ve_xem_phim.txt)
+//   - Phiếu 2: Phiếu nhận bắp nước [PICK-UP] (theo mẫu Phieu_dich_vu_bap_nuoc_[PICK-UP].txt)
+// Quy tắc in:
+//   - Đơn chỉ có vé: Chỉ in Phiếu 1.
+//   - Đơn chỉ có F&B: Chỉ in Phiếu 2.
+//   - Đơn có cả vé & F&B: In liên tiếp 2 phiếu riêng biệt (ngắt trang tự động cho máy in nhiệt).
 
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
-const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(code)}`
+const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=${encodeURIComponent(code)}`
 
-export const paymentLabel = (m) =>
-  ({ CASH: 'Tiền mặt', CARD: 'Thẻ / QR', TRANSFER: 'Chuyển khoản QR', VNPAY: 'VNPAY' }[m] || m || '—')
-
-export function buildInvoiceHtml(inv) {
-  const movie = esc(inv.movie)
-  const room = esc(inv.room)
-  const format = esc(inv.format)
-  const bookingCode = esc(inv.bookingCode)
-  const dateStr = inv.dateStr || ''
-  const printedAt = new Date().toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-  const tickets = inv.tickets || []
-  const seatTotal = Number(inv.seatTotal || 0)
-  const comboTotal = Number(inv.comboTotal || 0)
-  const discount = Number(inv.discount || 0)
-  const grandTotal = inv.grandTotal != null ? Number(inv.grandTotal) : Math.max(0, seatTotal + comboTotal - discount)
-  const seatCount = inv.seatCount ?? (inv.seatRows || []).reduce((a, b) => a + (b.count || 0), 0)
-
-  const itemRow = (name, qty, unit, total) =>
-    `<tr><td>${name}</td><td class="c">${qty}</td><td class="r">${fmt(unit)}đ</td><td class="r b">${fmt(total)}đ</td></tr>`
-
-  const seatRows = (inv.seatRows || []).map(b =>
-    itemRow(`Ghế ${esc(b.label)} <span class="muted">${esc(b.seats || '')}</span>`, b.count, b.unit, b.subtotal)
-  ).join('')
-
-  const comboRows = (inv.combos || []).map(c =>
-    itemRow(esc(c.name), c.quantity, c.price, c.price * c.quantity)
-  ).join('')
-
-  const seatSection = seatRows ? `<tr class="grp"><td colspan="4">Vé xem phim</td></tr>${seatRows}` : ''
-  const comboSection = comboRows ? `<tr class="grp"><td colspan="4">Bắp nước &amp; Combo</td></tr>${comboRows}` : ''
-
-  const ticketSlips = tickets.length
-    ? tickets.map((t, i) => `
-        <article class="ticket">
-          <div class="tk-main">
-            <div class="tk-head">
-              <div class="mono serif">D</div>
-              <div>
-                <div class="tk-brand">DEV<span class="g">CINE</span></div>
-                <div class="tk-sub">Vé xem phim · Admit One</div>
-              </div>
-              <div class="tk-no serif">${String(i + 1).padStart(2, '0')}<span>/${String(tickets.length).padStart(2, '0')}</span></div>
-            </div>
-            <div class="tk-seat-row">
-              <div>
-                <div class="tk-k">Ghế ngồi</div>
-                <div class="tk-seat serif">${esc(t.seatLabel)}</div>
-              </div>
-              <div class="tk-movie">${movie}</div>
-            </div>
-            <dl class="tk-meta">
-              <div><dt>Phòng chiếu</dt><dd>${room} · ${format}</dd></div>
-              <div><dt>Suất chiếu</dt><dd>${esc(dateStr)}</dd></div>
-              <div><dt>Mã đơn</dt><dd>${bookingCode}</dd></div>
-              <div><dt>Loại vé</dt><dd>Người lớn</dd></div>
-            </dl>
-          </div>
-          <div class="tk-stub">
-            <div class="tk-stub-t">Mã đặt vé — quét tại quầy</div>
-            <img src="${qrUrl(bookingCode)}" alt="QR ${bookingCode}" />
-            <div class="tk-code">${bookingCode}</div>
-            <div class="tk-note">1 mã QR dùng chung cho cả đơn</div>
-          </div>
-        </article>`).join('')
-    : '<div class="ticket"><p class="muted" style="padding:28px">Không có dữ liệu vé QR.</p></div>'
-
-  const memberLine = inv.memberName
-    ? `<br/>Thành viên: <b>${esc(inv.memberName)}</b>${inv.memberTier ? ` · ${esc(inv.memberTier)}` : ''}` : ''
-
-  return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
-<title>Hoá đơn ${bookingCode} — DevCine</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;0,900;1,500&family=Inter:wght@400;500;600;700;800&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',system-ui,Arial,sans-serif;background:#efe8da;color:#26221b;padding:34px 20px;font-size:14px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .serif{font-family:'Playfair Display',Georgia,serif}
-  .g{background:linear-gradient(135deg,#e6c878,#c4992f);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .bar{display:flex;justify-content:center;gap:12px;max-width:880px;margin:0 auto 26px}
-  .bar button{border:0;border-radius:999px;padding:13px 30px;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
-  .btn-print{background:linear-gradient(135deg,#dcb869,#b8902f);color:#1c1a17;box-shadow:0 8px 22px rgba(184,144,47,.4)}
-  .btn-close{background:#fff;color:#6b6456;border:1px solid #ddd4c1}
-  .bill{max-width:880px;margin:0 auto;background:#fffdf8;border-radius:20px;overflow:hidden;box-shadow:0 30px 70px rgba(40,34,22,.18);border:1px solid #ece3d0}
-  .bill-head{display:flex;justify-content:space-between;align-items:center;padding:36px 44px 30px;background:linear-gradient(160deg,#211d16,#14110c);color:#f3ecdc;position:relative}
-  .bill-head::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#b8902f,#e6c878,#b8902f)}
-  .brand{display:flex;align-items:center;gap:16px}
-  .mono{width:54px;height:54px;border-radius:15px;background:linear-gradient(135deg,#e9cd80,#b8902f);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#1c1a17;box-shadow:0 8px 18px rgba(0,0,0,.35);flex:none}
-  .brand-name{font-size:27px;font-weight:800;letter-spacing:.2em;line-height:1}
-  .brand-tag{font-size:9px;letter-spacing:.32em;text-transform:uppercase;color:#a89c81;margin-top:7px}
-  .doc{text-align:right}
-  .doc-t{font-size:19px;letter-spacing:.34em;text-transform:uppercase;color:#e6c878}
-  .doc-meta{margin-top:13px;font-size:11px;line-height:1.95;color:#a89c81}
-  .doc-meta b{color:#f3ecdc;font-weight:600}
-  .feature{display:flex;align-items:center;gap:16px;padding:24px 44px;border-bottom:1px solid #efe6d3}
-  .feature .ico{width:46px;height:46px;border-radius:13px;background:#f7efe0;display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
-  .feature h2{font-size:23px;font-weight:700;line-height:1.15;color:#211d16}
-  .feature p{color:#8c836d;font-size:12.5px;margin-top:5px;letter-spacing:.01em}
-  table{width:100%;border-collapse:collapse}
-  thead th{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#a89c81;text-align:left;padding:20px 44px 8px;font-weight:700}
-  thead th.c{text-align:center}thead th.r{text-align:right}
-  tbody td{padding:13px 44px;font-size:13.5px;border-top:1px solid #f3ecdd;color:#3a342a}
-  td.c{text-align:center}td.r{text-align:right;font-variant-numeric:tabular-nums}td.b{font-weight:700;color:#211d16}
-  tr.grp td{padding:18px 44px 6px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#b8902f;font-weight:800;border-top:0}
-  tr.grp+tr td{border-top:0}
-  .muted{color:#b3a994;font-weight:500;font-size:12px}
-  .summary{padding:14px 44px 6px;display:flex;flex-direction:column;align-items:flex-end}
-  .s-row{display:flex;justify-content:space-between;width:min(340px,100%);padding:10px 0;font-size:13px;color:#6f6755;border-top:1px solid #f3ecdd}
-  .s-row b{color:#26221b;font-weight:600;font-variant-numeric:tabular-nums}
-  .s-row b.cut{color:#3b6d11}
-  .s-grand{display:flex;justify-content:space-between;align-items:baseline;width:min(340px,100%);margin-top:12px;padding-top:18px;border-top:2px solid #211d16}
-  .s-grand span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#8c836d;font-weight:700}
-  .s-grand b{font-size:33px;font-weight:800;color:#211d16;font-variant-numeric:tabular-nums;line-height:1}
-  .s-grand b .u{font-size:17px;color:#b8902f;margin-left:3px}
-  .foot{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px;padding:22px 44px;background:#faf4e9;border-top:1px solid #efe6d3}
-  .foot .pm{font-size:12px;color:#6f6755;line-height:1.7}
-  .foot .pm b{color:#26221b;font-weight:600}
-  .stamp{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#b8902f;border:1.5px solid #dcb869;border-radius:9px;padding:9px 15px;transform:rotate(-4deg);white-space:nowrap;flex:none}
-  .thanks{text-align:center;font-style:italic;font-size:15px;color:#9a8f76;padding:20px}
-  .divider{max-width:880px;margin:34px auto 20px;display:flex;align-items:center;gap:18px;color:#9a8f76}
-  .divider::before,.divider::after{content:'';flex:1;height:1px}
-  .divider::before{background:linear-gradient(90deg,transparent,#c9bda1)}
-  .divider::after{background:linear-gradient(90deg,#c9bda1,transparent)}
-  .divider span{font-size:10px;letter-spacing:.28em;text-transform:uppercase;font-weight:700;white-space:nowrap}
-  .ticket{max-width:880px;margin:0 auto 22px;display:flex;background:#fffdf8;border-radius:18px;box-shadow:0 22px 54px rgba(40,34,22,.15);overflow:hidden;border:1px solid #ece3d0;position:relative}
-  .ticket::before{content:'';position:absolute;left:0;top:0;bottom:0;width:7px;background:linear-gradient(180deg,#e9cd80,#b8902f)}
-  .tk-main{flex:1;padding:28px 34px;min-width:0}
-  .tk-head{display:flex;align-items:center;gap:13px}
-  .tk-head .mono{width:40px;height:40px;border-radius:11px;font-size:22px}
-  .tk-brand{font-size:16px;font-weight:800;letter-spacing:.16em;line-height:1}
-  .tk-sub{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#a89c81;margin-top:4px}
-  .tk-no{margin-left:auto;font-size:28px;font-weight:800;color:#211d16}
-  .tk-no span{font-size:15px;color:#b3a994}
-  .tk-seat-row{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:22px 0 20px;padding-bottom:20px;border-bottom:1px dashed #ddd2bb}
-  .tk-k{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#a89c81;font-weight:700}
-  .tk-seat{font-size:50px;font-weight:900;line-height:.95;color:#211d16;margin-top:4px}
-  .tk-movie{font-size:15px;font-weight:700;text-transform:uppercase;text-align:right;color:#3a342a;letter-spacing:.01em;max-width:55%}
-  .tk-meta{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px}
-  .tk-meta dt{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#a89c81;font-weight:700}
-  .tk-meta dd{font-size:13px;font-weight:600;color:#26221b;margin-top:4px}
-  .tk-stub{width:218px;flex:none;padding:24px 22px;text-align:center;background:#faf4e9;display:flex;flex-direction:column;align-items:center;justify-content:center;border-left:2px dashed #d7ccb3;position:relative}
-  .tk-stub::before,.tk-stub::after{content:'';position:absolute;left:-12px;width:22px;height:22px;border-radius:50%;background:#efe8da}
-  .tk-stub::before{top:-11px}
-  .tk-stub::after{bottom:-11px}
-  .tk-stub-t{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:#a89c81;font-weight:700;margin-bottom:12px}
-  .tk-stub img{width:152px;height:152px;display:block}
-  .tk-code{font-family:'Courier New',monospace;font-size:9.5px;color:#8c836d;margin-top:11px;word-break:break-all;letter-spacing:.02em}
-  .tk-note{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#b8902f;font-weight:700;margin-top:9px}
-  @media print{
-    body{background:#fff;padding:0}
-    .bar,.divider{display:none}
-    .bill,.ticket{box-shadow:none;border-radius:0;max-width:100%;border:0;margin:0}
-    .ticket{break-before:page}
-    .ticket:first-of-type{break-before:auto}
-    .ticket::before{display:none}
-    .tk-stub::before,.tk-stub::after{background:#fff}
-  }
-</style></head>
-<body>
-  ${inv.isCheckIn ? '' : `
-  <div class="bar">
-    <button class="btn-print" onclick="window.print()">🖨 In vé / hoá đơn</button>
-    <button class="btn-close" onclick="window.close()">Đóng</button>
-  </div>
-  `}
-
-  ${inv.isCheckIn ? '' : `
-  <section class="bill">
-    <div class="bill-head">
-      <div class="brand">
-        <div class="mono serif">D</div>
-        <div>
-          <div class="brand-name">DEV<span class="g">CINE</span></div>
-          <div class="brand-tag">Cinema · Hệ thống rạp chiếu phim</div>
-        </div>
-      </div>
-      <div class="doc">
-        <div class="doc-t serif">Hoá Đơn</div>
-        <div class="doc-meta">
-          Số: <b>${bookingCode}</b><br/>
-          Ngày in: <b>${esc(printedAt)}</b><br/>
-          Nguồn: <b>${esc(inv.counter || 'POS · Lễ tân')}</b>
-        </div>
-      </div>
-    </div>
-
-    <div class="feature">
-      <div class="ico">🎬</div>
-      <div>
-        <h2 class="serif">${movie}</h2>
-        <p>${format} · ${room} · Suất ${esc(dateStr)}</p>
-      </div>
-    </div>
-
-    <table>
-      <thead><tr><th>Nội dung</th><th class="c">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead>
-      <tbody>${seatSection}${comboSection}</tbody>
-    </table>
-
-    <div class="summary">
-      <div class="s-row"><span>Tạm tính vé · ${seatCount} ghế</span><b>${fmt(seatTotal)}đ</b></div>
-      ${comboTotal > 0 ? `<div class="s-row"><span>Bắp nước &amp; combo</span><b>${fmt(comboTotal)}đ</b></div>` : ''}
-      <div class="s-row"><span>Số tiền được giảm</span><b class="${discount > 0 ? 'cut' : ''}">${discount > 0 ? '−' + fmt(discount) : '0'}đ</b></div>
-      <div class="s-grand"><span>Tổng thanh toán</span><b class="serif">${fmt(grandTotal)}<span class="u">đ</span></b></div>
-    </div>
-
-    <div class="foot">
-      <div class="pm">Phương thức: <b>${esc(inv.paymentLabel || '—')}</b>${memberLine}</div>
-      <div class="stamp">Đã thanh toán</div>
-    </div>
-    <div class="thanks serif">Cảm ơn quý khách & hẹn gặp lại tại DevCine</div>
-  </section>
-
-  <div class="divider"><span>Vé xem phim · ${tickets.length} vé</span></div>
-  `}
-
-  ${ticketSlips}
-</body></html>`
+export const paymentLabel = (m) => {
+  if (!m) return 'CASH'
+  const up = String(m).toUpperCase()
+  if (up === 'CASH') return 'CASH'
+  if (up === 'CARD') return 'CARD'
+  if (up === 'TRANSFER') return 'TRANSFER'
+  if (up === 'VNPAY') return 'VNPAY'
+  return m
 }
 
-// Mở hoá đơn ở tab mới. Trả về false nếu bị chặn pop-up.
+export const seatTypeLabel = (t) => {
+  if (!t) return 'Thường'
+  const up = String(t).toUpperCase()
+  if (up === 'NORMAL' || up === 'STANDARD') return 'Thường'
+  if (up === 'VIP') return 'VIP'
+  if (up === 'SWEETBOX' || up === 'COUPLE') return 'Sweetbox'
+  return t
+}
+
+export const ticketTypeLabel = (t) => {
+  if (!t) return 'Người lớn'
+  const up = String(t).toUpperCase()
+  if (up === 'ADULT') return 'Người lớn'
+  if (up === 'U22') return 'U22'
+  if (up === 'STUDENT') return 'HSSV'
+  if (up === 'CHILD') return 'Trẻ em'
+  if (up === 'SENIOR') return 'Cao tuổi'
+  return t
+}
+
+// Chuẩn hóa định dạng ngày giờ DD/MM/YYYY HH:mm
+const formatDateTime = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return String(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const formatDateOnly = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return String(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+const formatTimeOnly = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return String(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/**
+ * Xây dựng mã HTML hoàn chỉnh cho 2 phiếu in nhiệt K80
+ */
+export function buildInvoiceHtml(inv) {
+  const bookingCode = esc(inv.bookingCode || inv.saleCode || 'DEVCINE')
+  const now = new Date()
+  const printedAtStr = inv.printedAt ? formatDateTime(inv.printedAt) : formatDateTime(now)
+  const posTerminal = esc(inv.posTerminal || inv.counter || '01')
+  const cashierName = esc(inv.cashierName || inv.staffName || inv.checkedInBy || 'Nguyễn Quang Huy')
+  const cinemaName = esc(inv.cinemaName || 'DEVCINE CINEMA')
+  const cinemaAddress = esc(inv.cinemaAddress || 'Tầng 3, TTTM DevCine Plaza, Hà Nội')
+  const payMethod = paymentLabel(inv.paymentMethod)
+
+  // 1. Phân tích Dữ liệu Vé (Ticket Data)
+  const rawSeats = inv.seats || inv.seatList || []
+  const rawSeatRows = inv.seatRows || []
+  const hasTickets = Boolean(
+    rawSeats.length > 0 ||
+    rawSeatRows.length > 0 ||
+    inv.movieTitle ||
+    inv.movie ||
+    inv.showtimeStart ||
+    inv.startTime
+  )
+
+  let movieTitle = esc(inv.movieTitle || inv.movie || '')
+  const formatName = esc(inv.format || inv.formatName || '2D')
+  if (formatName && !movieTitle.toLowerCase().includes(formatName.toLowerCase())) {
+    movieTitle = `${movieTitle} (${formatName})`
+  }
+
+  const roomName = esc(inv.roomName || inv.room || 'PHÒNG 01')
+  const roomType = esc(inv.roomType || 'Standard')
+  const showDateStr = inv.showDate ? formatDateOnly(inv.showDate) : (inv.startTime ? formatDateOnly(inv.startTime) : (inv.showtimeStart ? formatDateOnly(inv.showtimeStart) : formatDateOnly(now)))
+  
+  let timeRangeStr = inv.timeRange || ''
+  if (!timeRangeStr) {
+    const stTime = inv.startTime || inv.showtimeStart
+    if (stTime) {
+      const st = formatTimeOnly(stTime)
+      if (inv.endTime) {
+        timeRangeStr = `${st} ~ ${formatTimeOnly(inv.endTime)}`
+      } else {
+        // Ước tính thời lượng 100-120p nếu không có endTime
+        const d = new Date(stTime)
+        const dEnd = new Date(d.getTime() + 100 * 60000)
+        timeRangeStr = `${st} ~ ${formatTimeOnly(dEnd)}`
+      }
+    } else {
+      timeRangeStr = '23:35 ~ 01:15'
+    }
+  }
+
+  // Danh sách ghế ngồi
+  let seatLabels = []
+  if (rawSeats.length > 0) {
+    seatLabels = rawSeats.map(s => typeof s === 'string' ? s : (s.seatLabel || s.label || s.seatNumber || ''))
+  } else if (rawSeatRows.length > 0) {
+    rawSeatRows.forEach(sr => {
+      if (sr.seats && Array.isArray(sr.seats)) {
+        seatLabels.push(...sr.seats)
+      } else if (sr.label) {
+        seatLabels.push(sr.label)
+      }
+    })
+  }
+
+  // Gom nhóm loại vé tính tiền
+  let ticketGroups = []
+  if (rawSeatRows.length > 0 && rawSeatRows[0].seats && !Array.isArray(rawSeatRows[0].seats)) {
+    // Trường hợp rawSeatRows đã được gom theo loại vé
+    ticketGroups = rawSeatRows.map(sr => ({
+      typeName: ticketTypeLabel(sr.seats || sr.ticketType || sr.label),
+      count: sr.count || 1,
+      unitPrice: Number(sr.unit || sr.price || 0),
+      subtotal: Number(sr.subtotal || (sr.unit || sr.price || 0) * (sr.count || 1))
+    }))
+  } else if (rawSeats.length > 0) {
+    const groupMap = {}
+    rawSeats.forEach(s => {
+      const type = ticketTypeLabel(s.ticketType || s.targetType || 'ADULT')
+      const price = Number(s.price || s.priceSnapshot || 0)
+      if (!groupMap[type]) {
+        groupMap[type] = { typeName: type, count: 0, unitPrice: price, subtotal: 0 }
+      }
+      groupMap[type].count += 1
+      groupMap[type].subtotal += price
+    })
+    ticketGroups = Object.values(groupMap)
+  }
+
+  const totalTicketCount = seatLabels.length || ticketGroups.reduce((a, b) => a + b.count, 0) || 1
+  const ticketSeatTotal = ticketGroups.reduce((a, b) => a + b.subtotal, 0) || Number(inv.seatTotal || 0)
+  const ticketDiscount = Number(inv.ticketDiscount || 0)
+  const totalTicketPrice = Math.max(0, ticketSeatTotal - ticketDiscount)
+
+  // 2. Phân tích Dữ liệu Bắp Nước (F&B Data)
+  const rawFnbs = inv.fnbs || inv.combos || []
+  const hasFnbs = Boolean(rawFnbs.length > 0)
+
+  // Danh sách món lẻ pha chế [1], [2]...
+  const prepItems = []
+  const comboGroups = []
+
+  if (hasFnbs) {
+    rawFnbs.forEach(f => {
+      const name = esc(f.name || f.itemName || f.itemNameSnapshot || '')
+      const qty = Number(f.quantity || 1)
+      const baseUnitPrice = Number(f.price || f.unitPrice || f.priceSnapshot || 0)
+      const options = f.options || []
+
+      let totalOptionSurcharge = 0
+      const optNames = []
+
+      // Nở danh sách món pha chế phục vụ quầy Pick-up
+      if (options.length > 0) {
+        options.forEach(opt => {
+          const optName = esc(opt.optionName || opt.optionNameSnapshot || opt.slotLabel || name)
+          const optSurcharge = Number(opt.surcharge || opt.surchargeSnapshot || 0)
+          totalOptionSurcharge += optSurcharge
+          if (opt.optionName || opt.optionNameSnapshot) {
+            optNames.push(opt.optionName || opt.optionNameSnapshot)
+          }
+
+          prepItems.push({
+            name: optName,
+            quantity: qty,
+            surcharge: optSurcharge // Chỉ lưu số tiền phụ thu
+          })
+        })
+      } else {
+        prepItems.push({
+          name: name,
+          quantity: qty,
+          surcharge: Number(f.surchargePrice || 0)
+        })
+      }
+
+      // Nhóm combo tính tiền (giá gốc combo + tổng phụ thu)
+      const comboSurcharge = Number(f.surchargePrice != null ? f.surchargePrice : totalOptionSurcharge)
+      const comboUnitPrice = baseUnitPrice + comboSurcharge
+      const comboLineTotal = Number(f.lineTotal != null ? f.lineTotal : (comboUnitPrice * qty))
+
+      let comboDisplayName = name
+      if (optNames.length > 0) {
+        comboDisplayName = `${name} (${optNames.join(' & ')})`
+      }
+
+      comboGroups.push({
+        name: comboDisplayName,
+        quantity: qty,
+        price: comboLineTotal
+      })
+    })
+  }
+
+  const totalComboCount = comboGroups.reduce((a, b) => a + b.quantity, 0)
+  const comboTotal = comboGroups.reduce((a, b) => a + b.price, 0) || Number(inv.comboTotal || 0)
+  const fnbDiscount = Number(inv.fnbDiscount || 0)
+  const totalFnbPrice = Math.max(0, comboTotal - fnbDiscount)
+
+  // 3. Xây dựng HTML Phiếu 1: Vé xem phim
+  let ticketSlipHtml = ''
+  if (hasTickets) {
+    const seatItemsHtml = seatLabels.map(s => `<tr><td class="bullet">&bull; Ghế: <b>${esc(s)}</b></td></tr>`).join('')
+    const ticketGroupRowsHtml = ticketGroups.map(g => `
+      <tr>
+        <td class="left">${esc(g.typeName)}</td>
+        <td class="center">${g.count}</td>
+        <td class="right">${fmt(g.subtotal)} đ</td>
+      </tr>
+    `).join('')
+
+    ticketSlipHtml = `
+      <section class="receipt-slip ticket-slip">
+        <div class="center bold title-brand">${cinemaName}</div>
+        <div class="center sub-brand">HỆ THỐNG RẠP CHIẾU PHIM</div>
+        <div class="center address">${cinemaAddress}</div>
+        <div class="empty-line"></div>
+        <div class="center bold doc-title">*** VÉ XEM PHIM ***</div>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <table class="meta-table">
+          <tr><td class="label">Mã đơn  :</td><td class="val bold">${bookingCode}</td></tr>
+          <tr><td class="label">Ngày in :</td><td class="val">${printedAtStr}</td></tr>
+          <tr><td class="label">Quầy/POS:</td><td class="val">${posTerminal}</td></tr>
+          <tr><td class="label">Thu ngân:</td><td class="val">${cashierName}</td></tr>
+        </table>
+        
+        <div class="line-double">================================================</div>
+        <div class="bold movie-line">PHIM: ${movieTitle}</div>
+        <table class="showtime-table">
+          <tr>
+            <td class="left">Suất: ${timeRangeStr}</td>
+            <td class="right">Ngày: ${showDateStr}</td>
+          </tr>
+        </table>
+        <div class="room-line">Phòng: ${roomName} (${roomType})</div>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <div class="bold seat-title">DANH SÁCH GHẾ:</div>
+        <table class="seat-list-table">
+          ${seatItemsHtml}
+        </table>
+        
+        <div class="line-double">================================================</div>
+        <div class="bold group-title">${totalTicketCount} VÉ</div>
+        <table class="data-table">
+          ${ticketGroupRowsHtml}
+        </table>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <table class="calc-table">
+          <tr>
+            <td class="left">Giảm giá:</td>
+            <td class="right">${fmt(ticketDiscount)} đ</td>
+          </tr>
+        </table>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <table class="total-table">
+          <tr>
+            <td class="left bold uppercase">TỔNG TIỀN VÉ:</td>
+            <td class="right bold price-val">${fmt(totalTicketPrice)} đ</td>
+          </tr>
+          <tr>
+            <td class="left">Hình thức: ${payMethod}</td>
+            <td class="right bold">[ĐÃ THANH TOÁN]</td>
+          </tr>
+        </table>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <div class="center bold qr-header">MÃ QR</div>
+        <div class="center qr-box">
+          <img class="qr-img" src="${qrUrl(bookingCode)}" alt="${bookingCode}" />
+        </div>
+        <div class="center mono bold code-under-qr">${bookingCode}</div>
+        <div class="empty-line"></div>
+        <div class="center thanks-msg">Cảm ơn quý khách &amp; Hẹn gặp lại!</div>
+        <div class="line-double">================================================</div>
+      </section>
+    `
+  }
+
+  // 4. Xây dựng HTML Phiếu 2: Phiếu nhận bắp nước [PICK-UP]
+  let fnbSlipHtml = ''
+  if (hasFnbs) {
+    const prepItemsRowsHtml = prepItems.map((item, idx) => `
+      <tr>
+        <td class="left">[${idx + 1}] ${esc(item.name)}</td>
+        <td class="center">${item.quantity}</td>
+        <td class="right">${item.surcharge > 0 ? `${fmt(item.surcharge)} đ` : ''}</td>
+      </tr>
+    `).join('')
+
+    const comboGroupRowsHtml = comboGroups.map(g => `
+      <tr>
+        <td class="left">${esc(g.name)}</td>
+        <td class="center">${g.quantity}</td>
+        <td class="right">${fmt(g.price)} đ</td>
+      </tr>
+    `).join('')
+
+    fnbSlipHtml = `
+      <section class="receipt-slip fnb-slip">
+        <div class="center bold title-brand">${cinemaName}</div>
+        <div class="center sub-brand">QUẦY BẮP NƯỚC (F&amp;B)</div>
+        <div class="center address">${cinemaAddress}</div>
+        <div class="empty-line"></div>
+        <div class="center bold doc-title">*** PHIẾU NHẬN HÀNG ***</div>
+        <div class="center bold sub-doc-title">[PICK-UP]</div>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <table class="meta-table">
+          <tr><td class="label">Mã đơn  :</td><td class="val bold">${bookingCode}</td></tr>
+          <tr><td class="label">Ngày in :</td><td class="val">${printedAtStr}</td></tr>
+          <tr><td class="label">Quầy/POS:</td><td class="val">${posTerminal}</td></tr>
+          <tr><td class="label">Thu ngân:</td><td class="val">${cashierName}</td></tr>
+        </table>
+        
+        <div class="line-double">================================================</div>
+        <table class="data-table prep-table">
+          ${prepItemsRowsHtml}
+        </table>
+        
+        <div class="line-double">================================================</div>
+        <div class="bold group-title">${totalComboCount} COMBO</div>
+        <table class="data-table">
+          ${comboGroupRowsHtml}
+        </table>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <table class="calc-table">
+          <tr>
+            <td class="left">Giảm giá:</td>
+            <td class="right">${fmt(fnbDiscount)} đ</td>
+          </tr>
+        </table>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <table class="total-table">
+          <tr>
+            <td class="left bold uppercase">TỔNG TIỀN F&amp;B:</td>
+            <td class="right bold price-val">${fmt(totalFnbPrice)} đ</td>
+          </tr>
+          <tr>
+            <td class="left">Hình thức: ${payMethod}</td>
+            <td class="right bold">[ĐÃ THANH TOÁN]</td>
+          </tr>
+        </table>
+        <div class="line-single">------------------------------------------------</div>
+        
+        <div class="center bold qr-header">MÃ QR</div>
+        <div class="center qr-box">
+          <img class="qr-img" src="${qrUrl(bookingCode)}" alt="${bookingCode}" />
+        </div>
+        <div class="center mono bold code-under-qr">${bookingCode}</div>
+        <div class="empty-line"></div>
+        <div class="center pickup-instruction">
+          (Vui lòng đưa phiếu này tại quầy Pick-up để<br/>
+          nhận bắp &amp; nước)
+        </div>
+        <div class="line-double">================================================</div>
+      </section>
+    `
+  }
+
+  // Kết hợp cả 2 phiếu
+  return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phiếu in ${bookingCode} — DevCine</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Courier Prime', 'Courier New', Consolas, monospace;
+      background: #333333;
+      color: #000;
+      font-size: 13px;
+      line-height: 1.35;
+      padding: 20px 10px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .receipt-container {
+      max-width: 440px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .receipt-slip {
+      width: 100%;
+      background: #fff;
+      padding: 24px 30px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+      border-radius: 4px;
+    }
+
+    /* Các định dạng văn bản căn lề */
+    .center { text-align: center; }
+    .left { text-align: left; }
+    .right { text-align: right; }
+    .bold { font-weight: 700; }
+    .uppercase { text-transform: uppercase; }
+    .mono { font-family: 'Courier Prime', 'Courier New', Consolas, monospace; }
+
+    .title-brand {
+      font-size: 16px;
+      letter-spacing: 0.5px;
+    }
+    .sub-brand {
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .address {
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .doc-title {
+      font-size: 15px;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+    .sub-doc-title {
+      font-size: 13px;
+      margin-top: 2px;
+    }
+    .empty-line {
+      height: 8px;
+    }
+
+    .line-single, .line-double {
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: -0.5px;
+      overflow: hidden;
+      white-space: nowrap;
+      margin: 4px 0;
+      color: #111;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    td {
+      padding: 2px 0;
+      font-size: 12.5px;
+      vertical-align: top;
+    }
+
+    .meta-table td.label {
+      width: 85px;
+      white-space: nowrap;
+    }
+    .meta-table td.val {
+      padding-left: 6px;
+    }
+
+    .movie-line {
+      font-size: 13.5px;
+      margin: 3px 0 2px 0;
+    }
+    .showtime-table td {
+      font-size: 12.5px;
+    }
+    .room-line {
+      font-size: 12.5px;
+      margin-top: 2px;
+    }
+
+    .seat-title {
+      font-size: 13px;
+      margin: 4px 0 2px 0;
+    }
+    .seat-list-table td.bullet {
+      padding-left: 80px;
+      font-size: 13px;
+    }
+
+    .group-title {
+      font-size: 13px;
+      margin: 3px 0 2px 0;
+    }
+
+    .data-table td.left { width: 58%; }
+    .data-table td.center { width: 14%; text-align: center; }
+    .data-table td.right { width: 28%; text-align: right; }
+
+    .calc-table td, .total-table td {
+      font-size: 13px;
+      padding: 3px 0;
+    }
+    .price-val {
+      font-size: 14px;
+    }
+
+    .qr-header {
+      font-size: 13px;
+      letter-spacing: 2px;
+      margin-top: 6px;
+    }
+    .qr-box {
+      margin: 6px 0;
+    }
+    .qr-img {
+      width: 140px;
+      height: 140px;
+      display: inline-block;
+      image-rendering: pixelated;
+    }
+    .code-under-qr {
+      font-size: 13px;
+      letter-spacing: 1px;
+    }
+    .thanks-msg {
+      font-size: 12.5px;
+      margin-top: 6px;
+    }
+    .pickup-instruction {
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+
+    /* Print Rules for 80mm Thermal Printer */
+    @media print {
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
+      
+      html, body {
+        width: 80mm;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        font-size: 12px;
+      }
+
+      .receipt-container {
+        max-width: 100%;
+        margin: 0;
+        gap: 0;
+      }
+
+      .receipt-slip {
+        width: 100%;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 6mm 7mm;
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .receipt-slip:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      
+      .seat-list-table td.bullet {
+        padding-left: 20mm;
+      }
+    }
+  </style>
+</head>
+<body onload="window.print()">
+  <main class="receipt-container">
+    ${ticketSlipHtml}
+    ${fnbSlipHtml}
+  </main>
+</body>
+</html>`
+}
+
+/**
+ * Mở cửa sổ in hoá đơn/vé giấy ở tab mới
+ */
 export function openInvoice(inv) {
   const win = window.open('', '_blank')
   if (!win) return false

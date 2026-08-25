@@ -220,13 +220,21 @@ public class TicketService {
         String memberName = booking.getCustomer() != null && booking.getCustomer().getUser() != null
                 ? booking.getCustomer().getUser().getFullName() : null;
 
+        Staff staff = currentStaffOrNull();
+        String cashierName = (booking.getPrintedBy() != null && booking.getPrintedBy().getUser() != null)
+                ? booking.getPrintedBy().getUser().getFullName()
+                : (staff != null && staff.getUser() != null ? staff.getUser().getFullName() : "Nguyễn Quang Huy");
+
         return new BookingPrintResponse(
                 booking.getBookingCode(),
                 showtime != null && showtime.getMovie() != null ? showtime.getMovie().getTitle() : "Phim",
-                cinema != null ? cinema.getName() : "",
+                cinema != null && cinema.getName() != null ? cinema.getName() : "DEVCINE CINEMA",
+                cinema != null && cinema.getAddress() != null ? cinema.getAddress() : "Tầng 3, TTTM DevCine Plaza, Hà Nội",
                 room != null ? room.getName() : "",
+                room != null && room.getType() != null ? room.getType() : "Standard",
                 format,
                 showtime != null ? showtime.getStartTime() : null,
+                showtime != null ? showtime.getEndTime() : null,
                 booking.getPaymentMethod(),
                 total,
                 fin,
@@ -236,6 +244,7 @@ public class TicketService {
                 seatLines,
                 fnbLines,
                 booking.getPrintedAt(),
+                cashierName,
                 requiresStudentVerification);
     }
 

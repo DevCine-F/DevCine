@@ -139,35 +139,34 @@ const detailCheckedIn = computed(() => (detail.value?.tickets || []).filter(t =>
 const detailTicketCount = computed(() => (detail.value?.tickets || []).length)
 
 const buildInv = (d) => {
-  const groups = {}
-  for (const s of (d.seats || [])) {
-    const key = s.seatType || 'NORMAL'
-    if (!groups[key]) groups[key] = { label: seatTypeLabel(key), seats: [], count: 0, subtotal: 0 }
-    groups[key].seats.push(s.label)
-    groups[key].count++
-    groups[key].subtotal += Number(s.price || 0)
-  }
-  const seatRows = Object.values(groups).map(g => ({
-    label: g.label, seats: g.seats.join(', '), count: g.count,
-    unit: g.count ? g.subtotal / g.count : 0, subtotal: g.subtotal
-  }))
-  const dateStr = d.showtimeStart
-    ? new Date(d.showtimeStart).toLocaleString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : ''
   return {
-    bookingCode: d.bookingCode, movie: d.movieTitle, room: d.roomName, format: d.formatName,
-    dateStr, counter: d.channel || 'Quản trị',
-    seatRows,
-    combos: (d.fnbs || []).map(f => ({ name: f.name, quantity: f.quantity, price: Number(f.price || 0) })),
-    seatTotal: seatRows.reduce((a, g) => a + g.subtotal, 0),
-    comboTotal: (d.fnbs || []).reduce((a, f) => a + Number(f.price || 0) * f.quantity, 0),
-    discount: Math.max(0, Number(d.totalPrice || 0) - Number(d.finalPrice || 0)),
-    grandTotal: Number(d.finalPrice || 0),
-    seatCount: (d.seats || []).length,
-    paymentLabel: paymentLabel(d.paymentMethod),
+    bookingCode: d.bookingCode,
+    movieTitle: d.movieTitle,
+    format: d.formatName || '2D',
+    roomName: d.roomName,
+    roomType: 'Standard',
+    startTime: d.showtimeStart,
+    posTerminal: '01',
+    cashierName: d.checkedInBy || 'Nguyễn Quang Huy',
+    cinemaName: 'DEVCINE CINEMA',
+    cinemaAddress: 'Tầng 3, TTTM DevCine Plaza, Hà Nội',
+    printedAt: d.checkedInAt || new Date(),
+    seats: (d.seats || []).map(s => ({
+      seatLabel: s.label,
+      ticketType: s.ticketType || 'ADULT',
+      price: Number(s.price || 0)
+    })),
+    fnbs: (d.fnbs || []).map(f => ({
+      name: f.name,
+      quantity: f.quantity,
+      price: Number(f.unitPrice || f.price || 0),
+      options: f.options || []
+    })),
+    paymentMethod: d.paymentMethod,
+    ticketDiscount: Number(d.discountAmount || 0),
+    fnbDiscount: 0,
     memberName: d.customerName && d.customerName !== 'Khách tại quầy' ? d.customerName : null,
-    memberTier: d.membershipTier,
-    tickets: d.tickets || []
+    memberTier: d.membershipTier
   }
 }
 
