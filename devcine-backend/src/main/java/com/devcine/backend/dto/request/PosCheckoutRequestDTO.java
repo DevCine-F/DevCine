@@ -1,5 +1,6 @@
 package com.devcine.backend.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -26,6 +27,7 @@ public class PosCheckoutRequestDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class PosFnbItemDTO {
+        @JsonAlias({"fnbItemId", "itemId", "id", "fnbId"})
         @NotNull(message = "ItemId không được để trống")
         private Integer itemId;
 

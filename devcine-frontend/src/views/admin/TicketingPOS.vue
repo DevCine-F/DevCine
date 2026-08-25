@@ -761,7 +761,12 @@ const processConcessionPayment = async (method) => {
   isPaying.value = true
   try {
     const payload = {
-      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
+      fnbs: selectedCombos.value.map(c => ({
+        itemId: c.id,
+        fnbItemId: c.id,
+        quantity: c.quantity,
+        options: c.options || []
+      })),
       customerId: member.value ? member.value.customerId : null,
       paymentMethod: method,
     }
