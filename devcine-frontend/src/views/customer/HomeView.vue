@@ -416,6 +416,17 @@ const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 
                @mouseleave="restartSneakAutoSlide"
                @touchstart="onSneakTouchStart"
                @touchend="onSneakTouchEnd">
+
+        <!-- Tiêu đề Section chuẩn phong cách đồng bộ -->
+        <div class="text-center mb-10 md:mb-12">
+          <span class="text-primary-container font-headline text-sm font-bold tracking-[0.3em] uppercase mb-2 block">
+            ĐẶC QUYỀN DEVCINE
+          </span>
+          <h2 class="font-headline text-4xl md:text-5xl font-black tracking-tighter uppercase text-white">
+            SUẤT CHIẾU SỚM
+          </h2>
+        </div>
+
         <div class="relative w-full rounded-2xl overflow-hidden bg-black/50 backdrop-blur-xl shadow-2xl border border-white/10 glass-card">
           <!-- Slider Track -->
           <div class="flex transition-transform duration-700 ease-out"
