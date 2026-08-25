@@ -215,30 +215,9 @@ onMounted(async () => {
     fetchCinemas
   ])
 
-  const savedCity = localStorage.getItem('devcine_preferred_city') || ''
-  const savedCinemaId = localStorage.getItem('devcine_preferred_cinema_id') || ''
-
-  if (savedCity && store.cities.includes(savedCity)) {
-    store.selectedCity = savedCity
-  } else if (store.cities.length > 0) {
-    store.selectedCity = store.cities.includes('TP. Hồ Chí Minh') ? 'TP. Hồ Chí Minh' : store.cities[0]
-    localStorage.setItem('devcine_preferred_city', store.selectedCity)
-  }
-
-  if (savedCinemaId) {
-    const cinemaExists = allCinemas.value.find(c => c.id == savedCinemaId && c.city === store.selectedCity)
-    if (cinemaExists) {
-      selectedCinemaId.value = cinemaExists.id
-    }
-  }
-  
-  if (!selectedCinemaId.value) {
-    const cityCinemas = allCinemas.value.filter(c => c.city === store.selectedCity)
-    if (cityCinemas.length > 0) {
-      selectedCinemaId.value = cityCinemas[0].id
-      localStorage.setItem('devcine_preferred_cinema_id', selectedCinemaId.value)
-    }
-  }
+  // Mặc định tự động: Toàn quốc (city = '') và Tất cả rạp (cinemaId = '')
+  store.selectedCity = ''
+  selectedCinemaId.value = ''
 
   await store.fetchShowtimes(movieId, store.selectedCity)
   
@@ -256,27 +235,14 @@ onMounted(async () => {
 
 const onCityChange = async () => {
   const movieId = route.params.id || 1
-  localStorage.setItem('devcine_preferred_city', store.selectedCity)
+  // Khi đổi tỉnh/thành, tự động đặt lại là Tất cả rạp của tỉnh/thành đó
   selectedCinemaId.value = ''
-  localStorage.removeItem('devcine_preferred_cinema_id')
-
-  const cityCinemas = allCinemas.value.filter(c => c.city === store.selectedCity)
-  if (cityCinemas.length > 0) {
-    selectedCinemaId.value = cityCinemas[0].id
-    localStorage.setItem('devcine_preferred_cinema_id', selectedCinemaId.value)
-  }
 
   await store.fetchShowtimes(movieId, store.selectedCity)
   if (uniqueDates.value.length > 0 && !uniqueDates.value.includes(activeDateStr.value)) {
      activeDateStr.value = uniqueDates.value[0]
   }
 }
-
-watch(selectedCinemaId, (newId) => {
-  if (newId) {
-    localStorage.setItem('devcine_preferred_cinema_id', newId)
-  }
-})
 
 const openTrailer = () => { showTrailer.value = true }
 
