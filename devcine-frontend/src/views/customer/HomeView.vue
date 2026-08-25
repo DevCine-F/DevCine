@@ -411,11 +411,17 @@ const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 
       </section>
 
       <!-- Special Screenings Section (Sneak Previews) -->
-      <section v-if="sneakPreviews.length" class="mt-20 relative group/sneak"
+      <section v-if="sneakPreviews.length" class="mt-16 md:mt-24 relative group/sneak"
                @mouseenter="pauseSneakAutoSlide"
                @mouseleave="restartSneakAutoSlide"
                @touchstart="onSneakTouchStart"
                @touchend="onSneakTouchEnd">
+
+        <!-- Đường kẻ mờ phân tách (Divider) với ánh kim trung tâm -->
+        <div class="mb-16 md:mb-20 flex items-center justify-center relative">
+          <div class="w-full h-[1px] bg-gradient-to-r from-transparent via-white/15 to-transparent"></div>
+          <div class="absolute w-32 md:w-48 h-[1px] bg-gradient-to-r from-transparent via-primary-container/60 to-transparent blur-[0.5px]"></div>
+        </div>
 
         <!-- Tiêu đề Section chuẩn phong cách đồng bộ -->
         <div class="text-center mb-10 md:mb-12">
