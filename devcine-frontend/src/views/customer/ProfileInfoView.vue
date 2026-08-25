@@ -187,15 +187,15 @@ const tierInfo = computed(() => {
 <template>
   <div class="space-y-10">
     <!-- Loading State -->
-    <div v-if="isLoading" class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-6 animate-pulse">
-      <div class="lg:col-span-7 h-[320px] bg-surface-container-low rounded-3xl border border-white/5"></div>
-      <div class="lg:col-span-5 h-[320px] bg-surface-container-low rounded-3xl border border-white/5"></div>
+    <div v-if="isLoading" class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-6 animate-pulse items-start">
+      <div class="lg:col-span-7 h-[240px] bg-surface-container-low rounded-3xl border border-white/5"></div>
+      <div class="lg:col-span-5 h-[460px] bg-surface-container-low rounded-3xl border border-white/5"></div>
     </div>
 
     <!-- Loaded State -->
-    <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+    <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       <!-- Profile Details Card -->
-      <div class="lg:col-span-7 bg-surface-container-low border border-outline-variant/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between">
+      <div class="lg:col-span-7 bg-surface-container-low border border-outline-variant/10 rounded-3xl p-8 relative overflow-hidden flex flex-col transition-all duration-300">
         <!-- Decoration background glow -->
         <div class="absolute -top-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
         
@@ -240,25 +240,29 @@ const tierInfo = computed(() => {
           </div>
         </div>
 
-        <!-- Edit Form -->
-        <div v-if="isEditing" class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Họ và tên</label>
-            <input v-model="editForm.fullName" type="text" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="Họ và tên" />
+        <!-- Edit Form with Expansion Animation -->
+        <Transition name="expand">
+          <div v-if="isEditing" class="mt-6 pt-6 border-t border-outline-variant/10">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Họ và tên</label>
+                <input v-model="editForm.fullName" type="text" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="Họ và tên" />
+              </div>
+              <div>
+                <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Email</label>
+                <input v-model="editForm.email" type="email" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="email@devcine.com" />
+              </div>
+              <div>
+                <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Số điện thoại</label>
+                <input v-model="editForm.phone" type="tel" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="0912345678" />
+              </div>
+              <div>
+                <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Ngày sinh</label>
+                <input v-model="editForm.dob" type="date" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Email</label>
-            <input v-model="editForm.email" type="email" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="email@devcine.com" />
-          </div>
-          <div>
-            <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Số điện thoại</label>
-            <input v-model="editForm.phone" type="tel" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="0912345678" />
-          </div>
-          <div>
-            <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Ngày sinh</label>
-            <input v-model="editForm.dob" type="date" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" />
-          </div>
-        </div>
+        </Transition>
 
         <div class="mt-6 pt-4 border-t border-outline-variant/10 flex justify-between items-center">
           <div class="flex items-center gap-2 text-xs text-on-surface-variant">
@@ -266,12 +270,12 @@ const tierInfo = computed(() => {
             <p>Tài khoản cá nhân được liên kết an toàn</p>
           </div>
           <div class="flex gap-2">
-            <button v-if="!isEditing" @click="isEditing = true" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-white">
+            <button v-if="!isEditing" @click="isEditing = true" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-white cursor-pointer">
               <span class="material-symbols-outlined text-sm">edit</span> Chỉnh sửa
             </button>
             <template v-else>
-              <button @click="isEditing = false" class="text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant">Huỷ</button>
-              <button @click="handleSaveProfile" :disabled="isSaving" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 bg-primary-container text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60">
+              <button @click="isEditing = false" class="text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant cursor-pointer">Huỷ</button>
+              <button @click="handleSaveProfile" :disabled="isSaving" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 bg-primary-container text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60 cursor-pointer">
                 <span v-if="isSaving" class="material-symbols-outlined text-sm animate-spin">autorenew</span>
                 <span v-else class="material-symbols-outlined text-sm">save</span>
                 {{ isSaving ? 'Đang lưu...' : 'Lưu' }}
@@ -425,5 +429,23 @@ const tierInfo = computed(() => {
 }
 .animate-slide-in {
   animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  max-height: 300px;
+  overflow: hidden;
+  opacity: 1;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  padding-top: 0;
+  border-top-color: transparent;
+  overflow: hidden;
 }
 </style>
