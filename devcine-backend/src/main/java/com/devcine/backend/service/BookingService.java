@@ -665,8 +665,12 @@ public class BookingService {
 
         // Tạo thông báo "đặt vé thành công" cho khách hàng
         if (booking.getCustomer() != null) {
-            String movieTitle = booking.getShowtime() != null && booking.getShowtime().getMovie() != null
-                    ? booking.getShowtime().getMovie().getTitle() : "phim";
+            String movieTitle = "phim";
+            try {
+                if (booking.getShowtime() != null && booking.getShowtime().getMovie() != null) {
+                    movieTitle = booking.getShowtime().getMovie().getTitle();
+                }
+            } catch (Exception ignored) {}
             notificationService.notifyCustomer(
                     booking.getCustomer().getUserId(),
                     "Đặt vé thành công",
@@ -693,22 +697,31 @@ public class BookingService {
             }
 
             Showtime showtime = booking.getShowtime();
-            Movie movie = showtime != null ? showtime.getMovie() : null;
-            Room room = showtime != null ? showtime.getRoom() : null;
-            Cinema cinema = room != null ? room.getCinema() : null;
+            Movie movie = null;
+            Room room = null;
+            Cinema cinema = null;
+            try {
+                if (showtime != null) {
+                    movie = showtime.getMovie();
+                    room = showtime.getRoom();
+                    cinema = room != null ? room.getCinema() : null;
+                }
+            } catch (Exception e) {
+                log.warn("Không thể nạp thông tin phòng/rạp/phim từ showtime cho email: {}", e.getMessage());
+            }
 
             List<TicketEmailData.SeatLine> seatLines = new java.util.ArrayList<>();
             for (int i = 0; i < seats.size(); i++) {
                 BookingSeat bs = seats.get(i);
                 Seat seat = bs.getSeat();
-                String label = seat.displayLabel();
+                String label = seat != null ? seat.displayLabel() : "Ghế";
                 seatLines.add(new TicketEmailData.SeatLine(label, bs.getTicketType(), tickets.get(i).getQrCode()));
             }
 
             List<TicketEmailData.FnbLine> fnbLines = new java.util.ArrayList<>();
             for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
                 // Ưu tiên snapshot; fallback FK cho đơn cũ trước khi có cột snapshot.
-                String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
+                String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : (bf.getFnbItem() != null ? bf.getFnbItem().getName() : "F&B");
                 fnbLines.add(new TicketEmailData.FnbLine(name, bf.getQuantity()));
             }
 
