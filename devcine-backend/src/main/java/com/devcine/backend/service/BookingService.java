@@ -577,7 +577,7 @@ public class BookingService {
     /** Overload có mã đối soát cổng thanh toán (VNPAY vnp_TransactionNo). null = tiền mặt/không có. */
     @Transactional
     public void completePayment(Integer bookingId, String paymentMethod, String paymentRef) {
-        Booking booking = bookingRepository.findById(bookingId)
+        Booking booking = bookingRepository.findDetailById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
 
         if ("CONFIRMED".equals(booking.getStatus())) {
