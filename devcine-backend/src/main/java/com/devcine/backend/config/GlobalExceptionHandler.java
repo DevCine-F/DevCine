@@ -48,6 +48,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(ApiResponse.fail(message), HttpStatus.CONFLICT);
     }
 
+    /** Vi phạm toàn vẹn dữ liệu DB (vd: trùng số điện thoại / email do ghi đồng thời) → 409. */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        String rootMsg = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
+        if (rootMsg != null && (rootMsg.contains("uk_users_phone") || rootMsg.contains("users_phone"))) {
+            return new ResponseEntity<>(ApiResponse.fail("Số điện thoại này đã tồn tại trong hệ thống. Vui lòng kiểm tra lại."), HttpStatus.CONFLICT);
+        }
+        if (rootMsg != null && rootMsg.contains("users_email_key")) {
+            return new ResponseEntity<>(ApiResponse.fail("Email này đã được sử dụng bởi tài khoản khác."), HttpStatus.CONFLICT);
+        }
+        return new ResponseEntity<>(ApiResponse.fail("Dữ liệu bị trùng lặp hoặc vi phạm ràng buộc hệ thống."), HttpStatus.CONFLICT);
+    }
+
     /**
      * URL không khớp handler nào → 404. Không có handler riêng thì nó rơi vào
      * {@link #handleAllExceptions} và thành 500 "Lỗi hệ thống nội bộ" — gõ nhầm địa chỉ
