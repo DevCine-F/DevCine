@@ -249,4 +249,14 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Integer> {
     @Query("SELECT DISTINCT s.movie.id FROM Showtime s " +
            "WHERE s.status = 'Xuất chiếu sớm' AND s.startTime >= :now")
     java.util.Set<Integer> findMovieIdsWithEarlyScreening(@Param("now") LocalDateTime now);
+
+    /**
+     * Lấy toàn bộ các suất chiếu sớm còn hiệu lực cùng với thông tin phim, rạp và phòng.
+     * Dùng cho khung Banner Sneak Preview trang chủ.
+     */
+    @Query("SELECT DISTINCT s FROM Showtime s JOIN FETCH s.movie m LEFT JOIN FETCH m.genres JOIN FETCH s.room r JOIN FETCH r.cinema c JOIN FETCH s.format f " +
+           "WHERE s.status = 'Xuất chiếu sớm' AND s.startTime >= :now AND (c.status IS NULL OR c.status = 'ACTIVE') " +
+           "ORDER BY s.startTime ASC")
+    List<Showtime> findActiveEarlyShowtimes(@Param("now") LocalDateTime now);
 }
+

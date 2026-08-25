@@ -5,6 +5,7 @@ import com.devcine.backend.dto.response.CinemaShowtimeDTO;
 import com.devcine.backend.dto.response.MovieCardDTO;
 import com.devcine.backend.dto.response.PublicShowtimeDTO;
 import com.devcine.backend.dto.response.ShowtimeDTO;
+import com.devcine.backend.dto.response.SneakPreviewDTO;
 import com.devcine.backend.dto.request.ShowtimeRequest;
 import com.devcine.backend.service.ShowtimeService;
 import jakarta.validation.Valid;
@@ -24,10 +25,16 @@ public class ShowtimeController {
 
     private final ShowtimeService showtimeService;
 
+    @GetMapping("/sneak-previews")
+    public ResponseEntity<ApiResponse<List<SneakPreviewDTO>>> getSneakPreviews() {
+        return ResponseEntity.ok(ApiResponse.ok(showtimeService.getSneakPreviews()));
+    }
+
     @GetMapping("/cities")
     public ResponseEntity<ApiResponse<List<String>>> getAllCities() {
         return ResponseEntity.ok(ApiResponse.ok(showtimeService.getAllCities()));
     }
+
 
     @GetMapping("/upcoming")
     public ResponseEntity<ApiResponse<List<PublicShowtimeDTO>>> getAllUpcomingShowtimes() {

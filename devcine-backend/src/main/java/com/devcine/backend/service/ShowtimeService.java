@@ -17,6 +17,7 @@ import com.devcine.backend.repository.SeatRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.dto.response.MovieCardDTO;
 import com.devcine.backend.dto.response.PublicShowtimeDTO;
+import com.devcine.backend.dto.response.SneakPreviewDTO;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import com.devcine.backend.dto.projection.ShowtimePublicProjection;
@@ -49,6 +50,115 @@ public class ShowtimeService {
     public List<String> getAllCities() {
         return cinemaRepository.findAllCities();
     }
+
+    /**
+     * Lấy danh sách các phim sắp chiếu có suất chiếu sớm đang mở bán
+     * kèm tóm tắt ngày, giờ, rạp để phục vụ banner/slider Sneak Preview trang chủ.
+     */
+    public List<SneakPreviewDTO> getSneakPreviews() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Showtime> earlyShowtimes = showtimeRepository.findActiveEarlyShowtimes(now);
+        if (earlyShowtimes.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Gom nhóm theo Movie ID (giữ thứ tự xuất hiện)
+        Map<Integer, List<Showtime>> showtimesByMovie = earlyShowtimes.stream()
+                .collect(Collectors.groupingBy(s -> s.getMovie().getId(), LinkedHashMap::new, Collectors.toList()));
+
+        List<SneakPreviewDTO> result = new ArrayList<>();
+        DateTimeFormatter dotDateFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+        DateTimeFormatter shortDateFormat = DateTimeFormatter.ofPattern("dd.MM");
+        DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("HH:mm");
+
+        long totalActiveCinemas = cinemaRepository.count();
+
+        for (Map.Entry<Integer, List<Showtime>> entry : showtimesByMovie.entrySet()) {
+            List<Showtime> list = entry.getValue();
+            if (list.isEmpty()) continue;
+
+            Movie m = list.get(0).getMovie();
+
+            // Tập hợp ngày chiếu sớm (đã sort)
+            List<LocalDate> dates = list.stream()
+                    .map(s -> s.getStartTime().toLocalDate())
+                    .distinct()
+                    .sorted()
+                    .toList();
+
+            String formattedDates = "";
+            String defaultDate = "";
+            if (!dates.isEmpty()) {
+                defaultDate = dates.get(0).toString(); // yyyy-MM-dd
+                if (dates.size() == 1) {
+                    formattedDates = dates.get(0).format(dotDateFormat);
+                } else {
+                    LocalDate first = dates.get(0);
+                    LocalDate last = dates.get(dates.size() - 1);
+                    if (first.getYear() == last.getYear()) {
+                        formattedDates = first.format(shortDateFormat) + " - " + last.format(dotDateFormat);
+                    } else {
+                        formattedDates = first.format(dotDateFormat) + " - " + last.format(dotDateFormat);
+                    }
+                }
+            }
+
+            // Tập hợp khung giờ mẫu (lấy các giờ bắt đầu distinct)
+            List<String> distinctTimes = list.stream()
+                    .map(s -> s.getStartTime().format(timeFormat))
+                    .distinct()
+                    .sorted()
+                    .toList();
+
+            String formattedTimes = "";
+            if (!distinctTimes.isEmpty()) {
+                if (distinctTimes.size() <= 3) {
+                    formattedTimes = String.join(" & ", distinctTimes);
+                } else {
+                    formattedTimes = distinctTimes.get(0) + " - " + distinctTimes.get(distinctTimes.size() - 1) + " (" + distinctTimes.size() + " khung giờ)";
+                }
+            }
+
+            // Tập hợp cụm rạp
+            Set<String> cinemaNames = list.stream()
+                    .map(s -> s.getRoom().getCinema().getName())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+
+            String locationSummary = "Toàn hệ thống";
+            if (cinemaNames.size() == 1) {
+                locationSummary = cinemaNames.iterator().next();
+            } else if (cinemaNames.size() >= 3 || (totalActiveCinemas > 0 && cinemaNames.size() >= totalActiveCinemas)) {
+                locationSummary = "Toàn hệ thống (" + cinemaNames.size() + " cụm rạp)";
+            } else {
+                locationSummary = String.join(", ", cinemaNames);
+            }
+
+            Set<String> genreNames = m.getGenres() == null ? Collections.emptySet() :
+                    m.getGenres().stream().map(com.devcine.backend.entity.Category::getName).collect(Collectors.toSet());
+
+            result.add(SneakPreviewDTO.builder()
+                    .movieId(m.getId())
+                    .title(m.getTitle())
+                    .titleVietnamese(m.getTitleVietnamese())
+                    .posterUrl(m.getPosterUrl())
+                    .bannerUrl(m.getBannerUrl())
+                    .description(m.getDescription())
+                    .durationMins(m.getDurationMins())
+                    .ageRating(m.getAgeRating())
+                    .releaseDate(m.getReleaseDate())
+                    .genres(genreNames)
+                    .formattedDates(formattedDates)
+                    .formattedTimes(formattedTimes)
+                    .locationSummary(locationSummary)
+                    .defaultDate(defaultDate)
+                    .totalShowtimes(list.size())
+                    .build());
+        }
+
+        return result;
+    }
+
 
     /** Danh sách các rạp hiện có suất chiếu sắp tới (có cache) */
     @Cacheable(value = "cinemas_showtimes", unless = "#result == null")
