@@ -102,12 +102,13 @@ const showDetail = ref(false)
 const isLoadingDetail = ref(false)
 const detail = ref(null)
 
-const openDetail = async (bookingId) => {
+const openDetail = async (bookingId, isConcession = false) => {
   showDetail.value = true
   isLoadingDetail.value = true
   detail.value = null
   try {
-    const { data } = await bookingAdminApi.detail(bookingId)
+    const params = isConcession ? { type: 'CONCESSION' } : {}
+    const { data } = await bookingAdminApi.detail(bookingId, params)
     detail.value = data.data ?? data
   } catch (err) {
     toast.error(friendlyError(err, 'Không tải được chi tiết hoá đơn.'))
@@ -141,15 +142,15 @@ const detailTicketCount = computed(() => (detail.value?.tickets || []).length)
 const buildInv = (d) => {
   return {
     bookingCode: d.bookingCode,
-    movieTitle: d.movieTitle,
+    movieTitle: d.isConcession ? '' : d.movieTitle,
     format: d.formatName || '2D',
     roomName: d.roomName,
     roomType: 'Standard',
     startTime: d.showtimeStart,
     posTerminal: '01',
-    cashierName: d.checkedInBy || 'Nguyễn Quang Huy',
-    cinemaName: 'DEVCINE CINEMA',
-    cinemaAddress: 'Tầng 3, TTTM DevCine Plaza, Hà Nội',
+    cashierName: d.checkedInBy || 'Thu ngân',
+    cinemaName: d.cinemaName || 'DEVCINE CINEMA',
+    cinemaAddress: d.cinemaAddress || 'Tầng 3, TTTM DevCine Plaza, Hà Nội',
     printedAt: d.checkedInAt || new Date(),
     seats: (d.seats || []).map(s => ({
       seatLabel: s.label,
@@ -170,11 +171,12 @@ const buildInv = (d) => {
   }
 }
 
-const reprint = async (bookingId) => {
+const reprint = async (bookingId, isConcession = false) => {
   let d = detail.value
-  if (!d || d.bookingId !== bookingId) {
+  if (!d || d.bookingId !== bookingId || Boolean(d.isConcession) !== Boolean(isConcession)) {
     try {
-      const { data } = await bookingAdminApi.detail(bookingId)
+      const params = isConcession ? { type: 'CONCESSION' } : {}
+      const { data } = await bookingAdminApi.detail(bookingId, params)
       d = data.data ?? data
     } catch (err) {
       toast.error(friendlyError(err, 'Không tải được dữ liệu để in.'))
@@ -187,9 +189,9 @@ const reprint = async (bookingId) => {
 
 const exportCsv = () => {
   if (rows.value.length === 0) { toast.info('Không có dữ liệu để xuất.'); return }
-  const header = ['Ma don', 'Thoi gian', 'Khach hang', 'Phim', 'So ghe', 'Phuong thuc', 'Tong tien', 'Trang thai']
+  const header = ['Ma don', 'Thoi gian', 'Khach hang', 'Phim / Dich vu', 'So ghe', 'Phuong thuc', 'Tong tien', 'Trang thai']
   const lines = rows.value.map(r => [
-    r.bookingCode, r.createdAt, r.customerName, r.movieTitle, r.seatCount,
+    r.bookingCode, r.createdAt, r.customerName, r.isConcession ? 'Bán nhanh F&B' : r.movieTitle, r.isConcession ? 0 : r.seatCount,
     r.paymentMethod, r.finalPrice, r.status
   ].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
   const csv = '﻿' + [header.join(','), ...lines].join('\n')
@@ -212,7 +214,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
     <div class="flex justify-between items-end flex-shrink-0">
       <div>
         <h1 class="text-3xl font-black text-on-surface tracking-tighter uppercase italic">Quản lý <span class="text-primary">Hoá đơn</span></h1>
-        <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">Toàn bộ đơn đặt vé — online &amp; tại quầy · {{ totalElements }} đơn</p>
+        <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">Toàn bộ đơn đặt vé &amp; bắp nước tại quầy · {{ totalElements }} đơn</p>
       </div>
       <button @click="exportCsv" class="px-6 py-3 bg-surface-container-high hover:bg-white/10 text-on-surface font-bold text-xs uppercase tracking-widest rounded transition-colors flex items-center gap-2 border border-outline-variant/20">
         <span class="material-symbols-outlined text-sm">download</span> Xuất CSV
@@ -285,7 +287,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
       <div class="grid grid-cols-12 gap-4 p-4 border-b border-outline-variant/10 bg-surface-container-high text-[11px] font-black uppercase tracking-widest text-on-surface-variant sticky top-0 z-10">
         <div class="col-span-2 pl-4">Thời gian</div>
         <div class="col-span-2">Mã đơn</div>
-        <div class="col-span-3">Khách hàng / Phim</div>
+        <div class="col-span-3">Khách hàng / Nội dung</div>
         <div class="col-span-1 text-center">Ghế</div>
         <div class="col-span-1">Phương thức</div>
         <div class="col-span-1 text-right">Tổng tiền</div>
@@ -314,7 +316,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 
         <!-- Rows -->
         <template v-else>
-          <div v-for="r in rows" :key="r.bookingId"
+          <div v-for="r in rows" :key="`${r.orderType || 'TICKET'}-${r.bookingId}`"
                class="grid grid-cols-12 gap-4 p-4 border-b border-outline-variant/5 items-center hover:bg-white/[0.02] transition-colors group">
             <div class="col-span-2 pl-4">
               <p class="text-base font-black text-on-surface">{{ fmtDateTime(r.createdAt).time }}</p>
@@ -327,14 +329,20 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
             <div class="col-span-3 min-w-0">
               <div class="flex items-center gap-2">
                 <p class="text-base font-bold text-on-surface truncate">{{ r.customerName }}</p>
-                <span v-if="r.hasFnb" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 border border-amber-400/20" :title="`${r.fnbItemCount} món F&B`">
-                  <span class="material-symbols-outlined text-[11px]">lunch_dining</span> Vé + F&B
+                <span v-if="r.isConcession" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 border border-amber-400/20" :title="`${r.fnbItemCount} món F&B`">
+                  <span class="material-symbols-outlined text-[11px]">fastfood</span> Bán nhanh F&amp;B
+                </span>
+                <span v-else-if="r.hasFnb" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 border border-amber-400/20" :title="`${r.fnbItemCount} món F&B`">
+                  <span class="material-symbols-outlined text-[11px]">lunch_dining</span> Vé + F&amp;B
                 </span>
               </div>
-              <p class="text-xs text-on-surface-variant truncate">{{ r.movieTitle }} · {{ r.roomName }}</p>
+              <p class="text-xs text-on-surface-variant truncate">
+                <template v-if="r.isConcession">Bắp nước &amp; Combo · {{ r.roomName }}</template>
+                <template v-else>{{ r.movieTitle }} · {{ r.roomName }}</template>
+              </p>
             </div>
             <div class="col-span-1 text-center">
-              <span class="text-base font-black text-on-surface">{{ r.seatCount }}</span>
+              <span class="text-base font-black text-on-surface">{{ r.isConcession ? '—' : r.seatCount }}</span>
             </div>
             <div class="col-span-1">
               <span class="text-xs font-bold text-on-surface-variant uppercase">{{ paymentLabel(r.paymentMethod) }}</span>
@@ -347,10 +355,10 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               <span :class="statusBadge(r.status).cls" class="inline-flex px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest border">{{ statusBadge(r.status).label }}</span>
             </div>
             <div class="col-span-1 flex justify-center gap-1">
-              <button @click="openDetail(r.bookingId)" title="Xem chi tiết" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
+              <button @click="openDetail(r.bookingId, r.isConcession)" title="Xem chi tiết" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
                 <span class="material-symbols-outlined text-lg">visibility</span>
               </button>
-              <button @click="reprint(r.bookingId)" title="In lại hoá đơn" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
+              <button @click="reprint(r.bookingId, r.isConcession)" title="In lại hoá đơn" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
                 <span class="material-symbols-outlined text-lg">print</span>
               </button>
             </div>
@@ -393,9 +401,16 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               <span :class="statusBadge(detail.status).cls" class="inline-flex px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border">{{ statusBadge(detail.status).label }}</span>
             </div>
 
-            <!-- Movie + customer -->
+            <!-- Movie / Order info + customer -->
             <div class="grid grid-cols-2 gap-4">
-              <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
+              <div v-if="detail.isConcession" class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
+                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Loại đơn</p>
+                <p class="text-sm font-extrabold text-on-surface">Bán nhanh bắp nước (F&amp;B)</p>
+                <p class="text-xs text-on-surface-variant mt-1">{{ detail.roomName }}</p>
+                <p class="text-xs text-on-surface-variant">{{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }}</p>
+                <p class="text-[11px] text-on-surface-variant/75 mt-2 pt-2 border-t border-outline-variant/10 font-mono select-all">Đơn #{{ detail.bookingCode }} · Thu ngân: {{ detail.checkedInBy }}</p>
+              </div>
+              <div v-else class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
                 <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Suất chiếu</p>
                 <p class="text-sm font-extrabold text-on-surface">{{ detail.movieTitle }}</p>
                 <p class="text-xs text-on-surface-variant mt-1">{{ detail.formatName }} · {{ detail.roomName }}</p>
@@ -416,8 +431,8 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               </div>
             </div>
 
-            <!-- Seats — gom nhóm theo loại ghế + loại vé -->
-            <div>
+            <!-- Seats — gom nhóm theo loại ghế + loại vé (ẩn khi là đơn F&B thuần) -->
+            <div v-if="detail.seats && detail.seats.length">
               <div class="flex items-center gap-2 mb-2">
                 <span class="w-1 h-3.5 rounded-full bg-primary"></span>
                 <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Ghế ({{ detail.seats.length }})</p>
@@ -439,7 +454,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               </div>
             </div>
 
-            <!-- Tickets QR -->
+            <!-- Tickets QR (ẩn khi là đơn F&B thuần) -->
             <div v-if="detail.tickets && detail.tickets.length">
               <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center gap-2">
@@ -470,7 +485,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
             <div v-if="detail.fnbs && detail.fnbs.length">
               <div class="flex items-center gap-2 mb-2">
                 <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Dịch vụ đi kèm (F&B)</p>
+                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">{{ detail.isConcession ? 'Danh sách món F&B' : 'Dịch vụ đi kèm (F&B)' }}</p>
               </div>
               <div class="space-y-2">
                 <div v-for="(f, i) in detail.fnbs" :key="i" class="p-3 rounded-xl bg-surface-container-high border border-outline-variant/10">
@@ -492,7 +507,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
             <!-- Summary -->
             <div class="pt-4 border-t border-outline-variant/10 space-y-2">
               <!-- Chỉ hiện dòng phân tách khi CÓ F&B hoặc giảm giá (tránh lặp lại tổng) -->
-              <template v-if="detailComboTotal > 0 || detailDiscount > 0">
+              <template v-if="!detail.isConcession && (detailComboTotal > 0 || detailDiscount > 0)">
                 <div class="flex justify-between text-sm text-on-surface-variant"><span>Tiền vé</span><span class="tabular-nums">{{ fmt(detailSeatTotal) }}đ</span></div>
                 <div v-if="detailComboTotal > 0" class="flex justify-between text-sm text-on-surface-variant"><span>Bắp nước &amp; combo</span><span class="tabular-nums">{{ fmt(detailComboTotal) }}đ</span></div>
                 <div v-if="detailDiscount > 0" class="flex justify-between text-sm text-green-400">
@@ -511,7 +526,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 
           <div class="px-7 py-4 border-t border-outline-variant/10 flex justify-end gap-3 flex-shrink-0">
             <button @click="showDetail = false" class="px-6 py-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-white/5 font-bold text-xs uppercase tracking-widest transition-colors">Đóng</button>
-            <button v-if="detail" @click="reprint(detail.bookingId)" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all flex items-center gap-2">
+            <button v-if="detail" @click="reprint(detail.bookingId, detail.isConcession)" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all flex items-center gap-2">
               <span class="material-symbols-outlined text-sm">print</span> In lại hoá đơn
             </button>
           </div>
