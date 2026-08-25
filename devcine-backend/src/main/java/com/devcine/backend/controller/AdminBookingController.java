@@ -129,7 +129,7 @@ public class AdminBookingController {
             int qty = bf.getQuantity() != null ? bf.getQuantity() : 0;
             f.put("fnbItemId", bf.getFnbItem() != null ? bf.getFnbItem().getId() : null);
             // Lịch sử: ưu tiên snapshot tên món; fallback FK cho đơn cũ.
-            f.put("name", bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName());
+            f.put("name", bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : (bf.getFnbItem() != null ? bf.getFnbItem().getName() : ""));
             f.put("quantity", qty);
             f.put("unitPrice", unit);
             f.put("lineTotal", unit.multiply(java.math.BigDecimal.valueOf(qty)));
@@ -144,6 +144,17 @@ public class AdminBookingController {
                 return om;
             }).collect(Collectors.toList());
             f.put("options", options);
+
+            // Đơn giá gốc của gói (trước khi cộng phụ thu các tùy chọn)
+            java.math.BigDecimal totalSurcharge = options.stream()
+                    .map(o -> o.get("surcharge") instanceof java.math.BigDecimal
+                            ? (java.math.BigDecimal) o.get("surcharge")
+                            : java.math.BigDecimal.ZERO)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+            java.math.BigDecimal basePrice = unit.subtract(totalSurcharge).max(java.math.BigDecimal.ZERO);
+            f.put("basePrice", basePrice);
+            f.put("totalSurcharge", totalSurcharge);
+
             return f;
         }).collect(Collectors.toList());
 

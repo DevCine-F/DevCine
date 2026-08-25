@@ -38,6 +38,11 @@ const methodOpen = ref(false)
 const selectMethod = (m) => { filters.method = m; methodOpen.value = false; page.value = 0; fetchBookings() }
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+const fnbBasePrice = (f) => {
+  if (f?.basePrice != null) return Number(f.basePrice)
+  const sur = (f?.options || []).reduce((sum, o) => sum + Number(o.surcharge || 0), 0)
+  return Math.max(0, Number(f?.unitPrice || f?.price || 0) - sur)
+}
 // Bỏ tiền tố "Ô chọn " trong nhãn slot khi hiển thị (VD "Ô chọn Nước 1" → "Nước 1")
 const stripSlotPrefix = (label) => (label || '').replace(/^Ô\s*chọn\s*/i, '').trim()
 const fmtDateTime = (iso) => {
@@ -482,7 +487,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                       <p v-if="f.options && f.options.length" class="text-xs text-on-surface-variant mt-1">
                         <template v-for="(o, oi) in f.options" :key="oi"><span v-if="oi"> · </span>{{ stripSlotPrefix(o.slotLabel) }}: {{ o.optionName }}<span v-if="Number(o.surcharge) > 0"> (+{{ fmt(o.surcharge) }}đ)</span></template>
                       </p>
-                      <p class="text-[10px] text-on-surface-variant/75 mt-0.5 font-mono">Món #{{ f.fnbItemId }} · Đơn giá {{ fmt(f.unitPrice) }}đ</p>
+                      <p class="text-[10px] text-on-surface-variant/75 mt-0.5 font-mono">Món #{{ f.fnbItemId }} · Đơn giá {{ fmt(fnbBasePrice(f)) }}đ</p>
                     </div>
                     <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(f.lineTotal) }}đ</span>
                   </div>
