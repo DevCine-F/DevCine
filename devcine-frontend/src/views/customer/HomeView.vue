@@ -411,26 +411,27 @@ const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 
       </section>
 
       <!-- Special Screenings Section (Sneak Previews) -->
-      <section v-if="sneakPreviews.length" class="mt-16 md:mt-24 relative group/sneak"
+      <section v-if="sneakPreviews.length" class="mt-20 md:mt-24 relative group/sneak"
                @mouseenter="pauseSneakAutoSlide"
                @mouseleave="restartSneakAutoSlide"
                @touchstart="onSneakTouchStart"
                @touchend="onSneakTouchEnd">
 
-        <!-- Đường kẻ mờ phân tách (Divider) với ánh kim trung tâm -->
-        <div class="mb-16 md:mb-20 flex items-center justify-center relative">
-          <div class="w-full h-[1px] bg-gradient-to-r from-transparent via-white/15 to-transparent"></div>
-          <div class="absolute w-32 md:w-48 h-[1px] bg-gradient-to-r from-transparent via-primary-container/60 to-transparent blur-[0.5px]"></div>
-        </div>
-
-        <!-- Tiêu đề Section chuẩn phong cách đồng bộ -->
-        <div class="text-center mb-10 md:mb-12">
-          <span class="text-primary-container font-headline text-sm font-bold tracking-[0.3em] uppercase mb-2 block">
+        <!-- Tiêu đề Section kết hợp 2 đường kẻ ánh vàng 2 bên cánh -->
+        <div class="text-center mb-10 md:mb-14">
+          <span class="text-primary-container font-headline text-sm font-bold tracking-[0.3em] uppercase mb-3 block">
             ĐẶC QUYỀN DEVCINE
           </span>
-          <h2 class="font-headline text-4xl md:text-5xl font-black tracking-tighter uppercase text-white">
-            SUẤT CHIẾU SỚM
-          </h2>
+          <div class="flex items-center justify-center gap-4 md:gap-8 max-w-[1440px] mx-auto">
+            <!-- Cánh trái: Mờ ngoài -> Ánh vàng sát chữ -->
+            <div class="flex-grow h-[1px] bg-gradient-to-r from-transparent via-white/10 to-primary-container"></div>
+            <!-- Tiêu đề chính -->
+            <h2 class="font-headline text-3xl md:text-5xl font-black tracking-tighter uppercase text-white whitespace-nowrap">
+              SUẤT CHIẾU SỚM
+            </h2>
+            <!-- Cánh phải: Ánh vàng sát chữ -> Mờ ngoài -->
+            <div class="flex-grow h-[1px] bg-gradient-to-l from-transparent via-white/10 to-primary-container"></div>
+          </div>
         </div>
 
         <div class="relative w-full rounded-2xl overflow-hidden bg-black/50 backdrop-blur-xl shadow-2xl border border-white/10 glass-card">
