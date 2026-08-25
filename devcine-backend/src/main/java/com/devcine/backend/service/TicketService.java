@@ -161,8 +161,18 @@ public class TicketService {
             }
             Showtime showtime = booking.getShowtime();
             Movie movie = showtime != null ? showtime.getMovie() : null;
+            String formatName = (showtime != null && showtime.getFormat() != null) ? showtime.getFormat().getName() : "";
             Room room = showtime != null ? showtime.getRoom() : null;
             Cinema cinema = room != null ? room.getCinema() : null;
+
+            List<TicketEmailData.SeatLine> seatLines = new ArrayList<>();
+            for (BookingSeat bs : bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())) {
+                if (!"SOLD".equalsIgnoreCase(bs.getStatus())) continue;
+                Seat seat = bs.getSeat();
+                String label = seat != null ? seat.displayLabel() : "";
+                String seatType = (seat != null && seat.getSeatType() != null) ? seat.getSeatType().getName() : null;
+                seatLines.add(new TicketEmailData.SeatLine(label, seatType, bs.getTicketType(), null));
+            }
 
             List<TicketEmailData.FnbLine> fnbLines = new ArrayList<>();
             for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
@@ -175,12 +185,13 @@ public class TicketService {
                     user.getFullName(),
                     booking.getBookingCode(),
                     movie != null ? movie.getTitle() : "Phim",
+                    formatName,
                     cinema != null ? cinema.getName() : "",
                     room != null ? room.getName() : "",
                     showtime != null ? showtime.getStartTime() : null,
                     booking.getPaymentMethod(),
                     booking.getFinalPrice(),
-                    List.of(),
+                    seatLines,
                     fnbLines,
                     false)); // showQr = false → ẩn QR, hiển thị lời cảm ơn
         } catch (Exception e) {
@@ -265,6 +276,7 @@ public class TicketService {
 
         Showtime showtime = booking.getShowtime();
         Movie movie = showtime != null ? showtime.getMovie() : null;
+        String formatName = (showtime != null && showtime.getFormat() != null) ? showtime.getFormat().getName() : "";
         Room room = showtime != null ? showtime.getRoom() : null;
         Cinema cinema = room != null ? room.getCinema() : null;
 
@@ -272,7 +284,10 @@ public class TicketService {
         for (Ticket t : ticketRepository.findAllByBookingIdWithSeat(bookingId)) {
             BookingSeat bs = t.getBookingSeat();
             if (bs == null || !"SOLD".equalsIgnoreCase(bs.getStatus())) continue; // bỏ ghế đã hủy
-            seatLines.add(new TicketEmailData.SeatLine(bs.getSeat().displayLabel(), bs.getTicketType(), t.getQrCode()));
+            Seat seat = bs.getSeat();
+            String label = seat != null ? seat.displayLabel() : "";
+            String seatType = (seat != null && seat.getSeatType() != null) ? seat.getSeatType().getName() : null;
+            seatLines.add(new TicketEmailData.SeatLine(label, seatType, bs.getTicketType(), t.getQrCode()));
         }
 
         List<TicketEmailData.FnbLine> fnbLines = new ArrayList<>();
@@ -285,6 +300,7 @@ public class TicketService {
             mailService.sendTicketEmail(new TicketEmailData(
                     user.getEmail(), user.getFullName(), booking.getBookingCode(),
                     movie != null ? movie.getTitle() : "Phim",
+                    formatName,
                     cinema != null ? cinema.getName() : "",
                     room != null ? room.getName() : "",
                     showtime != null ? showtime.getStartTime() : null,

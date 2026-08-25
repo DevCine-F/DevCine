@@ -694,6 +694,7 @@ public class BookingService {
 
             Showtime showtime = booking.getShowtime();
             Movie movie = showtime != null ? showtime.getMovie() : null;
+            String formatName = (showtime != null && showtime.getFormat() != null) ? showtime.getFormat().getName() : "";
             Room room = showtime != null ? showtime.getRoom() : null;
             Cinema cinema = room != null ? room.getCinema() : null;
 
@@ -701,8 +702,10 @@ public class BookingService {
             for (int i = 0; i < seats.size(); i++) {
                 BookingSeat bs = seats.get(i);
                 Seat seat = bs.getSeat();
-                String label = seat.displayLabel();
-                seatLines.add(new TicketEmailData.SeatLine(label, bs.getTicketType(), tickets.get(i).getQrCode()));
+                String label = seat != null ? seat.displayLabel() : "";
+                String seatType = (seat != null && seat.getSeatType() != null) ? seat.getSeatType().getName() : null;
+                String qr = (tickets != null && i < tickets.size()) ? tickets.get(i).getQrCode() : null;
+                seatLines.add(new TicketEmailData.SeatLine(label, seatType, bs.getTicketType(), qr));
             }
 
             List<TicketEmailData.FnbLine> fnbLines = new java.util.ArrayList<>();
@@ -720,6 +723,7 @@ public class BookingService {
                     user.getFullName(),
                     booking.getBookingCode(),
                     movie != null ? movie.getTitle() : "Phim",
+                    formatName,
                     cinema != null ? cinema.getName() : "",
                     room != null ? room.getName() : "",
                     showtime != null ? showtime.getStartTime() : null,
