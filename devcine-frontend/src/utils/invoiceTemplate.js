@@ -184,7 +184,7 @@ export function buildInvoiceHtml(inv) {
       if (options.length > 0) {
         options.forEach(opt => {
           const optName = esc(opt.optionName || opt.optionNameSnapshot || opt.slotLabel || name)
-          const optSurcharge = Number(opt.surcharge || opt.surchargeSnapshot || 0)
+          const optSurcharge = Number(opt.surcharge || opt.surchargeSnapshot || opt.surchargePrice || 0)
           totalOptionSurcharge += optSurcharge
           if (opt.optionName || opt.optionNameSnapshot) {
             optNames.push(opt.optionName || opt.optionNameSnapshot)
@@ -239,6 +239,11 @@ export function buildInvoiceHtml(inv) {
       </tr>
     `).join('')
 
+    let roomDisplay = roomName || ''
+    if (roomType && !roomDisplay.toLowerCase().includes(roomType.toLowerCase())) {
+      roomDisplay = `${roomDisplay} (${roomType})`
+    }
+
     ticketSlipHtml = `
       <section class="receipt-slip ticket-slip">
         <div class="center bold title-brand">${cinemaName}</div>
@@ -263,7 +268,7 @@ export function buildInvoiceHtml(inv) {
             <td class="right">Ngày: ${showDateStr}</td>
           </tr>
         </table>
-        <div class="room-line">Phòng: ${roomName} (${roomType})</div>
+        <div class="room-line">Phòng: ${roomDisplay}</div>
         <div class="line-single">------------------------------------------------</div>
         
         <div class="bold seat-title">DANH SÁCH GHẾ:</div>

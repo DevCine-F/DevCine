@@ -33,7 +33,15 @@ public record BookingPrintResponse(
     /** Một ghế trong đơn: nhãn ghế (vd "A5"), loại đối tượng, giá đã chốt. */
     public record SeatLine(String seatLabel, String ticketType, BigDecimal price) {}
 
-    /** Một dòng combo/đồ ăn kèm: tên, số lượng, đơn giá đã chốt. */
-    public record FnbLine(String name, Integer quantity, BigDecimal price) {}
+    /** Một dòng combo/đồ ăn kèm: tên, số lượng, đơn giá đã chốt, tổng phụ thu và các lựa chọn đi kèm. */
+    public record FnbLine(
+            String name,
+            Integer quantity,
+            BigDecimal price,
+            BigDecimal surchargePrice,
+            List<FnbOptionLine> options
+    ) {
+        public record FnbOptionLine(String slotLabel, String optionName, BigDecimal surcharge) {}
+    }
 }
 

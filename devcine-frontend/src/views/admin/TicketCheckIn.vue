@@ -31,7 +31,13 @@ const buildInv = (b) => ({
   cashierName: b.cashierName || 'Nguyễn Quang Huy',
   printedAt: b.printedAt || new Date(),
   seats: b.seats || [],
-  fnbs: b.fnbs || [],
+  fnbs: (b.fnbs || []).map(f => ({
+    name: f.name,
+    quantity: f.quantity,
+    price: Number(f.price || 0),
+    surchargePrice: Number(f.surchargePrice || 0),
+    options: f.options || []
+  })),
   paymentMethod: b.paymentMethod || 'TRANSFER',
   ticketDiscount: Number(b.discount || 0),
   fnbDiscount: 0,

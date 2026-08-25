@@ -210,7 +210,17 @@ public class TicketService {
         List<BookingPrintResponse.FnbLine> fnbLines = new ArrayList<>();
         for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
             String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
-            fnbLines.add(new BookingPrintResponse.FnbLine(name, bf.getQuantity(), bf.getPriceSnapshot()));
+            List<BookingPrintResponse.FnbLine.FnbOptionLine> optLines = new ArrayList<>();
+            BigDecimal totalSurcharge = BigDecimal.ZERO;
+            if (bf.getOptions() != null) {
+                for (com.devcine.backend.entity.BookingFnbOption opt : bf.getOptions()) {
+                    BigDecimal sc = opt.getSurchargeSnapshot() != null ? opt.getSurchargeSnapshot() : BigDecimal.ZERO;
+                    totalSurcharge = totalSurcharge.add(sc);
+                    optLines.add(new BookingPrintResponse.FnbLine.FnbOptionLine(
+                            opt.getSlotLabelSnapshot(), opt.getOptionNameSnapshot(), sc));
+                }
+            }
+            fnbLines.add(new BookingPrintResponse.FnbLine(name, bf.getQuantity(), bf.getPriceSnapshot(), totalSurcharge, optLines));
         }
 
         BigDecimal total = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
