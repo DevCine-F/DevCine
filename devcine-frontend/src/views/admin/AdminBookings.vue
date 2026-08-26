@@ -134,10 +134,54 @@ const detailSeatGroups = computed(() => {
   }
   return Object.values(map)
 })
-const detailComboTotal = computed(() => (detail.value?.fnbs || []).reduce((a, f) => a + Number(f.price || 0) * f.quantity, 0))
+const detailComboTotal = computed(() => (detail.value?.fnbs || []).reduce((a, f) => a + Number(f.lineTotal || (Number(f.price || f.unitPrice || 0) * f.quantity)), 0))
 const detailDiscount = computed(() => Math.max(0, Number(detail.value?.totalPrice || 0) - Number(detail.value?.finalPrice || 0)))
 const detailCheckedIn = computed(() => (detail.value?.tickets || []).filter(t => t.isCheckedIn).length)
 const detailTicketCount = computed(() => (detail.value?.tickets || []).length)
+
+const isPosOrder = computed(() => {
+  if (!detail.value) return false
+  if (detail.value.isConcession) return true
+  const ch = String(detail.value.channel || '').toUpperCase()
+  const pm = String(detail.value.paymentMethod || '').toUpperCase()
+  return ch.includes('POS') || ch.includes('QUẦY') || pm === 'CASH' || pm.includes('POS')
+})
+
+const detailRewardPoints = computed(() => {
+  if (!detail.value) return 0
+  return Math.floor(Number(detail.value.finalPrice || 0) / 10000)
+})
+
+const customerDisplay = computed(() => {
+  if (!detail.value) return 'Khách tại quầy'
+  if (detail.value.customerName && detail.value.customerName !== 'Khách tại quầy') {
+    return detail.value.customerPhone ? `${detail.value.customerName} (${detail.value.customerPhone})` : detail.value.customerName
+  }
+  return detail.value.customerPhone || 'Khách tại quầy'
+})
+
+const isOrderCheckedIn = computed(() => {
+  if (!detail.value) return false
+  if (detail.value.checkedInAt) return true
+  const tickets = detail.value.tickets || []
+  if (tickets.length > 0) {
+    return tickets.every(t => t.isCheckedIn)
+  }
+  return false
+})
+
+const paymentLabelFull = (m) => {
+  const map = {
+    CASH: 'CASH (Tiền mặt)',
+    VNPAY: 'VNPAY (Trực tuyến)',
+    MOMO: 'MOMO (Ví điện tử)',
+    ZALOPAY: 'ZALOPAY (Ví điện tử)',
+    TRANSFER: 'Chuyển khoản (VietQR)',
+    CARD: 'Thẻ POS (Ngân hàng)',
+    MEMBER_WALLET: 'Ví thành viên'
+  }
+  return map[m] || m || 'Chưa xác định'
+}
 
 const buildInv = (d) => {
   return {
@@ -377,157 +421,217 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
     <!-- Detail modal -->
     <transition name="fade">
       <div v-if="showDetail" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showDetail = false">
-        <div class="w-full max-w-2xl max-h-[88vh] bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+        <div class="w-full max-w-2xl max-h-[90vh] bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+          <!-- Header Modal -->
           <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-primary">receipt_long</span>
+              <span class="material-symbols-outlined text-primary text-2xl">receipt_long</span>
               <h3 class="text-xl font-headline font-extrabold uppercase tracking-wide text-on-surface">Chi tiết hoá đơn</h3>
             </div>
-            <button @click="showDetail = false" class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined">close</span></button>
+            <button @click="showDetail = false" class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-colors">
+              <span class="material-symbols-outlined text-xl">close</span>
+            </button>
           </div>
 
-          <div v-if="isLoadingDetail" class="p-10 flex items-center justify-center">
+          <div v-if="isLoadingDetail" class="p-16 flex items-center justify-center">
             <span class="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
           </div>
 
-          <div v-else-if="detail" class="p-7 space-y-6 overflow-y-auto">
-            <!-- Header info -->
+          <div v-else-if="detail" class="p-7 space-y-6 overflow-y-auto custom-scrollbar">
+            <!-- Header Info: Mã đơn & Trạng thái & Kênh -->
             <div class="flex justify-between items-start gap-4">
               <div>
                 <p class="text-[10px] font-black text-primary uppercase tracking-widest">Mã đơn</p>
-                <p class="text-xl font-black text-on-surface font-mono">{{ detail.bookingCode }}</p>
-                <p class="text-xs text-on-surface-variant mt-1">{{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }} · {{ detail.channel }}</p>
+                <p class="text-2xl font-black text-on-surface font-mono tracking-tight">{{ detail.bookingCode }}</p>
+                <p class="text-xs text-on-surface-variant font-medium mt-1">
+                  {{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }} &bull; 
+                  <span class="font-bold uppercase">{{ isPosOrder ? (detail.isConcession ? 'Bán nhanh F&B tại quầy' : 'Bán tại quầy') : 'Đặt vé trực tuyến (Online)' }}</span>
+                </p>
               </div>
-              <span :class="statusBadge(detail.status).cls" class="inline-flex px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border">{{ statusBadge(detail.status).label }}</span>
+              <span :class="statusBadge(detail.status).cls" class="inline-flex px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm">
+                {{ statusBadge(detail.status).label }}
+              </span>
             </div>
 
-            <!-- Movie / Order info + customer -->
-            <div class="grid grid-cols-2 gap-4">
-              <div v-if="detail.isConcession" class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Loại đơn</p>
-                <p class="text-sm font-extrabold text-on-surface">Bán nhanh bắp nước (F&amp;B)</p>
-                <p class="text-xs text-on-surface-variant mt-1">{{ detail.roomName }}</p>
-                <p class="text-xs text-on-surface-variant">{{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }}</p>
-                <p class="text-[11px] text-on-surface-variant/75 mt-2 pt-2 border-t border-outline-variant/10 font-mono select-all">Đơn #{{ detail.bookingCode }} · Thu ngân: {{ detail.checkedInBy }}</p>
+            <!-- Two Cards: Suất chiếu & Thông tin thanh toán -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Cột trái: Suất chiếu (hoặc Loại đơn) -->
+              <div v-if="detail.isConcession" class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between">
+                <div>
+                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Loại đơn</p>
+                  <p class="text-base font-extrabold text-on-surface">Bán nhanh bắp nước (F&amp;B)</p>
+                  <p class="text-xs text-on-surface-variant mt-1">{{ detail.roomName || 'Quầy Concession' }}</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">{{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }}</p>
+                </div>
+                <p class="text-xs text-on-surface-variant mt-2 pt-2 border-t border-outline-variant/10 font-medium">
+                  Rạp: <span class="text-on-surface font-bold">{{ detail.cinemaName || 'DevCine Landmark 81' }}</span>
+                </p>
               </div>
-              <div v-else class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Suất chiếu</p>
-                <p class="text-sm font-extrabold text-on-surface">{{ detail.movieTitle }}</p>
-                <p class="text-xs text-on-surface-variant mt-1">{{ detail.formatName }} · {{ detail.roomName }}</p>
-                <p class="text-xs text-on-surface-variant">{{ fmtDateTime(detail.showtimeStart).date }} {{ fmtDateTime(detail.showtimeStart).time }}</p>
-                <!-- Trace IDs — chọn/copy để tra cứu khi có lỗi -->
-                <p class="text-[11px] text-on-surface-variant/75 mt-2 pt-2 border-t border-outline-variant/10 font-mono select-all">Đơn #{{ detail.bookingId }} · Suất #{{ detail.showtimeId }} · Phim #{{ detail.movieId }}</p>
+              <div v-else class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between">
+                <div>
+                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Suất chiếu</p>
+                  <p class="text-base font-extrabold text-on-surface">{{ detail.movieTitle }}</p>
+                  <p class="text-xs text-on-surface-variant mt-1">{{ detail.formatName || '2D Phụ Đề' }} &bull; {{ detail.roomName }}</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5 font-medium">
+                    {{ fmtDateTime(detail.showtimeStart).date }} {{ fmtDateTime(detail.showtimeStart).time }}{{ detail.showtimeEnd ? ` ~ ${fmtDateTime(detail.showtimeEnd).time}` : '' }}
+                  </p>
+                </div>
+                <p class="text-xs text-on-surface-variant mt-2 pt-2 border-t border-outline-variant/10 font-medium">
+                  Rạp: <span class="text-on-surface font-bold">{{ detail.cinemaName || 'DevCine Landmark 81' }}</span>
+                </p>
               </div>
-              <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10">
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Khách hàng</p>
-                <p class="text-sm font-extrabold text-on-surface">{{ detail.customerName }}</p>
-                <p v-if="detail.membershipTier" class="text-xs text-primary font-bold mt-1">Hạng {{ detail.membershipTier }}</p>
-                <p v-if="detail.customerPhone" class="text-xs text-on-surface-variant">{{ detail.customerPhone }}</p>
-                <!-- Meta lấp đầy thẻ (đặc biệt khi khách vãng lai) -->
-                <div class="mt-2 pt-2 border-t border-outline-variant/10 space-y-0.5">
-                  <p class="text-xs text-on-surface-variant">Kênh: <b class="text-on-surface font-semibold">{{ detail.channel }}</b></p>
-                  <p class="text-xs text-on-surface-variant">Thanh toán: <b class="text-on-surface font-semibold">{{ paymentLabel(detail.paymentMethod) }}</b></p>
+
+              <!-- Cột phải: Thông tin thanh toán -->
+              <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between space-y-1.5">
+                <div>
+                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Thông tin thanh toán</p>
+                  <p class="text-sm font-bold text-on-surface">
+                    Khách hàng: <span class="font-bold">{{ customerDisplay }}</span>
+                  </p>
+                  <p class="text-xs font-semibold text-primary mt-0.5">
+                    {{ detail.membershipTier ? `Hạng ${detail.membershipTier} (+${detailRewardPoints} điểm)` : (detail.customerName && detail.customerName !== 'Khách tại quầy' ? `Thành viên (+${detailRewardPoints} điểm)` : 'Khách vãng lai') }}
+                  </p>
+                </div>
+                <div class="pt-2 border-t border-outline-variant/10 space-y-0.5">
+                  <p class="text-xs text-on-surface-variant">
+                    Kênh: <b class="text-on-surface font-semibold">{{ isPosOrder ? 'Quầy / POS' : 'Website / App' }}</b>
+                  </p>
+                  <p v-if="isPosOrder" class="text-xs text-on-surface-variant">
+                    Thu ngân: <b class="text-on-surface font-semibold">{{ detail.checkedInBy || 'Đỗ Hoàng Minh' }}</b>
+                  </p>
+                  <p v-else class="text-xs text-on-surface-variant truncate">
+                    Cổng TT: <b class="text-on-surface font-semibold">{{ paymentLabel(detail.paymentMethod) }}</b>
+                    <span v-if="detail.paymentRef" class="font-mono text-[11px] text-on-surface-variant/80 ml-1">(Mã GD: #{{ detail.paymentRef }})</span>
+                  </p>
                 </div>
               </div>
             </div>
 
-            <!-- Seats — gom nhóm theo loại ghế + loại vé (ẩn khi là đơn F&B thuần) -->
+            <!-- VÉ XEM PHIM (Ẩn khi là đơn F&B lẻ không có ghế) -->
             <div v-if="detail.seats && detail.seats.length">
               <div class="flex items-center gap-2 mb-2">
                 <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Ghế ({{ detail.seats.length }})</p>
+                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
+                  Vé xem phim ({{ detail.seats.length }})
+                </p>
               </div>
-              <div class="space-y-2">
-                <div v-for="(g, i) in detailSeatGroups" :key="i" class="flex items-start justify-between gap-3 p-3 rounded-xl bg-surface-container-high border border-outline-variant/10">
+              <div class="rounded-2xl bg-surface-container-high border border-outline-variant/10 divide-y divide-outline-variant/5 overflow-hidden">
+                <div v-for="(g, i) in detailSeatGroups" :key="i" class="flex items-center justify-between p-3.5 px-4 hover:bg-white/[0.02] transition-colors">
                   <div class="min-w-0">
                     <p class="text-sm font-bold text-on-surface">
-                      {{ g.typeLabel }}<span v-if="g.ticketLabel" class="text-on-surface-variant font-medium"> · {{ g.ticketLabel }}</span>
-                      <span class="text-primary font-black ml-1">×{{ g.count }}</span>
+                      {{ g.typeLabel }}<span v-if="g.ticketLabel" class="text-on-surface-variant font-medium"> - {{ g.ticketLabel }}</span>
+                      <span class="text-primary font-black ml-1.5">x{{ g.count }}</span>
                     </p>
-                    <p class="text-xs text-on-surface-variant mt-0.5 font-mono">{{ g.seats.join(', ') }}</p>
+                    <p class="text-[11px] text-on-surface-variant/80 mt-0.5 font-mono">Ghế: {{ g.seats.join(', ') }}</p>
                   </div>
                   <div class="text-right shrink-0">
-                    <p class="text-sm font-black text-on-surface tabular-nums">{{ fmt(g.subtotal) }}đ</p>
-                    <p class="text-[10px] text-on-surface-variant tabular-nums">{{ fmt(g.unit) }}đ/ghế</p>
+                    <p class="text-sm font-black text-on-surface tabular-nums">{{ fmt(g.subtotal) }} đ</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Tickets QR (ẩn khi là đơn F&B thuần) -->
-            <div v-if="detail.tickets && detail.tickets.length">
+            <!-- MÃ QR ĐƠN HÀNG (Khung QR trung tâm duy nhất đại diện cho toàn bộ đơn hàng) -->
+            <div v-if="!detail.isConcession">
               <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center gap-2">
                   <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Vé QR ({{ detail.tickets.length }})</p>
+                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Mã QR đơn hàng</p>
                 </div>
                 <span
                   class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border"
-                  :class="detailCheckedIn === detailTicketCount
+                  :class="isOrderCheckedIn
                     ? 'text-green-400 bg-green-400/10 border-green-400/20'
-                    : 'text-on-surface-variant bg-surface-container-high border-outline-variant/15'"
-                >Đã soát {{ detailCheckedIn }}/{{ detailTicketCount }}</span>
+                    : 'text-amber-400 bg-amber-400/10 border-amber-400/20'"
+                >
+                  {{ isOrderCheckedIn ? 'ĐÃ CHECK-IN' : 'CHƯA CHECK-IN' }}
+                </span>
               </div>
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div v-for="(t, i) in detail.tickets" :key="i" class="bg-surface-container-high rounded-xl border border-outline-variant/10 p-3 flex items-center gap-3">
-                  <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=0&data=${encodeURIComponent(t.qrCode)}`" alt="QR" class="w-14 h-14 bg-white rounded p-0.5" />
-                  <div class="min-w-0">
-                    <p class="text-sm font-black text-on-surface">Ghế {{ t.seatLabel }}</p>
-                    <p class="text-[9px] font-bold uppercase" :class="t.isCheckedIn ? 'text-green-400' : 'text-on-surface-variant'">
-                      {{ t.isCheckedIn ? 'Đã soát' : 'Chưa soát' }}
-                    </p>
-                  </div>
+
+              <div class="p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
+                <div class="p-2 bg-white rounded-xl shadow-lg border border-black/10 inline-block">
+                  <img
+                    :src="`https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=0&data=${encodeURIComponent(detail.bookingCode)}`"
+                    alt="QR"
+                    class="w-28 h-28 block"
+                  />
+                </div>
+                <div>
+                  <p class="text-base font-black text-on-surface font-mono tracking-wider">{{ detail.bookingCode }}</p>
+                  <p class="text-[11px] text-on-surface-variant mt-0.5">Mã QR đại diện cho toàn bộ đơn hàng</p>
                 </div>
               </div>
             </div>
 
-            <!-- DỊCH VỤ ĐI KÈM (F&B) — giữa Vé QR và Tổng thanh toán -->
+            <!-- BẮP NƯỚC & COMBO -->
             <div v-if="detail.fnbs && detail.fnbs.length">
               <div class="flex items-center gap-2 mb-2">
                 <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">{{ detail.isConcession ? 'Danh sách món F&B' : 'Dịch vụ đi kèm (F&B)' }}</p>
+                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Bắp nước &amp; Combo</p>
               </div>
-              <div class="space-y-2">
-                <div v-for="(f, i) in detail.fnbs" :key="i" class="p-3 rounded-xl bg-surface-container-high border border-outline-variant/10">
+              <div class="rounded-2xl bg-surface-container-high border border-outline-variant/10 divide-y divide-outline-variant/5 overflow-hidden">
+                <div v-for="(f, i) in detail.fnbs" :key="i" class="p-3.5 px-4 hover:bg-white/[0.02] transition-colors">
                   <div class="flex justify-between items-start gap-3">
                     <div class="min-w-0">
-                      <p class="text-sm font-bold text-on-surface">{{ f.name }} <span class="text-on-surface-variant font-medium">x{{ f.quantity }}</span></p>
-                      <!-- Danh sách vị khách chọn -->
-                      <p v-if="f.options && f.options.length" class="text-xs text-on-surface-variant mt-1">
-                        <template v-for="(o, oi) in f.options" :key="oi"><span v-if="oi"> · </span>{{ stripSlotPrefix(o.slotLabel) }}: {{ o.optionName }}<span v-if="Number(o.surcharge) > 0"> (+{{ fmt(o.surcharge) }}đ)</span></template>
-                      </p>
-                      <p class="text-[10px] text-on-surface-variant/75 mt-0.5 font-mono">Món #{{ f.fnbItemId }} · Đơn giá {{ fmt(f.unitPrice) }}đ</p>
+                      <div class="flex items-baseline gap-2">
+                        <p class="text-sm font-bold text-on-surface">{{ f.name }}</p>
+                        <span class="text-xs font-black text-primary">x{{ f.quantity }}</span>
+                      </div>
+                      <!-- Danh sách vị/option kèm phụ thu -->
+                      <div v-if="f.options && f.options.length" class="mt-1.5 space-y-0.5">
+                        <p v-for="(o, oi) in f.options" :key="oi" class="text-xs text-on-surface-variant flex items-center gap-1">
+                          <span class="text-on-surface-variant/60">&bull;</span>
+                          <span>{{ o.optionName }}</span>
+                          <span v-if="Number(o.surcharge) > 0" class="text-amber-400 font-semibold">(+{{ fmt(o.surcharge) }}đ)</span>
+                        </p>
+                      </div>
                     </div>
-                    <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(f.lineTotal) }}đ</span>
+                    <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(f.lineTotal || (f.price || f.unitPrice || 0) * f.quantity) }} đ</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Summary -->
+            <!-- TẠM TÍNH & TỔNG THANH TOÁN -->
             <div class="pt-4 border-t border-outline-variant/10 space-y-2">
-              <!-- Chỉ hiện dòng phân tách khi CÓ F&B hoặc giảm giá (tránh lặp lại tổng) -->
-              <template v-if="!detail.isConcession && (detailComboTotal > 0 || detailDiscount > 0)">
-                <div class="flex justify-between text-sm text-on-surface-variant"><span>Tiền vé</span><span class="tabular-nums">{{ fmt(detailSeatTotal) }}đ</span></div>
-                <div v-if="detailComboTotal > 0" class="flex justify-between text-sm text-on-surface-variant"><span>Bắp nước &amp; combo</span><span class="tabular-nums">{{ fmt(detailComboTotal) }}đ</span></div>
-                <div v-if="detailDiscount > 0" class="flex justify-between text-sm text-green-400">
-                  <span>Giảm giá <span v-if="detail.voucherCode" class="text-on-surface-variant">({{ detail.voucherCode }})</span></span>
-                  <span class="tabular-nums">−{{ fmt(detailDiscount) }}đ</span>
-                </div>
-              </template>
-              <div class="flex justify-between items-baseline pt-2 border-t border-outline-variant/10">
-                <span class="text-xs font-headline font-bold text-on-surface uppercase tracking-widest">Tổng thanh toán</span>
-                <span class="text-3xl font-headline font-extrabold text-primary tabular-nums">{{ fmt(detail.finalPrice) }}đ</span>
+              <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1">Tạm tính</p>
+              <div v-if="!detail.isConcession && detailSeatTotal > 0" class="flex justify-between text-sm text-on-surface-variant">
+                <span>Tiền vé:</span>
+                <span class="tabular-nums font-semibold">{{ fmt(detailSeatTotal) }} đ</span>
               </div>
-              <p class="text-xs text-on-surface-variant text-right">Phương thức: <b class="text-on-surface font-semibold">{{ paymentLabel(detail.paymentMethod) }}</b></p>
-              <p v-if="detail.paymentRef" class="text-xs text-gray-500 text-right font-mono select-all">Mã GD đối soát: {{ detail.paymentRef }}</p>
+              <div v-if="detailComboTotal > 0" class="flex justify-between text-sm text-on-surface-variant">
+                <span>Bắp nước &amp; combo:</span>
+                <span class="tabular-nums font-semibold">{{ fmt(detailComboTotal) }} đ</span>
+              </div>
+              <div class="flex justify-between text-sm text-on-surface-variant">
+                <span>Giảm giá:</span>
+                <span class="tabular-nums font-semibold" :class="detailDiscount > 0 ? 'text-green-400' : ''">
+                  {{ detailDiscount > 0 ? `−${fmt(detailDiscount)} đ` : '0 đ' }}
+                </span>
+              </div>
+
+              <div class="flex justify-between items-baseline pt-3 border-t border-outline-variant/15">
+                <span class="text-xs font-headline font-extrabold text-on-surface uppercase tracking-widest">TỔNG THANH TOÁN:</span>
+                <span class="text-2xl font-headline font-extrabold text-primary tabular-nums">{{ fmt(detail.finalPrice) }} đ</span>
+              </div>
+
+              <div class="flex justify-between items-center text-xs text-on-surface-variant pt-1">
+                <span>Phương thức: <b class="text-on-surface font-semibold">{{ paymentLabelFull(detail.paymentMethod) }}</b></span>
+                <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 border border-green-400/20">
+                  [ĐÃ THANH TOÁN]
+                </span>
+              </div>
             </div>
           </div>
 
+          <!-- Footer Buttons -->
           <div class="px-7 py-4 border-t border-outline-variant/10 flex justify-end gap-3 flex-shrink-0">
-            <button @click="showDetail = false" class="px-6 py-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-white/5 font-bold text-xs uppercase tracking-widest transition-colors">Đóng</button>
-            <button v-if="detail" @click="reprint(detail.bookingId, detail.isConcession)" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm">print</span> In lại hoá đơn
+            <button @click="showDetail = false" class="px-6 py-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-white/5 font-bold text-xs uppercase tracking-widest transition-colors">
+              Đóng
+            </button>
+            <button v-if="detail" @click="reprint(detail.bookingId, detail.isConcession)" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20">
+              <span class="material-symbols-outlined text-base">print</span>
+              {{ isPosOrder ? 'IN LẠI VÉ / HOÁ ĐƠN' : 'IN VÉ / HOÁ ĐƠN' }}
             </button>
           </div>
         </div>

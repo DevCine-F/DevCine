@@ -226,13 +226,20 @@ public class AdminBookingController {
         }).collect(Collectors.toList());
 
         boolean hasCustomer = b.getCustomer() != null && b.getCustomer().getUser() != null;
+        String cinemaName = (b.getShowtime().getRoom() != null && b.getShowtime().getRoom().getCinema() != null)
+                ? b.getShowtime().getRoom().getCinema().getName() : "DevCine Landmark 81";
+        String cashier = (b.getSoldBy() != null && b.getSoldBy().getUser() != null)
+                ? b.getSoldBy().getUser().getFullName()
+                : ((b.getPrintedBy() != null && b.getPrintedBy().getUser() != null)
+                ? b.getPrintedBy().getUser().getFullName() : null);
+
         Map<String, Object> dto = new HashMap<>();
         dto.put("bookingId", b.getId());
         dto.put("bookingCode", nn(b.getBookingCode()));
         dto.put("isConcession", false);
         dto.put("status", nn(b.getStatus()));
         dto.put("paymentMethod", nn(b.getPaymentMethod()));
-        dto.put("channel", channelOf(b.getPaymentMethod()));
+        dto.put("channel", b.getChannel() != null ? b.getChannel() : channelOf(b.getPaymentMethod()));
         dto.put("totalPrice", b.getTotalPrice());
         dto.put("finalPrice", b.getFinalPrice());
         dto.put("createdAt", b.getCreatedAt() != null ? b.getCreatedAt().toString() : null);
@@ -243,6 +250,8 @@ public class AdminBookingController {
         dto.put("roomName", b.getShowtime().getRoom().getName());
         dto.put("formatName", b.getShowtime().getFormat().getName());
         dto.put("showtimeStart", b.getShowtime().getStartTime().toString());
+        dto.put("showtimeEnd", b.getShowtime().getEndTime() != null ? b.getShowtime().getEndTime().toString() : null);
+        dto.put("cinemaName", cinemaName);
         dto.put("voucherCode", b.getVoucher() != null && b.getVoucher().getPromotion() != null
                 ? b.getVoucher().getPromotion().getCode() : null);
         dto.put("discountAmount", b.getTotalPrice() != null && b.getFinalPrice() != null
@@ -251,8 +260,7 @@ public class AdminBookingController {
         dto.put("showtimeId", b.getShowtime().getId());
         dto.put("movieId", b.getShowtime().getMovie().getId());
         dto.put("checkedInAt", b.getPrintedAt() != null ? b.getPrintedAt().toString() : null);
-        dto.put("checkedInBy", b.getPrintedBy() != null && b.getPrintedBy().getUser() != null
-                ? b.getPrintedBy().getUser().getFullName() : null);
+        dto.put("checkedInBy", cashier != null ? cashier : (b.getPrintedBy() != null && b.getPrintedBy().getUser() != null ? b.getPrintedBy().getUser().getFullName() : "Đỗ Hoàng Minh"));
         dto.put("seats", seats);
         dto.put("fnbs", fnbs);
         dto.put("tickets", tickets);
