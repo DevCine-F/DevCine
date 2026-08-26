@@ -38,7 +38,7 @@ public class MailService {
     private boolean enabled;
 
     private static final DateTimeFormatter TIME_FMT
-            = DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy");
+            = DateTimeFormatter.ofPattern("HH:mm | dd/MM/yyyy");
 
     @Async
     public void sendTicketEmail(TicketEmailData data) {
@@ -544,7 +544,14 @@ public class MailService {
         String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
         String price = formatMoney(data.finalPrice());
 
-        int seatCount = data.seats() != null ? data.seats().size() : 0;
+        String movieDisplay = data.movieTitle() != null ? data.movieTitle() : "Phim";
+        if (data.formatName() != null && !data.formatName().isBlank()) {
+            if (!movieDisplay.toLowerCase().contains(data.formatName().toLowerCase())) {
+                movieDisplay = movieDisplay + " (" + data.formatName() + ")";
+            }
+        }
+
+        String seatDisplay = formatSeats(data.seats());
 
         StringBuilder fnbBlock = new StringBuilder();
         if (data.fnbs() != null && !data.fnbs().isEmpty()) {
@@ -571,9 +578,9 @@ public class MailService {
                     <div style="font-weight:700;color:#111;margin:22px 0 8px;">Vé & mã QR</div>
                     <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:22px;">
                       <img src="%s" alt="QR đơn hàng" width="200" height="200" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
-                      <div style="font-size:12px;color:#888;margin-top:14px;">Đưa mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> (%d ghế)</div>
+                      <div style="font-size:12px;color:#888;margin-top:14px;">Quý khách vui lòng tới quầy dịch vụ xuất trình mã vé này để được nhận vé.</div>
                     </div>
-                    """.formatted(bookingQrUrl, seatCount);
+                    """.formatted(bookingQrUrl);
             footer = "Vui lòng đến trước giờ chiếu 15–30 phút. Mã QR đại diện cho cả đơn — chỉ cần quét một lần duy nhất tại quầy.<br/>Đây là email tự động, vui lòng không trả lời — DevCine Cinema";
         } else {
             // ĐƠN POS / ĐÃ IN VÉ GIẤY → ẩn QR, chỉ hoá đơn + lời cảm ơn.
@@ -603,6 +610,7 @@ public class MailService {
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Phim</td><td style="padding:8px 14px;text-align:right;font-weight:600;color:#111;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Rạp / Phòng</td><td style="padding:8px 14px;text-align:right;color:#111;">%s • %s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Suất chiếu</td><td style="padding:8px 14px;text-align:right;color:#111;">%s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Ghế ngồi</td><td style="padding:8px 14px;text-align:right;font-weight:600;color:#111;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Thanh toán</td><td style="padding:8px 14px;text-align:right;color:#111;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Tổng tiền</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#111;font-size:16px;">%s</td></tr>
                     </table>
@@ -618,14 +626,54 @@ public class MailService {
                 escape(data.customerName()),
                 escape(intro),
                 escape(data.bookingCode()),
-                escape(data.movieTitle()),
+                escape(movieDisplay),
                 escape(data.cinemaName()), escape(data.roomName()),
                 escape(time),
+                escape(seatDisplay),
                 escape(paymentLabel(data.paymentMethod())),
                 price,
                 mainBlock,
                 fnbBlock.toString(),
                 footer);   // footer chứa <br/> nên KHÔNG escape
+    }
+
+    private String formatSeatType(String type) {
+        if (type == null || type.isBlank()) {
+            return "";
+        }
+        return switch (type.trim().toUpperCase()) {
+            case "STANDARD", "NORMAL" -> "Thường";
+            case "VIP" -> "VIP";
+            case "SWEETBOX", "DOUBLE", "COUPLE" -> "Sweetbox";
+            default -> type.trim();
+        };
+    }
+
+    private String formatSeats(java.util.List<TicketEmailData.SeatLine> seats) {
+        if (seats == null || seats.isEmpty()) {
+            return "—";
+        }
+        java.util.Map<String, java.util.List<String>> byType = new java.util.LinkedHashMap<>();
+        for (TicketEmailData.SeatLine s : seats) {
+            if (s == null || s.seatLabel() == null || s.seatLabel().isBlank()) {
+                continue;
+            }
+            String type = formatSeatType(s.seatType());
+            byType.computeIfAbsent(type, k -> new java.util.ArrayList<>()).add(s.seatLabel());
+        }
+        if (byType.isEmpty()) {
+            return "—";
+        }
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<String, java.util.List<String>> entry : byType.entrySet()) {
+            String labels = String.join(", ", entry.getValue());
+            if (!entry.getKey().isBlank()) {
+                parts.add(labels + " (" + entry.getKey() + ")");
+            } else {
+                parts.add(labels);
+            }
+        }
+        return String.join(", ", parts);
     }
 
     private String formatMoney(java.math.BigDecimal amount) {

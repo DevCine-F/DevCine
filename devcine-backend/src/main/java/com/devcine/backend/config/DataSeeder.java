@@ -30,10 +30,18 @@ public class DataSeeder {
             org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         return args -> {
 
-            // ===== MIGRATION CỘT TRÊN BẢNG PROMOTIONS & VOUCHERS =====
+            // ===== MIGRATION CỘT TRÊN BẢNG PROMOTIONS & VOUCHERS & UNIQUE PHONE =====
             try {
                 jdbcTemplate.execute("ALTER TABLE promotions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;");
                 jdbcTemplate.execute("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_order_value_snapshot NUMERIC(15, 2);");
+                // Chuẩn hóa chuỗi rỗng thành NULL và dọn dẹp các SĐT trùng cũ nếu có trước khi tạo Partial Unique Index
+                jdbcTemplate.execute("UPDATE users SET phone = NULL WHERE phone IS NOT NULL AND TRIM(phone) = '';");
+                jdbcTemplate.execute("WITH ranked_users AS (" +
+                        "    SELECT id, phone, ROW_NUMBER() OVER (PARTITION BY phone ORDER BY id ASC) as rn " +
+                        "    FROM users WHERE phone IS NOT NULL AND phone <> ''" +
+                        ") " +
+                        "UPDATE users u SET phone = NULL FROM ranked_users r WHERE u.id = r.id AND r.rn > 1;");
+                jdbcTemplate.execute("CREATE UNIQUE INDEX IF NOT EXISTS uk_users_phone ON users(phone) WHERE phone IS NOT NULL AND phone <> '';");
             } catch (Exception ignored) {
             }
 

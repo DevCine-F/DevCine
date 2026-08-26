@@ -109,11 +109,11 @@ public class TicketingController {
     @PreAuthorize("@perm.can('pos_ticketing', 'view')")
     public ResponseEntity<?> lookupMemberCard(@PathVariable String phone) {
         try {
-            String p = phone == null ? "" : phone.trim().replaceAll("\\s+", "").replaceFirst("^\\+84", "0");
-            if (p.isEmpty()) {
+            String p = com.devcine.backend.util.PhoneUtils.sanitize(phone);
+            if (p == null || p.isEmpty()) {
                 return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập số điện thoại"));
             }
-            Customer customer = customerRepository.findByUserPhone(p).stream().findFirst()
+            Customer customer = customerRepository.findFirstByUserPhone(p)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với số điện thoại này"));
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "customerId", customer.getUserId(),

@@ -74,11 +74,8 @@ public class StaffController {
         if (!EMAIL_RE.matcher(str(v)).matches()) throw new IllegalArgumentException("Email không đúng định dạng.");
     }
 
-    private void validatePhoneFormat(Object v) {
-        String s = str(v);
-        if (s.isBlank()) throw new IllegalArgumentException("Vui lòng nhập số điện thoại.");
-        if (!PHONE_RE.matcher(s).matches())
-            throw new IllegalArgumentException("Số điện thoại không hợp lệ (10 số, bắt đầu 03/05/07/08/09).");
+    private String validateAndSanitizePhone(Object v, boolean required) {
+        return com.devcine.backend.util.PhoneUtils.validateAndSanitize(v, required);
     }
 
     private void validateUsernameFormat(String v) {
@@ -206,11 +203,13 @@ public class StaffController {
             validateFullName(fullName);
             validateUsernameFormat(username);
             validateEmailFormat(email);
-            validatePhoneFormat(body.get("phone"));
+            String cleanPhone = validateAndSanitizePhone(body.get("phone"), true);
             if (userRepository.existsByUsername(username))
                 throw new IllegalArgumentException("Tài khoản đăng nhập đã tồn tại.");
             if (userRepository.existsByEmail(email))
                 throw new IllegalArgumentException("Email đã được sử dụng.");
+            if (userRepository.existsByPhone(cleanPhone))
+                throw new IllegalArgumentException("Số điện thoại " + cleanPhone + " đã được sử dụng bởi một tài khoản khác.");
 
             String desiredRole = str(body.get("role")).toUpperCase();
             if (desiredRole.isBlank()) desiredRole = "STAFF";
@@ -229,7 +228,7 @@ public class StaffController {
                     .username(username)
                     .email(email)
                     .fullName(fullName)
-                    .phone(str(body.get("phone")).isBlank() ? null : str(body.get("phone")))
+                    .phone(cleanPhone)
                     .passwordHash(passwordEncoder.encode(defaultStaffPassword))
                     .role(role)
                     .isActive(true)
@@ -298,8 +297,13 @@ public class StaffController {
                 u.setFullName(fullName);
             }
             if (body.containsKey("phone")) {
-                validatePhoneFormat(body.get("phone"));
-                u.setPhone(str(body.get("phone")).isBlank() ? null : str(body.get("phone")));
+                String cleanPhone = validateAndSanitizePhone(body.get("phone"), false);
+                if (cleanPhone != null && !cleanPhone.equals(u.getPhone())) {
+                    if (userRepository.existsByPhoneAndIdNot(cleanPhone, u.getId())) {
+                        throw new IllegalArgumentException("Số điện thoại " + cleanPhone + " đã được sử dụng bởi một tài khoản khác.");
+                    }
+                }
+                u.setPhone(cleanPhone);
             }
             if (body.containsKey("email")) {
                 String email = str(body.get("email"));

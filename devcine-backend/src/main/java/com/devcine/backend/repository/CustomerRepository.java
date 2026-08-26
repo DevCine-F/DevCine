@@ -15,7 +15,11 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     @Query("SELECT c FROM Customer c JOIN FETCH c.user u ORDER BY u.createdAt DESC")
     List<Customer> findAllWithUser();
 
-    /** Tra cứu khách hàng theo số điện thoại (POS tích điểm). Trả List để xử lý dữ liệu trùng. */
+    /** Tra cứu khách hàng theo số điện thoại (POS tích điểm). */
+    @Query("SELECT c FROM Customer c JOIN FETCH c.user u WHERE u.phone = :phone")
+    java.util.Optional<Customer> findFirstByUserPhone(@Param("phone") String phone);
+
+    /** Tra cứu danh sách khách hàng theo số điện thoại (tương thích cũ). */
     @Query("SELECT c FROM Customer c JOIN FETCH c.user u WHERE u.phone = :phone")
     List<Customer> findByUserPhone(@Param("phone") String phone);
 
