@@ -313,8 +313,19 @@ public class TicketingController {
             Integer showtimeId = Integer.parseInt(body.get("showtimeId").toString());
             @SuppressWarnings("unchecked")
             List<Integer> seatIds = (List<Integer>) body.get("seatIds");
+            String paymentMethod = (String) body.getOrDefault("paymentMethod", "TRANSFER");
             Integer customerId = body.get("customerId") != null
                     ? Integer.parseInt(body.get("customerId").toString()) : null;
+
+            // Loại vé/đối tượng theo từng ghế
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> selRaw = (List<Map<String, Object>>) body.get("seatSelections");
+            List<SeatSelectionDTO> seatSelections = selRaw == null ? null : selRaw.stream()
+                    .map(m -> SeatSelectionDTO.builder()
+                            .seatId(Integer.parseInt(m.get("seatId").toString()))
+                            .ticketType(m.get("ticketType") != null ? m.get("ticketType").toString() : "ADULT")
+                            .build())
+                    .collect(Collectors.toList());
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> fnbsRaw = (List<Map<String, Object>>) body.get("fnbs");
@@ -337,13 +348,27 @@ public class TicketingController {
                     })
                     .collect(Collectors.toList());
 
+            // Voucher: nhận voucherId trực tiếp, hoặc voucherCode -> tự lưu/áp cho khách
+            Integer voucherId = body.get("voucherId") != null
+                    ? Integer.parseInt(body.get("voucherId").toString()) : null;
+            String voucherCode = body.get("voucherCode") != null ? body.get("voucherCode").toString().trim() : null;
+            if (voucherId == null && voucherCode != null && !voucherCode.isBlank() && customerId != null) {
+                voucherId = voucherService.getOrClaimForCheckout(customerId, voucherCode).getId();
+            }
+
+            Integer heldBookingId = body.get("heldBookingId") != null
+                    ? Integer.parseInt(body.get("heldBookingId").toString()) : null;
+
             com.devcine.backend.dto.request.BookingRequestDTO req =
                     com.devcine.backend.dto.request.BookingRequestDTO.builder()
                             .showtimeId(showtimeId)
                             .seatIds(seatIds)
+                            .seatSelections(seatSelections)
                             .fnbs(fnbs)
                             .customerId(customerId)
-                            .paymentMethod("POS_HOLD")
+                            .voucherId(voucherId)
+                            .paymentMethod(paymentMethod)
+                            .heldBookingId(heldBookingId)
                             .allowOrphan(Boolean.parseBoolean(String.valueOf(body.getOrDefault("allowOrphan", "false"))))
                             .build();
 

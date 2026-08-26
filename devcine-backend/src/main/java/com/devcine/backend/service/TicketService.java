@@ -296,4 +296,73 @@ public class TicketService {
             return false;
         }
     }
+
+    /**
+     * Gửi email thông báo đổi ghế sự cố & phát voucher đền bù (kèm mã QR voucher và mã QR vé mới)
+     * cho đơn ONLINE. Trả false (im lặng) nếu đơn POS / không có email.
+     */
+    @Transactional(readOnly = true)
+    public boolean sendIncidentRelocateEmailIfOnline(
+            Integer bookingId,
+            String reason,
+            List<com.devcine.backend.dto.IncidentRelocateEmailData.SeatSwapLine> swaps,
+            com.devcine.backend.dto.response.IncidentResultResponse.CompensationResult comp,
+            String voucherLabel) {
+        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        if (booking == null) return false;
+        if ("POS".equalsIgnoreCase(booking.getChannel())) return false; // đơn POS trao quà tại quầy
+        if (booking.getCustomer() == null || booking.getCustomer().getUser() == null) return false;
+        User user = booking.getCustomer().getUser();
+        if (user.getEmail() == null || user.getEmail().isBlank()) return false;
+
+        Showtime showtime = booking.getShowtime();
+        Movie movie = showtime != null ? showtime.getMovie() : null;
+        Room room = showtime != null ? showtime.getRoom() : null;
+        Cinema cinema = room != null ? room.getCinema() : null;
+
+        List<TicketEmailData.SeatLine> seatLines = new ArrayList<>();
+        for (Ticket t : ticketRepository.findAllByBookingIdWithSeat(bookingId)) {
+            BookingSeat bs = t.getBookingSeat();
+            if (bs == null || !"SOLD".equalsIgnoreCase(bs.getStatus())) continue; // bỏ ghế đã hủy
+            seatLines.add(new TicketEmailData.SeatLine(bs.getSeat().displayLabel(), bs.getTicketType(), t.getQrCode()));
+        }
+
+        List<TicketEmailData.FnbLine> fnbLines = new ArrayList<>();
+        for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(bookingId)) {
+            String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
+            fnbLines.add(new TicketEmailData.FnbLine(name, bf.getQuantity()));
+        }
+
+        boolean voucherIssued = comp != null && comp.voucherIssued();
+        String voucherCode = comp != null ? comp.voucherCode() : null;
+        BigDecimal voucherValue = comp != null ? comp.value() : BigDecimal.ZERO;
+        String voucherType = comp != null ? comp.type() : "NONE";
+        boolean counterGift = comp != null && comp.counterGift();
+
+        try {
+            mailService.sendIncidentRelocateEmail(new com.devcine.backend.dto.IncidentRelocateEmailData(
+                    user.getEmail(),
+                    user.getFullName(),
+                    booking.getBookingCode(),
+                    movie != null ? movie.getTitle() : "Phim",
+                    cinema != null ? cinema.getName() : "",
+                    room != null ? room.getName() : "",
+                    showtime != null ? showtime.getStartTime() : null,
+                    reason,
+                    swaps,
+                    voucherIssued,
+                    voucherCode,
+                    voucherLabel,
+                    voucherValue,
+                    voucherType,
+                    counterGift,
+                    seatLines,
+                    fnbLines
+            ));
+            return true;
+        } catch (Exception e) {
+            log.error("Lỗi gửi email sự cố sau đổi ghế cho đơn {}: {}", booking.getBookingCode(), e.getMessage(), e);
+            return false;
+        }
+    }
 }
