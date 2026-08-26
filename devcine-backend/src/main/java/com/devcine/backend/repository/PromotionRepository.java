@@ -21,7 +21,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
      * Trả về số dòng affected: 1 = thành công, 0 = đã hết lượt → caller reject.
      * Giải quyết race condition khi 2 đơn thanh toán đồng thời cùng promotion.
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying
     @Query("UPDATE Promotion p SET p.usedCount = p.usedCount + 1 " +
            "WHERE p.id = :id AND (p.usageLimit IS NULL OR p.usageLimit = 0 OR p.usedCount < p.usageLimit)")
     int incrementUsedCountIfAllowed(@Param("id") Integer id);

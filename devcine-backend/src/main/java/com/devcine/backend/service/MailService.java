@@ -38,7 +38,7 @@ public class MailService {
     private boolean enabled;
 
     private static final DateTimeFormatter TIME_FMT
-            = DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy");
+            = DateTimeFormatter.ofPattern("HH:mm | dd/MM/yyyy");
 
     @Async
     public void sendTicketEmail(TicketEmailData data) {
@@ -86,6 +86,36 @@ public class MailService {
         }
     }
 
+    /**
+     * Gửi email THÔNG BÁO ĐỔI GHẾ SỰ CỐ & ĐỀN BÙ VOUCHER (kèm mã QR voucher và mã QR vé mới).
+     */
+    @Async
+    public void sendIncidentRelocateEmail(com.devcine.backend.dto.IncidentRelocateEmailData data) {
+        if (!enabled) {
+            log.info("mail.enabled=false → bỏ qua email đổi ghế sự cố đơn {}", data.bookingCode());
+            return;
+        }
+        if (data.toEmail() == null || data.toEmail().isBlank()) {
+            log.warn("Bỏ qua email đổi ghế sự cố đơn {}: khách chưa có email", data.bookingCode());
+            return;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(data.toEmail());
+            String subject = data.voucherIssued()
+                    ? "DevCine • Thông báo đổi ghế & Ưu đãi đền bù đơn " + data.bookingCode()
+                    : "DevCine • Cập nhật vị trí ghế đơn " + data.bookingCode();
+            helper.setSubject(subject);
+            helper.setText(buildIncidentRelocateHtml(data), true);
+            mailSender.send(message);
+            log.info("Đã gửi email đổi ghế sự cố tới {} cho đơn {}", data.toEmail(), data.bookingCode());
+        } catch (Exception e) {
+            log.error("Gửi email đổi ghế sự cố thất bại cho đơn {}: {}", data.bookingCode(), e.getMessage(), e);
+        }
+    }
+
     private String buildCancellationHtml(CancellationEmailData data) {
         String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
 
@@ -101,15 +131,19 @@ public class MailService {
 
         String voucherBlock = "";
         if (data.voucherIssued() && data.voucherCode() != null) {
+            String voucherQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
+                    + URLEncoder.encode(data.voucherCode() == null ? "" : data.voucherCode(), StandardCharsets.UTF_8);
             voucherBlock = """
                     <div style="font-weight:700;color:#111;margin:22px 0 8px;">Đền bù dành cho bạn</div>
                     <div style="text-align:center;background:#faf6e6;border:1px dashed #e0b400;border-radius:12px;padding:20px;">
-                      <div style="font-size:13px;color:#8a6d00;margin-bottom:8px;">%s</div>
-                      <span style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:4px;color:#111;">%s</span>
-                      <div style="font-size:12px;color:#888;margin-top:10px;">Mã đã được lưu vào ví <b>"Ưu đãi của tôi"</b>, hiệu lực 90 ngày.</div>
+                      <div style="font-size:13px;color:#8a6d00;font-weight:700;margin-bottom:8px;">%s</div>
+                      <div style="font-size:24px;font-weight:800;letter-spacing:4px;color:#111;margin-bottom:12px;">%s</div>
+                      <img src="%s" alt="QR Voucher" width="160" height="160" style="border:1px solid #ddd;border-radius:8px;background:#fff;" />
+                      <div style="font-size:12px;color:#888;margin-top:12px;">Mã đã được lưu vào ví <b>"Ưu đãi của tôi"</b>, hiệu lực 90 ngày. Đưa mã QR tại quầy hoặc áp dụng khi đặt vé trực tuyến.</div>
                     </div>
                     """.formatted(escape(data.voucherLabel() != null ? data.voucherLabel() : "Voucher đền bù"),
-                                  escape(data.voucherCode()));
+                                  escape(data.voucherCode()),
+                                  voucherQrUrl);
         }
 
         return """
@@ -145,6 +179,136 @@ public class MailService {
                 escape(time),
                 seatBlock.toString(),
                 voucherBlock);
+    }
+
+    private String buildIncidentRelocateHtml(com.devcine.backend.dto.IncidentRelocateEmailData data) {
+        String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
+        int seatCount = data.seats() != null ? data.seats().size() : 0;
+
+        // Khối Lý do sự cố
+        String reasonBlock = "";
+        if (data.reason() != null && !data.reason().isBlank()) {
+            reasonBlock = """
+                    <div style="background:#fff8e6;border-left:4px solid #e0b400;border-radius:8px;padding:12px 16px;margin:16px 0 18px;">
+                      <div style="font-size:11px;color:#8a6d00;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Lý do / Ghi chú sự cố</div>
+                      <div style="font-size:14px;color:#333;margin-top:4px;font-weight:600;">%s</div>
+                    </div>
+                    """.formatted(escape(data.reason()));
+        }
+
+        // Khối hoán đổi ghế (cũ -> mới)
+        StringBuilder swapBlock = new StringBuilder();
+        if (data.swaps() != null && !data.swaps().isEmpty()) {
+            swapBlock.append("<div style=\"margin:16px 0;\"><div style=\"font-weight:700;color:#111;margin-bottom:8px;font-size:14px;\">Chi tiết thay đổi chỗ ngồi</div>");
+            swapBlock.append("<table style=\"width:100%;border-collapse:collapse;background:#fafafa;border-radius:8px;overflow:hidden;\">");
+            for (com.devcine.backend.dto.IncidentRelocateEmailData.SeatSwapLine s : data.swaps()) {
+                swapBlock.append("""
+                        <tr style="border-bottom:1px solid #eee;">
+                          <td style="padding:10px 14px;font-size:13px;color:#888;">Ghế cũ: <span style="font-weight:700;color:#c0392b;text-decoration:line-through;">%s</span></td>
+                          <td style="padding:10px 14px;text-align:right;font-size:13px;color:#111;">Ghế mới: <span style="font-weight:800;color:#0a8f08;background:#e8f8e8;padding:3px 10px;border-radius:6px;">%s</span></td>
+                        </tr>
+                        """.formatted(escape(s.oldSeatLabel()), escape(s.newSeatLabel())));
+            }
+            swapBlock.append("</table></div>");
+        }
+
+        // Khối Đền bù Voucher kèm QR Code
+        String voucherBlock = "";
+        if (data.voucherIssued() && data.voucherCode() != null) {
+            String voucherQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
+                    + URLEncoder.encode(data.voucherCode() == null ? "" : data.voucherCode(), StandardCharsets.UTF_8);
+            String valueLabel = "";
+            if (data.voucherValue() != null && data.voucherValue().signum() > 0) {
+                valueLabel = "Trị giá: " + formatMoney(data.voucherValue());
+            } else if ("GIFT_FNB".equalsIgnoreCase(data.voucherType())) {
+                valueLabel = "Quà tặng: 01 Combo Bắp Nước";
+            }
+            voucherBlock = """
+                    <div style="margin:22px 0 8px;">
+                      <div style="font-weight:700;color:#111;margin-bottom:6px;font-size:14px;">🎁 Ưu đãi đền bù dành cho bạn</div>
+                      <div style="text-align:center;background:#faf6e6;border:1px dashed #e0b400;border-radius:12px;padding:20px;">
+                        <div style="font-size:13px;color:#8a6d00;font-weight:700;">%s</div>
+                        <div style="font-size:12px;color:#666;margin:4px 0 10px;">%s</div>
+                        <div style="font-size:24px;font-weight:800;letter-spacing:5px;color:#111;margin-bottom:12px;">%s</div>
+                        <img src="%s" alt="QR Voucher" width="160" height="160" style="border:1px solid #ddd;border-radius:8px;background:#fff;" />
+                        <div style="font-size:12px;color:#888;margin-top:12px;line-height:1.5;">
+                          Đưa mã QR trên tại quầy hoặc áp dụng khi đặt vé online.<br/>
+                          Mã đã được lưu vào ví <b>"Ưu đãi của tôi"</b> (Hạn sử dụng: 90 ngày).
+                        </div>
+                      </div>
+                    </div>
+                    """.formatted(
+                    escape(data.voucherLabel() != null ? data.voucherLabel() : "Voucher đền bù sự cố"),
+                    escape(valueLabel),
+                    escape(data.voucherCode()),
+                    voucherQrUrl);
+        }
+
+        // Khối Combo F&B kèm đơn ban đầu (nếu có)
+        StringBuilder fnbBlock = new StringBuilder();
+        if (data.fnbs() != null && !data.fnbs().isEmpty()) {
+            fnbBlock.append("<div style=\"margin-top:16px;\"><div style=\"font-weight:700;color:#111;margin-bottom:6px;\">Combo / Đồ ăn kèm</div>");
+            for (TicketEmailData.FnbLine f : data.fnbs()) {
+                fnbBlock.append("<div style=\"font-size:14px;color:#444;\">• %s × %d</div>"
+                        .formatted(escape(f.name()), f.quantity() == null ? 1 : f.quantity()));
+            }
+            fnbBlock.append("</div>");
+        }
+
+        // Khối QR check-in vé xem phim mới
+        String bookingQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
+                + URLEncoder.encode(data.bookingCode() == null ? "" : data.bookingCode(), StandardCharsets.UTF_8);
+        String ticketQrBlock = """
+                <div style="margin:20px 0 8px;">
+                  <div style="font-weight:700;color:#111;margin-bottom:6px;font-size:14px;">Vé điện tử & Mã QR vào phòng chiếu</div>
+                  <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:20px;">
+                    <img src="%s" alt="QR Vé vào rạp" width="180" height="180" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
+                    <div style="font-size:12px;color:#888;margin-top:12px;">Đưa mã QR này tại quầy soát vé để check-in cho <b>toàn bộ đơn (%d ghế)</b></div>
+                  </div>
+                </div>
+                """.formatted(bookingQrUrl, seatCount);
+
+        return """
+                <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">
+                  <div style="background:linear-gradient(135deg,#f5c518,#e0b400);padding:22px 24px;">
+                    <div style="color:#3d2f00;font-size:22px;font-weight:800;letter-spacing:.5px;">DevCine</div>
+                    <div style="color:#6b5200;font-size:13px;margin-top:4px;">Thông báo đổi ghế & Cập nhật vé xem phim</div>
+                  </div>
+                  <div style="padding:24px;">
+                    <p style="font-size:15px;color:#111;margin:0 0 4px;">Xin chào <b>%s</b>,</p>
+                    <p style="font-size:14px;color:#555;margin:0 0 14px;">DevCine xin thông báo vé của bạn đã được <b>chuyển sang vị trí ghế mới</b> do phát sinh sự cố tại phòng chiếu. Chúng tôi thành thật xin lỗi vì sự bất tiện này.</p>
+
+                    %s
+
+                    <table style="width:100%%;border-collapse:collapse;background:#fafafa;border-radius:10px;">
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Mã đặt vé</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#8a6d00;font-size:15px;">%s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Phim</td><td style="padding:8px 14px;text-align:right;font-weight:600;color:#111;">%s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Rạp / Phòng</td><td style="padding:8px 14px;text-align:right;color:#111;">%s • %s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Suất chiếu</td><td style="padding:8px 14px;text-align:right;color:#111;">%s</td></tr>
+                    </table>
+
+                    %s
+                    %s
+                    %s
+                    %s
+
+                    <p style="font-size:12px;color:#999;margin-top:24px;line-height:1.6;">
+                      Nếu cần hỗ trợ thêm, vui lòng liên hệ trực tiếp nhân viên tại quầy hoặc hotline 1900 1234.<br/>
+                      Đây là email tự động, vui lòng không trả lời — DevCine Cinema
+                    </p>
+                  </div>
+                </div>
+                """.formatted(
+                escape(data.customerName()),
+                reasonBlock,
+                escape(data.bookingCode()),
+                escape(data.movieTitle()),
+                escape(data.cinemaName()), escape(data.roomName()),
+                escape(time),
+                swapBlock.toString(),
+                voucherBlock,
+                ticketQrBlock,
+                fnbBlock.toString());
     }
 
     /**
@@ -380,7 +544,14 @@ public class MailService {
         String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
         String price = formatMoney(data.finalPrice());
 
-        int seatCount = data.seats() != null ? data.seats().size() : 0;
+        String movieDisplay = data.movieTitle() != null ? data.movieTitle() : "Phim";
+        if (data.formatName() != null && !data.formatName().isBlank()) {
+            if (!movieDisplay.toLowerCase().contains(data.formatName().toLowerCase())) {
+                movieDisplay = movieDisplay + " (" + data.formatName() + ")";
+            }
+        }
+
+        String seatDisplay = formatSeats(data.seats());
 
         StringBuilder fnbBlock = new StringBuilder();
         if (data.fnbs() != null && !data.fnbs().isEmpty()) {
@@ -407,9 +578,9 @@ public class MailService {
                     <div style="font-weight:700;color:#111;margin:22px 0 8px;">Vé & mã QR</div>
                     <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:22px;">
                       <img src="%s" alt="QR đơn hàng" width="200" height="200" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
-                      <div style="font-size:12px;color:#888;margin-top:14px;">Đưa mã QR này tại quầy để check-in cho <b>toàn bộ đơn</b> (%d ghế)</div>
+                      <div style="font-size:12px;color:#888;margin-top:14px;">Quý khách vui lòng tới quầy dịch vụ xuất trình mã vé này để được nhận vé.</div>
                     </div>
-                    """.formatted(bookingQrUrl, seatCount);
+                    """.formatted(bookingQrUrl);
             footer = "Vui lòng đến trước giờ chiếu 15–30 phút. Mã QR đại diện cho cả đơn — chỉ cần quét một lần duy nhất tại quầy.<br/>Đây là email tự động, vui lòng không trả lời — DevCine Cinema";
         } else {
             // ĐƠN POS / ĐÃ IN VÉ GIẤY → ẩn QR, chỉ hoá đơn + lời cảm ơn.
@@ -439,6 +610,7 @@ public class MailService {
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Phim</td><td style="padding:8px 14px;text-align:right;font-weight:600;color:#111;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Rạp / Phòng</td><td style="padding:8px 14px;text-align:right;color:#111;">%s • %s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Suất chiếu</td><td style="padding:8px 14px;text-align:right;color:#111;">%s</td></tr>
+                      <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Ghế ngồi</td><td style="padding:8px 14px;text-align:right;font-weight:600;color:#111;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Thanh toán</td><td style="padding:8px 14px;text-align:right;color:#111;">%s</td></tr>
                       <tr><td style="padding:8px 14px;color:#888;font-size:13px;">Tổng tiền</td><td style="padding:8px 14px;text-align:right;font-weight:700;color:#111;font-size:16px;">%s</td></tr>
                     </table>
@@ -454,14 +626,54 @@ public class MailService {
                 escape(data.customerName()),
                 escape(intro),
                 escape(data.bookingCode()),
-                escape(data.movieTitle()),
+                escape(movieDisplay),
                 escape(data.cinemaName()), escape(data.roomName()),
                 escape(time),
+                escape(seatDisplay),
                 escape(paymentLabel(data.paymentMethod())),
                 price,
                 mainBlock,
                 fnbBlock.toString(),
                 footer);   // footer chứa <br/> nên KHÔNG escape
+    }
+
+    private String formatSeatType(String type) {
+        if (type == null || type.isBlank()) {
+            return "";
+        }
+        return switch (type.trim().toUpperCase()) {
+            case "STANDARD", "NORMAL" -> "Thường";
+            case "VIP" -> "VIP";
+            case "SWEETBOX", "DOUBLE", "COUPLE" -> "Sweetbox";
+            default -> type.trim();
+        };
+    }
+
+    private String formatSeats(java.util.List<TicketEmailData.SeatLine> seats) {
+        if (seats == null || seats.isEmpty()) {
+            return "—";
+        }
+        java.util.Map<String, java.util.List<String>> byType = new java.util.LinkedHashMap<>();
+        for (TicketEmailData.SeatLine s : seats) {
+            if (s == null || s.seatLabel() == null || s.seatLabel().isBlank()) {
+                continue;
+            }
+            String type = formatSeatType(s.seatType());
+            byType.computeIfAbsent(type, k -> new java.util.ArrayList<>()).add(s.seatLabel());
+        }
+        if (byType.isEmpty()) {
+            return "—";
+        }
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<String, java.util.List<String>> entry : byType.entrySet()) {
+            String labels = String.join(", ", entry.getValue());
+            if (!entry.getKey().isBlank()) {
+                parts.add(labels + " (" + entry.getKey() + ")");
+            } else {
+                parts.add(labels);
+            }
+        }
+        return String.join(", ", parts);
     }
 
     private String formatMoney(java.math.BigDecimal amount) {

@@ -94,7 +94,74 @@ const toggleSound = () => {
   if (!muted.value) win.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [70] }), '*')
 }
 
-onUnmounted(() => { clearTimeout(slideTimer); clearTimeout(videoTimer) })
+// ===== Sneak Previews (Suất chiếu sớm) carousel =====
+const sneakPreviews = ref([])
+const currentSneakSlide = ref(0)
+let sneakSlideTimer = null
+let sneakTouchStartX = 0
+
+const goToSneakSlide = (i) => {
+  const n = sneakPreviews.value.length
+  if (!n) return
+  currentSneakSlide.value = (i + n) % n
+  restartSneakAutoSlide()
+}
+const nextSneakSlide = () => goToSneakSlide(currentSneakSlide.value + 1)
+const prevSneakSlide = () => goToSneakSlide(currentSneakSlide.value - 1)
+
+const restartSneakAutoSlide = () => {
+  clearTimeout(sneakSlideTimer)
+  if (sneakPreviews.value.length > 1) {
+    sneakSlideTimer = setTimeout(() => {
+      currentSneakSlide.value = (currentSneakSlide.value + 1) % sneakPreviews.value.length
+      restartSneakAutoSlide()
+    }, 7000)
+  }
+}
+
+const pauseSneakAutoSlide = () => {
+  clearTimeout(sneakSlideTimer)
+}
+
+const onSneakTouchStart = (e) => {
+  if (e.touches && e.touches[0]) {
+    sneakTouchStartX = e.touches[0].clientX
+  }
+}
+
+const onSneakTouchEnd = (e) => {
+  if (e.changedTouches && e.changedTouches[0]) {
+    const diff = sneakTouchStartX - e.changedTouches[0].clientX
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) nextSneakSlide()
+      else prevSneakSlide()
+    }
+  }
+}
+
+const navigateToSneakMovie = (item) => {
+  if (!item?.movieId) return
+  router.push({
+    path: `/movie/${item.movieId}`,
+    hash: '#showtimes-section',
+    query: item.defaultDate ? { date: item.defaultDate } : {}
+  })
+}
+
+const fetchSneakPreviews = async () => {
+  try {
+    const { data } = await api.get('/showtimes/sneak-previews')
+    sneakPreviews.value = Array.isArray(data) ? data : (data.data ?? [])
+  } catch (error) {
+    console.error('Không tải được danh sách suất chiếu sớm', error)
+  }
+}
+
+onUnmounted(() => {
+  clearTimeout(slideTimer)
+  clearTimeout(videoTimer)
+  clearTimeout(sneakSlideTimer)
+})
 
 const fetchPromoArticles = async () => {
   try {
@@ -134,6 +201,7 @@ const fetchBanners = async () => {
 
 onMounted(async () => {
   fetchPromoArticles()
+  fetchSneakPreviews().then(() => restartSneakAutoSlide())
   await Promise.all([fetchMovies(), fetchBanners()])
   restartAutoSlide()
   maybeStartVideo()
@@ -342,43 +410,124 @@ const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 
         </div>
       </section>
 
-      <!-- Special Screenings Section -->
-      <section class="mt-20">
-        <div class="relative w-full rounded-2xl overflow-hidden bg-black/40 backdrop-blur-md shadow-2xl flex flex-col md:flex-row border border-white/10">
-          <div class="md:w-1/2 relative min-h-[400px]">
-            <img alt="Special Screening Interior" class="absolute inset-0 w-full h-full object-cover" src="/images/Hopper.webp"/>
-            <div class="absolute top-6 left-6 bg-primary-container text-on-primary px-4 py-1.5 font-headline font-black text-[10px] tracking-widest uppercase rounded">
-              SNEAK PREVIEW
+      <!-- Special Screenings Section (Sneak Previews) -->
+      <section v-if="sneakPreviews.length" class="mt-20 md:mt-24 relative group/sneak"
+               @mouseenter="pauseSneakAutoSlide"
+               @mouseleave="restartSneakAutoSlide"
+               @touchstart="onSneakTouchStart"
+               @touchend="onSneakTouchEnd">
+
+        <!-- Tiêu đề Section kết hợp 2 đường kẻ ánh vàng 2 bên cánh -->
+        <div class="text-center mb-10 md:mb-14">
+          <span class="text-primary-container font-headline text-sm font-bold tracking-[0.3em] uppercase mb-3 block">
+            ĐẶC QUYỀN DEVCINE
+          </span>
+          <div class="flex items-center justify-center gap-4 md:gap-8 max-w-[1440px] mx-auto">
+            <!-- Cánh trái: Mờ ngoài -> Ánh vàng sát chữ -->
+            <div class="flex-grow h-[1px] bg-gradient-to-r from-transparent via-white/10 to-primary-container"></div>
+            <!-- Tiêu đề chính -->
+            <h2 class="font-headline text-3xl md:text-5xl font-black tracking-tighter uppercase text-white whitespace-nowrap">
+              SUẤT CHIẾU SỚM
+            </h2>
+            <!-- Cánh phải: Ánh vàng sát chữ -> Mờ ngoài -->
+            <div class="flex-grow h-[1px] bg-gradient-to-l from-transparent via-white/10 to-primary-container"></div>
+          </div>
+        </div>
+
+        <div class="relative w-full rounded-2xl overflow-hidden bg-black/50 backdrop-blur-xl shadow-2xl border border-white/10 glass-card">
+          <!-- Slider Track -->
+          <div class="flex transition-transform duration-700 ease-out"
+               :style="{ transform: `translateX(-${currentSneakSlide * 100}%)` }">
+            <div v-for="item in sneakPreviews" :key="item.movieId"
+                 class="w-full flex-shrink-0 flex flex-col md:flex-row cursor-pointer select-none"
+                 @click="navigateToSneakMovie(item)">
+              
+              <!-- Cột trái: Poster / Backdrop -->
+              <div class="md:w-1/2 relative min-h-[380px] md:min-h-[460px] overflow-hidden group/img">
+                <img :alt="item.title"
+                     class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105"
+                     :src="item.bannerUrl || item.posterUrl || '/images/Hopper.webp'" />
+                <div class="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-black/80 via-black/20 to-transparent"></div>
+                
+                <!-- Badge Sneak Preview -->
+                <div class="absolute top-6 left-6 bg-primary-container text-on-primary px-4 py-1.5 font-headline font-black text-[11px] tracking-widest uppercase rounded shadow-lg">
+                  SNEAK PREVIEW
+                </div>
+
+                <div v-if="item.ageRating" class="absolute bottom-6 left-6 bg-error-container text-white px-3 py-1 font-bold text-xs rounded uppercase">
+                  {{ item.ageRating }}
+                </div>
+              </div>
+
+              <!-- Cột phải: Thông tin chi tiết -->
+              <div class="md:w-1/2 p-8 md:p-14 flex flex-col justify-center space-y-6">
+                <div>
+                  <span class="text-primary-container font-headline text-sm font-bold tracking-[0.2em] uppercase mb-2 block">
+                    TRẢI NGHIỆM SỚM
+                  </span>
+                  <h2 class="font-headline text-3xl md:text-5xl font-black text-white uppercase tracking-tighter leading-tight line-clamp-2">
+                    {{ item.title }}
+                  </h2>
+                  <p v-if="item.titleVietnamese && item.titleVietnamese !== item.title" class="text-[#f5c518] text-sm font-bold mt-1 uppercase tracking-wide">
+                    {{ item.titleVietnamese }}
+                  </p>
+                </div>
+
+                <p class="text-on-surface-variant text-sm md:text-base leading-relaxed line-clamp-3">
+                  {{ item.description || 'Đừng bỏ lỡ cơ hội trở thành những khán giả đầu tiên tại Việt Nam được trải nghiệm siêu phẩm đặc sắc này trước ngày khởi chiếu chính thức.' }}
+                </p>
+
+                <!-- 3 thông số có icon Material Symbols -->
+                <div class="flex flex-wrap gap-4 md:gap-6 border-t border-b border-outline-variant/20 py-5">
+                  <div v-if="item.formattedDates" class="flex items-center space-x-2">
+                    <span class="material-symbols-outlined text-primary-container text-xl">calendar_today</span>
+                    <span class="text-sm font-bold text-white">{{ item.formattedDates }}</span>
+                  </div>
+                  <div v-if="item.formattedTimes" class="flex items-center space-x-2">
+                    <span class="material-symbols-outlined text-primary-container text-xl">schedule</span>
+                    <span class="text-sm font-bold text-white">{{ item.formattedTimes }}</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <span class="material-symbols-outlined text-primary-container text-xl">location_on</span>
+                    <span class="text-sm font-bold text-white">{{ item.locationSummary || 'Toàn hệ thống' }}</span>
+                  </div>
+                </div>
+
+                <!-- Nút Đặt chỗ trước -->
+                <div class="pt-2">
+                  <button @click.stop="navigateToSneakMovie(item)"
+                          class="bg-primary-container text-on-primary px-8 md:px-10 py-3.5 md:py-4 rounded-lg font-headline font-extrabold text-sm hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/20 flex items-center gap-2 group/btn">
+                    <span>ĐẶT CHỖ TRƯỚC</span>
+                    <span class="material-symbols-outlined text-base transition-transform group-hover/btn:translate-x-1">arrow_forward</span>
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
-          <div class="md:w-1/2 p-12 md:p-16 flex flex-col justify-center space-y-8">
-            <div>
-              <span class="text-primary-container font-headline text-sm font-bold tracking-[0.2em] uppercase mb-2 block">TRẢI NGHIỆM SỚM</span>
-              <h2 class="font-headline text-5xl font-black text-white uppercase tracking-tighter leading-none">THẰN LẰN XANH</h2>
+
+          <!-- Nút điều hướng chuyển slide (Khi có >= 2 phim) -->
+          <template v-if="sneakPreviews.length > 1">
+            <button @click.stop="prevSneakSlide"
+                    class="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/60 hover:bg-primary-container text-white hover:text-black border border-white/20 flex items-center justify-center transition-all duration-300 backdrop-blur-md opacity-80 hover:opacity-100 z-10"
+                    aria-label="Previous Slide">
+              <span class="material-symbols-outlined text-2xl">chevron_left</span>
+            </button>
+            <button @click.stop="nextSneakSlide"
+                    class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/60 hover:bg-primary-container text-white hover:text-black border border-white/20 flex items-center justify-center transition-all duration-300 backdrop-blur-md opacity-80 hover:opacity-100 z-10"
+                    aria-label="Next Slide">
+              <span class="material-symbols-outlined text-2xl">chevron_right</span>
+            </button>
+
+            <!-- Pagination Dots -->
+            <div class="absolute bottom-4 right-6 md:right-10 flex items-center gap-2 z-10">
+              <button v-for="(_, idx) in sneakPreviews" :key="idx"
+                      @click.stop="goToSneakSlide(idx)"
+                      class="h-2 rounded-full transition-all duration-300"
+                      :class="currentSneakSlide === idx ? 'w-6 bg-primary-container' : 'w-2 bg-white/40 hover:bg-white/70'"
+                      :aria-label="`Slide ${idx + 1}`" />
             </div>
-            <p class="text-on-surface-variant text-lg leading-relaxed max-w-lg">
-              Đừng bỏ lỡ cơ hội trở thành những khán giả đầu tiên tại Việt Nam được trải nghiệm siêu phẩm hành động kịch tính này trước ngày khởi chiếu chính thức.
-            </p>
-            <div class="flex flex-wrap gap-6 border-t border-b border-outline-variant/20 py-6">
-              <div class="flex items-center space-x-2">
-                <span class="material-symbols-outlined text-primary-container">calendar_today</span>
-                <span class="text-sm font-bold text-white">20.12.2024</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <span class="material-symbols-outlined text-primary-container">schedule</span>
-                <span class="text-sm font-bold text-white">19:00 & 21:30</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <span class="material-symbols-outlined text-primary-container">location_on</span>
-                <span class="text-sm font-bold text-white">Toàn hệ thống</span>
-              </div>
-            </div>
-            <div>
-              <button class="bg-primary-container text-on-primary px-10 py-4 rounded-lg font-headline font-extrabold text-sm hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-container/20">
-                ĐẶT CHỖ TRƯỚC
-              </button>
-            </div>
-          </div>
+          </template>
         </div>
       </section>
 

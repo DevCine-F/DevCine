@@ -4,8 +4,8 @@ import { incidentApi } from '@/api/admin/index'
 import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
-import { useSeatGridRender } from '@/composables/useSeatGridRender'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
+import SeatGridRenderer from '@/components/common/SeatGridRenderer.vue'
 
 const toast = useToastStore()
 const confirm = useConfirmStore()
@@ -22,16 +22,11 @@ const phoneBookings = ref([])  // List<IncidentBookingContext> khi tìm theo SĐ
 // ===== Sơ đồ ghế của suất =====
 const seatMap = ref(null)      // { matrixRow, matrixCol, seats[] }
 const loadingMap = ref(false)
-const { cellAt } = useSeatGridRender(() => seatMap.value?.seats || [])
 
-const rows = computed(() => Array.from({ length: seatMap.value?.matrixRow || 0 }, (_, i) => i))
-const cols = computed(() => Array.from({ length: seatMap.value?.matrixCol || 0 }, (_, i) => i))
-
-// ===== Thao tác: đổi ghế / hủy chỗ =====
-const mode = ref('relocate')   // 'relocate' | 'cancel'
+// ===== Thao tác: chỉ đổi ghế (đã bỏ hủy chỗ) =====
+const mode = ref('relocate')   // chỉ còn 'relocate'
 const swaps = ref({})          // oldSeatId -> newSeatId
 const activeSource = ref(null) // oldSeatId đang chờ gán ghế đích
-const cancelSel = ref({})      // bookingSeatId -> true
 
 // ===== Đền bù =====
 const compOptions = ref([])
@@ -110,14 +105,13 @@ const started = computed(() => ctx.value?.showtime?.started === true)
 const expired = computed(() => ctx.value?.showtime?.expired === true)
 
 const visibleCompOptions = computed(() =>
-  compOptions.value.filter(o => mode.value === 'cancel' ? true : !o.cancelOnly))
+  compOptions.value.filter(o => !o.cancelOnly))
 
 const selectedSwaps = computed(() =>
   Object.entries(swaps.value).filter(([, dest]) => dest != null)
     .map(([oldSeatId, newSeatId]) => ({ oldSeatId: Number(oldSeatId), newSeatId })))
 
 const canSubmitRelocate = computed(() => selectedSwaps.value.length > 0 && !started.value && !expired.value)
-const canSubmitCancel = computed(() => Object.values(cancelSel.value).some(Boolean) && !expired.value)
 
 // ================= Tra cứu =================
 async function doLookup(preserveResult = false) {
@@ -181,7 +175,6 @@ function resetWorkspace(preserveResult = false) {
   seatMap.value = null
   swaps.value = {}
   activeSource.value = null
-  cancelSel.value = {}
   compChoice.value = 'NONE'
   compNote.value = ''
   if (!preserveResult) {
@@ -189,75 +182,102 @@ function resetWorkspace(preserveResult = false) {
   }
 }
 
-// ================= Tương tác sơ đồ =================
+// ================= Tương tác sơ đồ (incident-specific class/title functions) =================
 function isSeatMaintenance(cell) {
   if (!cell) return false
   return cell.status === 'MAINTENANCE' || cell.status === 'LOCKED' ||
          cell.seatStatus === 'MAINTENANCE' || cell.seatStatus === 'LOCKED'
 }
 
-function seatState(cell) {
-  if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return 'aisle'
-  if (chosenDest.value.has(cell.seatId)) return 'dest'
-  if (isSeatMaintenance(cell)) return 'blocked'
-  if (bookingSeatIds.value.has(cell.seatId)) return 'source'
-  if (cell.status === 'AVAILABLE') return 'free'
-  return 'occupied'
+function seatTypeLabel(t) {
+  const type = (t || '').toUpperCase()
+  if (type === 'VIP') return 'VIP'
+  if (type === 'SWEETBOX' || type === 'DOUBLE' || type === 'COUPLE') return 'Sweetbox'
+  return 'Thường'
 }
 
-function seatClass(cell) {
-  const base = 'w-8 h-8 rounded-md flex items-center justify-center text-[9px] font-bold border transition-all leading-none select-none'
-  const state = seatState(cell)
-  const isSource = cell.seatId != null && bookingSeatIds.value.has(cell.seatId)
+// customSeatClass: trả về class CSS đặc biệt cho incident mode
+// Trả về null để SeatGridRenderer dùng logic mặc định (màu VIP/Sweetbox/Standard)
+function incidentSeatClass(seat) {
+  if (!seat || seat.kind === 'AISLE' || seat.seatId == null) return null
 
-  switch (state) {
-    case 'source': {
-      if (mode.value === 'cancel') {
-        const bs = soldSeats.value.find(s => s.seatId === cell.seatId)
-        const isCancelled = bs && cancelSel.value[bs.bookingSeatId]
-        return `${base} cursor-pointer ${isCancelled ? 'bg-red-500 border-red-300 text-white scale-105 shadow-lg shadow-red-500/30' : 'bg-blue-900/50 border-blue-500/50 text-blue-200 hover:border-blue-300'}`
-      }
-      const active = activeSource.value === cell.seatId
-      return `${base} cursor-pointer ${active ? 'bg-blue-500 border-blue-300 text-white scale-110 shadow-lg shadow-blue-500/30' : 'bg-blue-900/50 border-blue-500/50 text-blue-200 hover:border-blue-300'}`
+  const isCanInteract = !started.value && !expired.value
+  const isSource = bookingSeatIds.value.has(seat.seatId)
+  const isDest = !started.value && !expired.value && chosenDest.value.has(seat.seatId)
+  const isMaint = isSeatMaintenance(seat)
+
+  const isDouble = seat.seatType === 'SWEETBOX' || seat.seatType === 'DOUBLE' || seat.seatType === 'COUPLE' || seat.span === 2
+  const sizeClass = isDouble
+    ? 'col-span-2 w-full h-8 rounded-xl justify-self-stretch'
+    : 'w-8 h-8 aspect-square rounded-lg'
+  const base = `${sizeClass} flex items-center justify-center text-[9px] font-bold border transition-all leading-none shrink-0 select-none`
+
+  // 1. Ghế của đơn đang xử lý (source - SOLD)
+  if (isSource) {
+    if (isMaint) {
+      const active = isCanInteract && activeSource.value === seat.seatId
+      const cursor = isCanInteract ? 'cursor-pointer' : 'cursor-default'
+      return `${base} ${cursor} bg-red-950/80 border-2 ${active
+        ? 'border-blue-400 ring-2 ring-blue-500 text-white scale-110 shadow-lg'
+        : 'border-blue-500 text-blue-200 hover:border-blue-400'
+      }`
     }
-    case 'dest':
-      return `${base} bg-green-500 border-green-300 text-white cursor-pointer shadow-lg shadow-green-500/30`
-    case 'blocked': {
-      if (isSource) {
-        if (mode.value === 'cancel') {
-          const bs = soldSeats.value.find(s => s.seatId === cell.seatId)
-          const isCancelled = bs && cancelSel.value[bs.bookingSeatId]
-          return `${base} cursor-pointer bg-red-950/80 border-2 ${isCancelled ? 'border-red-400 ring-2 ring-red-500 text-white scale-105 shadow-lg' : 'border-red-500 text-red-300 hover:border-red-400'}`
-        }
-        const active = activeSource.value === cell.seatId
-        return `${base} cursor-pointer bg-red-950/80 border-2 ${active ? 'border-blue-400 ring-2 ring-blue-500 text-white scale-110 shadow-lg' : 'border-red-500 text-red-300 hover:border-red-400'}`
-      }
-      return `${base} bg-red-950/40 border border-red-500/40 text-red-400 cursor-not-allowed opacity-80`
+    const active = isCanInteract && activeSource.value === seat.seatId
+    if (active) {
+      return `${base} cursor-pointer bg-gradient-to-br from-blue-400 to-blue-600 border-blue-300 text-white scale-[1.08] shadow-[0_0_20px_rgba(59,130,246,0.5)] z-10`
     }
-    case 'free':
-      return `${base} bg-surface-container-high border-outline-variant/20 text-on-surface-variant/60 ${mode.value === 'cancel' ? 'opacity-50' : 'cursor-pointer hover:border-primary/50'}`
-    case 'occupied':
-      return `${base} bg-surface-container-high border-white/5 text-on-surface-variant/20 cursor-not-allowed opacity-40`
-    default:
-      return 'w-8 h-8'
+    const hover = isCanInteract ? 'hover:brightness-110 hover:-translate-y-0.5 cursor-pointer' : 'cursor-default'
+    return `${base} bg-blue-900/60 border-blue-500/70 text-blue-200 ${hover}`
   }
+
+  // 2. Ghế đích đã chọn (chỉ khi có thể đổi ghế)
+  if (isDest) {
+    return `${base} bg-gradient-to-br from-green-400 to-green-600 border-green-300 text-white cursor-pointer shadow-[0_0_20px_rgba(34,197,94,0.5)] scale-[1.02] z-10`
+  }
+
+  // 3. Trả về null để SeatGridRenderer xử lý theo logic mặc định
+  // (VIP đỏ, Sweetbox tím, Standard xám, SOLD mờ, MAINTENANCE xám red)
+  return null
+}
+
+// Tạo tooltip tương thích với SeatGridRenderer.customSeatTitle
+function incidentSeatTitle(seat) {
+  if (!seat || seat.seatId == null) return ''
+  const isMaint = isSeatMaintenance(seat)
+  const typeLbl = seatTypeLabel(seat.seatType)
+  if (isMaint) return `Ghế ${seat.label} (${typeLbl} · Bảo trì / khóa)${!started.value && !expired.value ? ' — Chuột phải để mở lại' : ''}`
+  if (bookingSeatIds.value.has(seat.seatId)) return `Ghế ${seat.label} (${typeLbl} · Ghế của đơn đang xử lý)`
+  if (!started.value && !expired.value && chosenDest.value.has(seat.seatId)) return `Ghế ${seat.label} (${typeLbl} · Ghế đích đã chọn)`
+  if (seat.status === 'AVAILABLE') {
+    if (started.value || expired.value) return `Ghế ${seat.label} (${typeLbl} · Trống)`
+    return `Ghế ${seat.label} (${typeLbl} · Trống) — Chuột phải để khóa bảo trì`
+  }
+  return `Ghế ${seat.label} (${typeLbl} · Đã bán)`
+}
+
+// bypass: cho phép click SOLD seats của đơn, và ghế MAINTENANCE của đơn
+function incidentBypassClick(seat) {
+  if (!seat) return false
+  return bookingSeatIds.value.has(seat.seatId)
 }
 
 function onSeatClick(cell) {
   if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return
+  if (started.value || expired.value) return // Khi suất đã bắt đầu hoặc hết hạn: chặn click chọn trên sơ đồ ghế
+
   const isSource = bookingSeatIds.value.has(cell.seatId)
   if (isSource) {
     onSourceClick(cell.seatId)
     return
   }
-  const state = seatState(cell)
-  if (state === 'dest') {
+  const isDest = chosenDest.value.has(cell.seatId)
+  if (isDest) {
     // bỏ chọn đích: tìm source đang trỏ tới ghế này
     const src = Object.keys(swaps.value).find(k => swaps.value[k] === cell.seatId)
     if (src) { delete swaps.value[src]; swaps.value = { ...swaps.value } }
     return
   }
-  if (state === 'free' && mode.value === 'relocate') {
+  if (cell.status === 'AVAILABLE' && !isSeatMaintenance(cell) && mode.value === 'relocate') {
     if (activeSource.value == null) { toast.info('Chọn ghế nguồn (viền xanh) trước, rồi bấm ghế đích.'); return }
     swaps.value = { ...swaps.value, [activeSource.value]: cell.seatId }
     activeSource.value = null
@@ -265,14 +285,8 @@ function onSeatClick(cell) {
 }
 
 function onSourceClick(seatId) {
-  if (mode.value === 'relocate') {
-    activeSource.value = activeSource.value === seatId ? null : seatId
-  } else {
-    const bsId = soldSeats.value.find(s => s.seatId === seatId)?.bookingSeatId
-    if (bsId != null) {
-      cancelSel.value[bsId] = !cancelSel.value[bsId]
-    }
-  }
+  if (started.value || expired.value) return
+  activeSource.value = activeSource.value === seatId ? null : seatId
 }
 
 function clearSwap(oldSeatId) {
@@ -283,16 +297,6 @@ function clearSwap(oldSeatId) {
 function destLabel(oldSeatId) {
   const dest = swaps.value[oldSeatId]
   return dest != null ? (seatById.value.get(dest)?.label || '?') : null
-}
-
-function seatTooltip(cell) {
-  if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return ''
-  const isMaint = isSeatMaintenance(cell)
-  if (isMaint) return `Ghế ${cell.label} (Đang bảo trì / khóa) — Chuột phải để mở lại`
-  if (bookingSeatIds.value.has(cell.seatId)) return `Ghế ${cell.label} (Ghế của đơn đang xử lý)`
-  if (chosenDest.value.has(cell.seatId)) return `Ghế ${cell.label} (Ghế đích đã chọn)`
-  if (cell.status === 'AVAILABLE') return `Ghế ${cell.label} (Trống) — Chuột phải để khóa bảo trì`
-  return `Ghế ${cell.label} (Đã bán)`
 }
 
 function onSeatContextMenu(cell) {
@@ -366,34 +370,6 @@ async function submitRelocate() {
   }
 }
 
-// ================= Xử lý hủy chỗ =================
-async function submitCancel() {
-  const ids = Object.entries(cancelSel.value).filter(([, v]) => v).map(([k]) => Number(k))
-  if (ids.length === 0) { toast.warning('Chọn ít nhất một ghế cần hủy.'); return }
-  const ok = await confirm.show({
-    title: 'Xác nhận hủy chỗ',
-    message: `Hủy ${ids.length} ghế và đền bù cho khách? Thao tác này không hoàn tiền — khách nhận voucher đền bù.`,
-    confirmText: 'Hủy chỗ & đền bù', tone: 'danger'
-  })
-  if (!ok) return
-  submitting.value = true
-  try {
-    const { data } = await incidentApi.cancel({
-      bookingId: ctx.value.bookingId,
-      bookingSeatIds: ids,
-      compensation: buildCompensation(),
-      reason: compNote.value || null
-    })
-    result.value = data.data ?? data
-    toast.success('Đã hủy chỗ & xử lý đền bù.')
-    await doLookup(true)
-  } catch (e) {
-    toast.error(friendlyError(e, 'Hủy chỗ thất bại.'))
-  } finally {
-    submitting.value = false
-  }
-}
-
 // ================= Lịch sử =================
 async function loadHistory(page = 0) {
   loadingHist.value = true
@@ -443,7 +419,7 @@ onMounted(async () => {
           <span class="material-symbols-outlined text-primary">event_seat</span>
           Xử lý sự cố phòng chiếu
         </h1>
-        <p class="text-sm text-on-surface-variant mt-1">Đổi ghế đền bù · Hủy chỗ · Khóa ghế hỏng — đền bù bằng voucher (không hoàn tiền).</p>
+        <p class="text-sm text-on-surface-variant mt-1">Đổi ghế đền bù · Khóa ghế hỏng — đền bù bằng voucher (không hoàn tiền).</p>
       </div>
       <div class="flex gap-1 bg-surface-container-high rounded-xl p-1">
         <button @click="switchTab('handle')" :class="['px-4 py-2 rounded-lg text-sm font-semibold transition-all', activeTab === 'handle' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-white/5']">Xử lý</button>
@@ -512,16 +488,10 @@ onMounted(async () => {
             ⛔ Suất chiếu đã kết thúc — đã qua cửa sổ xử lý sự cố (2 giờ sau khi chiếu xong). Không thể thực hiện thao tác.
           </div>
           <div v-else-if="started" class="text-[11px] font-semibold text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
-            ⚠ Suất đã bắt đầu — chỉ có thể HỦY CHỖ, không đổi ghế.
+            ⚠ Suất đã bắt đầu — không thể đổi ghế.
           </div>
           <div v-if="!ctx.hasCustomer" class="text-[11px] font-semibold text-blue-300 bg-blue-500/10 rounded-lg px-3 py-2">
             ℹ Khách vãng lai — đền trực tiếp tại quầy, hệ thống không phát voucher điện tử (chỉ ghi vết).
-          </div>
-
-          <!-- Chọn chế độ -->
-          <div class="flex gap-1 bg-surface rounded-lg p-1">
-            <button @click="mode = 'relocate'" :disabled="started" :class="['flex-1 py-1.5 rounded-md text-xs font-bold transition-all disabled:opacity-40', mode === 'relocate' ? 'bg-blue-500 text-white' : 'text-on-surface-variant']">Đổi ghế</button>
-            <button @click="mode = 'cancel'" :class="['flex-1 py-1.5 rounded-md text-xs font-bold transition-all', mode === 'cancel' ? 'bg-red-500 text-white' : 'text-on-surface-variant']">Hủy chỗ</button>
           </div>
 
           <!-- Danh sách ghế của đơn -->
@@ -541,8 +511,8 @@ onMounted(async () => {
                   <span class="material-symbols-outlined text-lg">{{ isSeatMaintenance(seatById.get(s.seatId)) ? 'lock_open' : 'build' }}</span>
                 </button>
               </div>
-              <!-- Relocate: hiển thị đích -->
-              <div v-if="mode === 'relocate'" class="flex items-center justify-between mt-2 text-xs">
+              <!-- Relocate: hiển thị đích (chỉ hiển thị khi suất chiếu chưa bắt đầu) -->
+              <div v-if="mode === 'relocate' && !started && !expired" class="flex items-center justify-between mt-2 text-xs">
                 <button @click="onSourceClick(s.seatId)"
                         :class="['px-2 py-1 rounded font-semibold', activeSource === s.seatId ? 'bg-blue-500 text-white' : 'bg-blue-900/40 text-blue-200']">
                   {{ activeSource === s.seatId ? 'Chọn ghế đích trên sơ đồ →' : 'Chọn' }}
@@ -553,13 +523,6 @@ onMounted(async () => {
                   <button v-if="destLabel(s.seatId)" @click="clearSwap(s.seatId)" class="text-red-400 ml-1"><span class="material-symbols-outlined text-sm">close</span></button>
                 </div>
               </div>
-              <!-- Cancel: checkbox -->
-              <label v-else class="flex items-center gap-2 mt-2 text-xs cursor-pointer select-none">
-                <input type="checkbox" v-model="cancelSel[s.bookingSeatId]" class="w-4 h-4 rounded accent-red-500 cursor-pointer" />
-                <span :class="['transition-colors', cancelSel[s.bookingSeatId] ? 'text-red-400 font-bold' : 'text-on-surface-variant']">
-                  Hủy ghế này ({{ fmtPrice(s.priceSnapshot) }})
-                </span>
-              </label>
             </div>
           </div>
 
@@ -575,15 +538,10 @@ onMounted(async () => {
             <input v-model="compNote" placeholder="Lý do / ghi chú (vd: ghế lỗi tựa lưng)" maxlength="255"
                    class="w-full py-2 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none focus:border-primary" />
 
-            <button v-if="mode === 'relocate'" @click="submitRelocate" :disabled="!canSubmitRelocate || submitting"
+            <button @click="submitRelocate" :disabled="!canSubmitRelocate || submitting"
                     class="w-full py-3 rounded-xl bg-primary text-on-primary font-extrabold text-sm hover:opacity-90 disabled:opacity-40 flex items-center justify-center gap-2">
               <span class="material-symbols-outlined text-lg">swap_horiz</span>
               {{ submitting ? 'Đang xử lý...' : 'Xác nhận & in lại vé' }}
-            </button>
-            <button v-else @click="submitCancel" :disabled="!canSubmitCancel || submitting"
-                    class="w-full py-3 rounded-xl bg-red-500 text-white font-extrabold text-sm hover:opacity-90 disabled:opacity-40 flex items-center justify-center gap-2">
-              <span class="material-symbols-outlined text-lg">event_busy</span>
-              {{ submitting ? 'Đang xử lý...' : 'Hủy chỗ & đền bù' }}
             </button>
           </div>
 
@@ -615,39 +573,78 @@ onMounted(async () => {
       </div>
 
       <!-- Cột phải: sơ đồ ghế -->
-      <div class="bg-surface-container-high rounded-2xl p-6 border border-outline-variant/10">
-        <div v-if="loadingMap" class="h-full flex items-center justify-center text-on-surface-variant">
-          <span class="material-symbols-outlined animate-spin">progress_activity</span>
+      <div class="bg-surface-container-high rounded-2xl p-6 border border-outline-variant/10 flex flex-col min-h-[480px]">
+        <div v-if="loadingMap" class="flex-grow flex items-center justify-center text-on-surface-variant">
+          <span class="material-symbols-outlined animate-spin text-4xl text-primary">progress_activity</span>
         </div>
-        <div v-else-if="!seatMap" class="h-full flex flex-col items-center justify-center text-on-surface-variant/50 py-16">
+        <div v-else-if="!seatMap" class="flex-grow flex flex-col items-center justify-center text-on-surface-variant/50 py-16">
           <span class="material-symbols-outlined text-5xl opacity-30">grid_on</span>
           <p class="text-sm mt-2">Sơ đồ ghế của suất sẽ hiển thị sau khi tra cứu vé.</p>
         </div>
-        <div v-else class="flex flex-col items-center gap-5">
-          <div class="w-2/3 h-1.5 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full"></div>
-          <p class="text-[10px] uppercase tracking-[0.3em] text-on-surface-variant/60">Màn hình</p>
-          <div class="inline-flex flex-col gap-1 overflow-auto max-w-full py-2">
-            <div v-for="r in rows" :key="r" class="flex gap-1 justify-center">
-              <template v-for="c in cols" :key="`${r}-${c}`">
-                <div v-if="!cellAt(r, c)" class="w-8 h-8"></div>
-                <div v-else-if="cellAt(r, c).kind === 'AISLE'" class="w-8 h-8"></div>
-                <button v-else :class="seatClass(cellAt(r, c))"
-                        @click="onSeatClick(cellAt(r, c))"
-                        @contextmenu.prevent="onSeatContextMenu(cellAt(r, c))"
-                        :title="seatTooltip(cellAt(r, c))">
-                  <span v-if="isSeatMaintenance(cellAt(r, c))" class="material-symbols-outlined text-[12px] leading-none">build</span>
-                  <span v-else>{{ cellAt(r, c).label }}</span>
-                </button>
-              </template>
+        <div v-else class="flex flex-col gap-4 flex-grow">
+          <!-- Tiêu đề phòng -->
+          <div class="flex items-center justify-between shrink-0">
+            <div>
+              <p class="text-sm font-bold text-on-surface">{{ ctx?.showtime?.roomName }}</p>
+              <p class="text-[11px] text-on-surface-variant">{{ ctx?.showtime?.movieTitle }}</p>
+            </div>
+            <div v-if="started && !expired" class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">lock</span> Chỉ xem — suất đã bắt đầu
             </div>
           </div>
-          <!-- Chú thích -->
-          <div class="flex flex-wrap gap-4 text-[11px] text-on-surface-variant pt-2">
-            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-blue-900/50 border border-blue-500/50"></span> Ghế của đơn</span>
-            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-green-500"></span> Ghế đích</span>
-            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-surface-container-high border border-outline-variant/20"></span> Trống</span>
-            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-red-950/60 border border-red-500/50 text-red-400 flex items-center justify-center"><span class="material-symbols-outlined text-[10px]">build</span></span> Bảo trì/khóa</span>
-            <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded bg-surface-container-high opacity-40"></span> Đã bán</span>
+
+          <!-- SeatGridRenderer: dùng đúng component của POS/Cinema -->
+          <div class="flex-grow min-h-0 overflow-auto flex items-start justify-center">
+            <SeatGridRenderer
+              :seats="seatMap.seats"
+              :matrix-row="seatMap.matrixRow"
+              :matrix-col="seatMap.matrixCol"
+              mode="pos"
+              size="compact"
+              :readonly="false"
+              show-screen
+              screen-title="MÀN HÌNH CHÍNH"
+              show-row-labels
+              :custom-seat-class="incidentSeatClass"
+              :custom-seat-title="incidentSeatTitle"
+              :bypass-click-filter="incidentBypassClick"
+              @seat-click="onSeatClick"
+              @seat-contextmenu="onSeatContextMenu"
+            />
+          </div>
+
+          <!-- Chú thích (legend) - matching POS design -->
+          <div class="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant shrink-0 pt-2 border-t border-outline-variant/10">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-blue-900/60 border border-blue-500/70"></span>
+              Ghế của đơn
+            </span>
+            <span v-if="!started && !expired" class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-green-400 to-green-600"></span>
+              Ghế đích
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-slate-800/80 border border-slate-600/50"></span>
+              Thường
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50"></span>
+              VIP
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50"></span>
+              Sweetbox
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500">
+                <span class="material-symbols-outlined text-[8px]">build</span>
+              </span>
+              Bảo trì
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-surface-container-high opacity-40 border border-white/5"></span>
+              Đã bán
+            </span>
           </div>
         </div>
       </div>
@@ -661,7 +658,6 @@ onMounted(async () => {
           <select v-model="histFilters.type" class="block mt-1 py-2 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none">
             <option value="">Tất cả</option>
             <option value="RELOCATE">Đổi ghế</option>
-            <option value="CANCEL">Hủy chỗ</option>
             <option value="SEAT_MAINTENANCE">Khóa ghế</option>
             <!-- BUG-11 FIX: Thêm EMERGENCY_CLOSURE vào filter -->
             <option value="EMERGENCY_CLOSURE">Đóng cửa khẩn cấp</option>

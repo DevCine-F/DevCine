@@ -32,7 +32,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     @Query("SELECT t FROM Ticket t JOIN FETCH t.bookingSeat bs JOIN FETCH bs.seat JOIN FETCH bs.booking b WHERE b.id = :bookingId")
     List<Ticket> findAllByBookingId(@Param("bookingId") Integer bookingId);
 
-    // Như trên nhưng JOIN FETCH thêm ghế để lấy nhãn ghế (rowChar/colNum) khi in vé — tránh N+1
-    @Query("SELECT t FROM Ticket t JOIN FETCH t.bookingSeat bs JOIN FETCH bs.seat s WHERE bs.booking.id = :bookingId ORDER BY s.rowChar, s.colNum")
+    // Như trên nhưng JOIN FETCH thêm ghế và loại ghế để lấy nhãn ghế và loại ghế khi gửi mail/in vé — tránh N+1
+    @Query("SELECT t FROM Ticket t JOIN FETCH t.bookingSeat bs JOIN FETCH bs.seat s LEFT JOIN FETCH s.seatType WHERE bs.booking.id = :bookingId ORDER BY s.rowChar, s.colNum")
     List<Ticket> findAllByBookingIdWithSeat(@Param("bookingId") Integer bookingId);
 }

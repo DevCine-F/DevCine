@@ -38,6 +38,11 @@ const methodOpen = ref(false)
 const selectMethod = (m) => { filters.method = m; methodOpen.value = false; page.value = 0; fetchBookings() }
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+const fnbBasePrice = (f) => {
+  if (f?.basePrice != null) return Number(f.basePrice)
+  const sur = (f?.options || []).reduce((sum, o) => sum + Number(o.surcharge || 0), 0)
+  return Math.max(0, Number(f?.unitPrice || f?.price || 0) - sur)
+}
 // Bỏ tiền tố "Ô chọn " trong nhãn slot khi hiển thị (VD "Ô chọn Nước 1" → "Nước 1")
 const stripSlotPrefix = (label) => (label || '').replace(/^Ô\s*chọn\s*/i, '').trim()
 const fmtDateTime = (iso) => {

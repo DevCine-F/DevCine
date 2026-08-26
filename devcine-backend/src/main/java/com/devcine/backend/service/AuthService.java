@@ -35,28 +35,29 @@ public class AuthService {
                 || password == null || password.isBlank()) {
             throw new RuntimeException("Vui lòng nhập đầy đủ họ tên, email, số điện thoại và mật khẩu");
         }
-        if (userRepository.existsByEmail(email)) {
+        String cleanPhone = com.devcine.backend.util.PhoneUtils.validateAndSanitize(phone, true);
+        if (userRepository.existsByEmail(email.trim())) {
             throw new RuntimeException("Email này đã được sử dụng");
         }
-        if (userRepository.existsByPhone(phone)) {
-            throw new RuntimeException("Số điện thoại này đã được sử dụng");
+        if (userRepository.existsByPhone(cleanPhone)) {
+            throw new RuntimeException("Số điện thoại " + cleanPhone + " đã được sử dụng bởi một tài khoản khác.");
         }
 
         Role customerRole = roleRepository.findByName("CUSTOMER")
                 .orElseGet(() -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
         // Username là cột bắt buộc & duy nhất -> tự sinh từ số điện thoại (định danh đăng nhập mới)
-        String username = phone;
+        String username = cleanPhone;
         if (userRepository.existsByUsername(username)) {
-            username = phone + "_" + (System.currentTimeMillis() % 100000);
+            username = cleanPhone + "_" + (System.currentTimeMillis() % 100000);
         }
 
         User user = User.builder()
                 .username(username)
-                .email(email)
+                .email(email.trim())
                 .passwordHash(passwordEncoder.encode(password))
-                .fullName(fullName)
-                .phone(phone)
+                .fullName(fullName.trim())
+                .phone(cleanPhone)
                 .role(customerRole)
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
@@ -70,12 +71,14 @@ public class AuthService {
                 .build();
         customerRepository.save(customer);
 
-        log.info("Registered new customer by phone: {}", phone);
+        log.info("Registered new customer by phone: {}", cleanPhone);
         return Map.of(
                 "id", user.getId(),
                 "username", user.getUsername(),
                 "email", user.getEmail(),
-                "role", customerRole.getName()
+                "fullName", user.getFullName(),
+                "phone", user.getPhone() != null ? user.getPhone() : "",
+                "role", user.getRole().getName()
         );
     }
 
@@ -139,13 +142,22 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
 
         if (email != null && !email.isBlank() && !email.equalsIgnoreCase(user.getEmail())) {
-            if (userRepository.existsByEmail(email)) {
+            String newEmail = email.trim();
+            if (userRepository.existsByEmail(newEmail)) {
                 throw new RuntimeException("Email đã được sử dụng");
             }
-            user.setEmail(email);
+            user.setEmail(newEmail);
         }
-        if (fullName != null && !fullName.isBlank()) user.setFullName(fullName);
-        if (phone != null) user.setPhone(phone);
+        if (fullName != null && !fullName.isBlank()) user.setFullName(fullName.trim());
+        if (phone != null) {
+            String cleanPhone = com.devcine.backend.util.PhoneUtils.validateAndSanitize(phone, false);
+            if (cleanPhone != null && !cleanPhone.equals(user.getPhone())) {
+                if (userRepository.existsByPhoneAndIdNot(cleanPhone, userId)) {
+                    throw new RuntimeException("Số điện thoại " + cleanPhone + " đã được sử dụng bởi một tài khoản khác.");
+                }
+            }
+            user.setPhone(cleanPhone);
+        }
 
         userRepository.save(user);
         log.info("Profile updated for user: {}", user.getUsername());

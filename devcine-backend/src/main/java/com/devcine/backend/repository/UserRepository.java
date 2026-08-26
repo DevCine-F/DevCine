@@ -27,6 +27,10 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     boolean existsByPhone(String phone);
 
+    boolean existsByPhoneAndIdNot(String phone, Integer id);
+
+    Optional<User> findByPhone(String phone);
+
     // Đăng nhập bằng số điện thoại HOẶC email (giữ cả username để tương thích admin/demo cũ).
     // Trả List để tránh lỗi NonUnique nếu dữ liệu trùng; service lấy bản ghi đầu.
     @Query("SELECT u FROM User u JOIN FETCH u.role " +

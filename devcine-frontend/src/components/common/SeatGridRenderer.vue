@@ -87,10 +87,23 @@ const props = defineProps({
   customSeatClass: {
     type: Function,
     default: null
+  },
+  /**
+   * Override click-filter: seats có số id trong hàm này trả về true sẽ luôn emit seat-click
+   * dù là SOLD/HOLD/MAINTENANCE (dùng cho Incident mode để chọn ghế nguồn của đơn).
+   */
+  bypassClickFilter: {
+    type: Function,
+    default: null
+  },
+  /** Custom tooltip per seat - overrides default title if provided */
+  customSeatTitle: {
+    type: Function,
+    default: null
   }
 })
 
-const emit = defineEmits(['seat-click', 'seat-enter', 'seat-leave'])
+const emit = defineEmits(['seat-click', 'seat-enter', 'seat-leave', 'seat-contextmenu'])
 
 // Sử dụng composable nội suy tọa độ duy nhất
 const { cellAt, seatAt, isAisle, isSeat } = useSeatGridRender(() => props.seats)
@@ -282,11 +295,16 @@ const computeSeatClass = (seat) => {
 
 const handleSeatClick = (seat) => {
   if (props.readonly || !seat) return
+  // bypassClickFilter: cho phep mot so ghe SOLD/HOLD/MAINTENANCE duoc click (vi du: incident source)
+  if (props.bypassClickFilter && props.bypassClickFilter(seat)) {
+    emit('seat-click', seat)
+    return
+  }
   if (checkMaintenance(seat) || seat.status === 'SOLD' || seat.status === 'HOLD' || checkLockedByOthers(seat)) {
     return
   }
-  // Ghế đã bị khoá chủ động (không đủ chỗ liền nhau / sai loại ghế / để lại ghế mồ côi).
-  // Ghế đang chọn KHÔNG bao giờ rơi vào nhóm này nên thao tác gỡ khối vẫn hoạt động.
+  // Ghe da bi khoa chu dong (khong du cho lien nhau / sai loai ghe / de lai ghe mo coi).
+  // Ghe dang chon KHONG bao gio roi vao nhom nay nen thao tac go khoi van hoat dong.
   if (checkUnselectable(seat)) return
   emit('seat-click', seat)
 }
@@ -299,6 +317,11 @@ const handleSeatEnter = (seat) => {
 const handleSeatLeave = () => {
   if (props.readonly) return
   emit('seat-leave')
+}
+
+const handleSeatContextMenu = (seat) => {
+  if (!seat) return
+  emit('seat-contextmenu', seat)
 }
 </script>
 
@@ -376,12 +399,15 @@ const handleSeatLeave = () => {
             <template v-else-if="seatAt(r - 1, c - 1)">
               <div
                 :class="computeSeatClass(seatAt(r - 1, c - 1))"
-                :title="checkMaintenance(seatAt(r - 1, c - 1))
-                  ? 'Ghế bảo trì'
-                  : checkUnselectable(seatAt(r - 1, c - 1))
-                    ? 'Không thể chọn với số vé / khối ghế hiện tại'
-                    : getSeatLabel(seatAt(r - 1, c - 1))"
+                :title="props.customSeatTitle
+                  ? props.customSeatTitle(seatAt(r - 1, c - 1))
+                  : checkMaintenance(seatAt(r - 1, c - 1))
+                    ? 'Ghe bao tri'
+                    : checkUnselectable(seatAt(r - 1, c - 1))
+                      ? 'Khong the chon voi so ve / khoi ghe hien tai'
+                      : getSeatLabel(seatAt(r - 1, c - 1))"
                 @click="handleSeatClick(seatAt(r - 1, c - 1))"
+                @contextmenu.prevent="handleSeatContextMenu(seatAt(r - 1, c - 1))"
                 @mouseenter="handleSeatEnter(seatAt(r - 1, c - 1))"
                 @mouseleave="handleSeatLeave"
               >

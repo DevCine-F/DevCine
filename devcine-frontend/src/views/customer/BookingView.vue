@@ -1053,11 +1053,15 @@ const proceedToPayment = async () => {
         toast.error(friendlyError(err, 'Không tạo được cổng thanh toán, vui lòng thử lại.'));
       }
     } else {
-      const paid = await store.confirmPayment(paymentMethod.value)
-      if (paid) {
-        router.push('/success')
-      } else {
-        toast.error('Thanh toán chưa thành công, vui lòng thử lại.')
+      try {
+        const paid = await store.confirmPayment(paymentMethod.value)
+        if (paid) {
+          router.push('/success')
+        } else {
+          toast.error('Thanh toán chưa thành công, vui lòng thử lại.')
+        }
+      } catch (err) {
+        toast.error(friendlyError(err, 'Thanh toán chưa thành công, vui lòng thử lại.'))
       }
     }
   } else {

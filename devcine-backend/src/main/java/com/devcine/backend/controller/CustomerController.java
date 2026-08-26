@@ -73,7 +73,13 @@ public class CustomerController {
                     }
                 }
                 if (body.containsKey("phone")) {
-                    user.setPhone(body.get("phone"));
+                    String cleanPhone = com.devcine.backend.util.PhoneUtils.validateAndSanitize(body.get("phone"), false);
+                    if (cleanPhone != null && !cleanPhone.equals(user.getPhone())) {
+                        if (userRepository.existsByPhoneAndIdNot(cleanPhone, user.getId())) {
+                            throw new RuntimeException("Số điện thoại " + cleanPhone + " đã được sử dụng bởi một tài khoản khác.");
+                        }
+                    }
+                    user.setPhone(cleanPhone);
                 }
                 if (body.containsKey("avatarUrl")) {
                     user.setAvatarUrl(body.get("avatarUrl"));

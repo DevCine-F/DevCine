@@ -65,6 +65,7 @@ public class SeatIncidentService {
     private final VoucherRepository voucherRepository;
     private final StaffRepository staffRepository;
     private final TicketService ticketService;
+    private final MailService mailService;
     private final SeatLockService seatLockService;
     private final SimpMessagingTemplate messagingTemplate;
     private final StringRedisTemplate redisTemplate;
@@ -369,7 +370,17 @@ public class SeatIncidentService {
             // 2. Ghế cũ -> SEAT_RELEASED
             broadcastSeatEvent(st.getId(), "SEAT_RELEASED", oldSeatIds);
 
-            boolean emailResent = ticketService.resendTicketEmailIfOnline(booking.getId());
+            String voucherLabel = null;
+            if (req.compensation() != null && req.compensation().promotionTemplateId() != null) {
+                voucherLabel = promotionRepository.findById(req.compensation().promotionTemplateId())
+                        .map(Promotion::getName)
+                        .orElse(null);
+            }
+            List<com.devcine.backend.dto.IncidentRelocateEmailData.SeatSwapLine> swapLines = swapResults.stream()
+                    .map(s -> new com.devcine.backend.dto.IncidentRelocateEmailData.SeatSwapLine(s.oldLabel(), s.newLabel()))
+                    .toList();
+            boolean emailResent = ticketService.sendIncidentRelocateEmailIfOnline(
+                    booking.getId(), req.reason(), swapLines, comp, voucherLabel);
             return IncidentResultResponse.builder()
                     .incidentIds(incidentIds).swaps(swapResults).compensation(comp)
                     .reprint(ticketService.buildPrintData(booking.getId()))
@@ -489,12 +500,44 @@ public class SeatIncidentService {
             broadcastSeatEvent(st.getId(), "SEAT_RELEASED", releasedSeatIds);
         }
 
+        boolean emailSent = false;
+        if (booking.getCustomer() != null && booking.getCustomer().getUser() != null) {
+            User user = booking.getCustomer().getUser();
+            if (user.getEmail() != null && !user.getEmail().isBlank() && !"POS".equalsIgnoreCase(booking.getChannel())) {
+                String voucherLabel = null;
+                if (comp != null && comp.promotionTemplateId() != null) {
+                    voucherLabel = promotionRepository.findById(comp.promotionTemplateId())
+                            .map(Promotion::getName).orElse(null);
+                }
+                Room room = st != null ? st.getRoom() : null;
+                List<String> cancelledLabels = allBookingSeats.stream()
+                        .filter(bs -> bookingSeatIds.contains(bs.getId()))
+                        .map(bs -> bs.getSeat().displayLabel())
+                        .toList();
+                mailService.sendCancellationEmail(new com.devcine.backend.dto.CancellationEmailData(
+                        user.getEmail(),
+                        user.getFullName(),
+                        booking.getBookingCode(),
+                        st != null && st.getMovie() != null ? st.getMovie().getTitle() : "Phim",
+                        cinema != null ? cinema.getName() : "",
+                        room != null ? room.getName() : "",
+                        st != null ? st.getStartTime() : null,
+                        cancelledLabels,
+                        compResult != null && compResult.voucherIssued(),
+                        compResult != null ? compResult.voucherCode() : null,
+                        voucherLabel,
+                        reason
+                ));
+                emailSent = true;
+            }
+        }
+
         return IncidentResultResponse.builder()
                 .incidentIds(saved.stream().map(SeatIncident::getId).toList())
                 .swaps(List.of())
                 .compensation(compResult)
                 .reprint(null)          // ghế đã hủy → không in vé mới cho khách
-                .emailResent(false)
+                .emailResent(emailSent)
                 .build();
     }
 

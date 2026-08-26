@@ -577,7 +577,7 @@ public class BookingService {
     /** Overload có mã đối soát cổng thanh toán (VNPAY vnp_TransactionNo). null = tiền mặt/không có. */
     @Transactional
     public void completePayment(Integer bookingId, String paymentMethod, String paymentRef) {
-        Booking booking = bookingRepository.findById(bookingId)
+        Booking booking = bookingRepository.findDetailById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
 
         if ("CONFIRMED".equals(booking.getStatus())) {
@@ -665,8 +665,12 @@ public class BookingService {
 
         // Tạo thông báo "đặt vé thành công" cho khách hàng
         if (booking.getCustomer() != null) {
-            String movieTitle = booking.getShowtime() != null && booking.getShowtime().getMovie() != null
-                    ? booking.getShowtime().getMovie().getTitle() : "phim";
+            String movieTitle = "phim";
+            try {
+                if (booking.getShowtime() != null && booking.getShowtime().getMovie() != null) {
+                    movieTitle = booking.getShowtime().getMovie().getTitle();
+                }
+            } catch (Exception ignored) {}
             notificationService.notifyCustomer(
                     booking.getCustomer().getUserId(),
                     "Đặt vé thành công",
@@ -693,22 +697,35 @@ public class BookingService {
             }
 
             Showtime showtime = booking.getShowtime();
-            Movie movie = showtime != null ? showtime.getMovie() : null;
-            Room room = showtime != null ? showtime.getRoom() : null;
-            Cinema cinema = room != null ? room.getCinema() : null;
+            Movie movie = null;
+            String formatName = "";
+            Room room = null;
+            Cinema cinema = null;
+            try {
+                if (showtime != null) {
+                    movie = showtime.getMovie();
+                    formatName = showtime.getFormat() != null ? showtime.getFormat().getName() : "";
+                    room = showtime.getRoom();
+                    cinema = room != null ? room.getCinema() : null;
+                }
+            } catch (Exception e) {
+                log.warn("Không thể nạp thông tin phòng/rạp/phim từ showtime cho email: {}", e.getMessage());
+            }
 
             List<TicketEmailData.SeatLine> seatLines = new java.util.ArrayList<>();
             for (int i = 0; i < seats.size(); i++) {
                 BookingSeat bs = seats.get(i);
                 Seat seat = bs.getSeat();
-                String label = seat.displayLabel();
-                seatLines.add(new TicketEmailData.SeatLine(label, bs.getTicketType(), tickets.get(i).getQrCode()));
+                String label = seat != null ? seat.displayLabel() : "";
+                String seatType = (seat != null && seat.getSeatType() != null) ? seat.getSeatType().getName() : null;
+                String qr = (tickets != null && i < tickets.size()) ? tickets.get(i).getQrCode() : null;
+                seatLines.add(new TicketEmailData.SeatLine(label, seatType, bs.getTicketType(), qr));
             }
 
             List<TicketEmailData.FnbLine> fnbLines = new java.util.ArrayList<>();
             for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
                 // Ưu tiên snapshot; fallback FK cho đơn cũ trước khi có cột snapshot.
-                String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
+                String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : (bf.getFnbItem() != null ? bf.getFnbItem().getName() : "F&B");
                 fnbLines.add(new TicketEmailData.FnbLine(name, bf.getQuantity()));
             }
 
@@ -720,6 +737,7 @@ public class BookingService {
                     user.getFullName(),
                     booking.getBookingCode(),
                     movie != null ? movie.getTitle() : "Phim",
+                    formatName,
                     cinema != null ? cinema.getName() : "",
                     room != null ? room.getName() : "",
                     showtime != null ? showtime.getStartTime() : null,
