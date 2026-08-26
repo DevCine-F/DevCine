@@ -11,4 +11,11 @@ public interface ConcessionSaleItemRepository extends JpaRepository<ConcessionSa
 
     @Query("SELECT i FROM ConcessionSaleItem i JOIN FETCH i.fnbItem WHERE i.sale.id = :saleId")
     List<ConcessionSaleItem> findBySaleIdWithItem(@Param("saleId") Integer saleId);
+
+    @Query("SELECT i.sale.id, COALESCE(SUM(i.quantity), 0) FROM ConcessionSaleItem i WHERE i.sale.id IN :saleIds GROUP BY i.sale.id")
+    List<Object[]> countItemsBySaleIds(@Param("saleIds") List<Integer> saleIds);
+
+    @Query("SELECT DISTINCT i FROM ConcessionSaleItem i LEFT JOIN FETCH i.fnbItem LEFT JOIN FETCH i.options WHERE i.sale.id = :saleId")
+    List<ConcessionSaleItem> findBySaleIdWithOptions(@Param("saleId") Integer saleId);
 }
+

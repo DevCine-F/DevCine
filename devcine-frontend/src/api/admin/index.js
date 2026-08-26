@@ -86,7 +86,7 @@ export const fnbGroupApi = {
 
 export const bookingAdminApi = {
   list: (params) => api.get('/admin/bookings', { params }),
-  detail: (id) => api.get(`/admin/bookings/${id}`),
+  detail: (id, params) => api.get(`/admin/bookings/${id}`, { params }),
 };
 
 export const ticketingApi = {

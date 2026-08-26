@@ -210,7 +210,17 @@ public class TicketService {
         List<BookingPrintResponse.FnbLine> fnbLines = new ArrayList<>();
         for (BookingFnb bf : bookingFnbRepository.findByBookingIdWithFnb(booking.getId())) {
             String name = bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : bf.getFnbItem().getName();
-            fnbLines.add(new BookingPrintResponse.FnbLine(name, bf.getQuantity(), bf.getPriceSnapshot()));
+            List<BookingPrintResponse.FnbLine.FnbOptionLine> optLines = new ArrayList<>();
+            BigDecimal totalSurcharge = BigDecimal.ZERO;
+            if (bf.getOptions() != null) {
+                for (com.devcine.backend.entity.BookingFnbOption opt : bf.getOptions()) {
+                    BigDecimal sc = opt.getSurchargeSnapshot() != null ? opt.getSurchargeSnapshot() : BigDecimal.ZERO;
+                    totalSurcharge = totalSurcharge.add(sc);
+                    optLines.add(new BookingPrintResponse.FnbLine.FnbOptionLine(
+                            opt.getSlotLabelSnapshot(), opt.getOptionNameSnapshot(), sc));
+                }
+            }
+            fnbLines.add(new BookingPrintResponse.FnbLine(name, bf.getQuantity(), bf.getPriceSnapshot(), totalSurcharge, optLines));
         }
 
         BigDecimal total = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
@@ -220,13 +230,21 @@ public class TicketService {
         String memberName = booking.getCustomer() != null && booking.getCustomer().getUser() != null
                 ? booking.getCustomer().getUser().getFullName() : null;
 
+        Staff staff = currentStaffOrNull();
+        String cashierName = (booking.getPrintedBy() != null && booking.getPrintedBy().getUser() != null)
+                ? booking.getPrintedBy().getUser().getFullName()
+                : (staff != null && staff.getUser() != null ? staff.getUser().getFullName() : "Nguyễn Quang Huy");
+
         return new BookingPrintResponse(
                 booking.getBookingCode(),
                 showtime != null && showtime.getMovie() != null ? showtime.getMovie().getTitle() : "Phim",
-                cinema != null ? cinema.getName() : "",
+                cinema != null && cinema.getName() != null ? cinema.getName() : "DEVCINE CINEMA",
+                cinema != null && cinema.getAddress() != null ? cinema.getAddress() : "Tầng 3, TTTM DevCine Plaza, Hà Nội",
                 room != null ? room.getName() : "",
+                room != null && room.getType() != null ? room.getType() : "Standard",
                 format,
                 showtime != null ? showtime.getStartTime() : null,
+                showtime != null ? showtime.getEndTime() : null,
                 booking.getPaymentMethod(),
                 total,
                 fin,
@@ -236,6 +254,7 @@ public class TicketService {
                 seatLines,
                 fnbLines,
                 booking.getPrintedAt(),
+                cashierName,
                 requiresStudentVerification);
     }
 

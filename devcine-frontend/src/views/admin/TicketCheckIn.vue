@@ -16,25 +16,32 @@ const formatDateTime = (iso) => {
   return new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// Dựng dữ liệu hoá đơn từ phản hồi in vé (1 mã QR chung = mã đặt vé cho mọi vé giấy).
+// Dựng dữ liệu hoá đơn từ phản hồi in vé theo chuẩn K80.
 const buildInv = (b) => ({
   bookingCode: b.bookingCode,
-  movie: b.movieTitle,
-  room: b.roomName,
-  format: b.format || '',
-  dateStr: formatDateTime(b.startTime),
-  counter: 'Quầy in vé',
-  seatRows: (b.seats || []).map(s => ({ label: s.seatLabel, seats: seatTypeLabel(s.ticketType), count: 1, unit: Number(s.price || 0), subtotal: Number(s.price || 0) })),
-  combos: (b.fnbs || []).map(f => ({ name: f.name, quantity: f.quantity, price: Number(f.price || 0) })),
-  seatTotal: (b.seats || []).reduce((a, s) => a + Number(s.price || 0), 0),
-  comboTotal: (b.fnbs || []).reduce((a, f) => a + Number(f.price || 0) * Number(f.quantity || 0), 0),
-  discount: Number(b.discount || 0),
-  grandTotal: Number(b.finalPrice || 0),
-  seatCount: b.seatCount,
-  paymentLabel: paymentLabel(b.paymentMethod),
-  memberName: b.memberName,
-  tickets: (b.seats || []).map(s => ({ seatLabel: s.seatLabel, qrCode: b.bookingCode })),
-  isCheckIn: true
+  movieTitle: b.movieTitle,
+  cinemaName: b.cinemaName || 'DEVCINE CINEMA',
+  cinemaAddress: b.cinemaAddress || 'Tầng 3, TTTM DevCine Plaza, Hà Nội',
+  roomName: b.roomName,
+  roomType: b.roomType || 'Standard',
+  format: b.format || '2D',
+  startTime: b.startTime,
+  endTime: b.endTime,
+  posTerminal: '01',
+  cashierName: b.cashierName || 'Nguyễn Quang Huy',
+  printedAt: b.printedAt || new Date(),
+  seats: b.seats || [],
+  fnbs: (b.fnbs || []).map(f => ({
+    name: f.name,
+    quantity: f.quantity,
+    price: Number(f.price || 0),
+    surchargePrice: Number(f.surchargePrice || 0),
+    options: f.options || []
+  })),
+  paymentMethod: b.paymentMethod || 'TRANSFER',
+  ticketDiscount: Number(b.discount || 0),
+  fnbDiscount: 0,
+  memberName: b.memberName
 })
 
 const printBooking = (b) => { try { openInvoice(buildInv(b)) } catch (_) {} }
