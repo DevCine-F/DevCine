@@ -68,6 +68,13 @@ export const promoArticleApi = {
 
 export const customerApi = {
   list: (q) => api.get('/customers', { params: q ? { q } : {} }),
+  getById: (id) => api.get(`/customers/${id}`),
+  getOrders: (id) => api.get(`/customers/${id}/orders`),
+  getVouchers: (id) => api.get(`/customers/${id}/vouchers`),
+  getPointHistory: (id) => api.get(`/customers/${id}/point-history`),
+  update: (id, data) => api.put(`/customers/${id}`, data),
+  toggleStatus: (id, data) => api.put(`/customers/${id}/toggle-status`, data),
+  sendResetPassword: (id) => api.post(`/customers/${id}/send-reset-password`),
 };
 
 export const fnbApi = {

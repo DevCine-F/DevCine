@@ -162,6 +162,12 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.customer.userId = :customerId AND b.status = 'CONFIRMED'")
     long countConfirmedByCustomer(@Param("customerId") Integer customerId);
 
+    /** Tổng chi tiêu và số đơn vé CONFIRMED theo danh sách customerIds (O(1) batch query). */
+    @Query("SELECT b.customer.userId, COALESCE(SUM(b.finalPrice), 0), COUNT(b) " +
+           "FROM Booking b WHERE b.status = 'CONFIRMED' AND b.customer.userId IN :customerIds " +
+           "GROUP BY b.customer.userId")
+    List<Object[]> aggregateSpentAndOrderCountByCustomerIds(@Param("customerIds") List<Integer> customerIds);
+
     /**
      * Batch version: trả tập hợp customerId ĐÃ có ít nhất 1 đơn CONFIRMED —
      * dùng thay vì gọi countConfirmedByCustomer() N lần trong sendCampaignEmails() (tránh N+1).

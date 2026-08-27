@@ -94,7 +94,13 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Số điện thoại/email hoặc mật khẩu không đúng"));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new RuntimeException("Tài khoản đã bị vô hiệu hóa");
+            Customer customer = customerRepository.findById(user.getId()).orElse(null);
+            String reason = (customer != null && customer.getLockReason() != null && !customer.getLockReason().isBlank())
+                    ? customer.getLockReason().trim() : null;
+            String msg = reason != null
+                    ? "Tài khoản của bạn đã bị tạm khóa (Lý do: " + reason + "). Vui lòng liên hệ bộ phận Chăm sóc khách hàng hoặc Hotline để được hỗ trợ."
+                    : "Tài khoản của bạn đã bị tạm khóa do vi phạm chính sách hoặc theo yêu cầu. Vui lòng liên hệ bộ phận Chăm sóc khách hàng hoặc Hotline để được hỗ trợ.";
+            throw new RuntimeException(msg);
         }
 
         String role = user.getRole().getName();

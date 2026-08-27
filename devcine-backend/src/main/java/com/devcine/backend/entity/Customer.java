@@ -40,4 +40,10 @@ public class Customer {
     @Column(name = "lifetime_points")
     @Builder.Default
     private Integer lifetimePoints = 0;
+
+    @Column(name = "lock_reason", columnDefinition = "TEXT")
+    private String lockReason;
+
+    @Column(name = "locked_at")
+    private java.time.LocalDateTime lockedAt;
 }

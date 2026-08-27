@@ -115,6 +115,9 @@ public class TicketingController {
             }
             Customer customer = customerRepository.findFirstByUserPhone(p)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với số điện thoại này"));
+            if (customer.getUser() != null && !Boolean.TRUE.equals(customer.getUser().getIsActive())) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Tài khoản khách hàng này đã bị tạm khóa. Không thể tích hoặc sử dụng điểm tại quầy."));
+            }
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                     "customerId", customer.getUserId(),
                     "fullName", customer.getUser() != null ? customer.getUser().getFullName() : "Khách hàng",

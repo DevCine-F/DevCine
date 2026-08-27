@@ -42,5 +42,17 @@ public interface ConcessionSaleRepository extends JpaRepository<ConcessionSale, 
            "LEFT JOIN FETCH s.cinema cin " +
            "WHERE s.saleCode = :code")
     Optional<ConcessionSale> findDetailBySaleCode(@Param("code") String code);
+
+    /** Tổng chi tiêu và số đơn F&B COMPLETED theo danh sách customerIds (O(1) batch query). */
+    @Query("SELECT s.customer.userId, COALESCE(SUM(s.totalPrice), 0), COUNT(s) " +
+           "FROM ConcessionSale s WHERE s.status = 'COMPLETED' AND s.customer.userId IN :customerIds " +
+           "GROUP BY s.customer.userId")
+    List<Object[]> aggregateConcessionSpentAndCountByCustomerIds(@Param("customerIds") List<Integer> customerIds);
+
+    /** Toàn bộ đơn bán nhanh F&B của 1 khách hàng (mới nhất trước). */
+    @Query("SELECT s FROM ConcessionSale s " +
+           "LEFT JOIN FETCH s.cinema cin " +
+           "WHERE s.customer.userId = :customerId ORDER BY s.createdAt DESC")
+    List<ConcessionSale> findByCustomerIdOrderByCreatedAtDesc(@Param("customerId") Integer customerId);
 }
 

@@ -23,11 +23,12 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     @Query("SELECT c FROM Customer c JOIN FETCH c.user u WHERE u.phone = :phone")
     List<Customer> findByUserPhone(@Param("phone") String phone);
 
-    /** Lọc khách hàng theo từ khoá tên/email/sđt (q không null). */
+    /** Lọc khách hàng theo từ khoá tên/email/sđt/id (q không null). */
     @Query("SELECT c FROM Customer c JOIN FETCH c.user u WHERE " +
            "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')) " +
            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%')) " +
            "OR u.phone LIKE CONCAT('%', :q, '%') " +
+           "OR CAST(c.userId AS string) LIKE CONCAT('%', :q, '%') " +
            "ORDER BY u.createdAt DESC")
     List<Customer> searchWithUser(@Param("q") String q);
 }
