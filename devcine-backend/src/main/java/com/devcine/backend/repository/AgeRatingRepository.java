@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface AgeRatingRepository extends JpaRepository<AgeRating, Integer> {
     boolean existsByCodeIgnoreCase(String code);
+    boolean existsByNameIgnoreCase(String name);
 }

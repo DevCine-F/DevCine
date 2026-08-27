@@ -81,11 +81,17 @@ const formatReleaseDate = (dt) => {
 }
 const ageDescription = (rating) => {
   if (!rating) return ''
-  const r = String(rating).toUpperCase()
+  const r = String(rating).toUpperCase().trim()
+  const defaultMap = {
+    'P': '* Phim được phép phổ biến rộng rãi đến mọi lứa tuổi người xem',
+    'K': '* Phim dành cho khán giả dưới 13 tuổi với điều kiện có cha mẹ hoặc người giám hộ đi cùng',
+    'T13': '* Phim chỉ dành cho khán giả từ đủ 13 tuổi trở lên (13+)',
+    'T16': '* Phim chỉ dành cho khán giả từ đủ 16 tuổi trở lên (16+)',
+    'T18': '* Phim chỉ dành cho khán giả từ đủ 18 tuổi trở lên (18+)'
+  }
+  if (defaultMap[r]) return defaultMap[r]
   const m = r.match(/(\d+)/)
-  if (m) return `* Phim được phổ biến đến người xem từ độ tuổi ${m[1]} trở lên`
-  if (r === 'P') return '* Phim được phép phổ biến đến mọi độ tuổi'
-  if (r === 'K') return '* Phim phù hợp khán giả dưới 13 tuổi khi có người lớn đi cùng'
+  if (m) return `* Phim chỉ dành cho khán giả từ đủ ${m[1]} tuổi trở lên (${m[1]}+)`
   return ''
 }
 

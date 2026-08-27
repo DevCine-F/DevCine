@@ -60,12 +60,14 @@ const loadConfig = async () => {
       baseMatrix[key] = existing[key] ?? 0
     })))
 
-    formats.value = (data.formats || []).map(f => ({
-      ...f,
-      name: formatMovieFormatName(f.name),
-      surcharge: Number(f.surcharge || 0),
-      weekendSurcharge: f.weekendSurcharge == null ? null : Number(f.weekendSurcharge),
-    }))
+    formats.value = (data.formats || [])
+      .map(f => ({
+        ...f,
+        name: formatMovieFormatName(f.name),
+        surcharge: Number(f.surcharge || 0),
+        weekendSurcharge: f.weekendSurcharge == null ? null : Number(f.weekendSurcharge),
+      }))
+      .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
 
     holidays.value = data.holidays || []
     if (roomTypes.value.length) sim.roomType = roomTypes.value[0].code

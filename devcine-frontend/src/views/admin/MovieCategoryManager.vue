@@ -29,12 +29,13 @@ const touched = ref({ name: false, code: false })
 
 const toast = useToastStore()
 
-// Danh sách đang hiển thị theo tab
-const currentList = computed(() =>
-  activeTab.value === 'genres' ? genres.value
+// Danh sách đang hiển thị theo tab (luôn sắp xếp ID tăng dần)
+const currentList = computed(() => {
+  const list = activeTab.value === 'genres' ? genres.value
     : activeTab.value === 'formats' ? formats.value
       : ageRatings.value
-)
+  return [...(list || [])].sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
+})
 
 const tabLabel = computed(() =>
   activeTab.value === 'genres' ? 'thể loại'
@@ -43,14 +44,22 @@ const tabLabel = computed(() =>
 )
 
 // ===== Validate tên danh mục (scoped theo tab) =====
-// Ký tự đặc biệt nguy hiểm bị chặn ở MỌI tab; riêng THỂ LOẠI còn chặn cả chữ số
-// (Định dạng cần "2D/3D" nên chừa số).
-const FORBIDDEN_NAME = /[@#$%^&*<>/,[\]{}]/g
+// Regex ký tự cấm XSS và nguy hiểm chung
+const FORBIDDEN_COMMON = /[@#$%^*<>/[\]{}\\]/g
+const FORBIDDEN_GENRE_FORMAT = /[@#$%^&*<>/,[\]{}\\]/g
+
 const nameRules = computed(() => {
-  if (activeTab.value === 'formats') return { min: 2, max: 30, blockDigits: false, capitalize: false }
-  if (activeTab.value === 'age-ratings') return { min: 2, max: 50, blockDigits: false, capitalize: true }
-  return { min: 2, max: 30, blockDigits: true, capitalize: true } // genres
+  if (activeTab.value === 'formats') {
+    return { min: 2, max: 50, blockDigits: false, forbidden: FORBIDDEN_GENRE_FORMAT, capitalize: false }
+  }
+  if (activeTab.value === 'age-ratings') {
+    // Tab Kiểm duyệt: cho phép số, dấu ngoặc ( ), dấu gạch nối -, dấu + cho mô tả độ tuổi (VD: Từ 13 tuổi, Dưới 13 tuổi (có người lớn đi kèm))
+    return { min: 2, max: 50, blockDigits: false, forbidden: FORBIDDEN_COMMON, capitalize: true }
+  }
+  // Tab Thể loại: chặn chữ số, chặn ký tự đặc biệt
+  return { min: 2, max: 50, blockDigits: true, forbidden: FORBIDDEN_GENRE_FORMAT, capitalize: true }
 })
+
 const capitalizeFirst = (s) => { const t = (s || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t }
 
 const formatMovieFormatName = (raw) => {
@@ -71,42 +80,42 @@ const formatMovieFormatName = (raw) => {
 // Chặn cứng khi gõ: bỏ ký tự cấm (+ số cho tab thể loại), giới hạn độ dài tối đa.
 const onNameInput = (e) => {
   const r = nameRules.value
-  let v = e.target.value.replace(FORBIDDEN_NAME, '')
+  let v = e.target.value.replace(r.forbidden, '')
   if (r.blockDigits) v = v.replace(/[0-9]/g, '')
   v = v.slice(0, r.max)
   newItem.value.name = v
   e.target.value = v
   touched.value.name = true
 }
-// Rời ô: luôn cắt khoảng trắng thừa 2 đầu; chuẩn hóa Title Case cho định dạng / viết hoa chữ cái đầu cho thể loại & kiểm duyệt.
+
+// Rời ô: cắt khoảng trắng thừa 2 đầu & gom nhiều khoảng trắng liên tiếp (\s+) thành 1 dấu cách đơn.
 const onNameBlur = () => {
   touched.value.name = true
+  const collapsed = (newItem.value.name || '').trim().replace(/\s+/g, ' ')
   if (activeTab.value === 'formats') {
-    newItem.value.name = formatMovieFormatName(newItem.value.name)
+    newItem.value.name = formatMovieFormatName(collapsed)
   } else if (nameRules.value.capitalize) {
-    newItem.value.name = capitalizeFirst(newItem.value.name)
+    newItem.value.name = capitalizeFirst(collapsed)
   } else {
-    newItem.value.name = (newItem.value.name || '').trim()
+    newItem.value.name = collapsed
   }
 }
 
 const nameError = computed(() => {
   const r = nameRules.value
-  const t = (newItem.value.name || '').trim()
-  if (t.length === 0) return 'Tên danh mục không được để trống.'
-  if (t.length < r.min || t.length > r.max) return `Tên danh mục phải từ ${r.min} đến ${r.max} ký tự.`
+  const t = (newItem.value.name || '').trim().replace(/\s+/g, ' ')
+  if (t.length === 0) return 'Tên danh mục không được để trống'
+  if (t.length < r.min || t.length > r.max) return `Tên danh mục phải từ ${r.min} đến ${r.max} ký tự`
   // Trùng lặp (không phân biệt hoa/thường) trong tab hiện tại, loại trừ chính nó khi sửa.
   const dup = currentList.value.some((it) =>
     it.name && it.name.trim().toLowerCase() === t.toLowerCase()
     && (!editingItem.value || it.id !== editingItem.value.id))
-  if (dup) return 'Tên danh mục này đã tồn tại!'
+  if (dup) return 'Tên danh mục này đã tồn tại'
   return ''
 })
-// Mã kiểm duyệt: chỉ chữ HOA + số, 1-10 ký tự. Chặn cứng khi gõ để admin không thể
-// nhập dấu cách / ký tự đặc biệt / chữ thường ("t13 " -> "T13").
+
+// Mã kiểm duyệt: chỉ chữ HOA + số, 1-10 ký tự. Tự động toUpperCase() khi gõ.
 const CODE_MAX = 10
-// Bộ mã kiểm duyệt CHUẨN VN (Thông tư 05/2023) — đồng bộ backend CategoryService.STANDARD_AGE_CODES
-const STANDARD_AGE_CODES = ['P', 'K', 'T13', 'T16', 'T18', 'C']
 const onCodeInput = (e) => {
   const v = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, CODE_MAX)
   newItem.value.code = v
@@ -117,17 +126,18 @@ const onCodeInput = (e) => {
 const codeError = computed(() => {
   if (activeTab.value !== 'age-ratings') return ''
   const c = (newItem.value.code || '').trim()
-  if (!c) return 'Vui lòng nhập mã kiểm duyệt.'
-  if (c.length > CODE_MAX) return `Mã kiểm duyệt tối đa ${CODE_MAX} ký tự.`
-  if (!/^[A-Z0-9]+$/.test(c)) return 'Mã kiểm duyệt chỉ gồm chữ in hoa và số.'
-  if (!STANDARD_AGE_CODES.includes(c)) return 'Mã kiểm duyệt phải thuộc bộ chuẩn: P, K, T13, T16, T18, C.'
+  if (!c) return 'Mã kiểm duyệt không được để trống'
+  if (c.length > CODE_MAX) return 'Mã kiểm duyệt không vượt quá 10 ký tự'
+  if (!/^[A-Z0-9]+$/.test(c)) return 'Mã chỉ được chứa chữ cái và số không dấu (VD: P, T13)'
   const dup = ageRatings.value.some((it) =>
     it.code && it.code.trim().toLowerCase() === c.toLowerCase()
     && (!editingItem.value || it.id !== editingItem.value.id))
-  if (dup) return 'Mã kiểm duyệt này đã tồn tại!'
+  if (dup) return 'Mã kiểm duyệt này đã tồn tại trên hệ thống'
   return ''
 })
-const descError = computed(() => ((newItem.value.description || '').length > 150 ? 'Mô tả tối đa 150 ký tự.' : ''))
+
+const descError = computed(() => ((newItem.value.description || '').length > 150 ? 'Mô tả không được vượt quá 150 ký tự' : ''))
+
 // Nút Lưu chỉ sáng khi mọi ràng buộc hợp lệ.
 const isSaveDisabled = computed(() => isSaving.value || !!nameError.value || !!codeError.value || !!descError.value)
 
@@ -154,9 +164,10 @@ const fetchData = async () => {
       api.get('/categories/formats'),
       api.get('/categories/age-ratings')
     ])
-    genres.value = genresRes.data
-    formats.value = formatsRes.data
-    ageRatings.value = ageRatingsRes.data
+    const sortByAscId = (arr) => [...(arr || [])].sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
+    genres.value = sortByAscId(genresRes.data)
+    formats.value = sortByAscId(formatsRes.data)
+    ageRatings.value = sortByAscId(ageRatingsRes.data)
   } catch (error) {
     loadError.value = friendlyError(error, 'Không thể tải danh mục. Vui lòng thử lại.')
     toast.error(loadError.value)
@@ -165,10 +176,53 @@ const fetchData = async () => {
   }
 }
 
+// Reset form về trạng thái sạch sẽ ban đầu
+const resetForm = () => {
+  newItem.value = { name: '', code: '', description: '' }
+  touched.value = { name: false, code: false }
+  editingItem.value = null
+}
+
+// Kiểm tra dữ liệu form có thay đổi so với ban đầu (Unsaved changes)
+const isDirty = () => {
+  const curName = (newItem.value.name || '').trim()
+  const curCode = (newItem.value.code || '').trim()
+  const curDesc = (newItem.value.description || '').trim()
+  if (!editingItem.value) {
+    return curName !== '' || curCode !== '' || curDesc !== ''
+  }
+  const origName = (editingItem.value.name || '').trim()
+  const origCode = (editingItem.value.code || '').trim()
+  const origDesc = (editingItem.value.description || '').trim()
+  return curName !== origName || curCode !== origCode || curDesc !== origDesc
+}
+
+// Xử lý đóng modal: Nếu có thay đổi chưa lưu -> hiện popup confirm
+const handleCloseModal = async () => {
+  if (isDirty()) {
+    const ok = await confirm.show({
+      title: 'Xác nhận thoát',
+      message: 'Dữ liệu chưa được lưu, bạn có chắc chắn muốn thoát?',
+      confirmText: 'Thoát',
+      cancelText: 'Ở lại',
+      tone: 'danger'
+    })
+    if (!ok) return
+  }
+  resetForm()
+  isModalOpen.value = false
+}
+
+// Xử lý phím tắt ESC toàn cục để đóng modal với popup confirm
+const onGlobalKeyDown = (e) => {
+  if (e.key === 'Escape' && isModalOpen.value && !confirm.open) {
+    handleCloseModal()
+  }
+}
+
 const openModal = (item = null) => {
   editingItem.value = item
-  // Sửa: dữ liệu đã có sẵn nên hiện lỗi ngay nếu bản ghi cũ không hợp lệ. Thêm mới: chờ admin gõ.
-  touched.value = { name: !!item, code: !!item }
+  touched.value = { name: false, code: false }
   if (item) {
     newItem.value = { name: item.name || '', code: item.code || '', description: item.description || '' }
   } else {
@@ -183,10 +237,11 @@ const saveItem = async () => {
   const firstErr = codeError.value || nameError.value || descError.value
   if (firstErr) { toast.warning(firstErr); return }
 
+  const collapsed = (newItem.value.name || '').trim().replace(/\s+/g, ' ')
   const finalName = activeTab.value === 'formats'
-    ? formatMovieFormatName(newItem.value.name)
-    : (nameRules.value.capitalize ? capitalizeFirst(newItem.value.name) : newItem.value.name.trim())
-  const finalDesc = (newItem.value.description || '').trim() || null
+    ? formatMovieFormatName(collapsed)
+    : (nameRules.value.capitalize ? capitalizeFirst(collapsed) : collapsed)
+  const finalDesc = (newItem.value.description || '').trim().replace(/\s+/g, ' ') || null
   const payload = activeTab.value === 'age-ratings'
     ? { code: newItem.value.code.trim().toUpperCase(), name: finalName, description: finalDesc }
     : { name: finalName, description: finalDesc }
@@ -201,6 +256,7 @@ const saveItem = async () => {
       toast.success('Đã thêm ' + tabLabel.value + ' mới')
     }
     await fetchData()
+    resetForm()
     isModalOpen.value = false
   } catch (error) {
     toast.error(friendlyError(error, 'Lưu thất bại. Vui lòng thử lại.'))
@@ -226,8 +282,14 @@ const deleteItem = async (item) => {
   }
 }
 
-onMounted(fetchData)
+onMounted(() => {
+  fetchData()
+  window.addEventListener('keydown', onGlobalKeyDown)
+})
 
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeyDown)
+})
 </script>
 
 <template>
@@ -365,7 +427,7 @@ onMounted(fetchData)
     </div>
 
     <!-- Modal -->
-    <AppModal :show="isModalOpen" @close="isModalOpen = false" :title="editingItem ? 'Sửa danh mục' : 'Thêm danh mục mới'">
+    <AppModal :show="isModalOpen" @close="handleCloseModal" :title="editingItem ? 'Sửa danh mục' : 'Thêm danh mục mới'">
       <div class="space-y-6 pt-4">
         <div v-if="activeTab === 'age-ratings'" class="space-y-2">
           <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã kiểm duyệt (Code) <span class="text-red-500">*</span></label>
@@ -391,9 +453,9 @@ onMounted(fetchData)
           </div>
         </div>
         <div class="flex gap-4 pt-4">
-          <AppButton variant="ghost" class="flex-1" @click="isModalOpen = false" :disabled="isSaving">Hủy</AppButton>
+          <AppButton variant="ghost" class="flex-1" @click="handleCloseModal" :disabled="isSaving">Hủy</AppButton>
           <AppButton class="flex-1" @click="saveItem" :disabled="isSaveDisabled">
-            {{ isSaving ? 'Đang lưu...' : 'Lưu thay đổi' }}
+            {{ isSaving ? (editingItem ? 'Đang lưu...' : 'Đang thêm...') : (editingItem ? 'Lưu thay đổi' : 'Thêm mới') }}
           </AppButton>
         </div>
       </div>

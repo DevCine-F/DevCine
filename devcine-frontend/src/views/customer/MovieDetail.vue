@@ -25,6 +25,23 @@ const descExpanded = ref(false)
 const showTrailer = ref(false)
 const selectedCinemaId = ref('')
 const allCinemas = ref([]) // toàn bộ rạp (để liệt kê theo thành phố, kể cả rạp chưa có suất)
+const ageRatings = ref([])
+
+const ageRatingDesc = computed(() => {
+  const code = (movie.value?.ageRating || 'P').trim().toUpperCase()
+  const found = ageRatings.value.find(a => (a.code || '').trim().toUpperCase() === code)
+  if (found && found.description) return found.description
+  if (found && found.name) return found.name
+  const defaultMap = {
+    'P': 'Phim được phép phổ biến rộng rãi đến mọi lứa tuổi người xem',
+    'K': 'Phim dành cho khán giả dưới 13 tuổi với điều kiện có cha mẹ hoặc người giám hộ đi cùng',
+    'T13': 'Phim chỉ dành cho khán giả từ đủ 13 tuổi trở lên (13+)',
+    'T16': 'Phim chỉ dành cho khán giả từ đủ 16 tuổi trở lên (16+)',
+    'T18': 'Phim chỉ dành cho khán giả từ đủ 18 tuổi trở lên (18+)',
+    'C': 'Phim không được phép phổ biến'
+  }
+  return defaultMap[code] || 'Phim được phép phổ biến rộng rãi đến mọi lứa tuổi người xem'
+})
 
 // --- Đánh giá phim ---
 const reviewsData = ref({ averageRating: 0, totalReviews: 0, reviews: [], distribution: {} })
@@ -208,11 +225,16 @@ onMounted(async () => {
     .then(r => { const l = r.data?.data ?? r.data; allCinemas.value = Array.isArray(l) ? l : [] })
     .catch(() => { allCinemas.value = [] })
 
+  const fetchAgeRatings = api.get('/categories/age-ratings')
+    .then(r => { const l = r.data?.data ?? r.data; ageRatings.value = Array.isArray(l) ? l : [] })
+    .catch(() => { ageRatings.value = [] })
+
   await Promise.all([
     fetchMovieData,
     store.fetchCities(),
     fetchReviews(movieId),
-    fetchCinemas
+    fetchCinemas,
+    fetchAgeRatings
   ])
 
   // Mặc định tự động: Toàn quốc (city = '') và Tất cả rạp (cinemaId = '')
@@ -425,7 +447,7 @@ const groupShowtimesByFormat = (showtimes) => {
           </div>
 
           <p class="text-[#ff3b30] text-sm font-medium mb-8">
-            Kiểm duyệt: {{ movie.ageRating || 'P' }} - Phim được phép phổ biến đến người xem ở độ tuổi tương ứng.
+            Kiểm duyệt: {{ movie.ageRating || 'P' }} - {{ ageRatingDesc }}
           </p>
 
           <div class="flex items-center gap-8">

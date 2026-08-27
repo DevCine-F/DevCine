@@ -65,23 +65,23 @@ public class CategoryService {
     public List<Category> getGenres() {
         if (categoryRepository.count() == 0) {
             categoryRepository.saveAll(List.of(
-                    Category.builder().name("Hành động").description("Phim hành động").build(),
-                    Category.builder().name("Tình cảm").description("Phim tình cảm").build(),
-                    Category.builder().name("Hài hước").description("Phim hài hước").build(),
-                    Category.builder().name("Kinh dị").description("Phim kinh dị").build(),
-                    Category.builder().name("Hoạt hình").description("Phim hoạt hình").build(),
-                    Category.builder().name("Viễn tưởng").description("Phim viễn tưởng").build()
+                    Category.builder().name("Hành động").description("Kịch tính, gay cấn với các cảnh chiến đấu, rượt đuổi và kỹ xảo mãn nhãn").build(),
+                    Category.builder().name("Tình cảm").description("Những câu chuyện lãng mạn, sâu lắng về tình yêu và cảm xúc con người").build(),
+                    Category.builder().name("Hài hước").description("Nội dung vui nhộn, dí dỏm mang lại tiếng cười và phút giây thư giãn").build(),
+                    Category.builder().name("Kinh dị").description("Tạo cảm giác sợ hãi, rùng rợn và hồi hộp với yếu tố siêu nhiên, kỳ bí").build(),
+                    Category.builder().name("Hoạt hình").description("Thế giới đồ họa sống động, phù hợp mọi lứa tuổi và gia đình").build(),
+                    Category.builder().name("Viễn tưởng").description("Khám phá tương lai, không gian, công nghệ tiên tiến và thế giới tưởng tượng").build()
             ));
         }
-        return categoryRepository.findAll();
+        return categoryRepository.findAll(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     @Transactional
     public Category createGenre(CategoryRequest input) {
-        String name = requireName(input.getName(), "Tên thể loại không được để trống");
+        String name = requireName(input.getName(), "Tên danh mục không được để trống");
         checkGenreName(name);
         if (categoryRepository.existsByNameIgnoreCase(name)) {
-            throw new IllegalArgumentException("Thể loại \"" + name + "\" đã tồn tại");
+            throw new IllegalArgumentException("Tên danh mục này đã tồn tại");
         }
         return categoryRepository.save(Category.builder()
                 .name(name)
@@ -93,10 +93,10 @@ public class CategoryService {
     public Category updateGenre(Integer id, CategoryRequest input) {
         Category existing = categoryRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thể loại #" + id));
-        String name = requireName(input.getName(), "Tên thể loại không được để trống");
+        String name = requireName(input.getName(), "Tên danh mục không được để trống");
         checkGenreName(name);
         if (!name.equalsIgnoreCase(existing.getName()) && categoryRepository.existsByNameIgnoreCase(name)) {
-            throw new IllegalArgumentException("Thể loại \"" + name + "\" đã tồn tại");
+            throw new IllegalArgumentException("Tên danh mục này đã tồn tại");
         }
         existing.setName(name);
         existing.setDescription(cleanDescription(input.getDescription()));
@@ -122,12 +122,12 @@ public class CategoryService {
     public List<MovieFormat> getFormats() {
         if (movieFormatRepository.count() == 0) {
             movieFormatRepository.saveAll(List.of(
-                    MovieFormat.builder().name("2D Phụ Đề").description("2D Phụ Đề").surcharge(BigDecimal.ZERO).build(),
-                    MovieFormat.builder().name("2D Lồng Tiếng").description("2D Lồng Tiếng").surcharge(BigDecimal.ZERO).build(),
-                    MovieFormat.builder().name("3D Phụ Đề").description("3D Phụ Đề").surcharge(new BigDecimal("30000")).build(),
-                    MovieFormat.builder().name("3D Lồng Tiếng").description("3D Lồng Tiếng").surcharge(new BigDecimal("30000")).build(),
-                    MovieFormat.builder().name("Superplex 2D").description("Superplex 2D").surcharge(new BigDecimal("20000")).build(),
-                    MovieFormat.builder().name("Superplex 3D").description("Superplex 3D").surcharge(new BigDecimal("50000")).build()
+                    MovieFormat.builder().name("2D Phụ Đề").description("Hình ảnh 2D tiêu chuẩn, âm thanh gốc kèm phụ đề tiếng Việt").surcharge(BigDecimal.ZERO).build(),
+                    MovieFormat.builder().name("2D Lồng Tiếng").description("Hình ảnh 2D tiêu chuẩn, âm thanh lồng tiếng Việt phù hợp gia đình và trẻ em").surcharge(BigDecimal.ZERO).build(),
+                    MovieFormat.builder().name("3D Phụ Đề").description("Hiệu ứng không gian 3 chiều sống động qua kính 3D, âm thanh gốc kèm phụ đề tiếng Việt").surcharge(new BigDecimal("30000")).build(),
+                    MovieFormat.builder().name("3D Lồng Tiếng").description("Hiệu ứng không gian 3 chiều sống động qua kính 3D, âm thanh lồng tiếng Việt sinh động").surcharge(new BigDecimal("30000")).build(),
+                    MovieFormat.builder().name("Superplex 2D").description("Màn chiếu siêu đại Superplex kích thước khổng lồ, hình ảnh 2D sắc nét vượt trội").surcharge(new BigDecimal("20000")).build(),
+                    MovieFormat.builder().name("Superplex 3D").description("Màn chiếu siêu đại Superplex kết hợp không gian 3D hoành tráng và âm thanh đỉnh cao").surcharge(new BigDecimal("50000")).build()
             ));
         }
         return movieFormatRepository.findAll(Sort.by(Sort.Direction.ASC, "id"));
@@ -135,10 +135,10 @@ public class CategoryService {
 
     @Transactional
     public MovieFormat createFormat(MovieFormatRequest input) {
-        String name = formatMovieFormatName(requireName(input.getName(), "Tên định dạng không được để trống"));
-        checkNameLen(name, 2, 30, "định dạng");
+        String name = formatMovieFormatName(requireName(input.getName(), "Tên danh mục không được để trống"));
+        checkNameLen(name, 2, 50, "định dạng");
         if (movieFormatRepository.existsByNameIgnoreCase(name)) {
-            throw new IllegalArgumentException("Định dạng \"" + name + "\" đã tồn tại");
+            throw new IllegalArgumentException("Tên danh mục này đã tồn tại");
         }
         return movieFormatRepository.save(MovieFormat.builder()
                 .name(name)
@@ -152,10 +152,10 @@ public class CategoryService {
     public MovieFormat updateFormat(Integer id, MovieFormatRequest input) {
         MovieFormat existing = movieFormatRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng #" + id));
-        String name = formatMovieFormatName(requireName(input.getName(), "Tên định dạng không được để trống"));
-        checkNameLen(name, 2, 30, "định dạng");
+        String name = formatMovieFormatName(requireName(input.getName(), "Tên danh mục không được để trống"));
+        checkNameLen(name, 2, 50, "định dạng");
         if (!name.equalsIgnoreCase(existing.getName()) && movieFormatRepository.existsByNameIgnoreCase(name)) {
-            throw new IllegalArgumentException("Định dạng \"" + name + "\" đã tồn tại");
+            throw new IllegalArgumentException("Tên danh mục này đã tồn tại");
         }
         existing.setName(name);
         existing.setDescription(cleanDescription(input.getDescription()));
@@ -179,24 +179,27 @@ public class CategoryService {
     public List<AgeRating> getAgeRatings() {
         if (ageRatingRepository.count() == 0) {
             ageRatingRepository.saveAll(List.of(
-                    AgeRating.builder().code("P").name("Mọi đối tượng").build(),
-                    AgeRating.builder().code("K").name("Dưới 13 tuổi (có người lớn đi kèm)").build(),
-                    AgeRating.builder().code("T13").name("Từ 13 tuổi").build(),
-                    AgeRating.builder().code("T16").name("Từ 16 tuổi").build(),
-                    AgeRating.builder().code("T18").name("Từ 18 tuổi").build()
+                    AgeRating.builder().code("P").name("Mọi đối tượng").description("Phim được phép phổ biến rộng rãi đến mọi lứa tuổi người xem").build(),
+                    AgeRating.builder().code("K").name("Dưới 13 tuổi (có người lớn đi kèm)").description("Phim dành cho khán giả dưới 13 tuổi với điều kiện có cha mẹ hoặc người giám hộ đi cùng").build(),
+                    AgeRating.builder().code("T13").name("Từ 13 tuổi").description("Phim chỉ dành cho khán giả từ đủ 13 tuổi trở lên (13+)").build(),
+                    AgeRating.builder().code("T16").name("Từ 16 tuổi").description("Phim chỉ dành cho khán giả từ đủ 16 tuổi trở lên (16+)").build(),
+                    AgeRating.builder().code("T18").name("Từ 18 tuổi").description("Phim chỉ dành cho khán giả từ đủ 18 tuổi trở lên (18+)").build()
             ));
         }
-        return ageRatingRepository.findAll();
+        return ageRatingRepository.findAll(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     @Transactional
     public AgeRating createAgeRating(AgeRatingRequest input) {
         String code = requireName(input.getCode(), "Mã kiểm duyệt không được để trống").toUpperCase();
         checkAgeRatingCode(code);
-        String name = requireName(input.getName(), "Tên kiểm duyệt không được để trống");
+        String name = requireName(input.getName(), "Tên danh mục không được để trống");
         checkNameLen(name, 2, 50, "kiểm duyệt");
         if (ageRatingRepository.existsByCodeIgnoreCase(code)) {
-            throw new IllegalArgumentException("Mã kiểm duyệt \"" + code + "\" đã tồn tại");
+            throw new IllegalArgumentException("Mã kiểm duyệt này đã tồn tại trên hệ thống");
+        }
+        if (ageRatingRepository.existsByNameIgnoreCase(name)) {
+            throw new IllegalArgumentException("Tên danh mục này đã tồn tại");
         }
         return ageRatingRepository.save(AgeRating.builder()
                 .code(code)
@@ -211,10 +214,13 @@ public class CategoryService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mục kiểm duyệt #" + id));
         String code = requireName(input.getCode(), "Mã kiểm duyệt không được để trống").toUpperCase();
         checkAgeRatingCode(code);
-        String name = requireName(input.getName(), "Tên kiểm duyệt không được để trống");
+        String name = requireName(input.getName(), "Tên danh mục không được để trống");
         checkNameLen(name, 2, 50, "kiểm duyệt");
         if (!code.equalsIgnoreCase(existing.getCode()) && ageRatingRepository.existsByCodeIgnoreCase(code)) {
-            throw new IllegalArgumentException("Mã kiểm duyệt \"" + code + "\" đã tồn tại");
+            throw new IllegalArgumentException("Mã kiểm duyệt này đã tồn tại trên hệ thống");
+        }
+        if (!name.equalsIgnoreCase(existing.getName()) && ageRatingRepository.existsByNameIgnoreCase(name)) {
+            throw new IllegalArgumentException("Tên danh mục này đã tồn tại");
         }
         existing.setCode(code);
         existing.setName(name);
@@ -236,12 +242,12 @@ public class CategoryService {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(message);
         }
-        return value.trim();
+        return value.trim().replaceAll("\\s+", " ");
     }
 
     private String trimToNull(String value) {
         if (value == null) return null;
-        String trimmed = value.trim();
+        String trimmed = value.trim().replaceAll("\\s+", " ");
         return trimmed.isEmpty() ? null : trimmed;
     }
 
@@ -251,29 +257,32 @@ public class CategoryService {
 
     private void checkNameLen(String name, int min, int max, String label) {
         if (name.length() < min || name.length() > max) {
-            throw new IllegalArgumentException("Tên " + label + " phải từ " + min + " đến " + max + " ký tự");
+            throw new IllegalArgumentException("Tên danh mục phải từ " + min + " đến " + max + " ký tự");
         }
         if (FORBIDDEN_NAME.matcher(name).find()) {
-            throw new IllegalArgumentException("Tên " + label + " chứa ký tự không hợp lệ");
+            throw new IllegalArgumentException("Tên danh mục chứa ký tự không hợp lệ");
         }
     }
 
     // Riêng THỂ LOẠI: không cho chứa chữ số (Định dạng cần 2D/3D nên không áp).
     private void checkGenreName(String name) {
-        checkNameLen(name, 2, 30, "thể loại");
+        checkNameLen(name, 2, 50, "thể loại");
         if (name.chars().anyMatch(Character::isDigit)) {
             throw new IllegalArgumentException("Tên thể loại không được chứa chữ số");
         }
     }
 
-    // Mã kiểm duyệt: 1-10 ký tự, chỉ chữ in hoa + số (P, T13, C18...) — đồng bộ với Frontend.
-    // Mã kiểm duyệt phải thuộc BỘ CHUẨN phân loại phim Việt Nam (Thông tư 05/2023) — đồng bộ với Frontend.
-    // P: mọi lứa tuổi · K: dưới 13 tuổi (có người bảo hộ) · T13/T16/T18: từ 13/16/18 tuổi · C: cấm phổ biến.
-    // Chặn các mã sai chuẩn kiểu "C13/C16/C18" (nhầm T thành C).
+    // Mã kiểm duyệt: 1-10 ký tự, chỉ chữ in hoa + số (P, K, T13, T16, T18, C) — đồng bộ với Frontend.
     private static final java.util.Set<String> STANDARD_AGE_CODES =
             java.util.Set.of("P", "K", "T13", "T16", "T18", "C");
 
     private void checkAgeRatingCode(String code) {
+        if (code.length() > 10) {
+            throw new IllegalArgumentException("Mã kiểm duyệt không vượt quá 10 ký tự");
+        }
+        if (!code.matches("^[A-Z0-9]+$")) {
+            throw new IllegalArgumentException("Mã chỉ được chứa chữ cái và số không dấu (VD: P, T13)");
+        }
         if (!STANDARD_AGE_CODES.contains(code)) {
             throw new IllegalArgumentException("Mã kiểm duyệt phải thuộc bộ chuẩn: P, K, T13, T16, T18, C");
         }
@@ -283,7 +292,7 @@ public class CategoryService {
     private String cleanDescription(String desc) {
         String d = trimToNull(desc);
         if (d != null && d.length() > 150) {
-            throw new IllegalArgumentException("Mô tả tối đa 150 ký tự");
+            throw new IllegalArgumentException("Mô tả không được vượt quá 150 ký tự");
         }
         return d;
     }

@@ -18,15 +18,15 @@ import lombok.NoArgsConstructor;
 @Builder
 public class AgeRatingRequest {
 
-    @NotBlank(message = "Vui lòng nhập mã kiểm duyệt")
-    @Size(min = 1, max = 10, message = "Mã kiểm duyệt tối đa 10 ký tự")
-    @Pattern(regexp = "^[A-Z0-9]+$", message = "Mã kiểm duyệt chỉ gồm chữ in hoa và số")
+    @NotBlank(message = "Mã kiểm duyệt không được để trống")
+    @Size(min = 1, max = 10, message = "Mã kiểm duyệt không vượt quá 10 ký tự")
+    @Pattern(regexp = "^[A-Z0-9]+$", message = "Mã chỉ được chứa chữ cái và số không dấu (VD: P, T13)")
     private String code;
 
     @NotBlank(message = "Tên danh mục không được để trống")
-    @Size(min = 2, max = 50, message = "Tên kiểm duyệt phải từ 2 đến 50 ký tự")
+    @Size(min = 2, max = 50, message = "Tên danh mục phải từ 2 đến 50 ký tự")
     private String name;
 
-    @Size(max = 150, message = "Mô tả tối đa 150 ký tự")
+    @Size(max = 150, message = "Mô tả không được vượt quá 150 ký tự")
     private String description;
 }

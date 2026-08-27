@@ -45,14 +45,21 @@ public class DataSeeder {
             } catch (Exception ignored) {
             }
 
-            // ===== CHUẨN HÓA ĐỊNH DẠNG CHIẾU (MOVIE FORMATS) THEO TITLE CASE =====
+            // ===== CHUẨN HÓA ĐỊNH DẠNG CHIẾU (MOVIE FORMATS) THEO TITLE CASE & MÔ TẢ =====
             try {
-                jdbcTemplate.execute("UPDATE movie_formats SET name = '2D Phụ Đề' WHERE LOWER(TRIM(name)) IN ('2d phụ đề', '2d phu de');");
-                jdbcTemplate.execute("UPDATE movie_formats SET name = '2D Lồng Tiếng' WHERE LOWER(TRIM(name)) IN ('2d lồng tiếng', '2d long tieng');");
-                jdbcTemplate.execute("UPDATE movie_formats SET name = '3D Phụ Đề' WHERE LOWER(TRIM(name)) IN ('3d phụ đề', '3d phu de');");
-                jdbcTemplate.execute("UPDATE movie_formats SET name = '3D Lồng Tiếng' WHERE LOWER(TRIM(name)) IN ('3d lồng tiếng', '3d long tieng');");
-                jdbcTemplate.execute("UPDATE movie_formats SET name = 'Superplex 2D' WHERE LOWER(TRIM(name)) IN ('superplex 2d');");
-                jdbcTemplate.execute("UPDATE movie_formats SET name = 'Superplex 3D' WHERE LOWER(TRIM(name)) IN ('superplex 3d');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '2D Phụ Đề', description = 'Hình ảnh 2D tiêu chuẩn, âm thanh gốc kèm phụ đề tiếng Việt' WHERE LOWER(TRIM(name)) IN ('2d phụ đề', '2d phu de');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '2D Lồng Tiếng', description = 'Hình ảnh 2D tiêu chuẩn, âm thanh lồng tiếng Việt phù hợp gia đình và trẻ em' WHERE LOWER(TRIM(name)) IN ('2d lồng tiếng', '2d long tieng');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '3D Phụ Đề', description = 'Hiệu ứng không gian 3 chiều sống động qua kính 3D, âm thanh gốc kèm phụ đề tiếng Việt' WHERE LOWER(TRIM(name)) IN ('3d phụ đề', '3d phu de');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '3D Lồng Tiếng', description = 'Hiệu ứng không gian 3 chiều sống động qua kính 3D, âm thanh lồng tiếng Việt sinh động' WHERE LOWER(TRIM(name)) IN ('3d lồng tiếng', '3d long tieng');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = 'Superplex 2D', description = 'Màn chiếu siêu đại Superplex kích thước khổng lồ, hình ảnh 2D sắc nét vượt trội' WHERE LOWER(TRIM(name)) IN ('superplex 2d');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = 'Superplex 3D', description = 'Màn chiếu siêu đại Superplex kết hợp không gian 3D hoành tráng và âm thanh đỉnh cao' WHERE LOWER(TRIM(name)) IN ('superplex 3d');");
+
+                // MÔ TẢ KIỂM DUYỆT (AGE RATINGS)
+                jdbcTemplate.execute("UPDATE age_ratings SET description = 'Phim được phép phổ biến rộng rãi đến mọi lứa tuổi người xem' WHERE code = 'P';");
+                jdbcTemplate.execute("UPDATE age_ratings SET description = 'Phim dành cho khán giả dưới 13 tuổi với điều kiện có cha mẹ hoặc người giám hộ đi cùng' WHERE code = 'K';");
+                jdbcTemplate.execute("UPDATE age_ratings SET description = 'Phim chỉ dành cho khán giả từ đủ 13 tuổi trở lên (13+)' WHERE code = 'T13';");
+                jdbcTemplate.execute("UPDATE age_ratings SET description = 'Phim chỉ dành cho khán giả từ đủ 16 tuổi trở lên (16+)' WHERE code = 'T16';");
+                jdbcTemplate.execute("UPDATE age_ratings SET description = 'Phim chỉ dành cho khán giả từ đủ 18 tuổi trở lên (18+)' WHERE code = 'T18';");
             } catch (Exception ignored) {
             }
 
