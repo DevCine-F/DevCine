@@ -32,10 +32,26 @@ public class CompensationTemplateSeeder implements CommandLineRunner {
 
     private final PromotionRepository promotionRepository;
     private final SystemSettingRepository systemSettingRepository;
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Override
     @Transactional
     public void run(String... args) {
+        // Tự động dọn dẹp COMP_FNB_COMBO nếu đang tồn tại trong CSDL
+        promotionRepository.findByCodeIgnoreCase("COMP_FNB_COMBO").ifPresent(p -> {
+            entityManager.createNativeQuery("UPDATE seat_incidents SET voucher_id = NULL WHERE voucher_id IN (SELECT id FROM vouchers WHERE promotion_id = :pid)")
+                    .setParameter("pid", p.getId())
+                    .executeUpdate();
+            entityManager.createNativeQuery("UPDATE bookings SET voucher_id = NULL WHERE voucher_id IN (SELECT id FROM vouchers WHERE promotion_id = :pid)")
+                    .setParameter("pid", p.getId())
+                    .executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM vouchers WHERE promotion_id = :pid")
+                    .setParameter("pid", p.getId())
+                    .executeUpdate();
+            promotionRepository.delete(p);
+            System.out.println("====== ĐÃ DỌN DẸP TEMPLATE COMP_FNB_COMBO KHỎI HỆ THỐNG ======");
+        });
+
         if (systemSettingRepository.findById(SEED_FLAG).isPresent()) {
             return;
         }
@@ -46,26 +62,6 @@ public class CompensationTemplateSeeder implements CommandLineRunner {
         LocalDateTime endDate = now.plusYears(10);
 
         List<Promotion> templates = List.of(
-                // ── GIFT_FNB: tặng combo F&B (giá trị quà = 0, hiển thị "Tặng combo F&B") ──
-                Promotion.builder()
-                        .code("COMP_FNB_COMBO")
-                        .name("Tặng Combo F&B")
-                        .description("Tặng 01 combo bắp + nước lớn cho khách bị ảnh hưởng sự cố.")
-                        .discountType("GIFT_FNB")
-                        .discountValue(BigDecimal.ZERO)
-                        .isActive(false)   // Bật lên khi cần sử dụng
-                        .isStackable(false)
-                        .allowPointRedemption(false)
-                        .minOrderValue(BigDecimal.ZERO)
-                        .pointsRequired(0)
-                        .usageLimit(0)
-                        .usedCount(0)
-                        .maxTicketQuantity(0)
-                        .maxDiscountAmount(BigDecimal.ZERO)
-                        .startDate(now)
-                        .endDate(endDate)
-                        .build(),
-
                 // ── DISCOUNT: voucher giảm 50.000đ ──
                 Promotion.builder()
                         .code("COMP_50K")
