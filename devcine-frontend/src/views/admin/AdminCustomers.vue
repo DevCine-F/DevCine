@@ -318,17 +318,17 @@ const openDetailModal = async (customer) => {
 watch(detailTab, async (newTab) => {
   if (!selectedCustomer.value) return
 
-  if (newTab === 'orders' && customerOrders.value.length === 0) {
+  if (newTab === 'orders') {
     customerOrdersLoading.value = true
     try {
       const { data } = await customerApi.getOrders(selectedCustomer.value.userId)
       customerOrders.value = data.data ?? data ?? []
     } catch (err) {
-      toast.error('Không thể tải lịch sử đặt vé của khách hàng.')
+      toast.error(friendlyError(err, 'Không thể tải lịch sử đặt vé của khách hàng.'))
     } finally {
       customerOrdersLoading.value = false
     }
-  } else if (newTab === 'points_vouchers' && (customerVouchers.value.length === 0 || customerPoints.value.length === 0)) {
+  } else if (newTab === 'points_vouchers') {
     customerHistoryLoading.value = true
     try {
       const [vRes, pRes] = await Promise.all([
@@ -338,7 +338,7 @@ watch(detailTab, async (newTab) => {
       customerVouchers.value = vRes.data?.data ?? vRes.data ?? []
       customerPoints.value = pRes.data?.data ?? pRes.data ?? []
     } catch (err) {
-      toast.error('Không thể tải lịch sử điểm và voucher.')
+      toast.error(friendlyError(err, 'Không thể tải lịch sử điểm và voucher.'))
     } finally {
       customerHistoryLoading.value = false
     }
