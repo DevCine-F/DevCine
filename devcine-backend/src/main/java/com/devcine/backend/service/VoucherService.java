@@ -45,6 +45,7 @@ public class VoucherService {
     private final LoyaltyService loyaltyService;
     private final MailService mailService;
     private final PromoEmailLogRepository promoEmailLogRepository;
+    private final com.devcine.backend.repository.MovieRepository movieRepository;
 
     /**
      * Gửi email chiến dịch (chỉ thông báo mã) tới TOÀN BỘ khách thuộc đúng ĐỐI TƯỢNG áp dụng của
@@ -132,11 +133,12 @@ public class VoucherService {
 
     /**
      * Chấm một voucher theo ngữ cảnh giỏ hàng — NGUỒN SỰ THẬT DUY NHẤT dùng chung với
-     * {@code BookingService} để preview khớp với lúc đặt vé. Giữ đúng THỨ TỰ kiểm tra:
-     * đơn tối thiểu → theo phim → đối tượng → lượt dùng; rồi tính base & số giảm (có trần).
+     * {@code BookingService} để preview khớp với lúc đặt vé.
      *
-     * <p><b>Thông số giảm giá</b> (loại/giá trị/trần/số vé) đọc từ <b>SNAPSHOT đóng băng</b>
-     * trên Voucher — không bị ảnh hưởng nếu Admin sửa Promotion sau khi voucher đã phát.</p>
+     * <p><b>Thứ tự kiểm tra (Pipeline Priority chuẩn Lotte Cinema / CGV):</b>
+     * 1. Điều kiện CỐ ĐỊNH (Hard checks): Active → Ngày áp dụng/Hạn sử dụng → Hết lượt toàn sàn → Đối tượng → Phim.
+     * 2. Điều kiện ĐỘNG (Soft check): Giá trị đơn tối thiểu (khách có thể mua thêm vé/combo để đạt).
+     * </p>
      *
      * @param voucher    voucher cần chấm (chứa snapshot thông số giảm)
      * @param orderTotal tổng tiền đơn (ghế + bắp nước)
@@ -150,21 +152,47 @@ public class VoucherService {
         if (promo == null) {
             return new VoucherEval(false, "Không tìm thấy chương trình ưu đãi.", BigDecimal.ZERO);
         }
-        // Đơn tối thiểu: đọc từ SNAPSHOT của voucher (đóng băng lúc cấp)
-        BigDecimal minOrder = voucher.effectiveMinOrderValue();
-        if (minOrder != null && orderTotal.compareTo(minOrder) < 0) {
-            return new VoucherEval(false,
-                    "Đơn tối thiểu " + minOrder.toBigInteger() + "đ để áp dụng mã này.", BigDecimal.ZERO);
+
+        // 1. Trạng thái hoạt động & Thời hạn áp dụng (Hard check)
+        if (Boolean.FALSE.equals(promo.getIsActive())) {
+            return new VoucherEval(false, "Mã ưu đãi đang tạm dừng áp dụng.", BigDecimal.ZERO);
         }
-        if (promo.getApplicableMovieId() != null && movieId != null
-                && !promo.getApplicableMovieId().equals(movieId)) {
-            return new VoucherEval(false, "Mã chỉ áp dụng cho phim khác, không dùng được cho suất này.", BigDecimal.ZERO);
+        LocalDateTime now = LocalDateTime.now();
+        if (promo.getStartDate() != null && promo.getStartDate().isAfter(now)) {
+            return new VoucherEval(false, "Mã ưu đãi chưa đến ngày áp dụng.", BigDecimal.ZERO);
         }
-        String eligReason = eligibilityReason(customerId, customer, promo);
-        if (eligReason != null) return new VoucherEval(false, eligReason, BigDecimal.ZERO);
+        if ((promo.getEndDate() != null && promo.getEndDate().isBefore(now))
+                || (voucher.getValidUntil() != null && voucher.getValidUntil().isBefore(now))) {
+            return new VoucherEval(false, "Mã ưu đãi đã hết hạn sử dụng.", BigDecimal.ZERO);
+        }
+
+        // 2. Giới hạn lượt dùng toàn sàn (Hard check: nếu hết lượt thì đơn bao nhiêu tiền cũng không thể dùng)
         if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
                 && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
-            return new VoucherEval(false, "Mã đã hết lượt sử dụng.", BigDecimal.ZERO);
+            return new VoucherEval(false, "Mã đã hết lượt sử dụng toàn hệ thống.", BigDecimal.ZERO);
+        }
+
+        // 3. Đối tượng áp dụng (Hard check)
+        String eligReason = eligibilityReason(customerId, customer, promo);
+        if (eligReason != null) return new VoucherEval(false, eligReason, BigDecimal.ZERO);
+
+        // 4. Phim áp dụng (Hard check)
+        if (promo.getApplicableMovieId() != null && movieId != null
+                && !promo.getApplicableMovieId().equals(movieId)) {
+            String movieTitle = movieRepository.findById(promo.getApplicableMovieId())
+                    .map(com.devcine.backend.entity.Movie::getTitle).orElse(null);
+            String reason = (movieTitle != null && !movieTitle.isBlank())
+                    ? "Chỉ áp dụng cho phim: " + movieTitle
+                    : "Mã chỉ áp dụng cho phim khác, không dùng được cho suất này.";
+            return new VoucherEval(false, reason, BigDecimal.ZERO);
+        }
+
+        // 5. Giá trị đơn tối thiểu (Soft check: kiểm tra sau cùng để báo chính xác số tiền còn thiếu)
+        BigDecimal minOrder = voucher.effectiveMinOrderValue();
+        if (minOrder != null && minOrder.compareTo(BigDecimal.ZERO) > 0 && orderTotal.compareTo(minOrder) < 0) {
+            BigDecimal missing = minOrder.subtract(orderTotal);
+            return new VoucherEval(false,
+                    "Chưa đạt đơn tối thiểu " + minOrder.toBigInteger() + "đ (còn thiếu " + missing.toBigInteger() + "đ)", BigDecimal.ZERO);
         }
 
         // ═══ THÔNG SỐ GIẢM GIÁ: đọc từ SNAPSHOT (đóng băng lúc phát voucher) ═══
@@ -210,24 +238,16 @@ public class VoucherService {
 
     /**
      * Phân loại lý do không hợp lệ:
-     * - TRUE  → "cố định" trong phiên này (hết lượt, sai đối tượng, sai phim) → ẩn khỏi UI đặt vé
-     * - FALSE → "theo ngữ cảnh đơn" (chưa đủ giá trị tối thiểu) → hiển thị mờ, có thể đủ khi thêm ghế/FnB
+     * Giữ lại phương thức để tương thích ngược nếu cần.
      */
-    private boolean shouldHideFromUI(String reason) {
-        if (reason == null) return false;
-        return reason.startsWith("Mã đã hết lượt")
-                || reason.startsWith("Mã chỉ dành cho khách hàng")
-                || reason.startsWith("Mã chỉ áp dụng cho phim khác")
-                || reason.startsWith("Không tìm thấy chương trình ưu đãi");
+    public boolean shouldHideFromUI(String reason) {
+        return false;
     }
 
     /**
      * Preview toàn bộ voucher đang hiệu lực của khách theo giỏ hàng hiện tại — phục vụ bước
-     * "Ưu đãi" khi đặt vé: FE làm mờ mã không đủ điều kiện và hiển thị số giảm THỰC.
-     *
-     * <p>Trường {@code hideFromUI}: khi {@code true} FE nên ẨN hoàn toàn voucher khỏi danh sách
-     * (hết lượt, sai đối tượng, sai phim — không thể dùng được trong phiên này dù giỏ thay đổi).
-     * Khi {@code false} và {@code applicable = false} → FE hiển thị mờ (ví dụ: chưa đủ đơn tối thiểu).
+     * "Ưu đãi" khi đặt vé. Trả về đầy đủ thông tin để FE phân chia thành 2 khu vực:
+     * "Voucher khả dụng" và "Ưu đãi chưa đủ điều kiện" kèm gợi ý thông minh.
      */
     @Transactional
     public List<Map<String, Object>> previewActiveVouchers(VoucherPreviewRequest req) {
@@ -245,14 +265,30 @@ public class VoucherService {
             Promotion p = v.getPromotion();
             VoucherEval eval = evaluate(customerId, customer, v, orderTotal, req.getMovieId(), req.getSeatPrices());
             BigDecimal shown = eval.discountAmount().min(orderTotal); // số giảm thực (không vượt tổng đơn)
-            boolean hide = !eval.applicable() && shouldHideFromUI(eval.reason());
+
+            String movieTitle = null;
+            if (p.getApplicableMovieId() != null) {
+                movieTitle = movieRepository.findById(p.getApplicableMovieId())
+                        .map(com.devcine.backend.entity.Movie::getTitle).orElse(null);
+            }
+
             Map<String, Object> m = new HashMap<>();
             m.put("voucherId", v.getId());
             m.put("code", p.getCode() != null ? p.getCode() : "");
+            m.put("title", p.getName() != null ? p.getName() : "");
+            m.put("description", p.getDescription() != null ? p.getDescription() : "");
             m.put("applicable", eval.applicable());
             m.put("reason", eval.reason() != null ? eval.reason() : "");
             m.put("discountAmount", eval.applicable() ? shown : BigDecimal.ZERO);
-            m.put("hideFromUI", hide);
+            m.put("discountType", v.effectiveDiscountType() != null ? v.effectiveDiscountType() : "");
+            m.put("discountValue", v.effectiveDiscountValue() != null ? v.effectiveDiscountValue() : BigDecimal.ZERO);
+            m.put("minOrderValue", v.effectiveMinOrderValue() != null ? v.effectiveMinOrderValue() : BigDecimal.ZERO);
+            m.put("maxDiscountAmount", v.effectiveMaxDiscountAmount() != null ? v.effectiveMaxDiscountAmount() : BigDecimal.ZERO);
+            m.put("maxTicketQuantity", v.effectiveMaxTicketQuantity() != null ? v.effectiveMaxTicketQuantity() : 0);
+            m.put("validUntil", v.getValidUntil() != null ? v.getValidUntil().toString() : "");
+            m.put("applicableMovieId", p.getApplicableMovieId());
+            m.put("applicableMovieTitle", movieTitle);
+            m.put("hideFromUI", false);
             out.add(m);
         }
         return out;
@@ -358,6 +394,12 @@ public class VoucherService {
             throw new RuntimeException("Ưu đãi đã hết hạn.");
         }
 
+        // Chặn sớm khi mã đã hết lượt toàn hệ thống
+        if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
+                && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
+            throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng toàn hệ thống.");
+        }
+
         // Chặn sớm theo đối tượng áp dụng (khách mới / hạng thành viên) trước khi lưu mã
         assertEligibility(customerId, customer, promo);
 
@@ -399,6 +441,13 @@ public class VoucherService {
                 .orElse(null);
         if (existing != null) {
             ensureSnapshot(existing); // Lazy migration: đóng băng snapshot cho voucher cũ
+            if (Boolean.FALSE.equals(promo.getIsActive())) {
+                throw new RuntimeException("Mã ưu đãi đang tạm dừng áp dụng.");
+            }
+            if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
+                    && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
+                throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng toàn hệ thống.");
+            }
             return existing;
         }
 

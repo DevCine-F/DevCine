@@ -561,6 +561,13 @@ const fetchVoucherEvals = async () => {
   }
 }
 
+const formatVoucherDate = (iso) => {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 const applyVoucherCode = async () => {
   voucherError.value = ''
   voucherSuccess.value = ''
@@ -573,19 +580,18 @@ const applyVoucherCode = async () => {
 
   isApplyingVoucher.value = true
   try {
-    // /apply: dùng voucher đã lưu, hoặc tự lưu mã hợp lệ rồi áp dụng (chặn mã đổi-điểm / hết hạn / không tồn tại / sai đối tượng)
+    // /apply: dùng voucher đã lưu, hoặc tự lưu mã hợp lệ rồi áp dụng
     const { data } = await voucherApi.applyCode(authStore.user.id, voucherCode.value.trim())
     voucherCode.value = ''
     await refreshVouchers()
     await fetchVoucherEvals()
-    // Điều kiện theo giỏ (đơn tối thiểu / theo phim) chấm ở server — không đủ thì KHÔNG chọn, chỉ báo
+    // Chấm điều kiện theo giỏ hàng tại server
     const ev = voucherEvals.value[data.id]
     if (ev && !ev.applicable) {
-      // Không đủ điều kiện theo giỏ → hiện dòng lỗi ngay dưới ô nhập mã (không dùng toast)
       store.selectedVoucher = null
       discountAmount.value = 0
       voucherSuccess.value = ''
-      voucherError.value = ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.'
+      voucherError.value = `Đã lưu mã vào ví! ${ev.reason || 'Đơn chưa đủ điều kiện để áp dụng ngay.'}`
     } else {
       store.selectedVoucher = data
       discountAmount.value = ev ? Number(ev.discountAmount || 0) : (calculateDiscount(), discountAmount.value)
@@ -608,13 +614,19 @@ const selectVoucher = (v) => {
     voucherError.value = ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.'
     return
   }
+  // Toggle: nếu click lại vào chính voucher đang chọn thì bỏ chọn
+  if (store.selectedVoucher?.id === v.id) {
+    removeVoucher()
+    return
+  }
+  const promo = v.promotion || {}
   store.selectedVoucher = {
     id: v.id,
-    code: v.promotion.code,
-    discountType: v.promotion.discountType,
-    discountValue: v.promotion.discountValue,
-    maxTicketQuantity: v.promotion.maxTicketQuantity,
-    maxDiscountAmount: v.promotion.maxDiscountAmount
+    code: promo.code || ev?.code,
+    discountType: ev?.discountType || promo.discountType,
+    discountValue: ev?.discountValue != null ? ev.discountValue : promo.discountValue,
+    maxTicketQuantity: ev?.maxTicketQuantity != null ? ev.maxTicketQuantity : promo.maxTicketQuantity,
+    maxDiscountAmount: ev?.maxDiscountAmount != null ? ev.maxDiscountAmount : promo.maxDiscountAmount
   }
   if (ev) discountAmount.value = Number(ev.discountAmount || 0)
   else calculateDiscount()
@@ -670,23 +682,40 @@ watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
   // Giỏ đổi → chấm lại điều kiện/số giảm ở server (chỉ khi đã tới bước Ưu đãi trở đi)
   if (currentStep.value >= 3) fetchVoucherEvals()
 })
-// Vào bước "Ưu đãi" (3): chấm điều kiện toàn bộ voucher theo giỏ hiện tại để làm mờ mã không đủ
+// Vào bước "Ưu đãi" (3): chấm điều kiện toàn bộ voucher theo giỏ hiện tại để phân loại
 watch(currentStep, (s) => { if (s === 3) fetchVoucherEvals() })
 
 /**
- * Danh sách voucher HIỆN THỊ cho khách tại bước ĐẶT VÉ:
- * - Return [] khi evals chưa load xong → chặn hoàn toàn, không flash.
- * - Loại bỏ hoàn toàn (hideFromUI=true): hết lượt, sai đối tượng, sai phim.
- * - Giữ lại (applicable=false, hideFromUI=false): chưa đủ đơn tối thiểu → hiển mờ.
+ * Phân loại danh sách Voucher thành 2 nhóm chuẩn Lotte Cinema / CGV:
+ * 1. eligibleVouchers: Thỏa mãn 100% điều kiện, có thể tick chọn ngay.
+ * 2. ineligibleVouchers: Chưa đủ điều kiện (làm mờ, hiển thị rõ lý do + gợi ý thông minh).
  */
-const visibleVouchers = computed(() => {
-  if (!isVoucherEvalsReady.value) return []  // chưa ready → hoàn toàn trống, tránh flash
+const eligibleVouchers = computed(() => {
+  if (!isVoucherEvalsReady.value) return []
+  return vouchers.value.filter(v => voucherEvals.value[v.id]?.applicable === true)
+})
+
+const ineligibleVouchers = computed(() => {
+  if (!isVoucherEvalsReady.value) return []
   return vouchers.value.filter(v => {
     const ev = voucherEvals.value[v.id]
-    if (!ev) return true          // chưa có kết quả → giữ (server lỗi fallback)
-    return !ev.hideFromUI         // hideFromUI=true → loại bỏ
+    return ev && !ev.applicable
   })
 })
+
+const isMissingOrderTotal = (v) => {
+  const ev = voucherEvals.value[v.id]
+  if (!ev) return false
+  const minOrder = Number(ev.minOrderValue || v.promotion?.minOrderValue || 0)
+  return minOrder > 0 && store.totalPrice < minOrder && (ev.reason || '').includes('Chưa đạt đơn tối thiểu')
+}
+
+const getMissingAmount = (v) => {
+  const ev = voucherEvals.value[v.id]
+  const minOrder = Number(ev?.minOrderValue || v.promotion?.minOrderValue || 0)
+  const diff = Math.max(0, minOrder - store.totalPrice)
+  return `${diff.toLocaleString('vi-VN')}đ`
+}
 
 // ══════ BLOCK SELECTOR (chọn theo khối ghế liền nhau — mô hình Lotte) ══════
 let blockCounter = 0
@@ -1408,31 +1437,35 @@ const proceedToPayment = async () => {
               v-model="voucherCode" 
               type="text" 
               placeholder="Nhập mã giảm giá..."
+              @keyup.enter="applyVoucherCode"
               class="flex-grow bg-surface-container-high border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-3 text-sm text-on-surface font-mono uppercase tracking-wider"
             >
-            <button @click="applyVoucherCode" :disabled="isApplyingVoucher" class="bg-primary text-on-primary font-bold px-6 py-3 rounded-xl hover:brightness-115 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60">
-              {{ isApplyingVoucher ? 'Đang áp dụng...' : 'Áp dụng' }}
+            <button @click="applyVoucherCode" :disabled="isApplyingVoucher" class="bg-primary text-on-primary font-bold px-6 py-3 rounded-xl hover:brightness-115 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60 shrink-0">
+              {{ isApplyingVoucher ? 'Đang kiểm tra...' : 'Áp dụng' }}
             </button>
           </div>
-          <!-- Thất bại: đỏ -->
-          <div v-if="voucherError" class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/30">
-            <span class="material-symbols-outlined text-red-400 text-base shrink-0">error</span>
-            <p class="text-xs text-red-400 font-bold">{{ voucherError }}</p>
+
+          <!-- Thông báo lỗi: đỏ/cam -->
+          <div v-if="voucherError" class="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
+            <span class="material-symbols-outlined text-red-400 text-lg shrink-0">error</span>
+            <p class="text-xs text-red-400 font-bold leading-relaxed">{{ voucherError }}</p>
           </div>
-          <!-- Thành công: xanh -->
-          <div v-if="voucherSuccess" class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-green-500/10 border border-green-500/30">
-            <span class="material-symbols-outlined text-green-400 text-base shrink-0">check_circle</span>
-            <p class="text-xs text-green-400 font-bold flex-1">{{ voucherSuccess }}</p>
-            <button v-if="store.selectedVoucher" @click="removeVoucher" class="shrink-0 text-[11px] text-on-surface-variant hover:text-red-400 font-bold flex items-center gap-1 transition-colors">
+
+          <!-- Thông báo thành công: xanh -->
+          <div v-if="voucherSuccess" class="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-green-500/10 border border-green-500/30">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-green-400 text-lg shrink-0">check_circle</span>
+              <p class="text-xs text-green-400 font-bold">{{ voucherSuccess }}</p>
+            </div>
+            <button v-if="store.selectedVoucher" @click="removeVoucher" class="shrink-0 text-xs text-on-surface-variant hover:text-red-400 font-bold flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
               <span class="material-symbols-outlined text-sm">close</span> Bỏ chọn
             </button>
           </div>
 
-          <!-- Voucher list: skeleton khi đang load evals, real list khi đã sẵn sàng -->
-          <!-- Skeleton: hiển thị khi user đã có voucher nhưng evals chưa load xong -->
-          <div v-if="!isVoucherEvalsReady && vouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
-            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Voucher của bạn:</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Skeleton loading khi đang nạp evals -->
+          <div v-if="!isVoucherEvalsReady && vouchers.length > 0" class="space-y-4 pt-2 border-t border-outline-variant/10">
+            <div class="h-4 w-36 bg-white/10 rounded animate-pulse"></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div v-for="i in Math.min(vouchers.length, 4)" :key="i"
                 class="border border-outline-variant/20 p-4 rounded-xl flex items-center justify-between animate-pulse bg-surface-container-high/20"
               >
@@ -1445,31 +1478,120 @@ const proceedToPayment = async () => {
             </div>
           </div>
 
-          <!-- Active Vouchers list: chỉ render sau khi evals đã có — không có flash -->
-          <div v-else-if="isVoucherEvalsReady && visibleVouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/10">
-            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Voucher của bạn:</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div
-                v-for="v in visibleVouchers"
-                :key="v.id"
-                @click="selectVoucher(v)"
-                :class="[
-                  store.selectedVoucher?.id === v.id ? 'border-primary bg-primary/5' : 'border-outline-variant/20 bg-surface-container-high/40',
-                  voucherEvals[v.id] && !voucherEvals[v.id].applicable ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:border-primary/50'
-                ]"
-                class="border p-4 rounded-xl flex items-center justify-between transition-colors"
-              >
-                <div>
-                  <p class="font-mono font-bold text-sm text-primary uppercase">{{ v.promotion.code }}</p>
-                  <p class="text-[10px] text-on-surface-variant mt-1">Giảm {{ v.promotion.discountType === 'PERCENTAGE' ? v.promotion.discountValue + '%' : v.promotion.discountValue.toLocaleString() + 'đ' }}</p>
-                  <p v-if="voucherEvals[v.id] && !voucherEvals[v.id].applicable" class="text-[10px] text-error font-bold mt-1 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[13px]">block</span>
-                    {{ voucherEvals[v.id].reason || 'Đơn không đủ điều kiện để áp dụng mã này' }}
-                  </p>
+          <!-- Danh sách Voucher phân chia 2 khu vực rõ ràng chuẩn Lotte / CGV -->
+          <div v-else-if="isVoucherEvalsReady" class="space-y-6 pt-2 border-t border-outline-variant/10">
+            
+            <!-- KHU VỰC 1: Voucher khả dụng (dùng được ngay) -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <p class="text-xs font-bold text-primary uppercase tracking-wider">
+                  VOUCHER KHẢ DỤNG ({{ eligibleVouchers.length }})
+                </p>
+                <span v-if="eligibleVouchers.length > 0" class="text-[11px] text-on-surface-variant/80">Nhấn để áp dụng</span>
+              </div>
+
+              <!-- Danh sách khả dụng -->
+              <div v-if="eligibleVouchers.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div
+                  v-for="v in eligibleVouchers"
+                  :key="v.id"
+                  @click="selectVoucher(v)"
+                  :class="[
+                    store.selectedVoucher?.id === v.id 
+                      ? 'border-primary bg-primary/10 shadow-lg shadow-primary/5 ring-1 ring-primary' 
+                      : 'border-outline-variant/25 bg-surface-container-high/40 hover:border-primary/50 hover:bg-surface-container-high/70'
+                  ]"
+                  class="border p-4 rounded-xl flex items-center justify-between cursor-pointer transition-all duration-200 group relative overflow-hidden"
+                >
+                  <!-- Accent bar for selected -->
+                  <div v-if="store.selectedVoucher?.id === v.id" class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+                  
+                  <div class="space-y-1 pl-1">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono font-black text-sm text-primary uppercase tracking-wide">{{ v.promotion?.code || voucherEvals[v.id]?.code }}</span>
+                      <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-primary/20 text-primary">
+                        Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue) + '%' : Number(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue).toLocaleString('vi-VN') + 'đ' }}
+                      </span>
+                    </div>
+                    <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface font-semibold line-clamp-1">
+                      {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
+                    </p>
+                    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80">
+                      <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
+                        Đơn từ {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
+                      </span>
+                      <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
+                    </div>
+                    <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-[11px] text-green-400 font-bold pt-0.5">
+                      Tiết kiệm {{ Number(voucherEvals[v.id].discountAmount).toLocaleString('vi-VN') }}đ
+                    </p>
+                  </div>
+
+                  <div class="shrink-0 ml-3">
+                    <div v-if="store.selectedVoucher?.id === v.id" class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+                      <span class="material-symbols-outlined text-sm font-bold">check</span>
+                    </div>
+                    <div v-else class="w-6 h-6 rounded-full border border-outline-variant/40 group-hover:border-primary/60 transition-colors"></div>
+                  </div>
                 </div>
-                <span v-if="store.selectedVoucher?.id === v.id" class="material-symbols-outlined text-primary">check_circle</span>
+              </div>
+
+              <!-- Trống khả dụng -->
+              <div v-else-if="ineligibleVouchers.length > 0" class="py-3 px-4 rounded-xl border border-dashed border-outline-variant/20 bg-surface-container-high/10 text-center">
+                <p class="text-xs text-on-surface-variant">Chưa có voucher nào đủ điều kiện áp dụng cho đơn hàng hiện tại.</p>
+              </div>
+              <div v-else class="py-4 px-4 rounded-xl border border-dashed border-outline-variant/20 bg-surface-container-high/10 text-center">
+                <p class="text-xs text-on-surface-variant">Bạn chưa có voucher nào trong ví. Hãy nhập mã giảm giá ở trên để áp dụng!</p>
               </div>
             </div>
+
+            <!-- KHU VỰC 2: Ưu đãi chưa đủ điều kiện -->
+            <div v-if="ineligibleVouchers.length > 0" class="space-y-3 pt-4 border-t border-outline-variant/15">
+              <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                ƯU ĐÃI CHƯA ĐỦ ĐIỀU KIỆN ({{ ineligibleVouchers.length }})
+              </p>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div
+                  v-for="v in ineligibleVouchers"
+                  :key="v.id"
+                  class="border border-dashed border-outline-variant/25 bg-surface-container-high/20 p-4 rounded-xl opacity-75 relative overflow-hidden"
+                >
+                  <div class="space-y-1.5">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono font-bold text-sm text-on-surface-variant uppercase">{{ v.promotion?.code || voucherEvals[v.id]?.code }}</span>
+                      <span class="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-white/5 text-on-surface-variant">
+                        Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue) + '%' : Number(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue).toLocaleString('vi-VN') + 'đ' }}
+                      </span>
+                    </div>
+                    
+                    <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface-variant/90 line-clamp-1">
+                      {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
+                    </p>
+
+                    <!-- Smart Hint & Reason -->
+                    <div class="pt-1">
+                      <!-- Nếu là lỗi chưa đủ đơn tối thiểu -> Gợi ý CTA mua thêm màu hổ phách -->
+                      <p v-if="isMissingOrderTotal(v)" class="text-[11px] text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20">
+                        Mua thêm {{ getMissingAmount(v) }} để được giảm {{ Number(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue).toLocaleString('vi-VN') }}{{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType) === 'PERCENTAGE' ? '%' : 'đ' }}
+                      </p>
+                      <!-- Nếu là lỗi khác (hết lượt, sai phim, sai đối tượng, hết hạn) -->
+                      <p v-else class="text-[11px] text-red-400/90 font-medium bg-red-500/10 px-2.5 py-1.5 rounded-lg border border-red-500/20">
+                        {{ voucherEvals[v.id]?.reason || 'Không đủ điều kiện áp dụng' }}
+                      </p>
+                    </div>
+
+                    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/60 pt-0.5">
+                      <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
+                        Đơn tối thiểu {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
+                      </span>
+                      <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
