@@ -4,6 +4,7 @@ import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.MovieFormat;
 import com.devcine.backend.repository.MovieFormatRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +19,6 @@ public class MovieFormatController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<MovieFormat>>> getAllFormats() {
-        return ResponseEntity.ok(ApiResponse.ok(movieFormatRepository.findAll()));
+        return ResponseEntity.ok(ApiResponse.ok(movieFormatRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))));
     }
 }

@@ -45,6 +45,17 @@ public class DataSeeder {
             } catch (Exception ignored) {
             }
 
+            // ===== CHUẨN HÓA ĐỊNH DẠNG CHIẾU (MOVIE FORMATS) THEO TITLE CASE =====
+            try {
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '2D Phụ Đề' WHERE LOWER(TRIM(name)) IN ('2d phụ đề', '2d phu de');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '2D Lồng Tiếng' WHERE LOWER(TRIM(name)) IN ('2d lồng tiếng', '2d long tieng');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '3D Phụ Đề' WHERE LOWER(TRIM(name)) IN ('3d phụ đề', '3d phu de');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = '3D Lồng Tiếng' WHERE LOWER(TRIM(name)) IN ('3d lồng tiếng', '3d long tieng');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = 'Superplex 2D' WHERE LOWER(TRIM(name)) IN ('superplex 2d');");
+                jdbcTemplate.execute("UPDATE movie_formats SET name = 'Superplex 3D' WHERE LOWER(TRIM(name)) IN ('superplex 3d');");
+            } catch (Exception ignored) {
+            }
+
             // ===== ROLES =====
             Role adminRole = roleRepository.findByName("ADMIN").orElseGet(()
                     -> roleRepository.save(Role.builder().name("ADMIN").build()));

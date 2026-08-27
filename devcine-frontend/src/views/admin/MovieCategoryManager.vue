@@ -53,6 +53,21 @@ const nameRules = computed(() => {
 })
 const capitalizeFirst = (s) => { const t = (s || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t }
 
+const formatMovieFormatName = (raw) => {
+  if (!raw) return ''
+  return raw
+    .trim()
+    .split(/\s+/)
+    .map(w => {
+      const lower = w.toLowerCase()
+      if (['2d', '3d', '4d', '4dx', 'imax'].includes(lower)) {
+        return w.toUpperCase()
+      }
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+    })
+    .join(' ')
+}
+
 // Chặn cứng khi gõ: bỏ ký tự cấm (+ số cho tab thể loại), giới hạn độ dài tối đa.
 const onNameInput = (e) => {
   const r = nameRules.value
@@ -63,12 +78,16 @@ const onNameInput = (e) => {
   e.target.value = v
   touched.value.name = true
 }
-// Rời ô: luôn cắt khoảng trắng thừa 2 đầu; viết hoa chữ cái đầu ở tab có capitalize.
+// Rời ô: luôn cắt khoảng trắng thừa 2 đầu; chuẩn hóa Title Case cho định dạng / viết hoa chữ cái đầu cho thể loại & kiểm duyệt.
 const onNameBlur = () => {
   touched.value.name = true
-  newItem.value.name = nameRules.value.capitalize
-    ? capitalizeFirst(newItem.value.name)
-    : (newItem.value.name || '').trim()
+  if (activeTab.value === 'formats') {
+    newItem.value.name = formatMovieFormatName(newItem.value.name)
+  } else if (nameRules.value.capitalize) {
+    newItem.value.name = capitalizeFirst(newItem.value.name)
+  } else {
+    newItem.value.name = (newItem.value.name || '').trim()
+  }
 }
 
 const nameError = computed(() => {
@@ -164,7 +183,9 @@ const saveItem = async () => {
   const firstErr = codeError.value || nameError.value || descError.value
   if (firstErr) { toast.warning(firstErr); return }
 
-  const finalName = nameRules.value.capitalize ? capitalizeFirst(newItem.value.name) : newItem.value.name.trim()
+  const finalName = activeTab.value === 'formats'
+    ? formatMovieFormatName(newItem.value.name)
+    : (nameRules.value.capitalize ? capitalizeFirst(newItem.value.name) : newItem.value.name.trim())
   const finalDesc = (newItem.value.description || '').trim() || null
   const payload = activeTab.value === 'age-ratings'
     ? { code: newItem.value.code.trim().toUpperCase(), name: finalName, description: finalDesc }
@@ -298,7 +319,7 @@ onMounted(fetchData)
                 <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-black">{{ item.code }}</span>
                 <span class="text-sm font-bold">{{ item.name }}</span>
               </div>
-              <span v-else class="text-sm font-bold uppercase tracking-tight text-on-surface group-hover:text-primary transition-colors">
+              <span v-else class="text-sm font-bold tracking-tight text-on-surface group-hover:text-primary transition-colors">
                 {{ item.name }}
               </span>
             </td>

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.data.domain.Sort;
 
 @RestController
 @RequestMapping("/api/pricing")
@@ -75,7 +76,7 @@ public class PricingController {
         res.put("seatTypes", seatTypes);
 
         List<Map<String, Object>> formats = new ArrayList<>();
-        for (MovieFormat f : movieFormatRepository.findAll()) {
+        for (MovieFormat f : movieFormatRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", f.getId());
             m.put("name", f.getName());

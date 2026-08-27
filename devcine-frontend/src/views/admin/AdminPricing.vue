@@ -28,6 +28,20 @@ const simulating = ref(false)
 const toast = useToastStore()
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+const formatMovieFormatName = (raw) => {
+  if (!raw) return ''
+  return raw
+    .trim()
+    .split(/\s+/)
+    .map(w => {
+      const lower = w.toLowerCase()
+      if (['2d', '3d', '4d', '4dx', 'imax'].includes(lower)) {
+        return w.toUpperCase()
+      }
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+    })
+    .join(' ')
+}
 const audienceEntries = computed(() => Object.entries(config.value?.audiences || {}))
 const roomTypes = computed(() => config.value?.roomTypes || [])
 
@@ -48,6 +62,7 @@ const loadConfig = async () => {
 
     formats.value = (data.formats || []).map(f => ({
       ...f,
+      name: formatMovieFormatName(f.name),
       surcharge: Number(f.surcharge || 0),
       weekendSurcharge: f.weekendSurcharge == null ? null : Number(f.weekendSurcharge),
     }))

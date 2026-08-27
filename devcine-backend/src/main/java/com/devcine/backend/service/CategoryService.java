@@ -14,6 +14,7 @@ import com.devcine.backend.repository.ShowtimeRepository;
 
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,31 @@ public class CategoryService {
     private final AgeRatingRepository ageRatingRepository;
     private final MovieRepository movieRepository;
     private final ShowtimeRepository showtimeRepository;
+
+    /**
+     * Chuẩn hóa tên định dạng phim theo Title Case chuẩn (VD: "2D Phụ Đề", "3D Lồng Tiếng", "Superplex 2D").
+     * Tự động giữ hoa các tiền tố công nghệ (2D, 3D, 4D, 4DX, IMAX).
+     */
+    public static String formatMovieFormatName(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        String[] words = raw.trim().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            w = w.trim();
+            if (w.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" ");
+            String lower = w.toLowerCase();
+            if (lower.equals("2d") || lower.equals("3d") || lower.equals("4d") || lower.equals("4dx") || lower.equals("imax")) {
+                sb.append(w.toUpperCase());
+            } else {
+                sb.append(Character.toUpperCase(w.charAt(0)));
+                if (w.length() > 1) {
+                    sb.append(w.substring(1).toLowerCase());
+                }
+            }
+        }
+        return sb.toString();
+    }
 
     // ===================== THỂ LOẠI (GENRES) =====================
 
@@ -96,20 +122,20 @@ public class CategoryService {
     public List<MovieFormat> getFormats() {
         if (movieFormatRepository.count() == 0) {
             movieFormatRepository.saveAll(List.of(
-                    MovieFormat.builder().name("2D PHỤ ĐỀ").description("2D Phụ Đề").surcharge(BigDecimal.ZERO).build(),
-                    MovieFormat.builder().name("2D LỒNG TIẾNG").description("2D Lồng Tiếng").surcharge(BigDecimal.ZERO).build(),
-                    MovieFormat.builder().name("3D PHỤ ĐỀ").description("3D Phụ Đề").surcharge(new BigDecimal("30000")).build(),
-                    MovieFormat.builder().name("3D LỒNG TIẾNG").description("3D Lồng Tiếng").surcharge(new BigDecimal("30000")).build(),
-                    MovieFormat.builder().name("SUPERPLEX 2D").description("Superplex 2D").surcharge(new BigDecimal("20000")).build(),
-                    MovieFormat.builder().name("SUPERPLEX 3D").description("Superplex 3D").surcharge(new BigDecimal("50000")).build()
+                    MovieFormat.builder().name("2D Phụ Đề").description("2D Phụ Đề").surcharge(BigDecimal.ZERO).build(),
+                    MovieFormat.builder().name("2D Lồng Tiếng").description("2D Lồng Tiếng").surcharge(BigDecimal.ZERO).build(),
+                    MovieFormat.builder().name("3D Phụ Đề").description("3D Phụ Đề").surcharge(new BigDecimal("30000")).build(),
+                    MovieFormat.builder().name("3D Lồng Tiếng").description("3D Lồng Tiếng").surcharge(new BigDecimal("30000")).build(),
+                    MovieFormat.builder().name("Superplex 2D").description("Superplex 2D").surcharge(new BigDecimal("20000")).build(),
+                    MovieFormat.builder().name("Superplex 3D").description("Superplex 3D").surcharge(new BigDecimal("50000")).build()
             ));
         }
-        return movieFormatRepository.findAll();
+        return movieFormatRepository.findAll(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     @Transactional
     public MovieFormat createFormat(MovieFormatRequest input) {
-        String name = requireName(input.getName(), "Tên định dạng không được để trống");
+        String name = formatMovieFormatName(requireName(input.getName(), "Tên định dạng không được để trống"));
         checkNameLen(name, 2, 30, "định dạng");
         if (movieFormatRepository.existsByNameIgnoreCase(name)) {
             throw new IllegalArgumentException("Định dạng \"" + name + "\" đã tồn tại");
@@ -126,7 +152,7 @@ public class CategoryService {
     public MovieFormat updateFormat(Integer id, MovieFormatRequest input) {
         MovieFormat existing = movieFormatRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng #" + id));
-        String name = requireName(input.getName(), "Tên định dạng không được để trống");
+        String name = formatMovieFormatName(requireName(input.getName(), "Tên định dạng không được để trống"));
         checkNameLen(name, 2, 30, "định dạng");
         if (!name.equalsIgnoreCase(existing.getName()) && movieFormatRepository.existsByNameIgnoreCase(name)) {
             throw new IllegalArgumentException("Định dạng \"" + name + "\" đã tồn tại");
