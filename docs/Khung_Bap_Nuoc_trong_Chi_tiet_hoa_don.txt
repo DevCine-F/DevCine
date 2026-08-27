@@ -6,9 +6,9 @@
 └─────────────────────────────────────────────────────────────┘
 
 TẠM TÍNH
-Tiền vé:                                         [Tổng vé] đ
+Tiền vé:                                           [Tổng vé] đ
 Bắp nước & combo:                                 [Tổng FnB] đ
-Giảm giá:                                       -[Khuyến mãi] đ
+Giảm giá:                                      -[Khuyến mãi] đ
 
-TỔNG THANH TOÁN:                               [Tổng cộng] đ
-Phương thức: [Tên phương thức]                [TRẠNG THÁI]
+TỔNG CỘNG:                                       [Tổng cộng] đ
+Phương thức: [Tên phương thức]                  [TRẠNG THÁI]

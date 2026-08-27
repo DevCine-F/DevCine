@@ -26,7 +26,6 @@ const activeTab = ref('vouchers')
 const cinemasList = ref([])
 const moviesList = ref([])   // danh sách phim cho voucher "áp dụng theo phim"
 const promotions = ref([])
-const combos = ref([])
 
 const eligibilityOptions = [
   { value: 'ALL', label: 'Mọi khách hàng' },
@@ -39,7 +38,6 @@ const eligibilityOptions = [
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/marketing'
 
 const isVoucherDrawerOpen = ref(false)
-const isComboDrawerOpen = ref(false)
 const isArticleDrawerOpen = ref(false)
 
 // ===== Tin khuyến mãi (Promo Articles) — dữ liệu thật =====
@@ -257,25 +255,6 @@ const endMinStr = computed(() => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
 
-const newCombo = ref({
-  name: '',
-  price: null,
-  description: '',
-  image: '',
-  status: 'active',
-  items: [{ id: Date.now(), name: '', quantity: 1 }],
-  cinemaMode: 'all',
-  selectedCinemas: []
-})
-
-const addComboItem = () => {
-  newCombo.value.items.push({ id: Date.now(), name: '', quantity: 1 })
-}
-
-const removeComboItem = (index) => {
-  newCombo.value.items.splice(index, 1)
-}
-
 const editingVoucherId = ref(null)
 const isSavingVoucher = ref(false)
 // Khóa cứng ô Ngày bắt đầu khi sửa voucher ĐANG CHẠY (start <= hôm nay hoặc null) — tránh sai lịch sử đơn cũ
@@ -320,12 +299,6 @@ const openEditVoucher = (promo) => {
   movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
   isVoucherDrawerOpen.value = true
 }
-
-const openComboDrawer = () => {
-  newCombo.value = { name: '', price: null, description: '', image: '', status: 'active', items: [{ id: Date.now(), name: '', quantity: 1 }], cinemaMode: 'all', selectedCinemas: [] }
-  isComboDrawerOpen.value = true
-}
-
 
 // Toast dùng chung toàn web (AppToast trong AdminLayout) — nền đặc, đủ 4 trạng thái
 const showToast = (message, type = 'success') => toastStore.push(message, type)
@@ -783,7 +756,7 @@ const handleToggleVoucher = async (promo) => {
 }
 
 const fetchMarketingData = async () => {
-  // Tải voucher (promotions) độc lập với combo để một bên lỗi không làm hỏng bên kia
+  // Tải danh sách voucher (promotions)
   try {
     const { data } = await marketingApi.getPromotions()
     // Promotion entity: code, discountType, discountValue, startDate, endDate, isStackable, pointsRequired, allowPointRedemption
@@ -812,21 +785,6 @@ const fetchMarketingData = async () => {
     })).sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
   } catch (error) {
     showToast('Không thể tải danh sách voucher.', 'error')
-  }
-
-  try {
-    const { data } = await api.get('/marketing/combos')
-    combos.value = data.map(c => ({
-      id: c.id,
-      name: c.name,
-      price: c.price,
-      description: c.description,
-      items: Array.isArray(c.items) ? c.items : (c.items ? c.items.split(',') : []),
-      status: c.active ? 'active' : 'inactive',
-      image: '/images/Combo.webp' // Default image
-    }))
-  } catch (error) {
-    // Combo chưa có dữ liệu/endpoint — không chặn tab Voucher
   }
 }
 
@@ -860,16 +818,12 @@ onUnmounted(() => {
     <header class="flex justify-between items-end">
       <div>
         <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Marketing Hub</h1>
-        <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Quản lý chiến dịch, mã giảm giá và combo ưu đãi</p>
+        <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Quản lý chiến dịch tiếp thị, mã giảm giá và tin khuyến mãi</p>
       </div>
       <div class="flex gap-4">
         <button v-if="activeTab === 'vouchers' && can('promotions', 'add')" @click="openVoucherDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
           <span class="material-symbols-outlined text-sm">add_card</span>
           Tạo Voucher
-        </button>
-        <button v-if="activeTab === 'combos' && can('promotions', 'add')" @click="openComboDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
-          <span class="material-symbols-outlined text-sm">lunch_dining</span>
-          Tạo Combo
         </button>
         <button v-if="activeTab === 'articles' && can('promotions', 'add')" @click="openArticleDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
           <span class="material-symbols-outlined text-sm">post_add</span>
@@ -882,9 +836,6 @@ onUnmounted(() => {
     <div class="flex gap-8 border-b border-outline-variant/10">
       <button @click="activeTab = 'vouchers'" :class="activeTab === 'vouchers' ? 'text-primary border-primary' : 'text-on-surface-variant border-transparent'" class="pb-4 font-black text-xs uppercase tracking-[0.2em] border-b-2 transition-all">
         Mã Giảm Giá (Vouchers)
-      </button>
-      <button @click="activeTab = 'combos'" :class="activeTab === 'combos' ? 'text-primary border-primary' : 'text-on-surface-variant border-transparent'" class="pb-4 font-black text-xs uppercase tracking-[0.2em] border-b-2 transition-all">
-        Chương trình Combo
       </button>
       <button @click="activeTab = 'articles'" :class="activeTab === 'articles' ? 'text-primary border-primary' : 'text-on-surface-variant border-transparent'" class="pb-4 font-black text-xs uppercase tracking-[0.2em] border-b-2 transition-all">
         Tin Khuyến Mãi
@@ -986,40 +937,6 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Combos View -->
-    <div v-if="activeTab === 'combos'" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-       <div v-for="combo in combos" :key="combo.id" class="bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden flex shadow-xl hover:border-primary/30 transition-all group">
-          <div class="w-48 bg-surface-container-high relative overflow-hidden">
-             <img :src="combo.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-             <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-             <div class="absolute bottom-4 left-4">
-                <span class="text-lg font-black text-primary">{{ combo.price.toLocaleString() }}đ</span>
-             </div>
-          </div>
-          <div class="flex-1 p-6 flex flex-col justify-between">
-             <div>
-                <div class="flex justify-between items-start mb-2">
-                   <h3 class="text-xl font-black text-on-surface uppercase italic">{{ combo.name }}</h3>
-                   <span :class="combo.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-on-surface-variant/10 text-on-surface-variant'" class="text-[9px] font-black px-2 py-1 rounded uppercase">{{ combo.status }}</span>
-                </div>
-                <div class="flex flex-wrap gap-2 mt-4">
-                   <span v-for="item in combo.items" :key="item" class="px-3 py-1 bg-surface-container-highest border border-outline-variant/10 rounded-full text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
-                      {{ item }}
-                   </span>
-                </div>
-             </div>
-             
-             <div class="flex justify-between items-center pt-6 border-t border-outline-variant/5">
-                <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Áp dụng: Toàn hệ thống</span>
-                <div class="flex gap-2">
-                   <button v-if="can('promotions', 'edit')" class="p-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-lg">edit</span></button>
-                   <button v-if="can('promotions', 'delete')" class="p-2 hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
-                </div>
-             </div>
-          </div>
-       </div>
     </div>
 
     <!-- Articles View -->
@@ -1318,91 +1235,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-    <!-- Combo Drawer Form -->
-    <div v-if="isComboDrawerOpen" class="fixed inset-0 z-[1000] flex justify-end">
-      <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="isComboDrawerOpen = false"></div>
-      
-      <!-- Drawer Panel -->
-      <div class="relative w-full max-w-md bg-surface-container-low h-full shadow-2xl flex flex-col border-l border-outline-variant/20 animate-in slide-in-from-right duration-300">
-        <!-- Drawer Header -->
-        <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
-          <div>
-            <h3 class="font-headline font-black uppercase italic text-primary text-xl">Tạo Combo</h3>
-            <p class="text-xs text-on-surface-variant mt-1 uppercase tracking-widest font-bold">Thêm Combo Bắp Nước mới</p>
-          </div>
-          <button @click="isComboDrawerOpen = false" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        
-        <!-- Drawer Body -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
-          <!-- Image Upload Mock -->
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ảnh Combo</label>
-            <div class="w-full h-32 bg-surface-container-highest border-2 border-dashed border-outline-variant/20 rounded-2xl flex flex-col items-center justify-center text-on-surface-variant hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer">
-              <span class="material-symbols-outlined text-3xl mb-2">cloud_upload</span>
-              <span class="text-[10px] font-bold uppercase tracking-widest">Tải ảnh lên</span>
-            </div>
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên Combo</label>
-            <input v-model="newCombo.name" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none uppercase" placeholder="VD: COMBO COUPLE" />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá bán (VNĐ)</label>
-            <input v-model="newCombo.price" type="number" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: 159000" />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
-            <textarea v-model="newCombo.description" rows="2" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-medium text-on-surface focus:border-primary outline-none resize-none" placeholder="Mô tả thành phần..."></textarea>
-          </div>
-
-          <!-- Trạng thái -->
-          <div class="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10">
-             <div>
-                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Trạng thái hiển thị</p>
-             </div>
-             <button @click="newCombo.status = newCombo.status === 'active' ? 'inactive' : 'active'" :class="newCombo.status === 'active' ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
-                <span :class="newCombo.status === 'active' ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
-             </button>
-          </div>
-
-          <!-- Dynamic List: Items -->
-          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-            <div class="flex items-center justify-between">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Danh sách Món (Items)</label>
-              <button @click="addComboItem" class="text-xs font-bold text-primary hover:text-white transition-colors flex items-center gap-1 uppercase tracking-widest">
-                 <span class="material-symbols-outlined text-sm">add</span> Thêm món
-              </button>
-            </div>
-            
-            <div class="space-y-3">
-              <div v-for="(item, index) in newCombo.items" :key="item.id" class="flex gap-2 items-center">
-                <div class="flex-1 bg-surface-container-highest rounded-xl flex overflow-hidden border border-outline-variant/10">
-                   <input v-model="item.quantity" type="number" min="1" class="w-16 bg-transparent p-3 text-sm font-bold text-center border-r border-outline-variant/10 outline-none text-primary" placeholder="SL" />
-                   <input v-model="item.name" class="flex-1 bg-transparent p-3 text-sm font-bold outline-none text-on-surface" placeholder="Tên món (VD: Bắp lớn)" />
-                </div>
-                <button @click="removeComboItem(index)" :disabled="newCombo.items.length === 1" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                  <span class="material-symbols-outlined text-sm">delete</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Drawer Footer -->
-        <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
-          <button @click="isComboDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20">Lưu Combo</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Article Drawer Form -->
     <div v-if="isArticleDrawerOpen" class="fixed inset-0 z-[1000] flex justify-end">
       <!-- Backdrop -->
