@@ -21,6 +21,55 @@ const pageSize = ref(10)
 const currentPage = ref(1)
 let searchTimer = null
 
+// ===== State Custom Dropdown UI =====
+const tierDropdownOpen = ref(false)
+const statusDropdownOpen = ref(false)
+const typeDropdownOpen = ref(false)
+const pageSizeDropdownOpen = ref(false)
+const lockReasonDropdownOpen = ref(false)
+
+const TIER_OPTIONS = [
+  { value: 'ALL', label: 'Mọi hạng thẻ', icon: 'apps', color: 'text-on-surface-variant' },
+  { value: 'PLATINUM', label: 'Platinum (Bạch Kim)', icon: 'workspace_premium', color: 'text-sky-300' },
+  { value: 'GOLD', label: 'Gold (Vàng)', icon: 'military_tech', color: 'text-primary' },
+  { value: 'SILVER', label: 'Silver (Bạc)', icon: 'stars', color: 'text-slate-300' },
+  { value: 'BRONZE', label: 'Bronze (Đồng)', icon: 'shield', color: 'text-amber-600' }
+]
+
+const STATUS_OPTIONS = [
+  { value: 'ALL', label: 'Mọi trạng thái', icon: 'apps', color: 'text-on-surface-variant' },
+  { value: 'ACTIVE', label: 'Đang hoạt động', dot: 'bg-emerald-400', color: 'text-emerald-400' },
+  { value: 'LOCKED', label: 'Đã khóa', dot: 'bg-rose-400', color: 'text-rose-400' }
+]
+
+const TYPE_OPTIONS = [
+  { value: 'ALL', label: 'Mọi loại khách', icon: 'apps', color: 'text-on-surface-variant' },
+  { value: 'MEMBER', label: 'Thành viên', icon: 'person', color: 'text-sky-300' },
+  { value: 'GUEST', label: 'Khách vãng lai', icon: 'storefront', color: 'text-amber-400' }
+]
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50]
+
+const LOCK_REASONS = [
+  'Spam giữ chỗ / Không nhận vé',
+  'Gian lận khuyến mãi / Điểm thưởng',
+  'Yêu cầu từ chính chủ tài khoản',
+  'Vi phạm chính sách và quy chế rạp',
+  'Khác (nhập chi tiết bên dưới)'
+]
+
+const selectedTierOption = computed(() => TIER_OPTIONS.find(o => o.value === tierFilter.value) || TIER_OPTIONS[0])
+const selectedStatusOption = computed(() => STATUS_OPTIONS.find(o => o.value === statusFilter.value) || STATUS_OPTIONS[0])
+const selectedTypeOption = computed(() => TYPE_OPTIONS.find(o => o.value === typeFilter.value) || TYPE_OPTIONS[0])
+
+const closeAllDropdowns = () => {
+  tierDropdownOpen.value = false
+  statusDropdownOpen.value = false
+  typeDropdownOpen.value = false
+  pageSizeDropdownOpen.value = false
+  lockReasonDropdownOpen.value = false
+}
+
 // ===== State Modal Chi tiết =====
 const showDetailModal = ref(false)
 const detailLoading = ref(false)
@@ -56,14 +105,6 @@ const lockSaving = ref(false)
 const lockTarget = ref(null)
 const lockReasonOption = ref('Spam giữ chỗ / Không nhận vé')
 const lockReasonCustom = ref('')
-
-const LOCK_REASONS = [
-  'Spam giữ chỗ / Không nhận vé',
-  'Gian lận khuyến mãi / Điểm thưởng',
-  'Yêu cầu từ chính chủ tài khoản',
-  'Vi phạm chính sách và quy chế rạp',
-  'Khác (nhập chi tiết bên dưới)'
-]
 
 // ===== Helper Functions =====
 const tierStyle = (tier) => {
@@ -234,6 +275,7 @@ const toggleSort = (field) => {
 }
 
 const resetFilters = () => {
+  closeAllDropdowns()
   searchQuery.value = ''
   tierFilter.value = 'ALL'
   statusFilter.value = 'ALL'
@@ -296,6 +338,7 @@ const exportCsv = () => {
 
 // ===== Modal Chi tiết =====
 const openDetailModal = async (customer) => {
+  closeAllDropdowns()
   selectedCustomer.value = customer
   detailTab.value = 'general'
   showDetailModal.value = true
@@ -347,6 +390,7 @@ watch(detailTab, async (newTab) => {
 
 // ===== Modal Chỉnh sửa =====
 const openEditModal = (customer) => {
+  closeAllDropdowns()
   editForm.value = {
     userId: customer.userId,
     fullName: customer.fullName || '',
@@ -414,6 +458,7 @@ const sendResetPasswordFromModal = async () => {
 
 // ===== Modal Khóa / Mở khóa =====
 const openLockModal = (customer) => {
+  closeAllDropdowns()
   lockTarget.value = customer
   lockReasonOption.value = 'Spam giữ chỗ / Không nhận vé'
   lockReasonCustom.value = ''
@@ -470,7 +515,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
       </button>
     </div>
 
-    <!-- Toolbar lọc -->
+    <!-- Toolbar lọc cao cấp với Custom Dropdowns -->
     <div class="bg-surface-container-low p-3 rounded-2xl border border-outline-variant/10 flex flex-wrap items-center gap-3 shadow-xl flex-shrink-0">
       <!-- Search Input -->
       <div class="relative flex-grow min-w-[240px] group">
@@ -484,40 +529,118 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
         />
       </div>
 
-      <!-- Filter Tier -->
-      <select
-        v-model="tierFilter"
-        @change="currentPage = 1"
-        class="h-11 bg-surface-container-highest border border-outline-variant/10 rounded-xl px-4 text-xs font-semibold text-on-surface outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15 hover:border-outline-variant/30 transition-all min-w-[150px]"
-      >
-        <option value="ALL">Mọi hạng thẻ</option>
-        <option value="PLATINUM">Platinum (Bạch Kim)</option>
-        <option value="GOLD">Gold (Vàng)</option>
-        <option value="SILVER">Silver (Bạc)</option>
-        <option value="BRONZE">Bronze (Đồng)</option>
-      </select>
+      <!-- Custom Dropdown: Hạng thẻ -->
+      <div class="relative min-w-[170px]">
+        <button
+          type="button"
+          @click="tierDropdownOpen = !tierDropdownOpen; statusDropdownOpen = false; typeDropdownOpen = false"
+          class="w-full h-11 bg-surface-container-highest border rounded-xl px-3.5 text-xs font-semibold text-on-surface outline-none cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm"
+          :class="tierDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+        >
+          <div class="flex items-center gap-2 truncate">
+            <span class="material-symbols-outlined text-base shrink-0" :class="selectedTierOption.color">{{ selectedTierOption.icon }}</span>
+            <span class="truncate">{{ selectedTierOption.label }}</span>
+          </div>
+          <span class="material-symbols-outlined text-base text-on-surface-variant transition-transform duration-200 shrink-0" :class="{ 'rotate-180': tierDropdownOpen }">expand_more</span>
+        </button>
 
-      <!-- Filter Status -->
-      <select
-        v-model="statusFilter"
-        @change="currentPage = 1"
-        class="h-11 bg-surface-container-highest border border-outline-variant/10 rounded-xl px-4 text-xs font-semibold text-on-surface outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15 hover:border-outline-variant/30 transition-all"
-      >
-        <option value="ALL">Mọi trạng thái</option>
-        <option value="ACTIVE">Đang hoạt động</option>
-        <option value="LOCKED">Đã khóa</option>
-      </select>
+        <div v-if="tierDropdownOpen" class="fixed inset-0 z-[55]" @click="tierDropdownOpen = false"></div>
+        
+        <transition name="fade">
+          <div v-if="tierDropdownOpen" class="absolute left-0 top-full mt-1.5 w-full min-w-[200px] bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
+            <button
+              v-for="opt in TIER_OPTIONS"
+              :key="opt.value"
+              type="button"
+              @click="tierFilter = opt.value; currentPage = 1; tierDropdownOpen = false"
+              class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs text-left transition-colors"
+              :class="tierFilter === opt.value ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+            >
+              <div class="flex items-center gap-2.5">
+                <span class="material-symbols-outlined text-base" :class="opt.color">{{ opt.icon }}</span>
+                <span :class="opt.color">{{ opt.label }}</span>
+              </div>
+              <span v-if="tierFilter === opt.value" class="material-symbols-outlined text-sm text-primary">check</span>
+            </button>
+          </div>
+        </transition>
+      </div>
 
-      <!-- Filter Type -->
-      <select
-        v-model="typeFilter"
-        @change="currentPage = 1"
-        class="h-11 bg-surface-container-highest border border-outline-variant/10 rounded-xl px-4 text-xs font-semibold text-on-surface outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15 hover:border-outline-variant/30 transition-all"
-      >
-        <option value="ALL">Mọi loại khách</option>
-        <option value="MEMBER">Thành viên</option>
-        <option value="GUEST">Khách vãng lai</option>
-      </select>
+      <!-- Custom Dropdown: Trạng thái -->
+      <div class="relative min-w-[160px]">
+        <button
+          type="button"
+          @click="statusDropdownOpen = !statusDropdownOpen; tierDropdownOpen = false; typeDropdownOpen = false"
+          class="w-full h-11 bg-surface-container-highest border rounded-xl px-3.5 text-xs font-semibold text-on-surface outline-none cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm"
+          :class="statusDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+        >
+          <div class="flex items-center gap-2 truncate">
+            <span v-if="selectedStatusOption.dot" class="w-2 h-2 rounded-full shrink-0" :class="selectedStatusOption.dot"></span>
+            <span v-else class="material-symbols-outlined text-base shrink-0" :class="selectedStatusOption.color">{{ selectedStatusOption.icon }}</span>
+            <span class="truncate">{{ selectedStatusOption.label }}</span>
+          </div>
+          <span class="material-symbols-outlined text-base text-on-surface-variant transition-transform duration-200 shrink-0" :class="{ 'rotate-180': statusDropdownOpen }">expand_more</span>
+        </button>
+
+        <div v-if="statusDropdownOpen" class="fixed inset-0 z-[55]" @click="statusDropdownOpen = false"></div>
+        
+        <transition name="fade">
+          <div v-if="statusDropdownOpen" class="absolute left-0 top-full mt-1.5 w-full min-w-[180px] bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
+            <button
+              v-for="opt in STATUS_OPTIONS"
+              :key="opt.value"
+              type="button"
+              @click="statusFilter = opt.value; currentPage = 1; statusDropdownOpen = false"
+              class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs text-left transition-colors"
+              :class="statusFilter === opt.value ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+            >
+              <div class="flex items-center gap-2.5">
+                <span v-if="opt.dot" class="w-2 h-2 rounded-full" :class="opt.dot"></span>
+                <span v-else class="material-symbols-outlined text-base" :class="opt.color">{{ opt.icon }}</span>
+                <span :class="opt.color">{{ opt.label }}</span>
+              </div>
+              <span v-if="statusFilter === opt.value" class="material-symbols-outlined text-sm text-primary">check</span>
+            </button>
+          </div>
+        </transition>
+      </div>
+
+      <!-- Custom Dropdown: Loại khách -->
+      <div class="relative min-w-[160px]">
+        <button
+          type="button"
+          @click="typeDropdownOpen = !typeDropdownOpen; tierDropdownOpen = false; statusDropdownOpen = false"
+          class="w-full h-11 bg-surface-container-highest border rounded-xl px-3.5 text-xs font-semibold text-on-surface outline-none cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm"
+          :class="typeDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+        >
+          <div class="flex items-center gap-2 truncate">
+            <span class="material-symbols-outlined text-base shrink-0" :class="selectedTypeOption.color">{{ selectedTypeOption.icon }}</span>
+            <span class="truncate">{{ selectedTypeOption.label }}</span>
+          </div>
+          <span class="material-symbols-outlined text-base text-on-surface-variant transition-transform duration-200 shrink-0" :class="{ 'rotate-180': typeDropdownOpen }">expand_more</span>
+        </button>
+
+        <div v-if="typeDropdownOpen" class="fixed inset-0 z-[55]" @click="typeDropdownOpen = false"></div>
+        
+        <transition name="fade">
+          <div v-if="typeDropdownOpen" class="absolute left-0 top-full mt-1.5 w-full min-w-[180px] bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
+            <button
+              v-for="opt in TYPE_OPTIONS"
+              :key="opt.value"
+              type="button"
+              @click="typeFilter = opt.value; currentPage = 1; typeDropdownOpen = false"
+              class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs text-left transition-colors"
+              :class="typeFilter === opt.value ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+            >
+              <div class="flex items-center gap-2.5">
+                <span class="material-symbols-outlined text-base" :class="opt.color">{{ opt.icon }}</span>
+                <span :class="opt.color">{{ opt.label }}</span>
+              </div>
+              <span v-if="typeFilter === opt.value" class="material-symbols-outlined text-sm text-primary">check</span>
+            </button>
+          </div>
+        </transition>
+      </div>
 
       <!-- Reset Filter Button -->
       <button
@@ -744,21 +867,44 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
         </table>
       </div>
 
-      <!-- Pagination & Footer -->
+      <!-- Pagination & Footer với Custom Page Size Dropdown -->
       <div class="p-4 bg-surface-container-highest/30 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant flex flex-col sm:flex-row justify-between items-center gap-4">
         <!-- Page size selector & Summary text -->
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2">
             <span>Hiển thị:</span>
-            <select
-              v-model="pageSize"
-              @change="currentPage = 1"
-              class="bg-surface-container-highest border border-outline-variant/10 rounded-lg px-2.5 py-1 text-xs text-on-surface outline-none"
-            >
-              <option :value="10">10</option>
-              <option :value="20">20</option>
-              <option :value="50">50</option>
-            </select>
+            
+            <!-- Custom Page Size Dropdown -->
+            <div class="relative">
+              <button
+                type="button"
+                @click="pageSizeDropdownOpen = !pageSizeDropdownOpen"
+                class="h-8 bg-surface-container-highest border rounded-lg px-2.5 text-xs font-bold font-mono text-on-surface outline-none cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
+                :class="pageSizeDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+              >
+                <span>{{ pageSize }}</span>
+                <span class="material-symbols-outlined text-sm text-on-surface-variant transition-transform duration-200" :class="{ 'rotate-180': pageSizeDropdownOpen }">expand_more</span>
+              </button>
+
+              <div v-if="pageSizeDropdownOpen" class="fixed inset-0 z-[55]" @click="pageSizeDropdownOpen = false"></div>
+
+              <transition name="fade">
+                <div v-if="pageSizeDropdownOpen" class="absolute bottom-full left-0 mb-1.5 w-24 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
+                  <button
+                    v-for="size in PAGE_SIZE_OPTIONS"
+                    :key="size"
+                    type="button"
+                    @click="pageSize = size; currentPage = 1; pageSizeDropdownOpen = false"
+                    class="w-full flex items-center justify-between px-3 py-2 text-xs font-mono transition-colors"
+                    :class="pageSize === size ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+                  >
+                    <span>{{ size }}</span>
+                    <span v-if="pageSize === size" class="material-symbols-outlined text-sm text-primary">check</span>
+                  </button>
+                </div>
+              </transition>
+            </div>
+
             <span>dòng/trang</span>
           </div>
           <span class="hidden md:inline text-on-surface-variant/40">|</span>
@@ -1323,16 +1469,41 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 </div>
               </div>
 
+              <!-- Custom Dropdown: Lý do khóa -->
               <div>
                 <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
                   Lý do khóa tài khoản <span class="text-red-400">*</span>
                 </label>
-                <select
-                  v-model="lockReasonOption"
-                  class="w-full bg-surface-container-highest border border-outline-variant/10 rounded-xl px-3.5 py-2.5 text-xs text-on-surface focus:ring-1 focus:ring-primary outline-none"
-                >
-                  <option v-for="r in LOCK_REASONS" :key="r" :value="r">{{ r }}</option>
-                </select>
+                
+                <div class="relative">
+                  <button
+                    type="button"
+                    @click="lockReasonDropdownOpen = !lockReasonDropdownOpen"
+                    class="w-full bg-surface-container-highest border rounded-xl px-4 py-2.5 text-xs text-left text-on-surface outline-none cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm"
+                    :class="lockReasonDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+                  >
+                    <span class="truncate font-medium">{{ lockReasonOption }}</span>
+                    <span class="material-symbols-outlined text-base text-on-surface-variant transition-transform duration-200" :class="{ 'rotate-180': lockReasonDropdownOpen }">expand_more</span>
+                  </button>
+
+                  <div v-if="lockReasonDropdownOpen" class="fixed inset-0 z-[55]" @click="lockReasonDropdownOpen = false"></div>
+
+                  <transition name="fade">
+                    <div v-if="lockReasonDropdownOpen" class="absolute left-0 top-full mt-1.5 w-full bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl max-h-60 overflow-y-auto">
+                      <button
+                        v-for="r in LOCK_REASONS"
+                        :key="r"
+                        type="button"
+                        @click="lockReasonOption = r; lockReasonDropdownOpen = false"
+                        class="w-full flex items-center justify-between px-4 py-2.5 text-xs text-left transition-colors"
+                        :class="lockReasonOption === r ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+                      >
+                        <span>{{ r }}</span>
+                        <span v-if="lockReasonOption === r" class="material-symbols-outlined text-sm text-primary">check</span>
+                      </button>
+                    </div>
+                  </transition>
+                </div>
               </div>
 
               <div v-if="lockReasonOption.startsWith('Khác')">
