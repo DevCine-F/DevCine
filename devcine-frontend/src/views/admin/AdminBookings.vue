@@ -38,10 +38,24 @@ const methodOpen = ref(false)
 const selectMethod = (m) => { filters.method = m; methodOpen.value = false; page.value = 0; fetchBookings() }
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
+const fnbTotalSurcharge = (f) => (f?.options || []).reduce((sum, o) => sum + Number(o.surcharge || 0), 0)
 const fnbBasePrice = (f) => {
-  if (f?.basePrice != null) return Number(f.basePrice)
-  const sur = (f?.options || []).reduce((sum, o) => sum + Number(o.surcharge || 0), 0)
-  return Math.max(0, Number(f?.unitPrice || f?.price || 0) - sur)
+  if (f?.basePrice != null && Number(f.basePrice) > 0) return Number(f.basePrice)
+  const sur = fnbTotalSurcharge(f)
+  const unit = Number(f?.unitPrice || f?.price || 0)
+  return unit > sur ? unit - sur : unit
+}
+const fnbLineTotal = (f) => {
+  if (f?.lineTotal != null && Number(f.lineTotal) > 0) {
+    const sur = fnbTotalSurcharge(f)
+    const base = fnbBasePrice(f)
+    const expected = (base + sur) * Number(f?.quantity || 1)
+    return Math.max(Number(f.lineTotal), expected)
+  }
+  const qty = Number(f?.quantity || 1)
+  const base = fnbBasePrice(f)
+  const sur = fnbTotalSurcharge(f)
+  return (base + sur) * qty
 }
 // Bỏ tiền tố "Ô chọn " trong nhãn slot khi hiển thị (VD "Ô chọn Nước 1" → "Nước 1")
 const stripSlotPrefix = (label) => (label || '').replace(/^Ô\s*chọn\s*/i, '').trim()
@@ -139,8 +153,24 @@ const detailSeatGroups = computed(() => {
   }
   return Object.values(map)
 })
-const detailComboTotal = computed(() => (detail.value?.fnbs || []).reduce((a, f) => a + Number(f.lineTotal || (Number(f.price || f.unitPrice || 0) * f.quantity)), 0))
-const detailDiscount = computed(() => Math.max(0, Number(detail.value?.totalPrice || 0) - Number(detail.value?.finalPrice || 0)))
+const detailComboTotal = computed(() => {
+  if (!detail.value?.fnbs?.length) return 0
+  return detail.value.fnbs.reduce((a, f) => a + fnbLineTotal(f), 0)
+})
+const detailDiscount = computed(() => {
+  if (!detail.value) return 0
+  if (detail.value.discountAmount != null && Number(detail.value.discountAmount) > 0) {
+    return Number(detail.value.discountAmount)
+  }
+  return Math.max(0, Number(detail.value?.totalPrice || 0) - Number(detail.value?.finalPrice || 0))
+})
+const detailFinalPrice = computed(() => {
+  if (!detail.value) return 0
+  if (detail.value.isConcession) {
+    return Math.max(0, detailComboTotal.value - detailDiscount.value)
+  }
+  return Math.max(0, detailSeatTotal.value + detailComboTotal.value - detailDiscount.value)
+})
 const detailCheckedIn = computed(() => (detail.value?.tickets || []).filter(t => t.isCheckedIn).length)
 const detailTicketCount = computed(() => (detail.value?.tickets || []).length)
 
@@ -154,15 +184,38 @@ const isPosOrder = computed(() => {
 
 const detailRewardPoints = computed(() => {
   if (!detail.value) return 0
-  return Math.floor(Number(detail.value.finalPrice || 0) / 10000)
+  return Math.floor(Number(detailFinalPrice.value || detail.value.finalPrice || 0) / 10000)
 })
 
-const customerDisplay = computed(() => {
-  if (!detail.value) return 'Khách tại quầy'
-  if (detail.value.customerName && detail.value.customerName !== 'Khách tại quầy') {
-    return detail.value.customerPhone ? `${detail.value.customerName} (${detail.value.customerPhone})` : detail.value.customerName
+const tierStyle = (tier) => {
+  const t = (tier || 'BRONZE').toUpperCase()
+  return {
+    PLATINUM: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+    GOLD: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    SILVER: 'bg-slate-400/15 text-slate-300 border-slate-400/30',
+    BRONZE: 'bg-amber-800/15 text-amber-600 border-amber-800/30'
+  }[t] || 'bg-white/10 text-on-surface-variant border-white/10'
+}
+
+const fmtPhone = (phone) => {
+  if (!phone) return ''
+  const str = String(phone).trim()
+  const cleaned = str.replace(/\D/g, '')
+  if (cleaned.length === 10) {
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`
   }
-  return detail.value.customerPhone || 'Khách tại quầy'
+  if (cleaned.length === 11) {
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`
+  }
+  return str
+}
+
+const customerNameDisplay = computed(() => {
+  if (!detail.value) return 'Khách tại quầy'
+  if (detail.value.customerName && detail.value.customerName.trim()) {
+    return detail.value.customerName
+  }
+  return detail.value.customerPhone ? 'Khách hàng' : 'Khách tại quầy'
 })
 
 const isOrderCheckedIn = computed(() => {
@@ -177,10 +230,10 @@ const isOrderCheckedIn = computed(() => {
 
 const paymentLabelFull = (m) => {
   const map = {
-    CASH: 'CASH (Tiền mặt)',
+    CASH: 'Tiền mặt',
     VNPAY: 'VNPAY (Trực tuyến)',
-    MOMO: 'MOMO (Ví điện tử)',
-    ZALOPAY: 'ZALOPAY (Ví điện tử)',
+    MOMO: 'Ví MoMo',
+    ZALOPAY: 'Ví ZaloPay',
     TRANSFER: 'Chuyển khoản (VietQR)',
     CARD: 'Thẻ POS (Ngân hàng)',
     MEMBER_WALLET: 'Ví thành viên'
@@ -209,7 +262,7 @@ const buildInv = (d) => {
     fnbs: (d.fnbs || []).map(f => ({
       name: f.name,
       quantity: f.quantity,
-      price: Number(f.unitPrice || f.price || 0),
+      price: Number(fnbBasePrice(f) || f.unitPrice || f.price || 0),
       options: f.options || []
     })),
     paymentMethod: d.paymentMethod,
@@ -486,18 +539,54 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 </p>
               </div>
 
-              <!-- Cột phải: Thông tin thanh toán -->
-              <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between space-y-1.5">
+              <!-- Cột phải: Thông tin thanh toán / Khách hàng -->
+              <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between">
                 <div>
-                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Thông tin thanh toán</p>
-                  <p class="text-sm font-bold text-on-surface">
-                    Khách hàng: <span class="font-bold">{{ customerDisplay }}</span>
+                  <div class="flex items-center justify-between gap-2 mb-1.5">
+                    <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Khách hàng</p>
+                    <span
+                      v-if="detail.membershipTier"
+                      :class="tierStyle(detail.membershipTier)"
+                      class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block"
+                    >
+                      Hạng {{ detail.membershipTier }}
+                    </span>
+                    <span
+                      v-else-if="detail.customerName && detail.customerName !== 'Khách tại quầy'"
+                      class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 inline-block"
+                    >
+                      Thành viên
+                    </span>
+                    <span
+                      v-else
+                      class="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-on-surface-variant/80 border border-outline-variant/10 inline-block"
+                    >
+                      Khách vãng lai
+                    </span>
+                  </div>
+
+                  <p class="text-base font-extrabold text-on-surface truncate">
+                    {{ customerNameDisplay }}
                   </p>
-                  <p class="text-xs font-semibold text-primary mt-0.5">
-                    {{ detail.membershipTier ? `Hạng ${detail.membershipTier} (+${detailRewardPoints} điểm)` : (detail.customerName && detail.customerName !== 'Khách tại quầy' ? `Thành viên (+${detailRewardPoints} điểm)` : 'Khách vãng lai') }}
-                  </p>
+
+                  <div class="flex items-center justify-between text-xs mt-1 gap-2">
+                    <p v-if="detail.customerPhone" class="text-on-surface font-semibold font-mono tracking-wide text-xs truncate">
+                      {{ fmtPhone(detail.customerPhone) }}
+                    </p>
+                    <p v-else class="text-xs text-on-surface-variant/60 italic">
+                      Chưa có SĐT
+                    </p>
+
+                    <span
+                      v-if="detailRewardPoints > 0 && detail.customerName && detail.customerName !== 'Khách tại quầy'"
+                      class="text-[10px] font-bold text-primary shrink-0 bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20"
+                    >
+                      +{{ detailRewardPoints }} điểm
+                    </span>
+                  </div>
                 </div>
-                <div class="pt-2 border-t border-outline-variant/10 space-y-0.5">
+
+                <div class="pt-2 mt-2 border-t border-outline-variant/10 space-y-0.5">
                   <p class="text-xs text-on-surface-variant">
                     Kênh: <b class="text-on-surface font-semibold">{{ isPosOrder ? 'Quầy / POS' : 'Website / App' }}</b>
                   </p>
@@ -574,24 +663,31 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 <span class="w-1 h-3.5 rounded-full bg-primary"></span>
                 <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Bắp nước &amp; Combo</p>
               </div>
-              <div class="rounded-2xl bg-surface-container-high border border-outline-variant/10 divide-y divide-outline-variant/5 overflow-hidden">
-                <div v-for="(f, i) in detail.fnbs" :key="i" class="p-3.5 px-4 hover:bg-white/[0.02] transition-colors">
+              <div class="space-y-2.5">
+                <div
+                  v-for="(f, i) in detail.fnbs"
+                  :key="i"
+                  class="p-3.5 px-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 hover:bg-white/[0.02] transition-colors"
+                >
                   <div class="flex justify-between items-start gap-3">
                     <div class="min-w-0">
-                      <div class="flex items-baseline gap-2">
-                        <p class="text-sm font-bold text-on-surface">{{ f.name }}</p>
-                        <span class="text-xs font-black text-primary">x{{ f.quantity }}</span>
+                      <div class="flex items-baseline gap-1.5 flex-wrap">
+                        <span class="text-sm font-bold text-on-surface">{{ f.name }}</span>
+                        <span v-if="fnbTotalSurcharge(f) > 0" class="text-xs text-on-surface-variant font-normal">
+                          (Gốc: {{ fmt(fnbBasePrice(f)) }}đ)
+                        </span>
+                        <span class="text-xs font-black text-primary ml-1">x{{ f.quantity }}</span>
                       </div>
                       <!-- Danh sách vị/option kèm phụ thu -->
                       <div v-if="f.options && f.options.length" class="mt-1.5 space-y-0.5">
-                        <p v-for="(o, oi) in f.options" :key="oi" class="text-xs text-on-surface-variant flex items-center gap-1">
+                        <p v-for="(o, oi) in f.options" :key="oi" class="text-xs text-on-surface-variant flex items-center gap-1.5 pl-1">
                           <span class="text-on-surface-variant/60">&bull;</span>
                           <span>{{ o.optionName }}</span>
                           <span v-if="Number(o.surcharge) > 0" class="text-amber-400 font-semibold">(+{{ fmt(o.surcharge) }}đ)</span>
                         </p>
                       </div>
                     </div>
-                    <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(f.lineTotal || (f.price || f.unitPrice || 0) * f.quantity) }} đ</span>
+                    <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(fnbLineTotal(f)) }} đ</span>
                   </div>
                 </div>
               </div>
@@ -617,13 +713,13 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 
               <div class="flex justify-between items-baseline pt-3 border-t border-outline-variant/15">
                 <span class="text-xs font-headline font-extrabold text-on-surface uppercase tracking-widest">TỔNG THANH TOÁN:</span>
-                <span class="text-2xl font-headline font-extrabold text-primary tabular-nums">{{ fmt(detail.finalPrice) }} đ</span>
+                <span class="text-2xl font-headline font-extrabold text-primary tabular-nums">{{ fmt(detailFinalPrice) }} đ</span>
               </div>
 
               <div class="flex justify-between items-center text-xs text-on-surface-variant pt-1">
                 <span>Phương thức: <b class="text-on-surface font-semibold">{{ paymentLabelFull(detail.paymentMethod) }}</b></span>
-                <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 border border-green-400/20">
-                  [ĐÃ THANH TOÁN]
+                <span class="inline-flex px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 border border-green-400/20">
+                  ĐÃ THANH TOÁN
                 </span>
               </div>
             </div>

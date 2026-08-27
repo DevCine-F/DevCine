@@ -12,12 +12,15 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 const qrUrl = (code) => `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=${encodeURIComponent(code)}`
 
 export const paymentLabel = (m) => {
-  if (!m) return 'CASH'
+  if (!m) return 'Tiền mặt'
   const up = String(m).toUpperCase()
-  if (up === 'CASH') return 'CASH'
-  if (up === 'CARD') return 'CARD'
-  if (up === 'TRANSFER') return 'TRANSFER'
+  if (up === 'CASH') return 'Tiền mặt'
+  if (up === 'CARD') return 'Thẻ POS'
+  if (up === 'TRANSFER') return 'Chuyển khoản (VietQR)'
   if (up === 'VNPAY') return 'VNPAY'
+  if (up === 'MOMO') return 'Ví MoMo'
+  if (up === 'ZALOPAY') return 'Ví ZaloPay'
+  if (up === 'MEMBER_WALLET') return 'Ví thành viên'
   return m
 }
 

@@ -196,14 +196,12 @@ public class AdminBookingController {
 
         List<Map<String, Object>> fnbs = bookingFnbRepository.findByBookingIdWithFnb(id).stream().map(bf -> {
             Map<String, Object> f = new HashMap<>();
-            java.math.BigDecimal unit = bf.getPriceSnapshot() != null ? bf.getPriceSnapshot() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal snapshot = bf.getPriceSnapshot() != null ? bf.getPriceSnapshot() : java.math.BigDecimal.ZERO;
             int qty = bf.getQuantity() != null ? bf.getQuantity() : 0;
             f.put("fnbItemId", bf.getFnbItem() != null ? bf.getFnbItem().getId() : null);
             f.put("name", bf.getItemNameSnapshot() != null ? bf.getItemNameSnapshot() : (bf.getFnbItem() != null ? bf.getFnbItem().getName() : ""));
             f.put("quantity", qty);
-            f.put("unitPrice", unit);
-            f.put("lineTotal", unit.multiply(java.math.BigDecimal.valueOf(qty)));
-            f.put("price", unit);
+
             List<Map<String, Object>> options = bf.getOptions().stream().map(o -> {
                 Map<String, Object> om = new HashMap<>();
                 om.put("slotLabel", o.getSlotLabelSnapshot());
@@ -214,15 +212,35 @@ public class AdminBookingController {
             }).collect(Collectors.toList());
             f.put("options", options);
 
-            // Đơn giá gốc của gói (trước khi cộng phụ thu các tùy chọn)
+            // Tổng phụ thu các tùy chọn
             java.math.BigDecimal totalSurcharge = options.stream()
                     .map(o -> o.get("surcharge") instanceof java.math.BigDecimal
                             ? (java.math.BigDecimal) o.get("surcharge")
                             : java.math.BigDecimal.ZERO)
                     .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-            java.math.BigDecimal basePrice = unit.subtract(totalSurcharge).max(java.math.BigDecimal.ZERO);
+
+            java.math.BigDecimal catalogPrice = (bf.getFnbItem() != null && bf.getFnbItem().getPrice() != null)
+                    ? bf.getFnbItem().getPrice() : null;
+
+            java.math.BigDecimal basePrice;
+            java.math.BigDecimal finalUnitPrice;
+
+            if (catalogPrice != null && snapshot.compareTo(catalogPrice) == 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                basePrice = catalogPrice;
+                finalUnitPrice = basePrice.add(totalSurcharge);
+            } else if (snapshot.compareTo(totalSurcharge) >= 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                basePrice = snapshot.subtract(totalSurcharge);
+                finalUnitPrice = snapshot;
+            } else {
+                basePrice = catalogPrice != null ? catalogPrice : snapshot;
+                finalUnitPrice = basePrice.add(totalSurcharge);
+            }
+
             f.put("basePrice", basePrice);
             f.put("totalSurcharge", totalSurcharge);
+            f.put("unitPrice", finalUnitPrice);
+            f.put("price", finalUnitPrice);
+            f.put("lineTotal", finalUnitPrice.multiply(java.math.BigDecimal.valueOf(qty)));
 
             return f;
         }).collect(Collectors.toList());
@@ -287,14 +305,12 @@ public class AdminBookingController {
         List<com.devcine.backend.entity.ConcessionSaleItem> items = concessionSaleItemRepository.findBySaleIdWithOptions(saleId);
         List<Map<String, Object>> fnbs = items.stream().map(ci -> {
             Map<String, Object> f = new HashMap<>();
-            java.math.BigDecimal unit = ci.getPriceSnapshot() != null ? ci.getPriceSnapshot() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal snapshot = ci.getPriceSnapshot() != null ? ci.getPriceSnapshot() : java.math.BigDecimal.ZERO;
             int qty = ci.getQuantity() != null ? ci.getQuantity() : 0;
             f.put("fnbItemId", ci.getFnbItem() != null ? ci.getFnbItem().getId() : null);
             f.put("name", ci.getItemNameSnapshot() != null ? ci.getItemNameSnapshot() : (ci.getFnbItem() != null ? ci.getFnbItem().getName() : ""));
             f.put("quantity", qty);
-            f.put("unitPrice", unit);
-            f.put("price", unit);
-            f.put("lineTotal", unit.multiply(java.math.BigDecimal.valueOf(qty)));
+
             List<Map<String, Object>> options = ci.getOptions() == null ? List.of() : ci.getOptions().stream().map(o -> {
                 Map<String, Object> om = new HashMap<>();
                 om.put("slotLabel", o.getSlotLabelSnapshot());
@@ -304,6 +320,35 @@ public class AdminBookingController {
                 return om;
             }).collect(Collectors.toList());
             f.put("options", options);
+
+            java.math.BigDecimal totalSurcharge = options.stream()
+                    .map(o -> o.get("surcharge") instanceof java.math.BigDecimal
+                            ? (java.math.BigDecimal) o.get("surcharge")
+                            : java.math.BigDecimal.ZERO)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+
+            java.math.BigDecimal catalogPrice = (ci.getFnbItem() != null && ci.getFnbItem().getPrice() != null)
+                    ? ci.getFnbItem().getPrice() : null;
+
+            java.math.BigDecimal basePrice;
+            java.math.BigDecimal finalUnitPrice;
+
+            if (catalogPrice != null && snapshot.compareTo(catalogPrice) == 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                basePrice = catalogPrice;
+                finalUnitPrice = basePrice.add(totalSurcharge);
+            } else if (snapshot.compareTo(totalSurcharge) >= 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                basePrice = snapshot.subtract(totalSurcharge);
+                finalUnitPrice = snapshot;
+            } else {
+                basePrice = catalogPrice != null ? catalogPrice : snapshot;
+                finalUnitPrice = basePrice.add(totalSurcharge);
+            }
+
+            f.put("basePrice", basePrice);
+            f.put("totalSurcharge", totalSurcharge);
+            f.put("unitPrice", finalUnitPrice);
+            f.put("price", finalUnitPrice);
+            f.put("lineTotal", finalUnitPrice.multiply(java.math.BigDecimal.valueOf(qty)));
             return f;
         }).collect(Collectors.toList());
 

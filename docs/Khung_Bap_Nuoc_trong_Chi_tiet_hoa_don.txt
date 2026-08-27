@@ -1,0 +1,14 @@
+| BẮP NƯỚC & COMBO
+┌─────────────────────────────────────────────────────────────┐
+│ [Tên món/Combo] (Gốc: [Giá gốc]) x[SL]        [Thành tiền] đ│
+│  • [Tùy chọn/Topping 1] (+[Phụ thu 1]đ)                     │
+│  • [Tùy chọn/Topping 2] (+[Phụ thu 2]đ)                     │
+└─────────────────────────────────────────────────────────────┘
+
+TẠM TÍNH
+Tiền vé:                                         [Tổng vé] đ
+Bắp nước & combo:                                 [Tổng FnB] đ
+Giảm giá:                                       -[Khuyến mãi] đ
+
+TỔNG THANH TOÁN:                               [Tổng cộng] đ
+Phương thức: [Tên phương thức]                [TRẠNG THÁI]
