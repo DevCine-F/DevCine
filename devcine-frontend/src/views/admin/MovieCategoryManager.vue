@@ -43,6 +43,49 @@ const tabLabel = computed(() =>
       : 'mục kiểm duyệt'
 )
 
+// Tiêu đề modal động theo tab và hành động (Thêm/Sửa)
+const modalTitle = computed(() => {
+  const isEdit = !!editingItem.value
+  if (activeTab.value === 'genres') return isEdit ? 'Chỉnh sửa thể loại' : 'Thêm thể loại mới'
+  if (activeTab.value === 'formats') return isEdit ? 'Chỉnh sửa định dạng' : 'Thêm định dạng mới'
+  return isEdit ? 'Chỉnh sửa mục kiểm duyệt' : 'Thêm mục kiểm duyệt'
+})
+
+// Nhãn nút thêm mới ở header màn hình
+const addButtonLabel = computed(() => {
+  if (activeTab.value === 'genres') return 'Thêm thể loại'
+  if (activeTab.value === 'formats') return 'Thêm định dạng'
+  return 'Thêm mục kiểm duyệt'
+})
+
+// Cấu hình nhãn & gợi ý (placeholder) của các trường nhập liệu theo từng tab
+const formConfig = computed(() => {
+  if (activeTab.value === 'genres') {
+    return {
+      nameLabel: 'Tên thể loại',
+      namePlaceholder: 'VD: Hành động, Viễn tưởng...',
+      descLabel: 'Mô tả thể loại',
+      descPlaceholder: 'Mô tả nội dung, đặc trưng của thể loại phim...'
+    }
+  }
+  if (activeTab.value === 'formats') {
+    return {
+      nameLabel: 'Tên định dạng',
+      namePlaceholder: 'VD: 2D Phụ Đề, 3D Lồng Tiếng, Superplex 2D...',
+      descLabel: 'Mô tả định dạng',
+      descPlaceholder: 'Mô tả công nghệ hình ảnh, âm thanh hoặc màn chiếu...'
+    }
+  }
+  return {
+    codeLabel: 'Mã kiểm duyệt (Code)',
+    codePlaceholder: 'VD: P, K, T13, T16, T18...',
+    nameLabel: 'Tên kiểm duyệt / Độ tuổi',
+    namePlaceholder: 'VD: Mọi đối tượng, Dưới 13 tuổi (có người lớn đi kèm)...',
+    descLabel: 'Mô tả kiểm duyệt',
+    descPlaceholder: 'Mô tả chi tiết quy định độ tuổi khán giả...'
+  }
+})
+
 // ===== Validate tên danh mục (scoped theo tab) =====
 // Regex ký tự cấm XSS và nguy hiểm chung
 const FORBIDDEN_COMMON = /[@#$%^*<>/[\]{}\\]/g
@@ -310,7 +353,7 @@ onUnmounted(() => {
           class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-8 py-3 rounded-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
         >
           <span class="material-symbols-outlined text-sm">add</span>
-          Thêm mới
+          {{ addButtonLabel }}
         </button>
       </div>
     </header>
@@ -427,26 +470,27 @@ onUnmounted(() => {
     </div>
 
     <!-- Modal -->
-    <AppModal :show="isModalOpen" @close="handleCloseModal" :title="editingItem ? 'Sửa danh mục' : 'Thêm danh mục mới'">
+    <AppModal :show="isModalOpen" @close="handleCloseModal" :title="modalTitle">
       <div class="space-y-6 pt-4">
         <div v-if="activeTab === 'age-ratings'" class="space-y-2">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mã kiểm duyệt (Code) <span class="text-red-500">*</span></label>
+          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{{ formConfig.codeLabel }} <span class="text-red-500">*</span></label>
           <input :value="newItem.code" @input="onCodeInput" @blur="touched.code = true" @keyup.enter="saveItem" :maxlength="CODE_MAX"
-                 placeholder="VD: P, T13, T16..."
+                 :placeholder="formConfig.codePlaceholder"
                  :class="touched.code && codeError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
                  class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface outline-none text-sm font-mono tracking-widest uppercase" />
           <p v-if="touched.code && codeError" class="text-[11px] text-red-400 font-bold">{{ codeError }}</p>
         </div>
         <div class="space-y-2">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tên danh mục <span class="text-red-500">*</span></label>
-          <input :value="newItem.name" @input="onNameInput" @blur="onNameBlur" @keyup.enter="saveItem" :maxlength="nameRules.max" placeholder="Nhập tên..."
+          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{{ formConfig.nameLabel }} <span class="text-red-500">*</span></label>
+          <input :value="newItem.name" @input="onNameInput" @blur="onNameBlur" @keyup.enter="saveItem" :maxlength="nameRules.max"
+                 :placeholder="formConfig.namePlaceholder"
                  :class="touched.name && nameError ? 'ring-1 ring-red-500' : 'focus:ring-1 focus:ring-primary'"
                  class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface outline-none text-sm" />
           <p v-if="touched.name && nameError" class="text-[11px] text-red-400 font-bold">{{ nameError }}</p>
         </div>
         <div class="space-y-2">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Mô tả</label>
-          <textarea v-model="newItem.description" rows="3" maxlength="150" placeholder="Ghi chú thêm..."
+          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{{ formConfig.descLabel }}</label>
+          <textarea v-model="newItem.description" rows="3" maxlength="150" :placeholder="formConfig.descPlaceholder"
                     class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-1 focus:ring-primary outline-none text-sm resize-none"></textarea>
           <div class="flex justify-end">
             <span class="text-[10px] text-on-surface-variant/60">{{ (newItem.description || '').length }}/150</span>
