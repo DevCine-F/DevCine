@@ -209,6 +209,40 @@ const estimatedSlots = computed(() => {
   return activeDaysCount.value * form.roomIds.length * form.startTimes.length;
 });
 
+// Giới hạn ngày động (min / max) chặn chọn sai ngay từ giao diện lịch
+const dateFromMin = computed(() => getLocalTodayStr());
+
+const dateFromMax = computed(() => {
+  const selectedMovie = movies.value.find(m => m.id === form.movieId);
+  if (selectedMovie && selectedMovie.endDate) {
+    return typeof selectedMovie.endDate === 'string' ? selectedMovie.endDate.slice(0, 10) : '';
+  }
+  return '';
+});
+
+const dateToMin = computed(() => {
+  return form.dateFrom || getLocalTodayStr();
+});
+
+const dateToMax = computed(() => {
+  const baseDate = form.dateFrom ? new Date(form.dateFrom) : new Date();
+  const max30 = new Date(baseDate);
+  max30.setDate(max30.getDate() + 30);
+  const year = max30.getFullYear();
+  const month = (max30.getMonth() + 1).toString().padStart(2, '0');
+  const day = max30.getDate().toString().padStart(2, '0');
+  const max30Str = `${year}-${month}-${day}`;
+
+  const selectedMovie = movies.value.find(m => m.id === form.movieId);
+  if (selectedMovie && selectedMovie.endDate) {
+    const mEndStr = typeof selectedMovie.endDate === 'string' ? selectedMovie.endDate.slice(0, 10) : '';
+    if (mEndStr && mEndStr < max30Str) {
+      return mEndStr;
+    }
+  }
+  return max30Str;
+});
+
 watch(() => props.isOpen, (open) => {
   if (open) {
     fetchOptions();
@@ -239,11 +273,28 @@ watch(() => form.formatId, (newFmtId) => {
   });
 });
 
-// Lỗi tự xóa khi người dùng bắt đầu sửa đúng trường đó
-watch(() => form.movieId, () => { fieldErrors.movieId = ''; });
+// Lỗi tự xóa và tự động điều chỉnh khi người dùng thao tác
+watch(() => form.movieId, () => {
+  fieldErrors.movieId = '';
+  if (dateFromMax.value && form.dateFrom > dateFromMax.value) {
+    form.dateFrom = dateFromMax.value;
+  }
+  if (dateToMax.value && form.dateTo > dateToMax.value) {
+    form.dateTo = dateToMax.value;
+  }
+});
 watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
 watch(() => form.roomIds.length, () => { fieldErrors.roomIds = ''; });
-watch(() => form.dateFrom, () => { fieldErrors.dateFrom = ''; fieldErrors.dateTo = ''; });
+watch(() => form.dateFrom, (newFrom) => {
+  fieldErrors.dateFrom = '';
+  fieldErrors.dateTo = '';
+  if (newFrom && form.dateTo < newFrom) {
+    form.dateTo = newFrom;
+  }
+  if (dateToMax.value && form.dateTo > dateToMax.value) {
+    form.dateTo = dateToMax.value;
+  }
+});
 watch(() => form.dateTo, () => { fieldErrors.dateTo = ''; });
 watch(() => form.startTimes.length, () => { fieldErrors.startTimes = ''; });
 
@@ -663,6 +714,8 @@ const handleCreate = async () => {
           <div ref="dateFromField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Từ ngày</label>
             <input type="date" v-model="form.dateFrom"
+              :min="dateFromMin"
+              :max="dateFromMax || undefined"
               :class="fieldErrors.dateFrom ? 'border-red-500/60 ring-1 ring-red-500/60' : 'border-white/10'"
               class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
             <p v-if="fieldErrors.dateFrom" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateFrom }}</p>
@@ -670,6 +723,8 @@ const handleCreate = async () => {
           <div ref="dateToField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Đến ngày</label>
             <input type="date" v-model="form.dateTo"
+              :min="dateToMin"
+              :max="dateToMax || undefined"
               :class="fieldErrors.dateTo ? 'border-red-500/60 ring-1 ring-red-500/60' : 'border-white/10'"
               class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
             <p v-if="fieldErrors.dateTo" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateTo }}</p>
