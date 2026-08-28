@@ -47,6 +47,9 @@ public class ShowtimeService {
     private final SeatLayoutSnapshotService seatLayoutSnapshotService;
     private final SystemSettingService systemSettingService;
 
+    // Giới hạn kết thúc tối đa cho ca đêm (03:30 sáng = 27 giờ 30 phút tính từ 00:00 hôm trước)
+    private static final int MAX_OVERNIGHT_END_MINUTES = 27 * 60 + 30;
+
     public List<String> getAllCities() {
         return cinemaRepository.findAllCities();
     }
@@ -518,25 +521,26 @@ public class ShowtimeService {
         if (cinema != null && "CLOSED".equalsIgnoreCase(cinema.getStatus())) {
             throw new IllegalArgumentException("Không thể tạo suất chiếu cho cụm rạp đã đóng cửa.");
         }
-        int[] win = cinemaWindow(cinema); // [openMin, closeMin] (closeMin đã +1440 nếu qua nửa đêm)
+        int[] win = cinemaWindow(cinema); // [openMin, closeMin] (closeMin là giờ bắt đầu suất cuối)
         int startPos = posOf(startTime.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaround;
-        // RULE A — chặn cứng: suất bắt đầu ngoài giờ hoạt động.
-        if (startPos < win[0] || startPos >= win[1]) {
-            throw new IllegalArgumentException("Suất chiếu bắt đầu ngoài giờ hoạt động của rạp ("
-                    + fmtMin(win[0]) + "–" + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
+
+        // RULE A — Chặn nếu suất bắt đầu trước giờ mở cửa hoặc sau giờ suất cuối
+        if (startPos < win[0] || startPos > win[1]) {
+            throw new IllegalArgumentException("Suất chiếu phải bắt đầu trong khung giờ từ "
+                    + fmtMin(win[0]) + " đến " + fmtMin(win[1]) + " (giờ suất cuối). Vui lòng chọn giờ khác.");
+        }
+
+        // RULE B — Chặn nếu suất chiếu kéo dài quá mốc trần ca đêm (03:30 AM)
+        if (endPos > MAX_OVERNIGHT_END_MINUTES) {
+            throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos)
+                    + ", vượt quá giới hạn ca đêm (03:30). Vui lòng chọn giờ bắt đầu sớm hơn.");
         }
 
         boolean hasConflict = showtimeRepository.hasConflict(room.getId(), startTime, endTime);
         if (hasConflict) {
             throw new IllegalStateException(
                     "Phòng chiếu đã có lịch trong khung giờ này (Bao gồm thời gian dọn dẹp). Vui lòng chọn giờ khác.");
-        }
-
-        // RULE B — chặn cứng: suất kết thúc quá giờ đóng cửa.
-        if (endPos > win[1]) {
-            throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
-                    + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
         }
 
         // ===== Xuất chiếu sớm: suất trước ngày khởi chiếu chính thức của phim =====
@@ -676,31 +680,32 @@ public class ShowtimeService {
                         skipped.add(skip(roomId, room.getName(), start, "Đã qua giờ chiếu"));
                         continue;
                     }
-                    // RULE A — chặn cứng: suất bắt đầu ngoài giờ hoạt động của cụm rạp.
+                    // RULE A — Chặn nếu suất bắt đầu trước giờ mở cửa hoặc sau giờ suất cuối
                     int[] win = windowByRoom.get(roomId);
                     int startPos = posOf(time, win[0]);
                     int endPos = startPos + duration + turnaroundOf(room);
-                    if (startPos < win[0] || startPos >= win[1]) {
+                    if (startPos < win[0] || startPos > win[1]) {
                         skipped.add(skip(roomId, room.getName(), start,
-                                "Ngoài giờ hoạt động (" + fmtMin(win[0]) + "–" + fmtMin(win[1]) + ")"));
+                                "Bắt đầu ngoài khung giờ (" + fmtMin(win[0]) + "–" + fmtMin(win[1]) + " - giờ suất cuối)"));
                         continue;
                     }
+
+                    // RULE B — Chặn nếu suất chiếu kéo dài quá mốc trần ca đêm (03:30 AM)
+                    if (endPos > MAX_OVERNIGHT_END_MINUTES) {
+                        skipped.add(skip(roomId, room.getName(), start,
+                                "Kết thúc quá muộn (" + fmtMin(endPos) + "), vượt giới hạn ca đêm 03:30"));
+                        continue;
+                    }
+
                     List<LocalDateTime[]> busy = busyByRoom.computeIfAbsent(roomId, k -> new ArrayList<>());
                     boolean overlap = busy.stream().anyMatch(iv -> start.isBefore(iv[1]) && end.isAfter(iv[0]));
                     if (overlap) {
                         skipped.add(skip(roomId, room.getName(), start, "Trùng lịch phòng (gồm giờ dọn dẹp)"));
                         continue;
                     }
-                    // Giữ chỗ để các suất sau trong lô không đè (kể cả suất khuya cảnh báo).
+                    // Giữ chỗ để các suất sau trong lô không đè
                     busy.add(new LocalDateTime[] { start, end });
-                    boolean afterClosing = endPos > win[1];
-                    if (afterClosing) {
-                        warnings.add(skip(roomId, room.getName(), start,
-                                "Kết thúc " + fmtMin(endPos) + " quá giờ đóng cửa (" + fmtMin(win[1]) + ")"));
-                        // Chỉ đưa vào danh sách ghi khi admin đã xác nhận (force).
-                        if (!req.isForce())
-                            continue;
-                    }
+
                     // Tính status: "Xuất chiếu sớm" nếu suất nằm trước ngày khởi chiếu chính thức.
                     boolean earlyBatch = movie.getReleaseDate() != null
                             && date.isBefore(movie.getReleaseDate());
@@ -715,15 +720,9 @@ public class ShowtimeService {
             }
         }
 
-        // All-or-nothing: còn suất khuya chưa xác nhận ⇒ chưa ghi, yêu cầu FE xác nhận
-        // rồi gửi lại force.
-        boolean requiresConfirmation = !warnings.isEmpty() && !req.isForce();
-        int toCreate = toSave.size() + (req.isForce() ? 0 : warnings.size());
-
+        int toCreate = toSave.size();
         int created = 0;
-        // Chỉ ghi khi KHÔNG dryRun VÀ không còn suất khuya chờ xác nhận
-        // (all-or-nothing).
-        if (!req.isDryRun() && !requiresConfirmation && !toSave.isEmpty()) {
+        if (!req.isDryRun() && !toSave.isEmpty()) {
             showtimeRepository.saveAll(toSave);
             created = toSave.size();
         }
@@ -733,7 +732,7 @@ public class ShowtimeService {
                 .createdCount(created)
                 .skipped(skipped)
                 .warnings(warnings)
-                .requiresConfirmation(requiresConfirmation)
+                .requiresConfirmation(false)
                 .build();
     }
 
@@ -802,13 +801,12 @@ public class ShowtimeService {
         int[] win = cinemaWindow(targetRoom.getCinema());
         int startPos = posOf(targetStart.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaroundOf(targetRoom);
-        if (startPos < win[0] || startPos >= win[1]) {
+        if (startPos < win[0] || startPos > win[1]) {
             throw new IllegalArgumentException(
-                    "Suất chiếu bắt đầu ngoài giờ hoạt động của rạp. Vui lòng chọn giờ khác.");
+                    "Suất chiếu phải bắt đầu trong khung giờ từ " + fmtMin(win[0]) + " đến " + fmtMin(win[1]) + " (giờ suất cuối). Vui lòng chọn giờ khác.");
         }
-        if (endPos > win[1]) {
-            throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giờ đóng cửa ("
-                    + fmtMin(win[1]) + "). Vui lòng chọn giờ khác.");
+        if (endPos > MAX_OVERNIGHT_END_MINUTES) {
+            throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giới hạn ca đêm (03:30). Vui lòng chọn giờ bắt đầu sớm hơn.");
         }
 
         showtime.setRoom(targetRoom);
@@ -964,7 +962,7 @@ public class ShowtimeService {
                 sEnd += 1440;
             }
 
-            if (sStart < openMin || sEnd > closeMin) {
+            if (sStart < openMin || sStart > closeMin || sEnd > MAX_OVERNIGHT_END_MINUTES) {
                 System.out.println("VIOLATION - Showtime ID: " + s.getId() +
                         " | Start: " + s.getStartTime() +
                         " | End: " + s.getEndTime() +

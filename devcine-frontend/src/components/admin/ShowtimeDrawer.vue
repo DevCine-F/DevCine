@@ -333,9 +333,10 @@ const timeConflictError = computed(() => {
   let startPos = parseInt(form.startHour) * 60 + parseInt(form.startMinute);
   if (startPos < openMin) startPos += 1440;
   const endPos = startPos + duration + turnaround;
+  const MAX_OVERNIGHT_END = 27 * 60 + 30; // 03:30 AM
 
-  if (startPos >= closeMin) {
-    return `Suất chiếu bắt đầu ngoài giờ hoạt động của rạp (${fmtMin(openMin)} – ${fmtMin(closeMin)}). Vui lòng chọn giờ khác.`;
+  if (startPos < openMin || startPos > closeMin) {
+    return `Suất chiếu phải bắt đầu trong khung giờ từ ${fmtMin(openMin)} đến ${fmtMin(closeMin)} (giờ suất cuối). Vui lòng chọn giờ khác.`;
   }
 
   const clash = existingShowtimes.value.find(s => {
@@ -350,8 +351,8 @@ const timeConflictError = computed(() => {
     return `Phòng chiếu đã có lịch ${fmtClock(new Date(clash.startTime))} – ${fmtClock(new Date(clash.endTime))} (đã gồm thời gian dọn phòng). Vui lòng chọn giờ khác.`;
   }
 
-  if (endPos > closeMin) {
-    return `Suất chiếu kết thúc lúc ${fmtMin(endPos)}, vượt quá giờ đóng cửa (${fmtMin(closeMin)}). Vui lòng chọn giờ khác.`;
+  if (endPos > MAX_OVERNIGHT_END) {
+    return `Suất chiếu kết thúc lúc ${fmtMin(endPos)}, vượt quá giới hạn ca đêm (03:30). Vui lòng chọn giờ bắt đầu sớm hơn.`;
   }
 
   return '';

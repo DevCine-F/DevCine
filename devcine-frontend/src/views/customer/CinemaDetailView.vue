@@ -216,7 +216,7 @@ onMounted(fetchAll)
                 <span class="material-symbols-outlined text-primary text-lg">call</span><span class="font-mono">{{ formatHotline(cinema.hotline) }}</span>
               </span>
               <span v-if="cinema.openingTime && cinema.closingTime" class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary text-lg">schedule</span>{{ cinema.openingTime }} – {{ cinema.closingTime }}
+                <span class="material-symbols-outlined text-primary text-lg">schedule</span>Mở cửa: {{ cinema.openingTime }} – Suất cuối: {{ cinema.closingTime }}
               </span>
               <span class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-lg">event_available</span>{{ availableDates.length }} ngày có suất chiếu

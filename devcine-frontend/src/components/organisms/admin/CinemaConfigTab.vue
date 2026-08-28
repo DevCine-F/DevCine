@@ -277,9 +277,9 @@ const STATUS_META = {
         </div>
         <div class="flex-1">
           <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Giờ hoạt động</h4>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">Khung giờ mở/đóng cửa hằng ngày</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">Khung giờ mở cửa & giờ bắt đầu suất chiếu muộn nhất hằng ngày</p>
         </div>
-        <span class="text-blue-400 text-xs font-black">{{ form.openingTime || '--:--' }} – {{ form.closingTime || '--:--' }}</span>
+        <span class="text-blue-400 text-xs font-black">Mở cửa: {{ form.openingTime || '--:--' }} – Suất cuối: {{ form.closingTime || '--:--' }}</span>
       </header>
       <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-1.5">
@@ -288,12 +288,12 @@ const STATUS_META = {
             class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
         </div>
         <div class="space-y-1.5">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giờ đóng cửa</label>
+          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giờ bắt đầu suất cuối</label>
           <input v-model="form.closingTime" type="time"
             class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
         </div>
         <p class="md:col-span-2 text-[10px] text-on-surface-variant/60 flex items-center gap-1.5">
-          <span class="material-symbols-outlined text-sm">info</span>Nếu giờ đóng ≤ giờ mở, hệ thống hiểu là rạp đóng cửa rạng sáng hôm sau (suất khuya).
+          <span class="material-symbols-outlined text-sm">info</span>Mốc thời gian muộn nhất trong ngày cho phép một suất chiếu bắt đầu (suất chiếu có thể kéo dài qua nửa đêm sang rạng sáng hôm sau).
         </p>
       </div>
     </section>

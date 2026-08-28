@@ -176,7 +176,7 @@ export function useCinemaConfig(selectedCinema) {
       return;
     }
     if (!form.openingTime || !form.closingTime) {
-      toast.error("Vui lòng nhập đủ giờ mở và giờ đóng cửa.");
+      toast.error("Vui lòng nhập đủ giờ mở cửa và giờ bắt đầu suất cuối.");
       return;
     }
 
