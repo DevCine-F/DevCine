@@ -325,6 +325,11 @@ public class BookingService {
                             + "' đã ngưng bán hoặc không tồn tại.");
                 }
 
+                int qty = fnbDTO.getQuantity() == null ? 0 : fnbDTO.getQuantity();
+                if (qty < 1 || qty > 99) {
+                    throw new RuntimeException("Số lượng món '" + (item != null ? item.getName() : "") + "' không hợp lệ (từ 1 đến 99).");
+                }
+
                 BigDecimal lineSurcharge = BigDecimal.ZERO;
                 java.util.List<BookingFnbOption> fnbOptions = new java.util.ArrayList<>();
                 // Xác thực server-side (membership + min/max + required) và lấy phụ thu TỪ DB.
