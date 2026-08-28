@@ -161,8 +161,13 @@ public class VoucherService {
         if (promo.getStartDate() != null && promo.getStartDate().isAfter(now)) {
             return new VoucherEval(false, "Mã ưu đãi chưa đến ngày áp dụng.", BigDecimal.ZERO);
         }
-        if ((promo.getEndDate() != null && promo.getEndDate().isBefore(now))
-                || (voucher.getValidUntil() != null && voucher.getValidUntil().isBefore(now))) {
+        // Hạn sử dụng: ưu tiên validUntil của Voucher (snapshot tại thời điểm cấp phát).
+        // Chỉ fallback về promo.endDate nếu voucher chưa có validUntil (dữ liệu cũ / guest).
+        // Không dùng OR — nếu snapshot còn hạn thì khách vẫn được dùng dù Admin đã sửa endDate chiến dịch.
+        LocalDateTime effectiveExpiry = voucher.getValidUntil() != null
+                ? voucher.getValidUntil()
+                : promo.getEndDate();
+        if (effectiveExpiry != null && effectiveExpiry.isBefore(now)) {
             return new VoucherEval(false, "Mã ưu đãi đã hết hạn sử dụng.", BigDecimal.ZERO);
         }
 
