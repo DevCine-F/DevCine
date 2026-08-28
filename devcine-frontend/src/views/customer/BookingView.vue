@@ -34,6 +34,21 @@ const seatRealtime = useSeatRealtime({
     if (lost.length) {
       toast.error(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được bán ở nơi khác — đã gỡ khỏi lựa chọn.`)
     }
+    // Cập nhật availableSeats: đánh dấu status SOLD ngay lập tức để render đúng màu "đã bán"
+    // thay vì viền vàng (othersLocked) — tránh phải F5 sau khi admin xử lý đổi ghế incident
+    if (store.availableSeats.length) {
+      store.availableSeats = store.availableSeats.map(s =>
+        seatIds.includes(s.seatId) ? { ...s, status: 'SOLD' } : s
+      )
+    }
+  },
+  onReleased: (seatIds) => {
+    // Ghế vừa được nhả (hủy hold hoặc sau incident đổi ghế cũ) → trả về AVAILABLE trong sơ đồ
+    if (store.availableSeats.length) {
+      store.availableSeats = store.availableSeats.map(s =>
+        seatIds.includes(s.seatId) ? { ...s, status: 'AVAILABLE' } : s
+      )
+    }
   },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
