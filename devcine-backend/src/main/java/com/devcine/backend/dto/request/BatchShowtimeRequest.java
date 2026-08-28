@@ -48,4 +48,7 @@ public class BatchShowtimeRequest {
 
     /** true = admin đã xác nhận tạo cả các suất kết thúc quá giờ đóng cửa (suất khuya). */
     private boolean force;
+
+    /** Độ lệch so le giữa các phòng tính bằng phút (0 = đồng thời, 10, 15...). */
+    private Integer roomOffsetMins;
 }

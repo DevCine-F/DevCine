@@ -675,15 +675,24 @@ public class ShowtimeService {
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> skipped = new ArrayList<>();
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> warnings = new ArrayList<>();
 
+        int offsetMins = (req.getRoomOffsetMins() != null && req.getRoomOffsetMins() > 0)
+                ? req.getRoomOffsetMins()
+                : 0;
+
         for (LocalDate date = req.getDateFrom(); !date.isAfter(req.getDateTo()); date = date.plusDays(1)) {
             if (daysFilter != null && !daysFilter.contains(date.getDayOfWeek().getValue()))
                 continue;
 
             for (java.time.LocalTime time : times) {
-                LocalDateTime start = date.atTime(time);
-
-                for (Integer roomId : req.getRoomIds()) {
+                for (int roomIdx = 0; roomIdx < req.getRoomIds().size(); roomIdx++) {
+                    Integer roomId = req.getRoomIds().get(roomIdx);
                     Room room = roomMap.get(roomId);
+
+                    // Độ lệch so le: phòng thứ roomIdx được cộng thêm roomIdx * offsetMins
+                    int totalOffset = roomIdx * offsetMins;
+                    LocalDateTime start = date.atTime(time).plusMinutes(totalOffset);
+                    java.time.LocalTime actualTime = start.toLocalTime();
+
                     // KIỂM TRA TƯƠNG THÍCH ĐỊNH DẠNG & PHÒNG CHIẾU
                     if (!isFormatCompatibleWithRoom(format, room)) {
                         skipped.add(skip(roomId, room.getName(), start,
@@ -700,7 +709,7 @@ public class ShowtimeService {
 
                     // RULE A — Chặn nếu suất bắt đầu trước giờ mở cửa hoặc sau giờ suất cuối
                     int[] win = windowByRoom.get(roomId);
-                    int startPos = posOf(time, win[0]);
+                    int startPos = posOf(actualTime, win[0]);
                     int endPos = startPos + duration + turnaroundOf(room);
                     if (startPos < win[0] || startPos > win[1]) {
                         skipped.add(skip(roomId, room.getName(), start,
@@ -726,7 +735,7 @@ public class ShowtimeService {
 
                     // Tính status: "Xuất chiếu sớm" nếu suất nằm trước ngày khởi chiếu chính thức.
                     boolean earlyBatch = movie.getReleaseDate() != null
-                            && date.isBefore(movie.getReleaseDate());
+                            && start.toLocalDate().isBefore(movie.getReleaseDate());
                     toSave.add(Showtime.builder()
                             .movie(movie).room(room).format(format)
                             .startTime(start).endTime(end)

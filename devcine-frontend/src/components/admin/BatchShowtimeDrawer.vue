@@ -24,8 +24,15 @@ const form = reactive({
   dateTo: '',
   daysOfWeek: [],        // ISO 1..7 (rỗng = mọi ngày)
   roomIds: [],           // các phòng đã tick (nhiều cơ sở)
-  startTimes: []         // "HH:mm"
+  startTimes: [],        // "HH:mm"
+  roomOffsetMins: 0      // 0 = Đồng thời, 10 = Lệch 10p, 15 = Lệch 15p
 });
+
+const staggerOptions = [
+  { value: 0, label: '0 phút (Chiếu đồng thời)' },
+  { value: 10, label: '10 phút' },
+  { value: 15, label: '15 phút' }
+];
 
 const movies = ref([]);
 const formats = ref([]);
@@ -201,12 +208,13 @@ watch(() => props.isOpen, (open) => {
     form.movieId = ''; form.formatId = '';
     form.dateFrom = today; form.dateTo = today;
     form.daysOfWeek = []; form.roomIds = []; form.startTimes = [];
+    form.roomOffsetMins = 0;
   }
 });
 
 // Đổi bất kỳ tham số nào → preview cũ không còn đúng
 watch(() => [form.movieId, form.formatId, form.dateFrom, form.dateTo,
-  form.daysOfWeek.length, form.roomIds.length, form.startTimes.length], () => { preview.value = null; });
+  form.daysOfWeek.length, form.roomIds.length, form.startTimes.length, form.roomOffsetMins], () => { preview.value = null; });
 
 // Khi đổi định dạng: Tự động lọc bỏ các phòng không còn tương thích
 watch(() => form.formatId, (newFmtId) => {
@@ -420,6 +428,7 @@ const buildPayload = (dryRun, force = false) => {
     dateTo: form.dateTo,
     daysOfWeek: [...form.daysOfWeek],
     startTimes: validTimes,
+    roomOffsetMins: form.roomOffsetMins || 0,
     dryRun,
     force
   };
@@ -643,6 +652,32 @@ const handleCreate = async () => {
               </button>
             </span>
           </div>
+        </div>
+
+        <!-- Độ lệch so le giữa các phòng (Staggered Scheduling) -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest">
+              Độ lệch so le giữa các phòng
+            </label>
+            <span class="text-[10px] text-white/40 italic">
+              Tránh dồn ứ khách tại sảnh và cổng rạp
+            </span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button v-for="opt in staggerOptions" :key="opt.value" type="button"
+              @click="form.roomOffsetMins = opt.value"
+              :class="form.roomOffsetMins === opt.value
+                ? 'bg-primary text-on-primary border-primary font-black shadow-md shadow-primary/20'
+                : 'bg-white/5 border-white/10 text-white/70 hover:border-white/20 font-bold'"
+              class="py-2.5 px-2 rounded-xl border text-xs text-center transition-all">
+              {{ opt.label }}
+            </button>
+          </div>
+          <p v-if="form.roomOffsetMins > 0 && form.roomIds.length > 1" class="text-[11px] text-emerald-400 font-medium mt-2 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[14px]">schedule</span>
+            Phòng 1 theo giờ gốc, phòng 2 +{{ form.roomOffsetMins }}p, phòng 3 +{{ form.roomOffsetMins * 2 }}p...
+          </p>
         </div>
 
         <!-- Widget ước tính quy mô lô & Giới hạn trần 500 suất -->
