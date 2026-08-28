@@ -182,7 +182,7 @@ function resetWorkspace(preserveResult = false) {
   }
 }
 
-// ================= Tương tác sơ đồ (incident-specific class/title functions) =================
+// ================= Tương tác sơ đồ & Chặn ghế lẻ (Lotte Proactive Locking) =================
 function isSeatMaintenance(cell) {
   if (!cell) return false
   return cell.status === 'MAINTENANCE' || cell.status === 'LOCKED' ||
@@ -196,8 +196,162 @@ function seatTypeLabel(t) {
   return 'Thường'
 }
 
+// Ghế đôi: SWEETBOX/DOUBLE chiếm 2 CỘT lưới và ngồi được 2 người
+const isCoupleSeat = (c) =>
+  !!c && (c.span === 2 || ['SWEETBOX', 'DOUBLE', 'COUPLE'].includes(String(c.seatType || '').toUpperCase()))
+
+const cellSpanCols = (c) =>
+  c.kind === 'AISLE' ? Math.max(1, Number(c.span) || 1) : (isCoupleSeat(c) ? 2 : 1)
+
+// Xác định ghế nguồn hiện tại đang cần tìm ghế đích
+const currentTargetSeat = computed(() => {
+  if (activeSource.value != null) {
+    return soldSeats.value.find(s => s.seatId === activeSource.value) || null
+  }
+  // Nếu chưa chọn activeSource: lấy ghế đầu tiên trong đơn chưa được gán ghế đích
+  const unassigned = soldSeats.value.filter(s => swaps.value[s.seatId] == null)
+  if (unassigned.length > 0) return unassigned[0]
+  return null
+})
+
+const currentTargetSize = computed(() => {
+  if (!currentTargetSeat.value) return 0
+  return isCoupleSeat(currentTargetSeat.value) ? 2 : 1
+})
+
+const isSeatFreeForRelocate = (s) =>
+  !!s && s.status === 'AVAILABLE' && !isSeatMaintenance(s) && !chosenDest.value.has(s.seatId)
+
+const WALL_SLOT = Object.freeze({ state: 'WALL', w: 1 })
+
+const seatRowSlots = computed(() => {
+  const byRow = new Map()
+  const seats = seatMap.value?.seats || []
+  for (const c of seats) {
+    if (!c || c.gridRow == null || c.gridCol == null) continue
+    if (!byRow.has(c.gridRow)) byRow.set(c.gridRow, [])
+    byRow.get(c.gridRow).push(c)
+  }
+
+  const grid = new Map()
+  for (const [row, cells] of byRow) {
+    let width = 0
+    for (const c of cells) width = Math.max(width, c.gridCol + cellSpanCols(c))
+
+    const slots = new Array(width)
+    for (let i = 0; i < width; i++) slots[i] = WALL_SLOT
+
+    for (const c of cells) {
+      if (c.kind === 'AISLE') continue
+      slots[c.gridCol] = {
+        state: isSeatFreeForRelocate(c) ? 'FREE' : 'BUSY',
+        w: isCoupleSeat(c) ? 2 : 1,
+        cell: c,
+      }
+    }
+    for (const c of cells) {
+      if (c.kind === 'AISLE' || !isCoupleSeat(c)) continue
+      const next = c.gridCol + 1
+      if (next < width && slots[next] === WALL_SLOT) slots[next] = { state: 'SPAN', w: 1, ownerCol: c.gridCol }
+    }
+    grid.set(row, slots)
+  }
+  return grid
+})
+
+const seatRowRuns = computed(() => {
+  const byRow = new Map()
+  for (const [row, slots] of seatRowSlots.value) {
+    const runs = []
+    let cur = null
+    let col = 0
+    while (col < slots.length) {
+      const s = slots[col]
+      if (s && s.state === 'FREE') {
+        if (!cur) { cur = { seats: [], caps: [], capacity: 0 }; runs.push(cur) }
+        cur.seats.push(s.cell)
+        cur.caps.push(s.w)
+        cur.capacity += s.w
+        col += s.w
+      } else {
+        cur = null
+        col += 1
+      }
+    }
+    byRow.set(row, runs)
+  }
+  return byRow
+})
+
+const runContaining = (anchorCell) => {
+  if (!anchorCell || anchorCell.gridRow == null || anchorCell.seatId == null) return null
+  const runs = seatRowRuns.value.get(anchorCell.gridRow)
+  if (!runs) return null
+  for (const run of runs) {
+    const idx = run.seats.findIndex(s => s.seatId === anchorCell.seatId)
+    if (idx >= 0) return { run, anchorIdx: idx }
+  }
+  return null
+}
+
+const placementsIn = (run, size) => {
+  const out = []
+  const n = run.seats.length
+  const odd = size % 2 === 1
+  for (let j = 0; j < n; j++) {
+    let cap = 0
+    let e = j
+    let hasCouple = false
+    while (e < n && cap < size) { if (run.caps[e] === 2) hasCouple = true; cap += run.caps[e]; e++ }
+    if (cap !== size) continue
+    if (odd && hasCouple) continue
+    let leftGap = 0
+    for (let t = 0; t < j; t++) leftGap += run.caps[t]
+    let rightGap = 0
+    for (let t = e; t < n; t++) rightGap += run.caps[t]
+    out.push({ seats: run.seats.slice(j, e), startIdx: j, endIdx: e - 1, leftGap, rightGap })
+  }
+  return out
+}
+
+const orphanFree = (p) => p.leftGap !== 1 && p.rightGap !== 1
+
+const snapBlockAt = (anchorCell) => {
+  const size = currentTargetSize.value
+  if (!size) return null
+  const found = runContaining(anchorCell)
+  if (!found) return null
+  const { run, anchorIdx } = found
+  const cands = placementsIn(run, size)
+  if (cands.length === 0) return null
+
+  if (size === 1) {
+    const p = cands.find(c => c.startIdx === anchorIdx)
+    return (p && orphanFree(p)) ? p.seats : null
+  }
+
+  const safe = cands.filter(orphanFree)
+  if (safe.length === 0) return null
+  return safe[0].seats
+}
+
+const unselectableSeatIds = computed(() => {
+  const ids = new Set()
+  if (!currentTargetSize.value || started.value || expired.value) return ids
+
+  for (const slots of seatRowSlots.value.values()) {
+    for (const e of slots) {
+      if (!e || e.state !== 'FREE') continue
+      if (!snapBlockAt(e.cell)) ids.add(e.cell.seatId)
+    }
+  }
+  return ids
+})
+
+const isSeatUnselectable = (seat) => !!seat && unselectableSeatIds.value.has(seat.seatId)
+
 // customSeatClass: trả về class CSS đặc biệt cho incident mode
-// Trả về null để SeatGridRenderer dùng logic mặc định (màu VIP/Sweetbox/Standard)
+// Trả về null để SeatGridRenderer dùng logic mặc định (màu VIP/Sweetbox/Standard/Unselectable)
 function incidentSeatClass(seat) {
   if (!seat || seat.kind === 'AISLE' || seat.seatId == null) return null
 
@@ -206,7 +360,7 @@ function incidentSeatClass(seat) {
   const isDest = !started.value && !expired.value && chosenDest.value.has(seat.seatId)
   const isMaint = isSeatMaintenance(seat)
 
-  const isDouble = seat.seatType === 'SWEETBOX' || seat.seatType === 'DOUBLE' || seat.seatType === 'COUPLE' || seat.span === 2
+  const isDouble = isCoupleSeat(seat)
   const sizeClass = isDouble
     ? 'col-span-2 w-full h-8 rounded-xl justify-self-stretch'
     : 'w-8 h-8 aspect-square rounded-lg'
@@ -236,7 +390,7 @@ function incidentSeatClass(seat) {
   }
 
   // 3. Trả về null để SeatGridRenderer xử lý theo logic mặc định
-  // (VIP đỏ, Sweetbox tím, Standard xám, SOLD mờ, MAINTENANCE xám red)
+  // (VIP đỏ, Sweetbox tím, Standard xám, SOLD mờ, MAINTENANCE xám red, UNSELECTABLE có dấu X)
   return null
 }
 
@@ -248,6 +402,7 @@ function incidentSeatTitle(seat) {
   if (isMaint) return `Ghế ${seat.label} (${typeLbl} · Bảo trì / khóa)${!started.value && !expired.value ? ' — Chuột phải để mở lại' : ''}`
   if (bookingSeatIds.value.has(seat.seatId)) return `Ghế ${seat.label} (${typeLbl} · Ghế của đơn đang xử lý)`
   if (!started.value && !expired.value && chosenDest.value.has(seat.seatId)) return `Ghế ${seat.label} (${typeLbl} · Ghế đích đã chọn)`
+  if (isSeatUnselectable(seat)) return `Ghế ${seat.label} (${typeLbl} · Không thể chọn vì sẽ để lại ghế trống đơn lẻ)`
   if (seat.status === 'AVAILABLE') {
     if (started.value || expired.value) return `Ghế ${seat.label} (${typeLbl} · Trống)`
     return `Ghế ${seat.label} (${typeLbl} · Trống) — Chuột phải để khóa bảo trì`
@@ -277,9 +432,22 @@ function onSeatClick(cell) {
     if (src) { delete swaps.value[src]; swaps.value = { ...swaps.value } }
     return
   }
+  if (isSeatUnselectable(cell)) {
+    toast.warning('Không thể chọn vị trí này vì sẽ để lại 1 ghế trống đơn lẻ.')
+    return
+  }
   if (cell.status === 'AVAILABLE' && !isSeatMaintenance(cell) && mode.value === 'relocate') {
-    if (activeSource.value == null) { toast.info('Chọn ghế nguồn (viền xanh) trước, rồi bấm ghế đích.'); return }
-    swaps.value = { ...swaps.value, [activeSource.value]: cell.seatId }
+    let sourceId = activeSource.value
+    if (sourceId == null) {
+      const unassigned = soldSeats.value.filter(s => swaps.value[s.seatId] == null)
+      if (unassigned.length === 1) {
+        sourceId = unassigned[0].seatId
+      } else {
+        toast.info('Chọn ghế nguồn (viền xanh) trước, rồi bấm ghế đích.')
+        return
+      }
+    }
+    swaps.value = { ...swaps.value, [sourceId]: cell.seatId }
     activeSource.value = null
   }
 }
@@ -344,6 +512,16 @@ function buildCompensation() {
 // ================= Xử lý đổi ghế =================
 async function submitRelocate() {
   if (!canSubmitRelocate.value) { toast.warning('Chọn ít nhất một cặp đổi ghế.'); return }
+
+  // Kiểm tra an toàn: đảm bảo không có ghế đích nào để lại ghế lẻ
+  for (const swap of selectedSwaps.value) {
+    const destSeat = seatById.value.get(swap.newSeatId)
+    if (destSeat && isSeatUnselectable(destSeat)) {
+      toast.warning(`Ghế đích ${destSeat.label} vi phạm quy định chặn ghế lẻ. Vui lòng chọn ghế khác.`)
+      return
+    }
+  }
+
   const lines = selectedSwaps.value.map(s => `${seatById.value.get(s.oldSeatId)?.label || s.oldSeatId} → ${seatById.value.get(s.newSeatId)?.label || s.newSeatId}`).join(', ')
   const ok = await confirm.show({
     title: 'Xác nhận đổi ghế',
@@ -605,6 +783,7 @@ onMounted(async () => {
               show-screen
               screen-title="MÀN HÌNH CHÍNH"
               show-row-labels
+              :is-seat-unselectable="isSeatUnselectable"
               :custom-seat-class="incidentSeatClass"
               :custom-seat-title="incidentSeatTitle"
               :bypass-click-filter="incidentBypassClick"
@@ -644,6 +823,10 @@ onMounted(async () => {
             <span class="flex items-center gap-1.5">
               <span class="w-3.5 h-3.5 rounded-md bg-surface-container-high opacity-40 border border-white/5"></span>
               Đã bán
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-md bg-surface-container-high border border-white/5 relative seat-unselectable"></span>
+              Ghế lẻ bị chặn
             </span>
           </div>
         </div>
