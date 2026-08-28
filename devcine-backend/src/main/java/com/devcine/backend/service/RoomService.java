@@ -88,6 +88,39 @@ public class RoomService {
         }
     }
 
+    private static int naturalCompare(String s1, String s2) {
+        if (s1 == null && s2 == null) return 0;
+        if (s1 == null) return -1;
+        if (s2 == null) return 1;
+        int i = 0, j = 0;
+        while (i < s1.length() && j < s2.length()) {
+            char c1 = s1.charAt(i);
+            char c2 = s2.charAt(j);
+            if (Character.isDigit(c1) && Character.isDigit(c2)) {
+                int start1 = i, start2 = j;
+                while (i < s1.length() && Character.isDigit(s1.charAt(i))) i++;
+                while (j < s2.length() && Character.isDigit(s2.charAt(j))) j++;
+                String numStr1 = s1.substring(start1, i);
+                String numStr2 = s2.substring(start2, j);
+                try {
+                    long n1 = Long.parseLong(numStr1);
+                    long n2 = Long.parseLong(numStr2);
+                    int cmp = Long.compare(n1, n2);
+                    if (cmp != 0) return cmp;
+                } catch (NumberFormatException ignored) {
+                    int cmp = numStr1.compareTo(numStr2);
+                    if (cmp != 0) return cmp;
+                }
+            } else {
+                int cmp = Character.compare(Character.toLowerCase(c1), Character.toLowerCase(c2));
+                if (cmp != 0) return cmp;
+                i++;
+                j++;
+            }
+        }
+        return Integer.compare(s1.length(), s2.length());
+    }
+
     @Transactional(readOnly = true)
     public List<RoomResponse> getRoomsByCinema(Integer cinemaId) {
         List<Room> rooms = roomRepository.findByCinemaId(cinemaId);
@@ -107,6 +140,7 @@ public class RoomService {
                     res.setSeatCount(capacityById.getOrDefault(r.getId(), 0));
                     return res;
                 })
+                .sorted((a, b) -> naturalCompare(a.getName(), b.getName()))
                 .toList();
     }
 

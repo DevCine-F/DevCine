@@ -1,5 +1,7 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   halls: {
     type: Array,
     required: true
@@ -8,6 +10,14 @@ defineProps({
     type: Boolean,
     default: true
   }
+})
+
+// Sắp xếp các phòng theo số thứ tự từ bé đến lớn (Phòng 01 -> Phòng 02 -> Phòng 03...)
+const sortedHalls = computed(() => {
+  if (!props.halls) return []
+  return [...props.halls].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+  )
 })
 
 defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
@@ -34,7 +44,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
 
   <!-- Empty state -->
   <div
-    v-if="!halls || halls.length === 0"
+    v-if="!sortedHalls || sortedHalls.length === 0"
     class="text-center py-20 bg-surface-container-high/40 rounded-2xl border border-dashed border-outline-variant/20"
   >
     <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-3 block">meeting_room</span>
@@ -44,7 +54,7 @@ defineEmits(['open-hall', 'add-room', 'edit-room', 'delete-room'])
 
   <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div
-      v-for="hall in halls"
+      v-for="hall in sortedHalls"
       :key="hall.id"
       class="bg-surface-container-high border border-outline-variant/10 p-8 rounded-2xl hover:border-primary/30 transition-all group"
     >

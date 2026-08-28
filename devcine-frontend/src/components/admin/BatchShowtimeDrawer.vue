@@ -101,11 +101,15 @@ const buildCinemaTree = async () => {
   const base = props.cinemas || [];
   localCinemas.value = await Promise.all(base.map(async (c) => {
     if (c.halls?.length) {
-      return { id: c.id, name: c.name, city: c.city, halls: c.halls };
+      const sorted = [...c.halls].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+      return { id: c.id, name: c.name, city: c.city, halls: sorted };
     }
     try {
       const res = await api.get(`/rooms/cinema/${c.id}`);
-      return { id: c.id, name: c.name, city: c.city, halls: res.data.map(r => ({ id: r.id, name: r.name, type: r.type })) };
+      const sortedHalls = (res.data || [])
+        .map(r => ({ id: r.id, name: r.name, type: r.type }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+      return { id: c.id, name: c.name, city: c.city, halls: sortedHalls };
     } catch (e) {
       toast.error(friendlyError(e, 'Không tải được danh sách phòng chiếu.'));
       return { id: c.id, name: c.name, city: c.city, halls: [] };

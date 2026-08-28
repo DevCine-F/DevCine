@@ -82,6 +82,13 @@ const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER
 
 const toast = useToastStore()
 
+const sortedHalls = computed(() => {
+  if (!props.cinema?.halls) return []
+  return [...props.cinema.halls].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+  )
+})
+
 const isShowtimeLocked = (st) => {
   return (st.soldSeats || 0) + (st.heldSeats || 0) > 0 || st.reserved > 0;
 }
@@ -207,7 +214,7 @@ const handleDragStart = (event, show) => {
         <!-- Rows Container -->
         <div class="flex-grow relative z-10 flex flex-col">
           <div
-            v-for="hall in cinema.halls"
+            v-for="hall in sortedHalls"
             :key="hall.id"
             class="flex items-center border-b border-outline-variant/10 group hover:bg-white/[0.02] transition-all min-h-[100px] relative"
           >

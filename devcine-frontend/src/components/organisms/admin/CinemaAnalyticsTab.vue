@@ -1,9 +1,18 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   cinema: {
     type: Object,
     required: true
   }
+})
+
+const sortedHalls = computed(() => {
+  if (!props.cinema?.halls) return []
+  return [...props.cinema.halls].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+  )
 })
 </script>
 
@@ -386,7 +395,7 @@ defineProps({
         class="flex-1 space-y-4 overflow-y-auto pr-2 custom-scrollbar"
       >
         <div
-          v-for="hall in cinema.halls"
+          v-for="hall in sortedHalls"
           :key="hall.id"
           class="p-4 bg-black/20 rounded-2xl border border-white/5 group hover:border-primary/40 transition-all"
         >

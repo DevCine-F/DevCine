@@ -136,7 +136,9 @@ export function useCinemas() {
       const openMin = (oh || 8) * 60 + (om || 0);
       const enriched = {
         ...selectedCinema.value,
-        halls: roomsRes.data.map(mapHall),
+        halls: roomsRes.data.map(mapHall).sort((a, b) =>
+          (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+        ),
         shows: showsRes.data.map((s) => mapShow(s, openMin)),
         staff: staffRes.data
       };
