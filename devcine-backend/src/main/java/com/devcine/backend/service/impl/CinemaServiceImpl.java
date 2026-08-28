@@ -229,6 +229,7 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional
     public CinemaResponse updateCinema(Integer id, CinemaRequest request) {
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(id);
         normalizeAndValidate(request, id);
         Cinema cinema = cinemaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + id));
@@ -284,6 +285,7 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional
     public CinemaResponse closeCinema(Integer id) {
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(id);
         Cinema cinema = cinemaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp với ID: " + id));
 
@@ -306,6 +308,7 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional
     public CinemaResponse reopenCinema(Integer id) {
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(id);
         Cinema cinema = cinemaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp với ID: " + id));
 

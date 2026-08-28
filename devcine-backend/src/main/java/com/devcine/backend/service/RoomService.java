@@ -112,6 +112,7 @@ public class RoomService {
 
     @Transactional
     public RoomResponse createRoom(Integer cinemaId, RoomRequest req) {
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(cinemaId);
         Cinema cinema = cinemaRepository.findById(cinemaId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp"));
         normalizeAndValidate(req, cinemaId, null);
@@ -142,6 +143,7 @@ public class RoomService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
         Integer cinemaId = room.getCinema().getId();
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(cinemaId);
         normalizeAndValidate(req, cinemaId, roomId);
 
         boolean matrixChanged = !req.getMatrixRow().equals(room.getMatrixRow())
@@ -191,6 +193,7 @@ public class RoomService {
     public void deleteRoom(Integer roomId) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng chiếu"));
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(room.getCinema().getId());
         
         // Cấm xoá nếu đã có suất chiếu (chỉ cho phép nếu list rỗng hoặc check count > 0)
         // Hiện tại hệ thống cho phép xoá nếu không vướng khoá ngoại,

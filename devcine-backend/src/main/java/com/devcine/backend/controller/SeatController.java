@@ -40,6 +40,7 @@ public class SeatController {
     }
 
     @PostMapping("/layout/{roomId}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'edit')")
     public ResponseEntity<ApiResponse<Void>> saveSeatLayout(@PathVariable Integer roomId, @RequestBody SeatLayoutRequest request) {
         seatService.saveSeatLayout(roomId, request);
         return ResponseEntity.ok(ApiResponse.success("Đã lưu sơ đồ ghế."));

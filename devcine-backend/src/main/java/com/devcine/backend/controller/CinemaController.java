@@ -42,31 +42,31 @@ public class CinemaController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'add')")
     public ResponseEntity<ApiResponse<CinemaResponse>> createCinema(@Valid @RequestBody CinemaRequest request) {
         return new ResponseEntity<>(ApiResponse.ok(cinemaService.createCinema(request)), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'edit')")
     public ResponseEntity<ApiResponse<CinemaResponse>> updateCinema(@PathVariable Integer id, @Valid @RequestBody CinemaRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(cinemaService.updateCinema(id, request)));
     }
 
     @PatchMapping("/{id}/close")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'edit')")
     public ResponseEntity<ApiResponse<CinemaResponse>> closeCinema(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(cinemaService.closeCinema(id)));
     }
 
     @PatchMapping("/{id}/reopen")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'edit')")
     public ResponseEntity<ApiResponse<CinemaResponse>> reopenCinema(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(cinemaService.reopenCinema(id)));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'delete')")
     public ResponseEntity<ApiResponse<Void>> deleteCinema(@PathVariable Integer id) {
         cinemaService.deleteCinema(id);
         return ResponseEntity.ok(ApiResponse.success("Đã xoá cụm rạp."));

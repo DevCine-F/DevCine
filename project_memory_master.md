@@ -113,4 +113,21 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
   - Loại bỏ quyền `support` khỏi danh sách điều kiện hiển thị của nhóm chuyên mục *Kinh doanh & Khách hàng*.
   - Bảo tồn nguyên vẹn 100% component [CustomerSupport.vue](file:///e:/DATN/DevCine/devcine-frontend/src/views/admin/CustomerSupport.vue) và cấu hình route để có thể tái kích hoạt bất kỳ lúc nào.
 
+### 17. Chuẩn Hóa Ma Trận Phân Quyền & Đồng Bộ Hệ Thống RBAC V8 (Permission Matrix Modernization V8)
+- **Chuẩn hóa cấu trúc quyền theo vai trò (`DataSeeder.java` - PERMISSION_MATRIX_V8):**
+  - **Quản trị viên (`ADMIN`):** Toàn quyền tuyệt đối trên mọi phân hệ hệ thống.
+  - **Quản lý cụm rạp (`MANAGER`):** Phân quyền vận hành nghiêm ngặt trong phạm vi cơ sở được phân công quản lý:
+    + Cụm rạp & Phòng chiếu (`cinemas:view,edit`): Xem và chỉnh sửa thông tin rạp, giờ mở/đóng cửa, hotline, tiện ích, cấu hình phòng chiếu và sơ đồ ghế.
+    + Khách hàng (`customers:view,edit`): Xem hồ sơ, sửa thông tin, khóa tài khoản, gửi reset mật khẩu cho khách từng giao dịch tại rạp mình.
+    + Lịch chiếu (`schedules:view,add,edit`): Điều phối lịch chiếu cho các phòng của rạp mình.
+    + Nghiệp vụ & Vận hành (`pos_ticketing`, `bookings`, `incident_handling`, `dashboard_stats`, `staff_management`).
+    + Đóng hoàn toàn các quyền cấu hình toàn cục: Phim, Banner, Thực đơn F&B, Bảng giá vé, Khuyến mãi, Cài đặt hệ thống, Nhật ký.
+  - **Nhân viên quầy (`STAFF`):** Tinh gọn tối đa, CHỈ duy nhất 2 quyền nghiệp vụ quầy: `pos_ticketing:view,add` (Bán vé POS và Kiểm soát vé Check-in QR).
+- **Backend & Controller Scoping:**
+  - Mở quyền `@PreAuthorize("@perm.can('cinemas', 'edit')")` kết hợp `SecurityUtils.assertCinemaAccess` trong [CinemaController.java](file:///e:/DATN/DevCine/devcine-backend/src/main/java/com/devcine/backend/controller/CinemaController.java), [RoomController.java](file:///e:/DATN/DevCine/devcine-backend/src/main/java/com/devcine/backend/controller/RoomController.java), và [SeatController.java](file:///e:/DATN/DevCine/devcine-backend/src/main/java/com/devcine/backend/controller/SeatController.java).
+- **Trải nghiệm Giao diện Phân quyền (`AdminPermissions.vue`):**
+  - Tái cấu trúc 4 tab nghiệp vụ trực quan: *Vận hành & Quầy vé*, *Nội dung & Sản phẩm*, *Kinh doanh & Khách hàng*, *Hệ thống & Nhân sự*.
+  - Tích hợp hệ thống Toast thông báo (`useToastStore` / [AppToast.vue](file:///e:/DATN/DevCine/devcine-frontend/src/components/common/AppToast.vue)) khi lưu thay đổi phân quyền cho Vai trò, Nhân viên hoặc Đặt lại quyền.
+
+
 

@@ -317,6 +317,9 @@ public class SeatService {
     public void saveSeatLayout(Integer roomId, SeatLayoutRequest request) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
+        if (room.getCinema() != null) {
+            com.devcine.backend.util.SecurityUtils.assertCinemaAccess(room.getCinema().getId());
+        }
 
         // ===== GUARD: Chặn sửa sơ đồ nếu phòng đã phát sinh vé đặt (SOLD/HOLD) =====
         // Mục tiêu: bảo vệ tính nhất quán dữ liệu – không được dịch ghế/đổi vị trí khi

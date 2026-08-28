@@ -89,6 +89,11 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 - **Cinema Scoping (`CustomerController`, `CustomerRepository`, `ConcessionSaleRepository`):** Với MANAGER/STAFF, chỉ cho phép xem/thao tác các khách hàng đã từng giao dịch (mua vé CONFIRMED hoặc mua F&B COMPLETED) tại rạp của mình (`hasAccessToCustomer`), chéo rạp trả về 403 Forbidden.
 - **Tối ưu Backend:** Batch Aggregation Query O(1) tính tổng chi tiêu chống N+1; chặn tích/tiêu điểm và chặn gửi email reset password cho tài khoản bị khóa.
 - **Tạm ẩn menu CSKH (`AdminLayout.vue`):** Tạm ẩn tab "Chăm sóc khách hàng" trên sidebar quản trị phục vụ review, bảo tồn toàn bộ route & code bên dưới.
+- **Chuẩn hóa Ma trận Phân quyền V8 (`DataSeeder`, `AdminPermissions.vue`, `CinemaController`, `RoomController`, `SeatController`):**
+  + MANAGER: Được phân quyền quản lý cụm rạp (`cinemas:view,edit` scoped), khách hàng (`customers:view,edit` scoped), lịch chiếu, nhân sự, hóa đơn, sự cố ghế và thống kê rạp mình. Đóng toàn bộ các quyền cấu hình toàn cục.
+  + STAFF: Tinh gọn tuyệt đối, CHỈ có đúng 2 quyền: Bán vé (POS) và Kiểm soát vé (Check-in QR).
+  + ADMIN: Toàn quyền toàn hệ thống.
+  + UI AdminPermissions: Tái cấu trúc 4 tab trực quan, tích hợp Toast thông báo (`useToastStore` / `AppToast.vue`).
 
 **Còn lại:**
 - 8 cảnh báo Dependabot (đụng `pom.xml`/`package.json` → báo cáo trước khi sửa)

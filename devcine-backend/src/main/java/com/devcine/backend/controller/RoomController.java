@@ -27,21 +27,21 @@ public class RoomController {
     }
 
     @PostMapping("/cinema/{cinemaId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'edit')")
     public ResponseEntity<?> createRoom(@PathVariable Integer cinemaId,
                                                    @Valid @RequestBody RoomRequest request) {
         return new ResponseEntity<>(roomService.createRoom(cinemaId, request), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'edit')")
     public ResponseEntity<?> updateRoom(@PathVariable Integer id,
                                                    @Valid @RequestBody RoomRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(roomService.updateRoom(id, request)));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @perm.can('cinemas', 'edit')")
     public ResponseEntity<?> deleteRoom(@PathVariable Integer id) {
         roomService.deleteRoom(id);
         return ResponseEntity.ok(ApiResponse.success("Đã xoá."));

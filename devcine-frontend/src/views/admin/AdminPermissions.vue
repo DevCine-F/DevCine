@@ -21,63 +21,59 @@ const userPermissionConfig = ref({
 })
 
 const modules = ref([
-  { id: 'dashboard', name: 'Tổng quan' },
-  { id: 'pos', name: 'Nghiệp vụ' },
-  { id: 'content', name: 'Nội dung' },
-  { id: 'system', name: 'Hệ thống' }
+  { id: 'operations', name: 'Vận hành & Quầy vé' },
+  { id: 'content', name: 'Nội dung & Sản phẩm' },
+  { id: 'business', name: 'Kinh doanh & Khách hàng' },
+  { id: 'system', name: 'Hệ thống & Nhân sự' }
 ])
 
 // Action khớp CHÍNH XÁC với những gì backend enforce (@perm.can('<feature>','<action>')).
 // 'view' luôn giữ vì nó gate menu/route ở frontend (dù GET công khai). Các write-action chỉ liệt kê
 // khi thực sự có endpoint kiểm tra — tránh checkbox "chết".
 const features = ref([
-  { id: 'dashboard_stats', moduleId: 'dashboard', name: 'Báo cáo doanh thu', actions: ['view'],
-    labels: { view: 'Xem báo cáo doanh thu' } },
+  // ===== VẬN HÀNH & QUẦY VÉ =====
+  { id: 'dashboard_stats', moduleId: 'operations', name: 'Báo cáo doanh thu & Thống kê', actions: ['view'],
+    labels: { view: 'Xem báo cáo doanh thu & thống kê' } },
 
-  // POS bán vé = tạo đơn (không có sửa/xóa vé; sửa sai đi qua luồng duyệt hủy hóa đơn F&B của Quản lý)
-  { id: 'pos_ticketing', moduleId: 'pos', name: 'Bán vé tại quầy (POS)', actions: ['view', 'add'],
-    labels: { view: 'Vào quầy & xem suất chiếu', add: 'Tạo đơn / bán vé & F&B' } },
-  // KHÔNG phải kho: tồn kho vô hạn, module Kho/BOM đã gỡ. Đây là quản trị THỰC ĐƠN (món & combo).
-  { id: 'fnb_menu', moduleId: 'pos', name: 'Thực đơn F&B (món & combo)', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem toàn bộ thực đơn (kể cả món ẩn)', add: 'Thêm món / combo',
-      edit: 'Sửa món — tên, GIÁ, ảnh, ẩn/hiện', delete: 'Xoá món khỏi thực đơn' } },
-  // Quản lý hóa đơn: xem danh sách/chi tiết (STAFF chỉ thấy đơn của mình); delete = hủy đơn/hoàn tiền (ADMIN)
-  { id: 'bookings', moduleId: 'pos', name: 'Quản lý hóa đơn', actions: ['view', 'delete'],
-    labels: { view: 'Xem danh sách / chi tiết hóa đơn', delete: 'Hủy đơn / hoàn tiền' } },
+  // POS bán vé = tạo đơn (không có sửa/xóa vé; đổi vé/hủy chỗ đi qua luồng sự cố)
+  { id: 'pos_ticketing', moduleId: 'operations', name: 'Bán vé (POS) & Kiểm soát vé', actions: ['view', 'add'],
+    labels: { view: 'Vào quầy POS & kiểm soát vé QR', add: 'Bán vé, bắp nước combo & thanh toán' } },
+  // Quản lý hóa đơn: xem danh sách/chi tiết (STAFF chỉ thấy đơn của mình)
+  { id: 'bookings', moduleId: 'operations', name: 'Quản lý & Tra cứu hóa đơn', actions: ['view'],
+    labels: { view: 'Xem danh sách / chi tiết hóa đơn' } },
   // Xử lý sự cố phòng chiếu / đổi ghế đền bù: view = tra cứu & xem lịch sử; handle = đổi ghế/hủy chỗ/khóa ghế + phát đền bù
-  { id: 'incident_handling', moduleId: 'pos', name: 'Xử lý sự cố ghế', actions: ['view', 'handle'],
-    labels: { view: 'Vào màn & tra cứu vé sự cố', handle: 'Đổi ghế / hủy chỗ / khóa ghế & phát đền bù' } },
-  // TẠM BỎ — Phê duyệt sửa sai: phần này sẽ BỎ / không phát triển. Xem memory devcine-approvals-dropped.md
-  // Phê duyệt sửa sai: view = tạo & theo dõi yêu cầu hủy F&B; edit = duyệt / từ chối (Quản lý/Admin)
-  // { id: 'approvals', moduleId: 'pos', name: 'Phê duyệt sửa sai', actions: ['view', 'edit'],
-  //   labels: { view: 'Xem danh sách yêu cầu', edit: 'Duyệt / Từ chối hủy F&B' } },
+  { id: 'incident_handling', moduleId: 'operations', name: 'Xử lý sự cố ghế & Đổi ghế', actions: ['view', 'handle'],
+    labels: { view: 'Tra cứu vé & lịch sử sự cố', handle: 'Đổi ghế / hủy chỗ / khóa ghế hỏng & phát đền bù' } },
 
-  { id: 'movies', moduleId: 'content', name: 'Quản lý danh sách phim', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem danh sách phim', add: 'Thêm phim', edit: 'Sửa thông tin phim', delete: 'Xoá / ẩn phim' } },
-  { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu', actions: ['view', 'add', 'edit'],
-    labels: { view: 'Xem lịch chiếu', add: 'Tạo suất chiếu', edit: 'Sửa suất chiếu' } },
+  // ===== NỘI DUNG & SẢN PHẨM =====
+  { id: 'movies', moduleId: 'content', name: 'Quản lý phim & Danh mục phân loại', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem danh sách phim & danh mục', add: 'Thêm phim & danh mục (thể loại/định dạng/độ tuổi)', edit: 'Sửa thông tin phim & danh mục', delete: 'Xoá / ẩn phim & danh mục' } },
+  { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu phim', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem lịch chiếu', add: 'Tạo suất chiếu', edit: 'Sửa suất chiếu', delete: 'Xoá suất chiếu' } },
   { id: 'banners', moduleId: 'content', name: 'Quản lý Banner quảng cáo', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem banner', add: 'Thêm banner', edit: 'Sửa banner', delete: 'Xoá banner' } },
-  { id: 'promotions', moduleId: 'content', name: 'Chương trình khuyến mãi', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem khuyến mãi', add: 'Tạo khuyến mãi / voucher', edit: 'Sửa khuyến mãi', delete: 'Xoá khuyến mãi' } },
-  { id: 'pricing', moduleId: 'content', name: 'Cấu hình giá vé', actions: ['view', 'edit'],
-    labels: { view: 'Xem bảng giá', edit: 'Chỉnh cấu hình giá' } },
-  // Khách hàng: CHỈ xem danh sách thành viên, hạng & điểm tích lũy (không sửa từ màn quản trị)
-  { id: 'customers', moduleId: 'content', name: 'Quản lý khách hàng', actions: ['view'],
-    labels: { view: 'Xem thành viên, hạng & điểm tích lũy' } },
+    labels: { view: 'Xem banner', add: 'Thêm banner', edit: 'Sửa banner & thứ tự', delete: 'Xoá banner' } },
+  { id: 'fnb_menu', moduleId: 'content', name: 'Thực đơn F&B (món & combo)', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem toàn bộ thực đơn', add: 'Thêm món / combo', edit: 'Sửa món — tên, GIÁ, ảnh, tùy chọn', delete: 'Xoá món khỏi thực đơn' } },
 
-  // Cụm rạp: thao tác ghi là ADMIN-only (hasRole), không điều khiển qua ma trận → chỉ có 'view' (thấy menu)
-  { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp', actions: ['view'],
-    labels: { view: 'Xem cụm rạp & sơ đồ ghế' } },
-  { id: 'staff_management', moduleId: 'system', name: 'Nhân sự', actions: ['view', 'add', 'edit'],
-    labels: { view: 'Xem nhân sự', add: 'Thêm nhân viên', edit: 'Sửa nhân viên' } },
-  { id: 'support', moduleId: 'system', name: 'Chăm sóc khách hàng', actions: ['view', 'edit', 'delete'],
-    labels: { view: 'Xem CSKH & đánh giá', edit: 'Xử lý ticket / phản hồi', delete: 'Xoá ticket / đánh giá' } },
+  // ===== KINH DOANH & KHÁCH HÀNG =====
+  { id: 'pricing', moduleId: 'business', name: 'Cấu hình giá vé & Bảng giá', actions: ['view', 'edit'],
+    labels: { view: 'Xem bảng giá vé', edit: 'Chỉnh cấu hình giá & phụ thu' } },
+  { id: 'promotions', moduleId: 'business', name: 'Chương trình khuyến mãi & Voucher', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem khuyến mãi & bài viết', add: 'Tạo khuyến mãi / voucher', edit: 'Sửa khuyến mãi & bài viết', delete: 'Xoá khuyến mãi' } },
+  // Khách hàng: xem danh sách/chi tiết, sửa họ tên, ngày sinh, khóa/mở khóa & gửi reset mật khẩu
+  { id: 'customers', moduleId: 'business', name: 'Quản lý hồ sơ khách hàng', actions: ['view', 'edit'],
+    labels: { view: 'Xem danh sách, đơn hàng, điểm & voucher', edit: 'Sửa họ tên, ngày sinh, khóa tài khoản & gửi reset mật khẩu' } },
+
+  // ===== HỆ THỐNG & NHÂN SỰ =====
+  { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp & Sơ đồ ghế', actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem cụm rạp & sơ đồ ghế', add: 'Thêm cụm rạp mới', edit: 'Sửa thông tin cụm rạp & phòng chiếu', delete: 'Xoá / đóng cụm rạp' } },
+  { id: 'staff_management', moduleId: 'system', name: 'Quản lý nhân sự', actions: ['view', 'add', 'edit'],
+    labels: { view: 'Xem danh sách nhân sự', add: 'Thêm nhân viên mới', edit: 'Sửa thông tin & đổi trạng thái nhân viên' } },
   { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'],
-    labels: { view: 'Xem cài đặt', edit: 'Đổi cài đặt hệ thống' } },
+    labels: { view: 'Xem cài đặt hệ thống', edit: 'Đổi cài đặt hệ thống' } },
   // Nhật ký hệ thống: chỉ xem lịch sử thao tác (ghi log là tự động; ADMIN-scope)
-  { id: 'audit_logs', moduleId: 'system', name: 'Nhật ký hệ thống', actions: ['view'],
-    labels: { view: 'Xem nhật ký thao tác' } },
+  { id: 'audit_logs', moduleId: 'system', name: 'Nhật ký hệ thống (Audit Logs)', actions: ['view'],
+    labels: { view: 'Xem nhật ký thao tác hệ thống' } },
 ])
 
 // Nhãn action theo ngữ cảnh feature (mô tả đúng việc), fallback về nhãn chung nếu feature chưa khai báo
@@ -103,7 +99,7 @@ const actionLabelsShort = {
 
 // --- TRẠNG THÁI (STATE) ---
 const activeRole = ref(null)   // id (số) của vai trò đang chọn
-const activeModule = ref('content')
+const activeModule = ref('operations')
 const isLoading = ref(false)
 const isSaving = ref(false)
 const saveMessage = ref('')
@@ -382,6 +378,7 @@ const resetUserOverrides = () => {
   userPermissionConfig.value.allow = {}
   userPermissionConfig.value.deny = {}
   rebuildUserEffectivePermissions()
+  toast.success('Đã đặt lại quyền theo vai trò mặc định.')
 }
 
 const compactMatrix = (matrix) => {
@@ -418,7 +415,9 @@ const saveChanges = async () => {
         deny: compactMatrix(userPermissionConfig.value.deny)
       })
       await fetchUserPermissionConfig()
-      saveMessage.value = `Đã lưu quyền riêng cho ${activeUserData.value?.fullName || 'nhân viên'}`
+      const msg = `Đã lưu cấu hình phân quyền cho ${activeUserData.value?.fullName || 'nhân viên'}.`
+      toast.success(msg)
+      saveMessage.value = msg
       setTimeout(() => { saveMessage.value = '' }, 3000)
     } catch (err) {
       saveMessage.value = friendlyError(err, 'Lưu quyền riêng thất bại.')
@@ -431,7 +430,9 @@ const saveChanges = async () => {
 
   if (activeRole.value === null) return
   if (isAdminRole.value) {
-    saveMessage.value = 'ADMIN luon co toan quyen va khong can luu ma tran.'
+    const msg = 'Tài khoản ADMIN luôn có toàn quyền hệ thống và không cần cấu hình.'
+    toast.info(msg)
+    saveMessage.value = msg
     setTimeout(() => { saveMessage.value = '' }, 3000)
     return
   }
@@ -442,8 +443,10 @@ const saveChanges = async () => {
     // Gửi ma trận đã làm sạch: chỉ feature/action hợp lệ (dọn luôn action chết cũ trong DB)
     const payload = sanitizeRoleMatrix(matrix)
     await rolePermissionApi.updatePermissions(activeRole.value, payload)
-    const roleName = roles.value.find(r => r.id === activeRole.value)?.name
-    saveMessage.value = `Đã lưu phân quyền cho vai trò ${roleName}`
+    const roleName = roles.value.find(r => r.id === activeRole.value)?.name || 'vai trò'
+    const msg = `Đã lưu phân quyền cho vai trò ${roleName} thành công!`
+    toast.success(msg)
+    saveMessage.value = msg
     setTimeout(() => { saveMessage.value = '' }, 3000)
   } catch (err) {
     saveMessage.value = friendlyError(err, 'Lưu phân quyền thất bại.')
