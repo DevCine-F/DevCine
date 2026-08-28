@@ -25,7 +25,8 @@ const form = reactive({
   daysOfWeek: [],        // ISO 1..7 (rỗng = mọi ngày)
   roomIds: [],           // các phòng đã tick (nhiều cơ sở)
   startTimes: [],        // "HH:mm"
-  roomOffsetMins: 0      // 0 = Đồng thời, 10 = Lệch 10p, 15 = Lệch 15p
+  roomOffsetMins: 0,     // 0 = Đồng thời, 10 = Lệch 10p, 15 = Lệch 15p
+  autoFillGaps: true     // Tự động lấp khoảng trống vào mốc giờ tròn gần nhất
 });
 
 const staggerOptions = [
@@ -209,12 +210,13 @@ watch(() => props.isOpen, (open) => {
     form.dateFrom = today; form.dateTo = today;
     form.daysOfWeek = []; form.roomIds = []; form.startTimes = [];
     form.roomOffsetMins = 0;
+    form.autoFillGaps = true;
   }
 });
 
 // Đổi bất kỳ tham số nào → preview cũ không còn đúng
 watch(() => [form.movieId, form.formatId, form.dateFrom, form.dateTo,
-  form.daysOfWeek.length, form.roomIds.length, form.startTimes.length, form.roomOffsetMins], () => { preview.value = null; });
+  form.daysOfWeek.length, form.roomIds.length, form.startTimes.length, form.roomOffsetMins, form.autoFillGaps], () => { preview.value = null; });
 
 // Khi đổi định dạng: Tự động lọc bỏ các phòng không còn tương thích
 watch(() => form.formatId, (newFmtId) => {
@@ -429,6 +431,7 @@ const buildPayload = (dryRun, force = false) => {
     daysOfWeek: [...form.daysOfWeek],
     startTimes: validTimes,
     roomOffsetMins: form.roomOffsetMins || 0,
+    autoFillGaps: form.autoFillGaps !== false,
     dryRun,
     force
   };
@@ -679,6 +682,20 @@ const handleCreate = async () => {
             Phòng 1 theo giờ gốc, phòng 2 +{{ form.roomOffsetMins }}p, phòng 3 +{{ form.roomOffsetMins * 2 }}p...
           </p>
         </div>
+
+        <!-- Tùy chọn Tự động lấp khoảng trống -->
+        <label class="flex items-start gap-2.5 cursor-pointer select-none p-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all group">
+          <input type="checkbox" v-model="form.autoFillGaps" class="accent-primary w-4 h-4 rounded cursor-pointer mt-0.5" />
+          <div class="flex flex-col">
+            <span class="text-xs text-white font-bold group-hover:text-primary transition-colors flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[15px] text-primary">auto_fix_high</span>
+              Tự động lấp khoảng trống vào mốc giờ tròn gần nhất
+            </span>
+            <span class="text-[11px] text-white/40 mt-0.5">
+              Khi mốc giờ bị trùng lịch phòng, tự động chèn ca mới ngay khi phòng vừa dọn dẹp xong (chống thời gian phòng chết).
+            </span>
+          </div>
+        </label>
 
         <!-- Widget ước tính quy mô lô & Giới hạn trần 500 suất -->
         <div class="rounded-xl border p-3.5 transition-all"

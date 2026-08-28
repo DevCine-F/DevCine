@@ -724,21 +724,66 @@ public class ShowtimeService {
                         continue;
                     }
 
+                    LocalDateTime effectiveStart = start;
+                    LocalDateTime effectiveEnd = end;
+
                     List<LocalDateTime[]> busy = busyByRoom.computeIfAbsent(roomId, k -> new ArrayList<>());
-                    boolean overlap = busy.stream().anyMatch(iv -> start.isBefore(iv[1]) && end.isAfter(iv[0]));
+                    
+                    LocalDateTime latestConflictEnd = null;
+                    boolean overlap = false;
+                    for (LocalDateTime[] iv : busy) {
+                        if (effectiveStart.isBefore(iv[1]) && effectiveEnd.isAfter(iv[0])) {
+                            overlap = true;
+                            if (latestConflictEnd == null || iv[1].isAfter(latestConflictEnd)) {
+                                latestConflictEnd = iv[1];
+                            }
+                        }
+                    }
+
                     if (overlap) {
-                        skipped.add(skip(roomId, room.getName(), start, "Trùng lịch phòng (gồm giờ dọn dẹp)"));
-                        continue;
+                        boolean autoFilled = false;
+                        if ((req.getAutoFillGaps() == null || Boolean.TRUE.equals(req.getAutoFillGaps())) && latestConflictEnd != null) {
+                            // Làm tròn mốc dọn dẹp lên bội số 5 phút gần nhất
+                            LocalDateTime candidateStart = roundUpTo5Minutes(latestConflictEnd);
+                            LocalDateTime candidateEnd = candidateStart.plusMinutes(duration + turnaroundOf(room));
+                            java.time.LocalTime candTime = candidateStart.toLocalTime();
+
+                            int candStartPos = posOf(candTime, win[0]);
+                            int candEndPos = candStartPos + duration + turnaroundOf(room);
+
+                            boolean withinWindow = (candStartPos >= win[0] && candStartPos <= win[1]);
+                            boolean withinOvernight = (candEndPos <= MAX_OVERNIGHT_END_MINUTES);
+                            boolean notInPast = !candidateStart.isBefore(now);
+                            
+                            boolean candOverlap = false;
+                            for (LocalDateTime[] iv : busy) {
+                                if (candidateStart.isBefore(iv[1]) && candidateEnd.isAfter(iv[0])) {
+                                    candOverlap = true;
+                                    break;
+                                }
+                            }
+
+                            if (withinWindow && withinOvernight && notInPast && !candOverlap) {
+                                effectiveStart = candidateStart;
+                                effectiveEnd = candidateEnd;
+                                autoFilled = true;
+                            }
+                        }
+
+                        if (!autoFilled) {
+                            skipped.add(skip(roomId, room.getName(), effectiveStart, "Trùng lịch phòng (gồm giờ dọn dẹp)"));
+                            continue;
+                        }
                     }
                     // Giữ chỗ để các suất sau trong lô không đè
-                    busy.add(new LocalDateTime[] { start, end });
+                    busy.add(new LocalDateTime[] { effectiveStart, effectiveEnd });
 
                     // Tính status: "Xuất chiếu sớm" nếu suất nằm trước ngày khởi chiếu chính thức.
                     boolean earlyBatch = movie.getReleaseDate() != null
-                            && start.toLocalDate().isBefore(movie.getReleaseDate());
+                            && effectiveStart.toLocalDate().isBefore(movie.getReleaseDate());
                     toSave.add(Showtime.builder()
                             .movie(movie).room(room).format(format)
-                            .startTime(start).endTime(end)
+                            .startTime(effectiveStart).endTime(effectiveEnd)
                             .status(earlyBatch ? "Xuất chiếu sớm" : "Sắp chiếu")
                             .layoutData(snapshotByRoom.computeIfAbsent(roomId,
                                     rid -> seatLayoutSnapshotService.buildSnapshotJson(rid)))
@@ -946,7 +991,18 @@ public class ShowtimeService {
      * Vị trí (phút) của một mốc giờ trên trục ngày vận hành: giờ < giờ mở ⇒ +1440
      * (thuộc phần khuya).
      */
-    private int posOf(java.time.LocalTime t, int openMin) {
+    private static LocalDateTime roundUpTo5Minutes(LocalDateTime dt) {
+        if (dt == null) return null;
+        int minute = dt.getMinute();
+        int rem = minute % 5;
+        if (rem == 0 && dt.getSecond() == 0 && dt.getNano() == 0) {
+            return dt;
+        }
+        int add = 5 - rem;
+        return dt.plusMinutes(add).withSecond(0).withNano(0);
+    }
+
+    private static int posOf(java.time.LocalTime t, int openMin) {
         int m = t.getHour() * 60 + t.getMinute();
         if (m < openMin)
             m += 1440;

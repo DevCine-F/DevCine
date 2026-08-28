@@ -51,4 +51,8 @@ public class BatchShowtimeRequest {
 
     /** Độ lệch so le giữa các phòng tính bằng phút (0 = đồng thời, 10, 15...). */
     private Integer roomOffsetMins;
+
+    /** Tự động lấp khoảng trống vào mốc giờ tròn gần nhất nếu bị trùng lịch (mặc định true). */
+    @Builder.Default
+    private Boolean autoFillGaps = true;
 }
