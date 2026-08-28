@@ -96,25 +96,56 @@ const fetchOptions = async () => {
   }
 };
 
-// Dựng cây cơ sở→phòng: dùng halls sẵn có, chỉ nạp rooms cho rạp còn thiếu (song song).
+// Dựng cây cơ sở→phòng: dùng halls sẵn có, hoặc nạp 1 request duy nhất cho toàn bộ hệ thống (tránh N+1)
 const buildCinemaTree = async () => {
   const base = props.cinemas || [];
-  localCinemas.value = await Promise.all(base.map(async (c) => {
-    if (c.halls?.length) {
+  
+  // Nếu tất cả cụm rạp đã nạp sẵn halls -> dùng ngay không cần gọi thêm API
+  const allHaveHalls = base.length > 0 && base.every(c => c.halls && c.halls.length > 0);
+  if (allHaveHalls) {
+    localCinemas.value = base.map(c => {
       const sorted = [...c.halls].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
       return { id: c.id, name: c.name, city: c.city, halls: sorted };
+    });
+    return;
+  }
+
+  // Nạp 1 lần duy nhất toàn bộ phòng (O(1) request thay vì N+1 request riêng lẻ cho từng rạp)
+  try {
+    const res = await api.get('/rooms');
+    const allRooms = Array.isArray(res.data) ? res.data : [];
+
+    // Nhóm danh sách phòng theo cinemaId
+    const roomsByCinema = new Map();
+    for (const r of allRooms) {
+      if (!r.cinemaId) continue;
+      if (!roomsByCinema.has(r.cinemaId)) {
+        roomsByCinema.set(r.cinemaId, []);
+      }
+      roomsByCinema.get(r.cinemaId).push({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        status: r.status || 'Active'
+      });
     }
-    try {
-      const res = await api.get(`/rooms/cinema/${c.id}`);
-      const sortedHalls = (res.data || [])
-        .map(r => ({ id: r.id, name: r.name, type: r.type }))
-        .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
-      return { id: c.id, name: c.name, city: c.city, halls: sortedHalls };
-    } catch (e) {
-      toast.error(friendlyError(e, 'Không tải được danh sách phòng chiếu.'));
-      return { id: c.id, name: c.name, city: c.city, halls: [] };
-    }
-  }));
+
+    localCinemas.value = base.map(c => {
+      const hallsList = (c.halls && c.halls.length)
+        ? c.halls
+        : (roomsByCinema.get(c.id) || []);
+      const sorted = [...hallsList].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+      return {
+        id: c.id,
+        name: c.name,
+        city: c.city,
+        halls: sorted
+      };
+    });
+  } catch (e) {
+    toast.error(friendlyError(e, 'Không tải được danh sách phòng chiếu.'));
+    localCinemas.value = base.map(c => ({ id: c.id, name: c.name, city: c.city, halls: c.halls || [] }));
+  }
 };
 
 

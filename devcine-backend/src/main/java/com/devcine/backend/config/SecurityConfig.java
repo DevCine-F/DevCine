@@ -51,8 +51,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/settings/**").permitAll()
                 // Xem đánh giá phim công khai; gửi đánh giá vẫn yêu cầu đăng nhập
                 .requestMatchers(HttpMethod.GET, "/api/reviews/**").permitAll()
-                // Danh sách hệ thống rạp — công khai cho trang Cụm rạp
+                // Danh sách hệ thống rạp & phòng chiếu — công khai
                 .requestMatchers(HttpMethod.GET, "/api/v1/cinemas/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/rooms/**").permitAll()
                 // Danh mục Tỉnh/Thành & Quận/Huyện — công khai (dropdown form cụm rạp)
                 .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
                 // FAQ trang Hỗ trợ — GET công khai; ghi vẫn được @PreAuthorize bảo vệ

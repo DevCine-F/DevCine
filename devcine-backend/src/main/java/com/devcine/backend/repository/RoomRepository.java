@@ -13,6 +13,9 @@ public interface RoomRepository extends JpaRepository<Room, Integer> {
     @Query("SELECT r FROM Room r JOIN FETCH r.cinema c WHERE c.id = :cinemaId ORDER BY r.name ASC, r.id ASC")
     List<Room> findByCinemaId(@Param("cinemaId") Integer cinemaId);
 
+    @Query("SELECT r FROM Room r JOIN FETCH r.cinema c ORDER BY r.name ASC, r.id ASC")
+    List<Room> findAllWithCinema();
+
     /** Đếm số phòng thực tế của một cụm rạp (đồng bộ số phòng hiển thị). */
     long countByCinema_Id(Integer cinemaId);
 

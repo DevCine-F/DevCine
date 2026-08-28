@@ -144,6 +144,29 @@ public class RoomService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<RoomResponse> getAllRooms() {
+        List<Room> rooms = roomRepository.findAllWithCinema();
+        List<Integer> roomIds = rooms.stream().map(Room::getId).toList();
+
+        // Sức chứa vật lý thật nạp 1 query O(1) tránh N+1
+        java.util.Map<Integer, Integer> capacityById = new java.util.HashMap<>();
+        if (!roomIds.isEmpty()) {
+            for (Object[] row : seatRepository.sumSeatCapacityByRoomIds(roomIds)) {
+                capacityById.put((Integer) row[0], ((Number) row[1]).intValue());
+            }
+        }
+
+        return rooms.stream()
+                .map(r -> {
+                    RoomResponse res = RoomResponse.fromEntity(r);
+                    res.setSeatCount(capacityById.getOrDefault(r.getId(), 0));
+                    return res;
+                })
+                .sorted((a, b) -> naturalCompare(a.getName(), b.getName()))
+                .toList();
+    }
+
     @Transactional
     public RoomResponse createRoom(Integer cinemaId, RoomRequest req) {
         com.devcine.backend.util.SecurityUtils.assertCinemaAccess(cinemaId);

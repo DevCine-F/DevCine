@@ -21,6 +21,11 @@ public class RoomController {
 
     private final RoomService roomService;
 
+    @GetMapping
+    public ResponseEntity<?> getAllRooms() {
+        return ResponseEntity.ok(ApiResponse.ok(roomService.getAllRooms()));
+    }
+
     @GetMapping("/cinema/{cinemaId}")
     public ResponseEntity<?> getRoomsByCinema(@PathVariable Integer cinemaId) {
         return ResponseEntity.ok(ApiResponse.ok(roomService.getRoomsByCinema(cinemaId)));
