@@ -23,6 +23,41 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved']);
 
+const getLocalTodayStr = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = (today.getMonth() + 1).toString().padStart(2, '0');
+  const day = today.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getSelectedDateStr = () => {
+  if (!props.selectedDate) return getLocalTodayStr();
+  if (props.selectedDate.includes('/')) {
+    const [d, m] = props.selectedDate.split('/');
+    const year = new Date().getFullYear();
+    return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return props.selectedDate;
+};
+
+const isFormatCompatibleWithRoomType = (formatName, roomType) => {
+  const fn = (formatName || '').trim().toUpperCase();
+  const rt = (roomType || 'STANDARD').trim().toUpperCase();
+
+  const isSuperplexFormat = fn.includes('SUPERPLEX') || fn.includes('IMAX');
+  const isCineComfortFormat = fn.includes('COMFORT') || fn.includes('CINE COMFORT') || fn.includes('CINE_COMFORT');
+
+  if (isSuperplexFormat) {
+    return rt === 'SUPERPLEX';
+  }
+  if (isCineComfortFormat) {
+    return rt === 'CINE_COMFORT' || rt === 'CINE COMFORT';
+  }
+  // Định dạng phổ thông 2D, 3D dùng được cho cả 3 loại phòng
+  return true;
+};
+
 const form = reactive({
   movieId: '',
   roomId: '',
@@ -46,13 +81,19 @@ const clearErrors = () => Object.keys(fieldErrors).forEach(k => { fieldErrors[k]
 
 const movieOptions = computed(() => {
   return [...movies.value]
-    .filter(m => m.status === 'active' || m.status === 'upcoming')
+    .filter(m => (m.status || '').toLowerCase() === 'active' || (m.status || '').toLowerCase() === 'upcoming')
     .sort((a, b) => (b.id || 0) - (a.id || 0))
     .map(m => {
       const isUpcoming = (m.status || '').toLowerCase() === 'upcoming';
+      const duration = m.durationMins || m.duration || 120;
+      let dateSub = '';
+      if (m.endDate) {
+        const parts = String(m.endDate).slice(0, 10).split('-');
+        if (parts.length === 3) dateSub = ` · Hạn: ${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
       return {
         value: m.id,
-        label: m.title || m.name,
+        label: `${m.title || m.name} - ${duration}p${dateSub}`,
         badge: {
           text: isUpcoming ? 'Sắp chiếu' : 'Đang chiếu',
           type: isUpcoming ? 'upcoming' : 'active',
@@ -78,36 +119,22 @@ const formatOptions = computed(() => {
   if (!selectedMovie || !selectedRoom) return [];
 
   const movieSupportedStr = selectedMovie.supportedFormats || selectedMovie.format || "";
-  const supportedList = movieSupportedStr.split(',').map(s => s.trim().toUpperCase());
+  const supportedList = movieSupportedStr.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
 
   let supportedFormats = formats.value;
 
-  if (supportedList.length > 0 && supportedList[0] !== "") {
+  if (supportedList.length > 0) {
     supportedFormats = supportedFormats.filter(f => supportedList.some(sup => f.name.trim().toUpperCase().includes(sup)));
   }
 
-  const roomType = selectedRoom.type?.trim().toUpperCase() || 'STANDARD';
-  
-  supportedFormats = supportedFormats.filter(f => {
-    const fn = f.name.trim().toUpperCase();
-    if (roomType === 'SUPERPLEX') return true;
-    if (roomType === 'STANDARD' || roomType === 'CINE_COMFORT') {
-      return fn === '2D PHỤ ĐỀ' || fn === '2D LỒNG TIẾNG' || fn === '3D PHỤ ĐỀ' || fn === '3D LỒNG TIẾNG';
-    }
-    return false;
-  });
+  const roomType = selectedRoom.type || 'STANDARD';
+  supportedFormats = supportedFormats.filter(f => isFormatCompatibleWithRoomType(f.name, roomType));
 
   return supportedFormats.map(f => ({ value: f.id, label: f.name }));
 });
 
 const todayCheck = computed(() => {
-  if (!props.selectedDate) return false;
-  const year = new Date().getFullYear();
-  const [day, month] = props.selectedDate.split('/');
-  const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  return showDate.getTime() === today.getTime();
+  return getSelectedDateStr() === getLocalTodayStr();
 });
 
 const currentHour = computed(() => todayCheck.value ? new Date().getHours() : -1);
@@ -196,8 +223,22 @@ const fetchShowtimes = async () => {
 
 
 
-watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
-watch(() => [form.startHour, form.startMinute], () => { fieldErrors.time = ''; });
+watch(() => form.movieId, () => {
+  form.formatId = '';
+  fieldErrors.movieId = '';
+  fieldErrors.formatId = '';
+});
+watch(() => form.roomId, () => {
+  form.formatId = '';
+  fieldErrors.roomId = '';
+  fieldErrors.formatId = '';
+});
+watch(() => form.formatId, () => {
+  fieldErrors.formatId = '';
+});
+watch(() => [form.startHour, form.startMinute], () => {
+  fieldErrors.time = '';
+});
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
@@ -236,12 +277,10 @@ const pricePreview = computed(() => {
   const format = formats.value.find(f => f.id === form.formatId);
   if (!room || !format) return null;
 
-  const year = new Date().getFullYear();
-  const [day, month] = props.selectedDate.split('/');
-  const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
+  const showDateStr = getSelectedDateStr();
+  const showDate = new Date(`${showDateStr}T00:00:00`);
   
-  const dateString = `${year}-${month}-${day}`;
-  const isHoliday = config.holidays?.some(h => h.holidayDate === dateString);
+  const isHoliday = config.holidays?.some(h => h.holidayDate === showDateStr);
   const dayOfWeek = showDate.getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
   
@@ -269,7 +308,7 @@ const endTimePreview = computed(() => {
   const room = rooms.value.find(r => r.id === form.roomId);
   if (!movie || !room) return null;
 
-  const duration = movie.durationMins || 120;
+  const duration = movie.durationMins || movie.duration || 120;
   const turnaround = room.turnaroundTimeMins || 15;
   
   const start = new Date(2000, 0, 1, parseInt(form.startHour), parseInt(form.startMinute));
@@ -305,12 +344,6 @@ const fmtMin = (min) => {
 
 const fmtClock = (date) => `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
 
-const buildStartDate = () => {
-  const year = new Date().getFullYear();
-  const [day, month] = props.selectedDate.split('/');
-  return new Date(`${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`);
-};
-
 const timeConflictError = computed(() => {
   if (isLocked.value) return '';
   if (!form.movieId || !form.roomId || !form.startHour || !form.startMinute || !props.selectedDate) return '';
@@ -319,9 +352,10 @@ const timeConflictError = computed(() => {
   const room = rooms.value.find(r => r.id === form.roomId);
   if (!movie || !room) return '';
 
-  const duration = movie.durationMins || 120;
+  const duration = movie.durationMins || movie.duration || 120;
   const turnaround = room.turnaroundTimeMins || 15;
-  const start = buildStartDate();
+  const showDateStr = getSelectedDateStr();
+  const start = new Date(`${showDateStr}T${form.startHour}:${form.startMinute}:00`);
   if (isNaN(start.getTime())) return '';
   const end = new Date(start.getTime() + (duration + turnaround) * 60000);
 
@@ -370,14 +404,13 @@ const isEarlyScreeningWarning = computed(() => {
   const selectedMovie = movies.value.find(m => m.id === form.movieId);
   if (!selectedMovie?.releaseDate) return null;
 
-  const year = new Date().getFullYear();
-  const [day, month] = props.selectedDate.split('/');
-  const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
+  const showDateStr = getSelectedDateStr();
+  const showDate = new Date(`${showDateStr}T00:00:00`);
   const releaseDate = new Date(`${selectedMovie.releaseDate}T00:00:00`);
 
   if (showDate < releaseDate) {
     const releaseFmt = releaseDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    return `Ngày chiếu (${props.selectedDate}/${year}) nằm trước ngày khởi chiếu chính thức (${releaseFmt}). Suất này sẽ được đánh dấu là “Xuất chiếu sớm”.`;
+    return `Ngày chiếu (${props.selectedDate}) nằm trước ngày khởi chiếu chính thức (${releaseFmt}). Suất này sẽ được đánh dấu là “Xuất chiếu sớm”.`;
   }
   return null;
 });
@@ -388,7 +421,7 @@ const suggestedSlots = computed(() => {
   const room = rooms.value.find(r => r.id === form.roomId);
   if (!movie || !room) return [];
 
-  const duration = movie.durationMins || 120;
+  const duration = movie.durationMins || movie.duration || 120;
   const turnaround = room.turnaroundTimeMins || 15;
   const totalMins = duration + turnaround;
 
@@ -451,14 +484,55 @@ const selectSlot = (timeStr) => {
 
 const validate = () => {
   clearErrors();
-  if (!form.movieId) fieldErrors.movieId = 'Vui lòng chọn phim.';
-  if (!form.roomId) fieldErrors.roomId = 'Vui lòng chọn phòng chiếu.';
-  if (!form.formatId) fieldErrors.formatId = 'Vui lòng chọn định dạng.';
-  if (!form.startHour || !form.startMinute) fieldErrors.time = 'Vui lòng chọn giờ bắt đầu.';
+  if (!form.movieId) {
+    fieldErrors.movieId = 'Vui lòng chọn bộ phim cần lên lịch chiếu.';
+  } else {
+    const selectedMovie = movies.value.find(m => m.id === form.movieId);
+    if (selectedMovie) {
+      const showDateStr = getSelectedDateStr();
+      if (selectedMovie.startDate) {
+        const startStr = String(selectedMovie.startDate).slice(0, 10);
+        if (startStr && showDateStr < startStr) {
+          const parts = startStr.split('-');
+          const fmt = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : startStr;
+          fieldErrors.movieId = `Ngày chiếu nằm trước ngày khởi chiếu của phim (khởi chiếu: ${fmt}).`;
+        }
+      }
+      if (selectedMovie.endDate) {
+        const endStr = String(selectedMovie.endDate).slice(0, 10);
+        if (endStr && showDateStr > endStr) {
+          const parts = endStr.split('-');
+          const fmt = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : endStr;
+          fieldErrors.movieId = `Vượt quá hạn phát hành của phim (kết thúc: ${fmt}).`;
+        }
+      }
+    }
+  }
+
+  if (!form.roomId) {
+    fieldErrors.roomId = 'Vui lòng chọn phòng chiếu.';
+  } else {
+    const room = rooms.value.find(r => r.id === form.roomId);
+    if (room && room.status && room.status.toLowerCase() !== 'active') {
+      fieldErrors.roomId = 'Phòng chiếu hiện không hoạt động hoặc đang bảo trì.';
+    }
+  }
+
+  if (!form.formatId) {
+    fieldErrors.formatId = 'Vui lòng chọn định dạng chiếu cho phim.';
+  }
+
+  if (!form.startHour || !form.startMinute) {
+    fieldErrors.time = 'Vui lòng chọn giờ bắt đầu.';
+  } else if (timeConflictError.value) {
+    fieldErrors.time = timeConflictError.value;
+  }
 
   const order = [
-    ['movieId', movieField], ['roomId', roomField],
-    ['formatId', formatField], ['time', timeField]
+    ['movieId', movieField],
+    ['roomId', roomField],
+    ['formatId', formatField],
+    ['time', timeField]
   ];
   const first = order.find(([k]) => fieldErrors[k]);
   return first ? first[1] : null;
@@ -509,41 +583,14 @@ const submit = async (formattedStartTime, force) => {
 
 const handleSave = async () => {
   const badField = validate();
-  if (badField) { focusFirstError(badField); return; }
-
-  const selectedMovie = movies.value.find(m => m.id === form.movieId);
-  if (selectedMovie) {
-    const year = new Date().getFullYear();
-    const [day, month] = props.selectedDate.split('/');
-    const showDate = new Date(`${year}-${month}-${day}T00:00:00`);
-
-    const selectedDateTime = new Date(`${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`);
-    const now = new Date();
-    if (selectedDateTime < now) {
-      toast.error('Không thể tạo hoặc sửa suất chiếu ở thời gian đã trôi qua!');
-      return;
-    }
-    
-    const startDate = new Date(selectedMovie.startDate);
-    startDate.setHours(0,0,0,0);
-    
-    let isOutOfRange = showDate < startDate;
-    if (selectedMovie.endDate) {
-      const endDate = new Date(selectedMovie.endDate);
-      endDate.setHours(23,59,59,999);
-      if (showDate > endDate) isOutOfRange = true;
-    }
-
-    if (isOutOfRange) {
-      toast.error(`Ngày chiếu ${props.selectedDate}/${year} nằm ngoài khoảng thời gian khởi chiếu/kết thúc của phim '${selectedMovie.title}'!`);
-      return;
-    }
+  if (badField) {
+    focusFirstError(badField);
+    return;
   }
 
   try {
-    const year = new Date().getFullYear();
-    const [day, month] = props.selectedDate.split('/');
-    const formattedStartTime = `${year}-${month}-${day}T${form.startHour}:${form.startMinute}:00`;
+    const showDateStr = getSelectedDateStr();
+    const formattedStartTime = `${showDateStr}T${form.startHour}:${form.startMinute}:00`;
     await submit(formattedStartTime, false);
   } catch (error) {
     toast.error(friendlyError(error, 'Có lỗi xảy ra khi lưu suất chiếu.'));
@@ -619,14 +666,14 @@ const handleSave = async () => {
           <CustomSelect
             v-model="form.formatId"
             :options="formatOptions"
-            :disabled="isLocked"
+            :disabled="isLocked || !form.movieId || !form.roomId"
             placeholder="-- Chọn Định dạng --"
             :class="fieldErrors.formatId ? 'rounded-xl ring-1 ring-red-500/60' : ''"
           />
           <p v-if="fieldErrors.formatId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.formatId }}</p>
           <div v-if="pricePreview" class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-bold">
             <span class="material-symbols-outlined text-[14px]">sell</span>
-            Bảng giá áp dụng: [{{ pricePreview.label }}]
+            Bảng giá áp dụng: {{ pricePreview.label }}
           </div>
         </div>
 
