@@ -85,3 +85,32 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 - **Nghiệp vụ chọn vé & Sức chứa:** 
   - Ghế Sweetbox tính đúng sức chứa 2 chỗ, chọn 1 ghế Sweetbox tự động chọn cả cặp 2 vé và áp dụng đúng bảng giá.
 
+### 14. Nâng Cấp Toàn Diện Quản Lý Khách Hàng (Customer Management Modernization)
+- **Giao diện & Trải nghiệm bảng dữ liệu (`AdminCustomers.vue`):**
+  - Phân loại rõ ràng Thành viên vs Khách vãng lai qua badges màu sắc nhận diện.
+  - Tự động rút gọn email ảo của khách vãng lai thành dạng ngắn gọn, hiển thị tổng chi tiêu tích lũy và trạng thái tài khoản trực quan.
+  - Bộ lọc đa chiều (Hạng thành viên, Trạng thái tài khoản, Loại khách hàng), phân trang động (10/20/50 dòng), tính năng xuất dữ liệu CSV chuẩn Excel UTF-8 BOM.
+  - Thay thế toàn bộ native select bằng Custom Luxury Dropdown chuẩn hóa phong cách DevCine.
+- **Hệ thống 3 Modal Thao Tác Chuyên Sâu:**
+  - **Modal Chi tiết:** Thiết kế 3 tab nghiệp vụ (Lịch sử đơn vé, Kho Voucher đang sở hữu, Lịch sử biến động điểm tích lũy) kết hợp Thẻ thành viên VIP với thanh tiến trình nâng hạng trực quan.
+  - **Modal Chỉnh sửa:** Cho phép cập nhật Họ tên & Ngày sinh có validate ngày hợp lệ.
+  - **Modal Khóa/Mở khóa:** Khóa tài khoản kèm nhập lý do chi tiết, phục vụ kiểm soát vi phạm.
+- **Tối ưu Backend & Bảo mật (`CustomerController.java`):**
+  - Áp dụng Batch Aggregation Query gom nhóm tính tổng chi tiêu bằng 1 câu lệnh duy nhất, loại bỏ hoàn toàn lỗi N+1 Query.
+  - Chặn sử dụng điểm tích lũy và chặn gửi email liên kết đặt lại mật khẩu cho các tài khoản đang ở trạng thái Khóa.
+
+### 15. Phân Quyền Khách Hàng Theo Cụm Rạp (Cinema-Scoped Customer Access)
+- **Kiểm soát truy cập theo phạm vi cơ sở:**
+  - Với vai trò `MANAGER` và `STAFF`, hệ thống giới hạn phạm vi chỉ được xem danh sách, tìm kiếm, xem chi tiết, chỉnh sửa thông tin, khóa/mở khóa hoặc gửi email reset password cho những khách hàng đã từng phát sinh giao dịch (Booking trạng thái `CONFIRMED` hoặc ConcessionSale trạng thái `COMPLETED`) tại rạp của mình (`hasAccessToCustomer`).
+  - Mọi hành vi truy cập hoặc thao tác chéo rạp đều bị chặn tức thì với mã phản hồi `HTTP 403 Forbidden`.
+- **Tối ưu truy vấn JPA (`CustomerRepository.java`, `ConcessionSaleRepository.java`):**
+  - Tận dụng `EXISTS` subquery trong `findByCinemaScope` và `searchByCinemaScope` để lọc chính xác và chống duplicate khi khách có nhiều đơn hàng tại rạp.
+  - Các hàm kiểm tra nhanh `existsBookingByCinemaAndCustomer` và `existsCompletedByCinemaAndCustomer` đóng vai trò gác cổng hiệu năng cao cho các API thao tác chi tiết.
+
+### 16. Tạm Ẩn Phân Hệ Chăm Sóc Khách Hàng Trên Menu Quản Trị (Customer Support Sidebar Visibility)
+- **Tạm ẩn giao diện điều hướng (`AdminLayout.vue`):**
+  - Tạm ẩn (comment-out) liên kết đến `/admin/customer-support` trên thanh sidebar quản trị theo yêu cầu tối giản luồng review.
+  - Loại bỏ quyền `support` khỏi danh sách điều kiện hiển thị của nhóm chuyên mục *Kinh doanh & Khách hàng*.
+  - Bảo tồn nguyên vẹn 100% component [CustomerSupport.vue](file:///e:/DATN/DevCine/devcine-frontend/src/views/admin/CustomerSupport.vue) và cấu hình route để có thể tái kích hoạt bất kỳ lúc nào.
+
+

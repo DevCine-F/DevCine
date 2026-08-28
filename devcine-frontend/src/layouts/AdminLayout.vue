@@ -122,7 +122,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
         </router-link>
 
         <!-- ===== KINH DOANH & KHÁCH HÀNG ===== -->
-        <div v-if="canShowAny(['pricing', 'promotions', 'support', 'customers'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
+        <div v-if="canShowAny(['pricing', 'promotions', 'customers'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Kinh doanh & Khách hàng</div>
 
         <router-link v-if="canShow('pricing')" to="/admin/pricing" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">payments</span>
@@ -144,10 +144,12 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Đánh giá phim</span>
         </router-link>
 
+        <!-- TẠM ẨN — Chăm sóc khách hàng
         <router-link v-if="canShow('support')" to="/admin/customer-support" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">support_agent</span>
           <span class="font-semibold text-sm">Chăm sóc khách hàng</span>
         </router-link>
+        -->
 
         <router-link v-if="authStore.isAdmin" to="/admin/faqs" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">quiz</span>

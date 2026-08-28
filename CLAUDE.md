@@ -83,6 +83,13 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 - **Ma trận quyền bump `PERMISSION_MATRIX_V4` → `V6`** (thực tế đã qua V5; nay V6 thêm `incident_handling` cho ADMIN/MANAGER/STAFF).
 - **File bất khả xâm phạm:** tạo MỚI `entity/SeatIncident.java` (thêm bảng, `ddl-auto` tự tạo); sửa `TicketService.java` (+2 helper in lại/gửi email). Không đụng `BookingService`/`PricingService`.
 
+**Đã hoàn thiện — Nâng cấp Quản lý khách hàng & Phân quyền theo cụm rạp (28/08/2026):**
+- **Admin Customers UI (`AdminCustomers.vue`):** Bảng dữ liệu chuẩn Luxury Dark Mode, tag phân loại Thành viên / Vãng lai, rút gọn email ảo, hiển thị tổng chi tiêu & trạng thái, bộ lọc đa tiêu chí, phân trang 10/20/50 dòng, xuất file CSV Excel UTF-8 BOM, thay native select bằng Custom Luxury Dropdown.
+- **3 Modal quản trị:** Chi tiết (3 tab Đơn hàng / Voucher / Biến động điểm + Thẻ VIP tiến trình), Chỉnh sửa (Họ tên, Ngày sinh), Khóa/Mở khóa tài khoản kèm lý do.
+- **Cinema Scoping (`CustomerController`, `CustomerRepository`, `ConcessionSaleRepository`):** Với MANAGER/STAFF, chỉ cho phép xem/thao tác các khách hàng đã từng giao dịch (mua vé CONFIRMED hoặc mua F&B COMPLETED) tại rạp của mình (`hasAccessToCustomer`), chéo rạp trả về 403 Forbidden.
+- **Tối ưu Backend:** Batch Aggregation Query O(1) tính tổng chi tiêu chống N+1; chặn tích/tiêu điểm và chặn gửi email reset password cho tài khoản bị khóa.
+- **Tạm ẩn menu CSKH (`AdminLayout.vue`):** Tạm ẩn tab "Chăm sóc khách hàng" trên sidebar quản trị phục vụ review, bảo tồn toàn bộ route & code bên dưới.
+
 **Còn lại:**
 - 8 cảnh báo Dependabot (đụng `pom.xml`/`package.json` → báo cáo trước khi sửa)
 - Nhánh fail-closed của dashboard chưa có tình huống thật để test (chưa có tài khoản MANAGER nào thiếu cơ sở)
@@ -92,3 +99,4 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 
 Commit 2 phần EN/VI. **TUYỆT ĐỐI không thêm Co-Authored-By.**
 Remote: `DevCine-F` (frontend) / `DevCine` (backend).
+
