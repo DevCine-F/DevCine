@@ -17,6 +17,14 @@ const emit = defineEmits(['close', 'saved']);
 
 const toast = useToastStore();
 
+const getLocalTodayStr = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = (today.getMonth() + 1).toString().padStart(2, '0');
+  const day = today.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const form = reactive({
   movieId: '',
   formatId: '',
@@ -30,7 +38,7 @@ const form = reactive({
 });
 
 const staggerOptions = [
-  { value: 0, label: '0 phút (Chiếu đồng thời)' },
+  { value: 0, label: 'Chiếu đồng thời' },
   { value: 10, label: '10 phút' },
   { value: 15, label: '15 phút' }
 ];
@@ -45,11 +53,12 @@ const preview = ref(null);   // { toCreate, createdCount, skipped: [] }
 const isBusy = ref(false);
 
 // Lỗi theo TỪNG trường (thay banner lỗi tổng ở đầu drawer) — hiện inline + tự cuộn tới lỗi đầu tiên
-const fieldErrors = reactive({ movieId: '', formatId: '', roomIds: '', dateRange: '', startTimes: '' });
+const fieldErrors = reactive({ movieId: '', formatId: '', roomIds: '', dateFrom: '', dateTo: '', startTimes: '' });
 const movieField = ref(null);
 const formatField = ref(null);
 const roomsField = ref(null);
-const dateField = ref(null);
+const dateFromField = ref(null);
+const dateToField = ref(null);
 const timesField = ref(null);
 const clearErrors = () => Object.keys(fieldErrors).forEach(k => { fieldErrors[k] = ''; });
 
@@ -61,13 +70,14 @@ const weekDays = [
 
 const movieOptions = computed(() => {
   return [...movies.value]
-    .filter(m => m.status === 'active' || m.status === 'upcoming')
+    .filter(m => (m.status || '').toLowerCase() === 'active' || (m.status || '').toLowerCase() === 'upcoming')
     .sort((a, b) => (b.id || 0) - (a.id || 0))
     .map(m => {
       const isUpcoming = (m.status || '').toLowerCase() === 'upcoming';
+      const duration = m.durationMins || m.duration || 120;
       return {
         value: m.id,
-        label: m.title || m.name,
+        label: `${m.title || m.name} - ${duration}p`,
         badge: {
           text: isUpcoming ? 'Sắp chiếu' : 'Đang chiếu',
           type: isUpcoming ? 'upcoming' : 'active',
@@ -205,7 +215,7 @@ watch(() => props.isOpen, (open) => {
     buildCinemaTree();
     clearErrors();
     preview.value = null;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalTodayStr();
     form.movieId = ''; form.formatId = '';
     form.dateFrom = today; form.dateTo = today;
     form.daysOfWeek = []; form.roomIds = []; form.startTimes = [];
@@ -231,8 +241,10 @@ watch(() => form.formatId, (newFmtId) => {
 
 // Lỗi tự xóa khi người dùng bắt đầu sửa đúng trường đó
 watch(() => form.movieId, () => { fieldErrors.movieId = ''; });
+watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
 watch(() => form.roomIds.length, () => { fieldErrors.roomIds = ''; });
-watch(() => [form.dateFrom, form.dateTo], () => { fieldErrors.dateRange = ''; });
+watch(() => form.dateFrom, () => { fieldErrors.dateFrom = ''; fieldErrors.dateTo = ''; });
+watch(() => form.dateTo, () => { fieldErrors.dateTo = ''; });
 watch(() => form.startTimes.length, () => { fieldErrors.startTimes = ''; });
 
 const toggleRoom = (roomId) => {
@@ -267,30 +279,70 @@ const toggleDay = (d) => {
 const addTime = () => {
   if (!newHour.value || !newMinute.value) return;
   const t = `${newHour.value}:${newMinute.value}`;
-  if (!form.startTimes.includes(t)) form.startTimes.push(t);
+  if (form.startTimes.includes(t)) {
+    toast.warning(`Mốc giờ ${t} đã tồn tại trong danh sách.`);
+    return;
+  }
+  form.startTimes.push(t);
   form.startTimes.sort();
   newHour.value = '';
   newMinute.value = '';
+  fieldErrors.startTimes = '';
 };
 const removeTime = (t) => { form.startTimes = form.startTimes.filter(x => x !== t); };
 
-// Trả về key của trường lỗi ĐẦU TIÊN (theo thứ tự hiển thị) hoặc null nếu hợp lệ.
+// Trả về phần tử DOM của trường lỗi ĐẦU TIÊN (theo thứ tự hiển thị) hoặc null nếu hợp lệ.
 const validate = () => {
   clearErrors();
-  if (!form.movieId) fieldErrors.movieId = 'Vui lòng chọn phim.';
-  if (!form.formatId) fieldErrors.formatId = 'Vui lòng chọn định dạng.';
-  if (!form.roomIds.length) fieldErrors.roomIds = 'Vui lòng chọn ít nhất một phòng chiếu.';
-  if (!form.dateFrom || !form.dateTo) fieldErrors.dateRange = 'Vui lòng chọn khoảng ngày.';
-  else if (form.dateFrom > form.dateTo) fieldErrors.dateRange = 'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.';
-  if (!form.startTimes.length) fieldErrors.startTimes = 'Vui lòng thêm ít nhất một khung giờ.';
+  if (!form.movieId) fieldErrors.movieId = 'Vui lòng chọn bộ phim cần lên lịch chiếu.';
+  if (!form.formatId) fieldErrors.formatId = 'Vui lòng chọn định dạng chiếu cho phim.';
+  if (!form.roomIds.length) fieldErrors.roomIds = 'Vui lòng chọn ít nhất một phòng chiếu khả dụng.';
+
+  const todayStr = getLocalTodayStr();
+  if (!form.dateFrom) {
+    fieldErrors.dateFrom = 'Vui lòng chọn ngày bắt đầu.';
+  } else if (form.dateFrom < todayStr) {
+    fieldErrors.dateFrom = 'Ngày bắt đầu không được nhỏ hơn ngày hiện tại.';
+  }
+
+  if (!form.dateTo) {
+    fieldErrors.dateTo = 'Vui lòng chọn ngày kết thúc.';
+  } else if (form.dateFrom && form.dateTo < form.dateFrom) {
+    fieldErrors.dateTo = 'Ngày kết thúc không được trước ngày bắt đầu.';
+  } else if (form.dateFrom && form.dateTo) {
+    const diffMs = new Date(form.dateTo) - new Date(form.dateFrom);
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > 30) {
+      fieldErrors.dateTo = 'Khoảng thời gian tạo lịch tối đa không quá 30 ngày.';
+    } else {
+      const selectedMovie = movies.value.find(m => m.id === form.movieId);
+      if (selectedMovie && selectedMovie.endDate) {
+        const mEndStr = typeof selectedMovie.endDate === 'string' ? selectedMovie.endDate.slice(0, 10) : '';
+        if (mEndStr && form.dateTo > mEndStr) {
+          const parts = mEndStr.split('-');
+          const formattedEnd = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : mEndStr;
+          fieldErrors.dateTo = `Vượt quá hạn phát hành của phim (kết thúc: ${formattedEnd}).`;
+        }
+      }
+    }
+  }
+
+  if (!form.startTimes.length) {
+    fieldErrors.startTimes = "Vui lòng thêm ít nhất một mốc giờ chiếu hoặc bấm 'Tự động rải ca'.";
+  }
+
   if (estimatedSlots.value > 500) {
     toast.error(`Số lượng suất chiếu dự kiến (${estimatedSlots.value} suất) vượt quá giới hạn 500 suất/lần.`);
     return timesField.value;
   }
 
   const order = [
-    ['movieId', movieField], ['formatId', formatField], ['roomIds', roomsField],
-    ['dateRange', dateField], ['startTimes', timesField]
+    ['movieId', movieField],
+    ['formatId', formatField],
+    ['roomIds', roomsField],
+    ['dateFrom', dateFromField],
+    ['dateTo', dateToField],
+    ['startTimes', timesField]
   ];
   const first = order.find(([k]) => fieldErrors[k]);
   return first ? first[1] : null;
@@ -307,8 +359,19 @@ const focusFirstError = async (fieldRef) => {
 
 // Preset features
 const applyGoldenPreset = () => {
+  if (!form.movieId) {
+    fieldErrors.movieId = 'Vui lòng chọn bộ phim cần lên lịch chiếu.';
+    focusFirstError(movieField);
+    return;
+  }
+  if (!form.roomIds.length) {
+    fieldErrors.roomIds = 'Vui lòng chọn ít nhất một phòng chiếu khả dụng.';
+    focusFirstError(roomsField);
+    return;
+  }
   form.startTimes = ["10:00", "13:30", "17:00", "20:00", "22:30"];
   fieldErrors.startTimes = '';
+  toast.success('Đã áp dụng Gói Khung Giờ Vàng (10:00, 13:30, 17:00, 20:00, 22:30).');
 };
 
 const clearTimes = () => {
@@ -318,12 +381,18 @@ const clearTimes = () => {
 // Tự động rải ca: Tính bước nhảy theo thời gian dọn dẹp lớn nhất của các phòng đang chọn
 const autoGenerateShifts = () => {
   if (!form.movieId) {
-    fieldErrors.movieId = 'Vui lòng chọn phim trước để tính thời lượng.';
+    fieldErrors.movieId = 'Vui lòng chọn bộ phim cần lên lịch chiếu.';
+    focusFirstError(movieField);
+    return;
+  }
+  if (!form.roomIds.length) {
+    fieldErrors.roomIds = 'Vui lòng chọn ít nhất một phòng chiếu khả dụng.';
+    focusFirstError(roomsField);
     return;
   }
   const movie = movies.value.find(m => m.id === form.movieId);
   if (!movie) return;
-  const duration = movie.durationMins || 120;
+  const duration = movie.durationMins || movie.duration || 120;
 
   // Lấy thời gian dọn dẹp lớn nhất từ các phòng đang chọn (fallback 15 phút)
   const allHalls = localCinemas.value.flatMap(c => c.halls || []);
@@ -543,7 +612,7 @@ const handleCreate = async () => {
           </div>
           <div ref="formatField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Định dạng</label>
-            <CustomSelect v-model="form.formatId" :options="formatOptions" placeholder="-- Chọn định dạng --"
+            <CustomSelect v-model="form.formatId" :options="formatOptions" :disabled="!form.movieId" placeholder="-- Chọn định dạng --"
               :class="fieldErrors.formatId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
             <p v-if="fieldErrors.formatId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.formatId }}</p>
           </div>
@@ -590,22 +659,21 @@ const handleCreate = async () => {
         </div>
 
         <!-- Khoảng ngày -->
-        <div ref="dateField">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Từ ngày</label>
-              <input type="date" v-model="form.dateFrom"
-                :class="fieldErrors.dateRange ? 'border-red-500/60' : 'border-white/10'"
-                class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Đến ngày</label>
-              <input type="date" v-model="form.dateTo"
-                :class="fieldErrors.dateRange ? 'border-red-500/60' : 'border-white/10'"
-                class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-            </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div ref="dateFromField">
+            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Từ ngày</label>
+            <input type="date" v-model="form.dateFrom"
+              :class="fieldErrors.dateFrom ? 'border-red-500/60 ring-1 ring-red-500/60' : 'border-white/10'"
+              class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
+            <p v-if="fieldErrors.dateFrom" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateFrom }}</p>
           </div>
-          <p v-if="fieldErrors.dateRange" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateRange }}</p>
+          <div ref="dateToField">
+            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Đến ngày</label>
+            <input type="date" v-model="form.dateTo"
+              :class="fieldErrors.dateTo ? 'border-red-500/60 ring-1 ring-red-500/60' : 'border-white/10'"
+              class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
+            <p v-if="fieldErrors.dateTo" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateTo }}</p>
+          </div>
         </div>
 
         <!-- Thứ trong tuần -->
@@ -629,22 +697,33 @@ const handleCreate = async () => {
           <div class="flex items-center justify-between mb-2">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest">Khung giờ chiếu</label>
             <div class="flex gap-2">
-              <button type="button" @click="applyGoldenPreset" class="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded hover:bg-primary/20 transition-colors">
-                [Gói Khung Giờ Vàng]
+              <button type="button" @click="applyGoldenPreset"
+                :disabled="!form.movieId || !form.roomIds.length"
+                :title="(!form.movieId || !form.roomIds.length) ? 'Vui lòng chọn Phim và Phòng trước khi áp dụng' : ''"
+                class="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded hover:bg-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Gói Khung Giờ Vàng
               </button>
-              <button type="button" @click="autoGenerateShifts" class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded hover:bg-emerald-500/20 transition-colors">
-                [Tự động rải ca]
+              <button type="button" @click="autoGenerateShifts"
+                :disabled="!form.movieId || !form.roomIds.length"
+                :title="(!form.movieId || !form.roomIds.length) ? 'Vui lòng chọn Phim và Phòng trước khi rải ca' : ''"
+                class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Tự động rải ca
               </button>
               <button type="button" @click="clearTimes" class="text-[10px] font-bold text-red-400 bg-red-500/10 px-2 py-1 rounded hover:bg-red-500/20 transition-colors">
-                [Xóa tất cả]
+                Xóa tất cả
               </button>
             </div>
           </div>
           <div class="flex gap-2">
             <CustomSelect v-model="newHour" :options="hourOptions" placeholder="Giờ" class="flex-1 min-w-0" />
             <CustomSelect v-model="newMinute" :options="minuteOptions" placeholder="Phút" class="flex-1 min-w-0" />
-            <button type="button" @click="addTime" class="px-5 rounded-xl bg-primary/20 border border-primary/40 text-primary font-bold text-xs uppercase tracking-widest hover:bg-primary/30 transition-all shrink-0">Thêm</button>
+            <button type="button" @click="addTime"
+              :disabled="!newHour || !newMinute"
+              class="px-5 rounded-xl bg-primary/20 border border-primary/40 text-primary font-bold text-xs uppercase tracking-widest hover:bg-primary/30 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+              Thêm
+            </button>
           </div>
+          <p class="text-[10px] text-white/40 mt-1">Mốc giờ phải nằm trong khung giờ mở cửa rạp.</p>
           <p v-if="fieldErrors.startTimes" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.startTimes }}</p>
           <div v-if="form.startTimes.length" class="flex flex-wrap gap-2 mt-3">
             <span v-for="t in form.startTimes" :key="t"
@@ -659,14 +738,9 @@ const handleCreate = async () => {
 
         <!-- Độ lệch so le giữa các phòng (Staggered Scheduling) -->
         <div>
-          <div class="flex items-center justify-between mb-2">
-            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-              Độ lệch so le giữa các phòng
-            </label>
-            <span class="text-[10px] text-white/40 italic">
-              Tránh dồn ứ khách tại sảnh và cổng rạp
-            </span>
-          </div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+            Độ lệch so le giữa các phòng
+          </label>
           <div class="grid grid-cols-3 gap-2">
             <button v-for="opt in staggerOptions" :key="opt.value" type="button"
               @click="form.roomOffsetMins = opt.value"
@@ -687,30 +761,26 @@ const handleCreate = async () => {
         <label class="flex items-start gap-2.5 cursor-pointer select-none p-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all group">
           <input type="checkbox" v-model="form.autoFillGaps" class="accent-primary w-4 h-4 rounded cursor-pointer mt-0.5" />
           <div class="flex flex-col">
-            <span class="text-xs text-white font-bold group-hover:text-primary transition-colors flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-[15px] text-primary">auto_fix_high</span>
+            <span class="text-xs text-white font-bold group-hover:text-primary transition-colors">
               Tự động lấp khoảng trống vào mốc giờ tròn gần nhất
             </span>
             <span class="text-[11px] text-white/40 mt-0.5">
-              Khi mốc giờ bị trùng lịch phòng, tự động chèn ca mới ngay khi phòng vừa dọn dẹp xong (chống thời gian phòng chết).
+              Khi mốc giờ bị trùng lịch phòng, tự động chèn ca mới ngay khi phòng vừa dọn dẹp xong.
             </span>
           </div>
         </label>
 
-        <!-- Widget ước tính quy mô lô & Giới hạn trần 500 suất -->
+        <!-- Widget ước tính số suất chiếu & Giới hạn trần 500 suất -->
         <div class="rounded-xl border p-3.5 transition-all"
           :class="estimatedSlots > 500
             ? 'bg-red-500/10 border-red-500/40 text-red-300'
             : 'bg-white/5 border-white/10 text-white/80'">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-sm" :class="estimatedSlots > 500 ? 'text-red-400' : 'text-primary'">
-                {{ estimatedSlots > 500 ? 'warning' : 'calculate' }}
-              </span>
-              Ước tính quy mô lô:
+            <span class="text-xs font-bold" :class="estimatedSlots > 500 ? 'text-red-300' : 'text-white/90'">
+              Số suất chiếu dự kiến tạo:
             </span>
             <span class="text-xs font-black" :class="estimatedSlots > 500 ? 'text-red-400' : 'text-primary'">
-              {{ estimatedSlots }} / 500 suất
+              {{ estimatedSlots }} suất
             </span>
           </div>
           <p class="text-[10px] mt-1 text-white/50">
