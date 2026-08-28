@@ -49,6 +49,22 @@ public class ShowtimeService {
 
     // Giới hạn kết thúc tối đa cho ca đêm (03:30 sáng = 27 giờ 30 phút tính từ 00:00 hôm trước)
     private static final int MAX_OVERNIGHT_END_MINUTES = 27 * 60 + 30;
+    // Ngưỡng trần tối đa cho 1 đợt tạo lịch hàng loạt (chống DoS / tràn bộ nhớ)
+    private static final int MAX_BATCH_SLOTS_LIMIT = 500;
+
+    public static boolean isFormatCompatibleWithRoom(MovieFormat format, Room room) {
+        if (format == null || room == null) return true;
+        String fmt = (format.getName() != null ? format.getName() : "").trim().toUpperCase();
+        String rType = (room.getType() != null ? room.getType() : "STANDARD").trim().toUpperCase();
+
+        if (fmt.contains("SUPERPLEX") || fmt.contains("IMAX")) {
+            return rType.contains("SUPERPLEX") || rType.contains("IMAX");
+        }
+        if (fmt.contains("COMFORT") || fmt.contains("CINE_COMFORT")) {
+            return rType.contains("COMFORT") || rType.contains("CINE_COMFORT");
+        }
+        return true;
+    }
 
     public List<String> getAllCities() {
         return cinemaRepository.findAllCities();
@@ -521,6 +537,11 @@ public class ShowtimeService {
         if (cinema != null && "CLOSED".equalsIgnoreCase(cinema.getStatus())) {
             throw new IllegalArgumentException("Không thể tạo suất chiếu cho cụm rạp đã đóng cửa.");
         }
+        if (!isFormatCompatibleWithRoom(format, room)) {
+            throw new IllegalArgumentException("Phòng chiếu '" + room.getName() + "' (loại "
+                    + (room.getType() != null ? room.getType() : "STANDARD")
+                    + ") không tương thích với định dạng '" + format.getName() + "'.");
+        }
         int[] win = cinemaWindow(cinema); // [openMin, closeMin] (closeMin là giờ bắt đầu suất cuối)
         int startPos = posOf(startTime.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaround;
@@ -587,43 +608,23 @@ public class ShowtimeService {
     /**
      * Tạo lịch chiếu HÀNG LOẠT cho một phim: sinh tích Descartes (phòng × ngày ×
      * khung giờ),
-     * bỏ qua suất trùng lịch (với DB lẫn giữa các suất trong lô) và suất đã qua
-     * giờ.
-     * Chống N+1: nạp một lần toàn bộ suất hiện có trong cửa sổ rồi kiểm tra trong
-     * bộ nhớ.
+     * kiểm tra xung đột in-memory chống N+1, chụp snapshot sơ đồ ghế 1 lần/phòng và
+     * batch insert.
      */
-    @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
     @org.springframework.transaction.annotation.Transactional
     public com.devcine.backend.dto.response.BatchShowtimeResult createBatchShowtimes(
             com.devcine.backend.dto.request.BatchShowtimeRequest req) {
 
         Movie movie = movieRepository.findById(req.getMovieId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim với ID: " + req.getMovieId()));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim."));
         MovieFormat format = movieFormatRepository.findById(req.getFormatId())
-                .orElseThrow(
-                        () -> new IllegalArgumentException("Không tìm thấy định dạng với ID: " + req.getFormatId()));
-
-        if (req.getDateFrom().isAfter(req.getDateTo())) {
-            throw new IllegalArgumentException("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
-        }
-
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng phim."));
         int duration = movie.getDurationMins() != null ? movie.getDurationMins() : 120;
 
-        // Nạp phòng theo id, giữ thứ tự để đặt tên trong báo cáo
-        Map<Integer, Room> roomMap = new LinkedHashMap<>();
-        roomRepository.findAllById(req.getRoomIds()).forEach(r -> roomMap.put(r.getId(), r));
-        List<Integer> missing = req.getRoomIds().stream().filter(id -> !roomMap.containsKey(id)).toList();
-        if (!missing.isEmpty()) {
-            throw new IllegalArgumentException("Không tìm thấy phòng chiếu với ID: " + missing);
-        }
+        List<Room> rooms = roomRepository.findAllById(req.getRoomIds());
+        Map<Integer, Room> roomMap = rooms.stream()
+                .collect(Collectors.toMap(Room::getId, r -> r));
 
-        for (Room r : roomMap.values()) {
-            if (r.getCinema() != null && "CLOSED".equalsIgnoreCase(r.getCinema().getStatus())) {
-                throw new IllegalArgumentException("Không thể tạo lịch chiếu cho phòng '" + r.getName() + "' vì cụm rạp đã đóng cửa.");
-            }
-        }
-
-        // Parse các mốc giờ "HH:mm"
         List<java.time.LocalTime> times = new ArrayList<>();
         for (String t : req.getStartTimes()) {
             try {
@@ -637,32 +638,41 @@ public class ShowtimeService {
                 ? new HashSet<>(req.getDaysOfWeek())
                 : null;
 
+        // KIỂM TRA NGƯỠNG TRẦN AN TOÀN CHO ĐỢT TẠO LỊCH (Batch Limit <= 500)
+        int activeDaysCount = 0;
+        for (LocalDate d = req.getDateFrom(); !d.isAfter(req.getDateTo()); d = d.plusDays(1)) {
+            if (daysFilter == null || daysFilter.contains(d.getDayOfWeek().getValue())) {
+                activeDaysCount++;
+            }
+        }
+        long potentialSlots = (long) activeDaysCount * req.getRoomIds().size() * times.size();
+        if (potentialSlots > MAX_BATCH_SLOTS_LIMIT) {
+            throw new IllegalArgumentException("Yêu cầu tạo lô dự kiến (" + potentialSlots
+                    + " suất) vượt quá ngưỡng trần an toàn (tối đa " + MAX_BATCH_SLOTS_LIMIT
+                    + " suất/lần). Vui lòng thu hẹp khoảng ngày hoặc danh sách phòng.");
+        }
+
         // Cửa sổ thời gian bao trùm cả lô để nạp suất hiện có 1 lần.
-        // Nới đuôi thêm 1 ngày để bắt cả suất hiện có rơi sang rạng sáng hôm sau (qua
-        // nửa đêm).
+        // Nới đuôi thêm 1 ngày để bắt cả suất hiện có rơi sang rạng sáng hôm sau (qua nửa đêm).
         LocalDateTime windowStart = req.getDateFrom().atStartOfDay();
         LocalDateTime windowEnd = req.getDateTo().plusDays(1).atTime(23, 59, 59);
 
-        // roomId -> danh sách khoảng [start, end) đã chiếm (DB + các suất đã nhận trong
-        // lô)
+        // roomId -> danh sách khoảng [start, end) đã chiếm (DB + các suất đã nhận trong lô)
         Map<Integer, List<LocalDateTime[]>> busyByRoom = new HashMap<>();
         for (Showtime s : showtimeRepository.findByRoomsAndWindow(req.getRoomIds(), windowStart, windowEnd)) {
             busyByRoom.computeIfAbsent(s.getRoom().getId(), k -> new ArrayList<>())
                     .add(new LocalDateTime[] { s.getStartTime(), s.getEndTime() });
         }
 
-        // Giờ hoạt động theo TỪNG phòng (mỗi phòng có thể thuộc cụm rạp khác nhau) —
-        // tính 1 lần.
+        // Giờ hoạt động theo TỪNG phòng (mỗi phòng có thể thuộc cụm rạp khác nhau) — tính 1 lần.
         Map<Integer, int[]> windowByRoom = new HashMap<>();
         roomMap.forEach((rid, r) -> windowByRoom.put(rid, cinemaWindow(r.getCinema())));
 
         LocalDateTime now = LocalDateTime.now();
         List<Showtime> toSave = new ArrayList<>();
-        // Snapshot sơ đồ theo TỪNG phòng, dựng 1 lần rồi tái dùng cho mọi suất cùng
-        // phòng trong lô (tránh N+1).
+        // Snapshot sơ đồ theo TỪNG phòng, dựng 1 lần rồi tái dùng cho mọi suất cùng phòng trong lô (tránh N+1).
         Map<Integer, String> snapshotByRoom = new HashMap<>();
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> skipped = new ArrayList<>();
-        // Suất hợp lệ nhưng KẾT THÚC quá giờ đóng cửa — chỉ tạo khi force.
         List<com.devcine.backend.dto.response.BatchShowtimeResult.SkippedSlot> warnings = new ArrayList<>();
 
         for (LocalDate date = req.getDateFrom(); !date.isAfter(req.getDateTo()); date = date.plusDays(1)) {
@@ -674,12 +684,20 @@ public class ShowtimeService {
 
                 for (Integer roomId : req.getRoomIds()) {
                     Room room = roomMap.get(roomId);
+                    // KIỂM TRA TƯƠNG THÍCH ĐỊNH DẠNG & PHÒNG CHIẾU
+                    if (!isFormatCompatibleWithRoom(format, room)) {
+                        skipped.add(skip(roomId, room.getName(), start,
+                                "Phòng (" + (room.getType() != null ? room.getType() : "STANDARD") + ") không hỗ trợ định dạng " + format.getName()));
+                        continue;
+                    }
+
                     // endTime tính theo turnaround của CHÍNH phòng (mỗi phòng có thể khác nhau).
                     LocalDateTime end = start.plusMinutes(duration + turnaroundOf(room));
                     if (start.isBefore(now)) {
                         skipped.add(skip(roomId, room.getName(), start, "Đã qua giờ chiếu"));
                         continue;
                     }
+
                     // RULE A — Chặn nếu suất bắt đầu trước giờ mở cửa hoặc sau giờ suất cuối
                     int[] win = windowByRoom.get(roomId);
                     int startPos = posOf(time, win[0]);

@@ -126,7 +126,8 @@ const buildCinemaTree = async () => {
         id: r.id,
         name: r.name,
         type: r.type,
-        status: r.status || 'Active'
+        status: r.status || 'Active',
+        turnaroundTimeMins: r.turnaroundTimeMins ?? 15
       });
     }
 
@@ -148,7 +149,47 @@ const buildCinemaTree = async () => {
   }
 };
 
+// Kiểm tra tính tương thích giữa Định dạng chiếu và Loại phòng
+const isRoomCompatible = (room, formatId) => {
+  if (!formatId) return true;
+  const fmt = formats.value.find(f => f.id === parseInt(formatId));
+  if (!fmt) return true;
+  
+  const fmtName = (fmt.name || '').trim().toUpperCase();
+  const roomType = (room.type || 'STANDARD').trim().toUpperCase();
+  
+  // 1. Định dạng SUPERPLEX / IMAX -> Chỉ hỗ trợ phòng SUPERPLEX
+  if (fmtName.includes('SUPERPLEX') || fmtName.includes('IMAX')) {
+    return roomType.includes('SUPERPLEX') || roomType.includes('IMAX');
+  }
+  
+  // 2. Định dạng CINE COMFORT -> Chỉ hỗ trợ phòng CINE_COMFORT
+  if (fmtName.includes('COMFORT') || fmtName.includes('CINE_COMFORT')) {
+    return roomType.includes('COMFORT') || roomType.includes('CINE_COMFORT');
+  }
+  
+  // 3. Định dạng phổ thông (2D, 3D...) -> Hỗ trợ mọi loại phòng
+  return true;
+};
 
+// Tính toán số ngày chiếu và số suất dự kiến (Ngưỡng trần 500 suất)
+const activeDaysCount = computed(() => {
+  if (!form.dateFrom || !form.dateTo || form.dateFrom > form.dateTo) return 0;
+  const start = new Date(form.dateFrom);
+  const end = new Date(form.dateTo);
+  let count = 0;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dayVal = d.getDay() === 0 ? 7 : d.getDay(); // 1: T2 -> 7: CN
+    if (!form.daysOfWeek.length || form.daysOfWeek.includes(dayVal)) {
+      count++;
+    }
+  }
+  return count;
+});
+
+const estimatedSlots = computed(() => {
+  return activeDaysCount.value * form.roomIds.length * form.startTimes.length;
+});
 
 watch(() => props.isOpen, (open) => {
   if (open) {
@@ -167,9 +208,19 @@ watch(() => props.isOpen, (open) => {
 watch(() => [form.movieId, form.formatId, form.dateFrom, form.dateTo,
   form.daysOfWeek.length, form.roomIds.length, form.startTimes.length], () => { preview.value = null; });
 
-// Lỗi tự xóa khi người dùng bắt đầu sửa đúng trường đó (đỡ cảm giác lỗi dai)
+// Khi đổi định dạng: Tự động lọc bỏ các phòng không còn tương thích
+watch(() => form.formatId, (newFmtId) => {
+  fieldErrors.formatId = '';
+  if (!newFmtId) return;
+  const allHalls = localCinemas.value.flatMap(c => c.halls || []);
+  form.roomIds = form.roomIds.filter(roomId => {
+    const room = allHalls.find(r => r.id === roomId);
+    return room ? isRoomCompatible(room, newFmtId) : false;
+  });
+});
+
+// Lỗi tự xóa khi người dùng bắt đầu sửa đúng trường đó
 watch(() => form.movieId, () => { fieldErrors.movieId = ''; });
-watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
 watch(() => form.roomIds.length, () => { fieldErrors.roomIds = ''; });
 watch(() => [form.dateFrom, form.dateTo], () => { fieldErrors.dateRange = ''; });
 watch(() => form.startTimes.length, () => { fieldErrors.startTimes = ''; });
@@ -178,10 +229,19 @@ const toggleRoom = (roomId) => {
   const i = form.roomIds.indexOf(roomId);
   if (i === -1) form.roomIds.push(roomId); else form.roomIds.splice(i, 1);
 };
-const cinemaAllSelected = (cinema) => (cinema.halls || []).length > 0
-  && cinema.halls.every(h => form.roomIds.includes(h.id));
+
+const getCinemaCompatibleHalls = (cinema) => {
+  return (cinema.halls || []).filter(h => h.status === 'Active' && isRoomCompatible(h, form.formatId));
+};
+
+const cinemaAllSelected = (cinema) => {
+  const validHalls = getCinemaCompatibleHalls(cinema);
+  return validHalls.length > 0 && validHalls.every(h => form.roomIds.includes(h.id));
+};
+
 const toggleCinema = (cinema) => {
-  const ids = (cinema.halls || []).map(h => h.id);
+  const validHalls = getCinemaCompatibleHalls(cinema);
+  const ids = validHalls.map(h => h.id);
   if (cinemaAllSelected(cinema)) {
     form.roomIds = form.roomIds.filter(id => !ids.includes(id));
   } else {
@@ -213,6 +273,10 @@ const validate = () => {
   if (!form.dateFrom || !form.dateTo) fieldErrors.dateRange = 'Vui lòng chọn khoảng ngày.';
   else if (form.dateFrom > form.dateTo) fieldErrors.dateRange = 'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.';
   if (!form.startTimes.length) fieldErrors.startTimes = 'Vui lòng thêm ít nhất một khung giờ.';
+  if (estimatedSlots.value > 500) {
+    toast.error(`Số lượng suất chiếu dự kiến (${estimatedSlots.value} suất) vượt quá giới hạn 500 suất/lần.`);
+    return timesField.value;
+  }
 
   const order = [
     ['movieId', movieField], ['formatId', formatField], ['roomIds', roomsField],
@@ -241,6 +305,7 @@ const clearTimes = () => {
   form.startTimes = [];
 };
 
+// Tự động rải ca: Tính bước nhảy theo thời gian dọn dẹp lớn nhất của các phòng đang chọn
 const autoGenerateShifts = () => {
   if (!form.movieId) {
     fieldErrors.movieId = 'Vui lòng chọn phim trước để tính thời lượng.';
@@ -249,7 +314,13 @@ const autoGenerateShifts = () => {
   const movie = movies.value.find(m => m.id === form.movieId);
   if (!movie) return;
   const duration = movie.durationMins || 120;
-  const turnaround = 15; // default turnaround for auto-shift in batch
+
+  // Lấy thời gian dọn dẹp lớn nhất từ các phòng đang chọn (fallback 15 phút)
+  const allHalls = localCinemas.value.flatMap(c => c.halls || []);
+  const selectedHalls = allHalls.filter(h => form.roomIds.includes(h.id));
+  const turnaround = selectedHalls.length > 0
+    ? Math.max(...selectedHalls.map(h => Number(h.turnaroundTimeMins ?? 15)))
+    : 15;
   const totalMins = duration + turnaround;
 
   let startMin = 8 * 60; // 08:00
@@ -276,6 +347,7 @@ const autoGenerateShifts = () => {
   newHour.value = '';
   newMinute.value = '';
   fieldErrors.startTimes = '';
+  toast.success(`Đã rải ca tự động với bước nhảy ${totalMins} phút (Phim ${duration}p + dọn dẹp tối đa ${turnaround}p).`);
 };
 
 const hourOptions = computed(() => {
@@ -472,13 +544,24 @@ const handleCreate = async () => {
                 <span class="text-[10px] text-white/40 uppercase tracking-widest">{{ c.city }}</span>
               </label>
               <div v-if="c.halls?.length" class="flex flex-wrap gap-2 pl-6">
-                <button v-for="h in c.halls.filter(r => r.status === 'Active')" :key="h.id" type="button" @click="toggleRoom(h.id)"
-                  :class="form.roomIds.includes(h.id)
-                    ? 'bg-primary/20 border-primary text-primary'
-                    : 'bg-white/5 border-white/10 text-white/60'"
-                  class="px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all">
-                  {{ h.name }}
-                </button>
+                <div v-for="h in c.halls.filter(r => r.status === 'Active')" :key="h.id">
+                  <button type="button" @click="isRoomCompatible(h, form.formatId) && toggleRoom(h.id)"
+                    :disabled="!isRoomCompatible(h, form.formatId)"
+                    :title="!isRoomCompatible(h, form.formatId) ? `Phòng ${h.name} (${h.type || 'STANDARD'}) không hỗ trợ định dạng này` : ''"
+                    :class="[
+                      !isRoomCompatible(h, form.formatId)
+                        ? 'opacity-35 cursor-not-allowed bg-white/5 border-white/5 text-white/30'
+                        : form.roomIds.includes(h.id)
+                          ? 'bg-primary/20 border-primary text-primary'
+                          : 'bg-white/5 border-white/10 text-white/60 hover:border-white/30'
+                    ]"
+                    class="px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all flex items-center gap-1.5">
+                    <span>{{ h.name }}</span>
+                    <span v-if="h.type && h.type !== 'STANDARD'" class="text-[9px] px-1 py-0.5 rounded bg-white/10 text-white/70">
+                      {{ h.type.replace('_', ' ') }}
+                    </span>
+                  </button>
+                </div>
               </div>
               <p v-else class="pl-6 text-[11px] text-white/30 italic">Chưa có phòng</p>
             </div>
@@ -554,10 +637,35 @@ const handleCreate = async () => {
           </div>
         </div>
 
+        <!-- Widget ước tính quy mô lô & Giới hạn trần 500 suất -->
+        <div class="rounded-xl border p-3.5 transition-all"
+          :class="estimatedSlots > 500
+            ? 'bg-red-500/10 border-red-500/40 text-red-300'
+            : 'bg-white/5 border-white/10 text-white/80'">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm" :class="estimatedSlots > 500 ? 'text-red-400' : 'text-primary'">
+                {{ estimatedSlots > 500 ? 'warning' : 'calculate' }}
+              </span>
+              Ước tính quy mô lô:
+            </span>
+            <span class="text-xs font-black" :class="estimatedSlots > 500 ? 'text-red-400' : 'text-primary'">
+              {{ estimatedSlots }} / 500 suất
+            </span>
+          </div>
+          <p class="text-[10px] mt-1 text-white/50">
+            {{ activeDaysCount }} ngày chiếu × {{ form.roomIds.length }} phòng × {{ form.startTimes.length }} mốc giờ
+          </p>
+          <p v-if="estimatedSlots > 500" class="text-[11px] font-bold text-red-400 mt-2 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">error</span>
+            Vượt quá giới hạn tối đa (500 suất/lần). Vui lòng thu hẹp khoảng ngày hoặc danh sách phòng.
+          </p>
+        </div>
+
         <!-- Thời gian dọn dẹp: lấy tự động theo từng phòng -->
         <p class="text-[11px] text-white/40 italic flex items-center gap-1.5">
           <span class="material-symbols-outlined text-[14px]">info</span>
-          Thời gian dọn dẹp được lấy tự động theo cấu hình của từng phòng chiếu.
+          Thời gian dọn dẹp được tính tự động theo cấu hình lớn nhất của các phòng đang chọn khi rải ca.
         </p>
 
         <!-- Kết quả xem trước -->
@@ -583,12 +691,12 @@ const handleCreate = async () => {
 
       <!-- Footer -->
       <div class="p-6 border-t border-white/5 bg-black/20 flex gap-4">
-        <button @click="runPreview" :disabled="isBusy"
-          class="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-50">
+        <button @click="runPreview" :disabled="isBusy || estimatedSlots > 500 || estimatedSlots === 0"
+          class="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
           Xem trước
         </button>
-        <button @click="handleCreate" :disabled="isBusy"
-          class="flex-1 py-3 rounded-xl bg-primary hover:brightness-110 text-on-primary font-bold uppercase tracking-widest text-xs shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
+        <button @click="handleCreate" :disabled="isBusy || estimatedSlots > 500 || estimatedSlots === 0"
+          class="flex-1 py-3 rounded-xl bg-primary hover:brightness-110 text-on-primary font-bold uppercase tracking-widest text-xs shadow-lg shadow-primary/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
           {{ isBusy ? 'Đang xử lý...' : 'Tạo lịch' }}
         </button>
       </div>
