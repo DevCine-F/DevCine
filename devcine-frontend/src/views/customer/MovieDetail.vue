@@ -303,6 +303,17 @@ const selectShowtime = (showtime, cinema) => {
 
 // ===== Card suất chiếu: giờ + phòng + tình trạng ghế =====
 const fmtTime = (t) => new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+
+// Ước tính giờ kết thúc: dùng endTime nếu có, fallback tính từ startTime + duration
+const fmtEndTime = (st) => {
+  if (st.endTime) return new Date(st.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  if (st.duration) {
+    const end = new Date(new Date(st.startTime).getTime() + st.duration * 60 * 1000)
+    return end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  }
+  return ''
+}
+
 // Chỉ coi là "hết ghế" khi phòng có sơ đồ ghế (totalSeats > 0) và không còn ghế trống
 const isSoldOut = (st) => (st.totalSeats > 0) && (st.availableSeats <= 0)
 // Sắp hết: còn dưới 10 ghế
@@ -325,6 +336,10 @@ const groupShowtimesByFormat = (showtimes) => {
       groups[format] = []
     }
     groups[format].push(st)
+  })
+  // Sắp xếp các suất chiếu tăng dần theo giờ bắt đầu
+  Object.values(groups).forEach(list => {
+    list.sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
   })
   return groups
 }
@@ -505,46 +520,78 @@ const groupShowtimesByFormat = (showtimes) => {
           <template v-else>Không có suất chiếu phù hợp với lựa chọn của bạn.</template>
         </div>
 
-        <div class="space-y-0" v-else>
+        <div class="space-y-8" v-else>
           <div
             v-for="(cinema, index) in visibleCinemas"
             :key="cinema.cinemaId"
-            :class="['py-8 px-6 -mx-6 border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#1a1a1a]' : 'bg-transparent']"
+            :class="['py-8 px-6 -mx-6 border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#161616]' : 'bg-transparent']"
           >
-            <h3 class="font-bold text-[18px] text-white mb-4">{{ cinema.cinemaName }}</h3>
+            <!-- Tên rạp -->
+            <h3 class="font-bold text-[18px] text-white mb-5 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[20px] text-[#f5c518]">location_on</span>
+              {{ cinema.cinemaName }}
+            </h3>
 
-            <div v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" :key="format" class="flex flex-col md:flex-row md:items-center gap-4 mt-6 first:mt-0">
-              <!-- Left: Format (15-20% width) -->
-              <div class="w-full md:w-[150px] lg:w-[180px] flex-shrink-0">
-                <span class="text-[14px] text-gray-400 font-bold whitespace-pre-line leading-relaxed">{{ format.replace(' Lồng', '\nLồng').replace(' Phụ', '\nPhụ') }}</span>
+            <!-- Danh sách từng định dạng (2D Phụ Đề, 2D Lồng Tiếng,...) -->
+            <div 
+              v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" 
+              :key="format" 
+              class="mb-6 last:mb-0"
+            >
+              <!-- Định dạng hiển thị ở TRÊN -->
+              <div class="flex items-center gap-3 mb-3">
+                <span class="text-[13px] font-bold text-gray-300 uppercase tracking-wider">{{ format }}</span>
+                <div class="flex-1 h-px bg-white/[0.08]"></div>
               </div>
 
-              <!-- Right: Showtime cards (Phòng / Giờ / Ghế) -->
-              <div class="flex-1 flex flex-wrap items-center gap-3">
+              <!-- Xuống dòng: Danh sách suất chiếu dàn đều toàn chiều rộng -->
+              <div class="flex flex-wrap items-center gap-3">
                 <button
                   v-for="st in sts"
                   :key="st.id"
                   @click="selectShowtime(st, cinema)"
                   :disabled="isSoldOut(st)"
                   :title="isSoldOut(st) ? 'Suất chiếu đã hết ghế' : ''"
-                  :class="isSoldOut(st)
-                    ? 'border-[#333] bg-[#1a1a1a] opacity-40 cursor-not-allowed'
-                    : 'border-[#444444] bg-[#1f1f1f] hover:border-[#f5c518] hover:bg-[#262626] cursor-pointer'"
-                  class="group flex flex-col items-center justify-center gap-1 border rounded-lg w-[140px] min-h-[80px] px-4 py-3 flex-shrink-0 transition-all"
+                  :class="[
+                    'group flex flex-col items-center justify-center gap-1 border rounded-lg w-[140px] min-h-[82px] px-3 py-2.5 flex-shrink-0 transition-all duration-200',
+                    isSoldOut(st)
+                      ? 'border-[#2a2a2a] bg-[#161616] opacity-40 cursor-not-allowed'
+                      : isLowSeats(st)
+                        ? 'border-[#8b6914]/40 bg-[#1f1b12] hover:border-[#f5c518] hover:bg-[#282214] cursor-pointer'
+                        : 'border-[#333333] bg-[#1c1c1c] hover:border-[#f5c518] hover:bg-[#201d0a] cursor-pointer'
+                  ]"
                 >
-                  <!-- Dòng 1: Tên phòng — cố định 1 dòng, tràn thì ellipsis gọn gàng -->
-                  <span class="block w-full text-center text-xs text-gray-400 font-medium leading-tight overflow-hidden text-ellipsis whitespace-nowrap">{{ st.roomName }}</span>
-                  <!-- Dòng 2: Giờ chiếu (tâm điểm) -->
-                  <span
-                    class="text-xl font-bold leading-none tracking-tight"
-                    :class="isSoldOut(st) ? 'text-gray-500' : 'text-[#f5c518]'"
-                  >{{ fmtTime(st.startTime) }}</span>
-                  <!-- Dòng 3: Tình trạng ghế — luôn 1 dòng, không wrap -->
+                  <!-- Dòng 1: Tên phòng -->
+                  <span class="block w-full text-center text-xs text-gray-400 font-medium leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
+                    {{ st.roomName }}
+                  </span>
+
+                  <!-- Dòng 2: Giờ chiếu (Mặc định: 10:30, Hover: 10:30 ~ 12:47) -->
+                  <div class="relative flex items-center justify-center w-full h-[26px]">
+                    <!-- Trạng thái mặc định -->
+                    <span
+                      class="text-xl font-bold leading-none tracking-tight tabular-nums transition-all duration-200 group-hover:opacity-0 group-hover:scale-90 absolute"
+                      :class="isSoldOut(st) ? 'text-gray-500' : 'text-[#f5c518]'"
+                    >
+                      {{ fmtTime(st.startTime) }}
+                    </span>
+                    <!-- Trạng thái hover: Giờ bắt đầu ~ Giờ kết thúc -->
+                    <span
+                      class="text-sm font-bold leading-none tracking-tight tabular-nums transition-all duration-200 opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 text-[#f5c518]"
+                      :class="isSoldOut(st) ? 'text-gray-500' : ''"
+                    >
+                      {{ fmtTime(st.startTime) }}<span class="text-gray-400 font-normal mx-0.5">~</span>{{ fmtEndTime(st) }}
+                    </span>
+                  </div>
+
+                  <!-- Dòng 3: Tình trạng ghế -->
                   <span
                     v-if="st.totalSeats > 0"
-                    class="text-xs font-medium leading-tight whitespace-nowrap"
-                    :class="isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-orange-400' : 'text-gray-400')"
-                  >{{ isSoldOut(st) ? 'Hết ghế' : `${st.availableSeats} / ${st.totalSeats} Ghế` }}</span>
+                    class="text-[11px] font-medium leading-tight whitespace-nowrap"
+                    :class="isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-[#f5c518]/80' : 'text-gray-400')"
+                  >
+                    {{ isSoldOut(st) ? 'Hết ghế' : `${st.availableSeats} / ${st.totalSeats} Ghế ngồi` }}
+                  </span>
                 </button>
               </div>
             </div>
