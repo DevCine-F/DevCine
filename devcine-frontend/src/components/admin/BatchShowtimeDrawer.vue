@@ -453,7 +453,8 @@ const autoGenerateShifts = () => {
     : 15;
   const totalMins = duration + turnaround;
 
-  let startMin = 8 * 60; // 08:00
+  const { openMin, closeMin } = cinemaScheduleBounds.value;
+  let startMin = openMin;
   if (newHour.value && newMinute.value) {
     startMin = parseInt(newHour.value) * 60 + parseInt(newMinute.value);
   } else if (form.startTimes.length > 0) {
@@ -461,12 +462,12 @@ const autoGenerateShifts = () => {
     startMin = parseInt(h) * 60 + parseInt(m);
   }
 
-  const endDay = 23 * 60 + 30; // 23:30
+  const endDay = closeMin;
   const generated = [];
   let currentMin = startMin;
   
-  while (currentMin + totalMins <= endDay) {
-    const h = Math.floor(currentMin / 60).toString().padStart(2, '0');
+  while (currentMin <= endDay) {
+    const h = (Math.floor(currentMin / 60) % 24).toString().padStart(2, '0');
     const m = (currentMin % 60).toString().padStart(2, '0');
     generated.push(`${h}:${m}`);
     currentMin += totalMins;
@@ -480,47 +481,88 @@ const autoGenerateShifts = () => {
   toast.success(`Đã rải ca tự động với bước nhảy ${totalMins} phút (Phim ${duration}p + dọn dẹp tối đa ${turnaround}p).`);
 };
 
-const hourOptions = computed(() => {
-  let openH = 24, closeH = -1;
+const cinemaScheduleBounds = computed(() => {
   const selectedCins = props.cinemas.filter(c => c.halls?.some(h => form.roomIds.includes(h.id)));
-  
-  if (selectedCins.length === 0) {
-    openH = 8; closeH = 23;
-  } else {
-    selectedCins.forEach(c => {
-      let oh = 8, ch = 23;
-      if (c.openingTime) oh = parseInt(c.openingTime.split(':')[0]);
-      if (c.closingTime) ch = parseInt(c.closingTime.split(':')[0]);
-      if (oh < openH) openH = oh;
-      
-      // If closingTime is smaller than openingTime, it means it crosses midnight
-      if (ch < oh) ch += 24; 
-      if (ch > closeH) closeH = ch;
+  const list = selectedCins.length > 0 ? selectedCins : (props.cinemas.length > 0 ? props.cinemas : localCinemas.value);
+
+  let openMin = 8 * 60;
+  let closeMin = 23 * 60 + 30;
+
+  if (list && list.length > 0) {
+    let minOpen = 24 * 60;
+    let maxClose = -1;
+
+    list.forEach(c => {
+      let oh = 8, om = 0, ch = 23, cm = 30;
+      if (c.openingTime) {
+        const [h, m] = String(c.openingTime).split(':').map(Number);
+        oh = isNaN(h) ? 8 : h;
+        om = isNaN(m) ? 0 : m;
+      }
+      if (c.closingTime) {
+        const [h, m] = String(c.closingTime).split(':').map(Number);
+        ch = isNaN(h) ? 23 : h;
+        cm = isNaN(m) ? 30 : m;
+      }
+      const cOpen = oh * 60 + om;
+      let cClose = ch * 60 + cm;
+      if (cClose < cOpen) cClose += 1440;
+
+      if (cOpen < minOpen) minOpen = cOpen;
+      if (cClose > maxClose) maxClose = cClose;
     });
-    if (closeH >= 24) closeH -= 24; // map back to 0-23
+
+    if (minOpen < 24 * 60) openMin = minOpen;
+    if (maxClose > -1) closeMin = maxClose;
   }
+
+  return { openMin, closeMin };
+});
+
+const hourOptions = computed(() => {
+  const { openMin, closeMin } = cinemaScheduleBounds.value;
+  const startH = Math.floor(openMin / 60);
+  const endH = Math.floor(closeMin / 60);
 
   const hours = [];
-  let h = openH;
-  while (true) {
-    hours.push(h);
-    if (h === closeH) break;
-    h = (h + 1) % 24;
-    if (hours.length >= 24) break;
+  for (let h = startH; h <= endH; h++) {
+    const val = (h % 24).toString().padStart(2, '0');
+    if (!hours.some(opt => opt.value === val)) {
+      hours.push({ value: val, label: val, disabled: false });
+    }
   }
-
-  return hours.map(h => {
-    const val = h.toString().padStart(2, '0');
-    return { value: val, label: val, disabled: false };
-  });
+  return hours;
 });
 
 const minuteOptions = computed(() => {
-  return Array.from({ length: 12 }, (_, i) => {
-    const minVal = i * 5;
-    const val = minVal.toString().padStart(2, '0');
-    return { value: val, label: val, disabled: false };
-  });
+  if (!newHour.value) {
+    return Array.from({ length: 12 }, (_, i) => {
+      const val = (i * 5).toString().padStart(2, '0');
+      return { value: val, label: val, disabled: false };
+    });
+  }
+
+  const { openMin, closeMin } = cinemaScheduleBounds.value;
+  const startH = Math.floor(openMin / 60);
+  let h = parseInt(newHour.value);
+  if (h < (startH % 24)) h += 24;
+
+  return Array.from({ length: 12 }, (_, i) => i * 5)
+    .filter(minVal => {
+      const pos = h * 60 + minVal;
+      return pos >= openMin && pos <= closeMin;
+    })
+    .map(minVal => {
+      const val = minVal.toString().padStart(2, '0');
+      return { value: val, label: val, disabled: false };
+    });
+});
+
+watch(() => newHour.value, () => {
+  if (newMinute.value) {
+    const isValid = minuteOptions.value.some(opt => opt.value === newMinute.value);
+    if (!isValid) newMinute.value = '';
+  }
 });
 
 const buildPayload = (dryRun, force = false) => {

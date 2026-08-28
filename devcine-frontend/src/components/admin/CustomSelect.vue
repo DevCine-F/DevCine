@@ -75,7 +75,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative w-full text-sm font-medium" ref="selectRef">
+  <div class="relative w-full text-sm font-medium" :class="isOpen ? 'z-[90]' : 'z-10'" ref="selectRef">
     <!-- Selected Value Display -->
     <div 
       @click="toggleOpen"

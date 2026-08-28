@@ -140,46 +140,77 @@ const todayCheck = computed(() => {
 const currentHour = computed(() => todayCheck.value ? new Date().getHours() : -1);
 const currentMinute = computed(() => todayCheck.value ? new Date().getMinutes() : -1);
 
-const hourOptions = computed(() => {
-  let openH = 8, closeH = 23;
+const cinemaScheduleBounds = computed(() => {
+  let openMin = 8 * 60;
+  let closeMin = 23 * 60 + 30;
+
   if (props.cinema) {
-    if (props.cinema.openingTime) openH = parseInt(props.cinema.openingTime.split(':')[0]);
-    if (props.cinema.closingTime) closeH = parseInt(props.cinema.closingTime.split(':')[0]);
+    let oh = 8, om = 0, ch = 23, cm = 30;
+    if (props.cinema.openingTime) {
+      const [h, m] = String(props.cinema.openingTime).split(':').map(Number);
+      oh = isNaN(h) ? 8 : h;
+      om = isNaN(m) ? 0 : m;
+    }
+    if (props.cinema.closingTime) {
+      const [h, m] = String(props.cinema.closingTime).split(':').map(Number);
+      ch = isNaN(h) ? 23 : h;
+      cm = isNaN(m) ? 30 : m;
+    }
+    openMin = oh * 60 + om;
+    closeMin = ch * 60 + cm;
+    if (closeMin < openMin) closeMin += 1440;
   }
+
+  return { openMin, closeMin };
+});
+
+const hourOptions = computed(() => {
+  const { openMin, closeMin } = cinemaScheduleBounds.value;
+  const startH = Math.floor(openMin / 60);
+  const endH = Math.floor(closeMin / 60);
 
   const hours = [];
-  let h = openH;
-  while (true) {
-    hours.push(h);
-    if (h === closeH) break;
-    h = (h + 1) % 24;
-    if (hours.length >= 24) break;
-  }
-
-  return hours.map(h => {
-    const val = h.toString().padStart(2, '0');
+  for (let h = startH; h <= endH; h++) {
+    const val = (h % 24).toString().padStart(2, '0');
     let disabled = false;
     if (todayCheck.value) {
-      if (h >= openH) {
-         disabled = h < currentHour.value;
-      } else {
-         disabled = false; // Next day hours are never past
+      if (h >= startH) {
+        disabled = (h % 24) < currentHour.value;
       }
     }
-    return { value: val, label: val, disabled };
-  }).filter(opt => !opt.disabled);
+    if (!disabled && !hours.some(opt => opt.value === val)) {
+      hours.push({ value: val, label: val });
+    }
+  }
+  return hours;
 });
 
 const minuteOptions = computed(() => {
-  return Array.from({ length: 12 }, (_, i) => {
-    const minVal = i * 5;
-    const val = minVal.toString().padStart(2, '0');
-    let disabled = false;
-    if (currentHour.value !== -1 && form.startHour === currentHour.value.toString().padStart(2, '0')) {
-      disabled = minVal < currentMinute.value;
-    }
-    return { value: val, label: val, disabled };
-  }).filter(opt => !opt.disabled);
+  if (!form.startHour) {
+    return Array.from({ length: 12 }, (_, i) => {
+      const val = (i * 5).toString().padStart(2, '0');
+      return { value: val, label: val };
+    });
+  }
+
+  const { openMin, closeMin } = cinemaScheduleBounds.value;
+  const startH = Math.floor(openMin / 60);
+  let h = parseInt(form.startHour);
+  if (h < (startH % 24)) h += 24;
+
+  return Array.from({ length: 12 }, (_, i) => i * 5)
+    .filter(minVal => {
+      const pos = h * 60 + minVal;
+      if (pos < openMin || pos > closeMin) return false;
+      if (todayCheck.value && currentHour.value !== -1 && parseInt(form.startHour) === currentHour.value) {
+        if (minVal < currentMinute.value) return false;
+      }
+      return true;
+    })
+    .map(minVal => {
+      const val = minVal.toString().padStart(2, '0');
+      return { value: val, label: val };
+    });
 });
 
 const fetchOptions = async () => {
@@ -209,19 +240,15 @@ const fetchRooms = async (cinemaId) => {
 
 const fetchShowtimes = async () => {
   if (!props.cinemaId || !props.selectedDate) return;
-  const year = new Date().getFullYear();
-  const [day, month] = props.selectedDate.split('/');
-  const dateStr = `${year}-${month}-${day}`;
+  const showDateStr = getSelectedDateStr();
   
   try {
-    const { data } = await api.get('/showtimes/by-cinema', { params: { cinemaId: props.cinemaId, date: dateStr } });
+    const { data } = await api.get('/showtimes/by-cinema', { params: { cinemaId: props.cinemaId, date: showDateStr } });
     existingShowtimes.value = data || [];
   } catch (e) {
     console.error('Failed to fetch showtimes for slots', e);
   }
 };
-
-
 
 watch(() => form.movieId, () => {
   form.formatId = '';
@@ -236,7 +263,14 @@ watch(() => form.roomId, () => {
 watch(() => form.formatId, () => {
   fieldErrors.formatId = '';
 });
-watch(() => [form.startHour, form.startMinute], () => {
+watch(() => form.startHour, () => {
+  fieldErrors.time = '';
+  if (form.startMinute) {
+    const isValid = minuteOptions.value.some(opt => opt.value === form.startMinute);
+    if (!isValid) form.startMinute = '';
+  }
+});
+watch(() => form.startMinute, () => {
   fieldErrors.time = '';
 });
 

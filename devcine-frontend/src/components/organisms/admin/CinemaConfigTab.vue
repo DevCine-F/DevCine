@@ -1,5 +1,6 @@
 <script setup>
 import { toRef, ref, computed, watch, nextTick } from 'vue'
+import CustomSelect from '@/components/admin/CustomSelect.vue'
 import { useCinemaConfig } from '@/composables/useCinemaConfig'
 import { useConfirmStore } from '@/stores/confirm'
 import { titleCase, formatHotline, parseGoogleMapsInput } from '@/utils/cinemaValidators'
@@ -103,6 +104,49 @@ const handleReset = () => { resetForm(); syncCoordsFromForm() }
 
 // Nạp cấu hình khi đổi cụm rạp (đặt sau các helper toạ độ để tránh TDZ với immediate:true)
 watch(() => props.cinema, (c) => { if (c) { loadConfig(c); syncCoordsFromForm(); nextTick(sizeDescription) } }, { immediate: true })
+
+// ===== Bộ chọn Giờ hoạt động (00..23 và 00..55) theo style chuẩn của web =====
+const hourOptions = Array.from({ length: 24 }, (_, i) => {
+  const v = i.toString().padStart(2, '0');
+  return { value: v, label: v };
+});
+
+const minuteOptions = Array.from({ length: 12 }, (_, i) => {
+  const v = (i * 5).toString().padStart(2, '0');
+  return { value: v, label: v };
+});
+
+const openHour = computed({
+  get: () => form.openingTime ? form.openingTime.split(':')[0].padStart(2, '0') : '08',
+  set: (val) => {
+    const m = openMinute.value || '00';
+    form.openingTime = `${val}:${m}`;
+  }
+});
+
+const openMinute = computed({
+  get: () => form.openingTime ? (form.openingTime.split(':')[1] || '00').padStart(2, '0') : '00',
+  set: (val) => {
+    const h = openHour.value || '08';
+    form.openingTime = `${h}:${val}`;
+  }
+});
+
+const closeHour = computed({
+  get: () => form.closingTime ? form.closingTime.split(':')[0].padStart(2, '0') : '23',
+  set: (val) => {
+    const m = closeMinute.value || '30';
+    form.closingTime = `${val}:${m}`;
+  }
+});
+
+const closeMinute = computed({
+  get: () => form.closingTime ? (form.closingTime.split(':')[1] || '30').padStart(2, '0') : '30',
+  set: (val) => {
+    const h = closeHour.value || '23';
+    form.closingTime = `${h}:${val}`;
+  }
+});
 
 // ===== Tiện ích: chip input (lưu canonical vào form.amenities dạng "a, b, c") =====
 const amenityDraft = ref('')
@@ -270,30 +314,50 @@ const STATUS_META = {
     </section>
 
     <!-- ============ CARD: GIỜ HOẠT ĐỘNG ============ -->
-    <section class="bg-surface-container-high border border-outline-variant/10 rounded-2xl overflow-hidden">
-      <header class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
+    <section class="bg-surface-container-high border border-outline-variant/10 rounded-2xl relative z-20">
+      <header class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10 rounded-t-2xl">
         <div class="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
           <span class="material-symbols-outlined text-blue-400 text-lg">schedule</span>
         </div>
         <div class="flex-1">
           <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Giờ hoạt động</h4>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">Khung giờ mở cửa & giờ bắt đầu suất chiếu muộn nhất hằng ngày</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">Khung giờ mở cửa &amp; giờ bắt đầu suất chiếu muộn nhất hằng ngày</p>
         </div>
-        <span class="text-blue-400 text-xs font-black">Mở cửa: {{ form.openingTime || '--:--' }} – Suất cuối: {{ form.closingTime || '--:--' }}</span>
+        <span class="text-blue-400 text-xs font-black bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg">
+          {{ form.openingTime || '--:--' }} – {{ form.closingTime || '--:--' }}
+        </span>
       </header>
-      <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="space-y-1.5">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giờ mở cửa</label>
-          <input v-model="form.openingTime" type="time"
-            class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
+
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- Box: Giờ mở cửa -->
+          <div class="p-4 rounded-xl bg-surface-container/60 border border-outline-variant/10 flex flex-col gap-2.5 relative z-30">
+            <label class="text-xs font-black uppercase tracking-widest text-on-surface">Giờ mở cửa</label>
+            
+            <div class="flex items-center gap-2 max-w-[220px]">
+              <CustomSelect v-model="openHour" :options="hourOptions" placeholder="Giờ" class="flex-1 min-w-0" />
+              <span class="text-base font-black text-on-surface-variant/40 select-none">:</span>
+              <CustomSelect v-model="openMinute" :options="minuteOptions" placeholder="Phút" class="flex-1 min-w-0" />
+            </div>
+          </div>
+
+          <!-- Box: Giờ bắt đầu suất cuối -->
+          <div class="p-4 rounded-xl bg-surface-container/60 border border-outline-variant/10 flex flex-col gap-2.5 relative z-20">
+            <label class="text-xs font-black uppercase tracking-widest text-on-surface">Giờ bắt đầu suất cuối</label>
+            
+            <div class="flex items-center gap-2 max-w-[220px]">
+              <CustomSelect v-model="closeHour" :options="hourOptions" placeholder="Giờ" class="flex-1 min-w-0" />
+              <span class="text-base font-black text-on-surface-variant/40 select-none">:</span>
+              <CustomSelect v-model="closeMinute" :options="minuteOptions" placeholder="Phút" class="flex-1 min-w-0" />
+            </div>
+          </div>
+
         </div>
-        <div class="space-y-1.5">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Giờ bắt đầu suất cuối</label>
-          <input v-model="form.closingTime" type="time"
-            class="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 transition-all" />
-        </div>
-        <p class="md:col-span-2 text-[10px] text-on-surface-variant/60 flex items-center gap-1.5">
-          <span class="material-symbols-outlined text-sm">info</span>Mốc thời gian muộn nhất trong ngày cho phép một suất chiếu bắt đầu (suất chiếu có thể kéo dài qua nửa đêm sang rạng sáng hôm sau).
+
+        <p class="text-[11px] text-on-surface-variant/70 flex items-center gap-1.5 bg-white/5 border border-white/5 rounded-xl px-3.5 py-2.5">
+          <span class="material-symbols-outlined text-sm text-primary shrink-0">info</span>
+          <span>Mốc thời gian muộn nhất trong ngày cho phép một suất chiếu bắt đầu (suất chiếu có thể kéo dài qua nửa đêm sang rạng sáng hôm sau).</span>
         </p>
       </div>
     </section>
