@@ -429,20 +429,28 @@ const validateMovieDateRange = () => {
   const selectedMovie = movies.value.find(m => m.id === form.movieId);
   if (!selectedMovie) return false;
   
-  const startDate = new Date(selectedMovie.startDate);
-  startDate.setHours(0,0,0,0);
-  
-  const batchStart = new Date(form.dateRange.start);
+  if (!form.dateFrom || !form.dateTo) return false;
+  const batchStart = new Date(form.dateFrom);
   batchStart.setHours(0,0,0,0);
   
-  const batchEnd = new Date(form.dateRange.end);
+  const batchEnd = new Date(form.dateTo);
   batchEnd.setHours(23,59,59,999);
 
-  let isOutOfRange = batchStart < startDate;
+  let isOutOfRange = false;
+  if (selectedMovie.startDate) {
+    const startDate = new Date(selectedMovie.startDate);
+    startDate.setHours(0,0,0,0);
+    if (!isNaN(startDate.getTime()) && batchStart < startDate) {
+      isOutOfRange = true;
+    }
+  }
+
   if (selectedMovie.endDate) {
     const endDate = new Date(selectedMovie.endDate);
     endDate.setHours(23,59,59,999);
-    if (batchEnd > endDate) isOutOfRange = true;
+    if (!isNaN(endDate.getTime()) && batchEnd > endDate) {
+      isOutOfRange = true;
+    }
   }
 
   if (isOutOfRange) {
