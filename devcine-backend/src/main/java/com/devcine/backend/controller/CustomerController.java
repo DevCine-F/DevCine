@@ -6,8 +6,10 @@ import com.devcine.backend.repository.*;
 import com.devcine.backend.service.PasswordResetService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,8 +33,55 @@ public class CustomerController {
     private final VoucherRepository voucherRepository;
     private final PasswordResetService passwordResetService;
 
+    // ===== Security helpers =====
+
+    /**
+     * Lấy cinemaId của người đang đăng nhập từ JWT (đã được JwtFilter inject vào Details).
+     * ADMIN không mang cinemaId → trả null.
+     */
+    private Integer currentCinemaId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return null;
+        if (auth.getDetails() instanceof Map<?, ?> details) {
+            Object cid = details.get("cinemaId");
+            return cid instanceof Integer i ? i : null;
+        }
+        return null;
+    }
+
+    /**
+     * Kiểm tra người đang đăng nhập có role ADMIN hệ thống hay không.
+     * ADMIN thấy toàn bộ dữ liệu, không bị scope theo cinema.
+     */
+    private boolean isSystemAdmin() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equalsIgnoreCase("ROLE_ADMIN"));
+    }
+
+    /**
+     * Kiểm tra quyền truy cập vào profile của 1 khách hàng cụ thể.
+     * - ADMIN: luôn được phép.
+     * - Manager/Staff: chỉ được xem khách đã từng giao dịch tại cinema của mình
+     *   (Booking CONFIRMED hoặc ConcessionSale COMPLETED).
+     *
+     * @return true nếu có quyền truy cập; false nếu bị cấm.
+     */
+    private boolean hasAccessToCustomer(Integer customerId) {
+        if (isSystemAdmin()) return true;
+        Integer cinemaId = currentCinemaId();
+        if (cinemaId == null) return false; // không xác định cinema → từ chối an toàn
+        return customerRepository.existsBookingByCinemaAndCustomer(cinemaId, customerId)
+                || concessionSaleRepository.existsCompletedByCinemaAndCustomer(cinemaId, customerId);
+    }
+
+    // ===== Endpoints =====
+
     /**
      * Danh sách khách hàng cho khu vực quản trị.
+     * - ADMIN: toàn bộ hệ thống (kể cả khách mới đăng ký chưa mua vé).
+     * - Manager/Staff cụm rạp: CHỈ khách đã từng giao dịch tại cinema của mình.
      * Tối ưu O(1) batch query tính tổng chi tiêu (totalSpent) và tổng số đơn (orderCount).
      */
     @GetMapping
@@ -45,9 +94,21 @@ public class CustomerController {
             else if (cleanQ.toUpperCase().startsWith("DC-")) cleanQ = cleanQ.substring(3).trim();
             else if (cleanQ.startsWith("#")) cleanQ = cleanQ.substring(1).trim();
 
-            List<Customer> customers = !cleanQ.isBlank()
-                    ? customerRepository.searchWithUser(cleanQ)
-                    : customerRepository.findAllWithUser();
+            Integer cinemaId = currentCinemaId();
+            boolean isAdmin = isSystemAdmin();
+
+            List<Customer> customers;
+            if (isAdmin || cinemaId == null) {
+                // ADMIN: toàn hệ thống, kể cả khách mới đăng ký chưa mua vé
+                customers = !cleanQ.isBlank()
+                        ? customerRepository.searchWithUser(cleanQ)
+                        : customerRepository.findAllWithUser();
+            } else {
+                // Manager / Staff: chỉ khách đã giao dịch tại cinema của mình
+                customers = !cleanQ.isBlank()
+                        ? customerRepository.searchByCinemaScope(cleanQ, cinemaId)
+                        : customerRepository.findByCinemaScope(cinemaId);
+            }
 
             List<Integer> customerIds = customers.stream().map(Customer::getUserId).collect(Collectors.toList());
 
@@ -95,6 +156,12 @@ public class CustomerController {
                 return ResponseEntity.notFound().build();
             }
 
+            // Guard: Manager/Staff chỉ được xem khách thuộc cinema mình
+            if (!hasAccessToCustomer(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.fail("Khách hàng này không thuộc phạm vi quản lý của cụm rạp bạn."));
+            }
+
             BigDecimal totalSpent = BigDecimal.ZERO;
             long orderCount = 0;
 
@@ -124,12 +191,20 @@ public class CustomerController {
     /**
      * Lịch sử đặt vé & bắp nước của khách hàng (Tab 2).
      * Kết hợp cả đơn Booking (vé/combo) và ConcessionSale (bán nhanh tại quầy).
+     * Hiển thị toàn bộ đơn toàn chuỗi (không scope theo cinema) — staff thấy đầy đủ
+     * context khi hỗ trợ khách, cột cinemaName phân biệt nguồn gốc từng đơn.
      */
     @GetMapping("/{id}/orders")
     @PreAuthorize("@perm.can('customers', 'view')")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getCustomerOrders(@PathVariable Integer id) {
         try {
+            // Guard: Manager/Staff chỉ được xem khách thuộc cinema mình
+            if (!hasAccessToCustomer(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.fail("Khách hàng này không thuộc phạm vi quản lý của cụm rạp bạn."));
+            }
+
             List<Map<String, Object>> orders = new ArrayList<>();
 
             // 1. Đơn vé (Bookings)
@@ -147,6 +222,7 @@ public class CustomerController {
                     }
                 }
 
+                Integer currentCinemaId = currentCinemaId();
                 for (Booking b : bookings) {
                     Map<String, Object> m = new HashMap<>();
                     m.put("id", b.getId());
@@ -155,8 +231,13 @@ public class CustomerController {
                     m.put("title", b.getShowtime() != null && b.getShowtime().getMovie() != null ? b.getShowtime().getMovie().getTitle() : "Vé xem phim");
                     m.put("showtimeStart", b.getShowtime() != null && b.getShowtime().getStartTime() != null ? b.getShowtime().getStartTime().toString() : null);
                     m.put("roomName", b.getShowtime() != null && b.getShowtime().getRoom() != null ? b.getShowtime().getRoom().getName() : "");
+                    Integer bookingCinemaId = (b.getShowtime() != null && b.getShowtime().getRoom() != null
+                            && b.getShowtime().getRoom().getCinema() != null)
+                            ? b.getShowtime().getRoom().getCinema().getId() : null;
                     m.put("cinemaName", b.getShowtime() != null && b.getShowtime().getRoom() != null && b.getShowtime().getRoom().getCinema() != null
                             ? b.getShowtime().getRoom().getCinema().getName() : "DevCine");
+                    // Đánh dấu đơn thuộc cinema khác — FE có thể dùng để render read-only
+                    m.put("isOtherCinema", currentCinemaId != null && bookingCinemaId != null && !currentCinemaId.equals(bookingCinemaId));
                     List<String> seatList = seatsByBooking.getOrDefault(b.getId(), List.of());
                     m.put("seatCount", seatList.size());
                     m.put("seats", seatList.isEmpty() ? "—" : String.join(", ", seatList));
@@ -174,6 +255,7 @@ public class CustomerController {
             // 2. Đơn bắp nước tại quầy (ConcessionSale)
             List<ConcessionSale> concessions = concessionSaleRepository.findByCustomerIdOrderByCreatedAtDesc(id);
             if (concessions != null) {
+                Integer currentCinemaId = currentCinemaId();
                 for (ConcessionSale s : concessions) {
                     Map<String, Object> m = new HashMap<>();
                     m.put("id", s.getId());
@@ -182,7 +264,10 @@ public class CustomerController {
                     m.put("title", "Bán nhanh bắp nước (F&B)");
                     m.put("showtimeStart", null);
                     m.put("roomName", "Quầy Concession");
+                    Integer saleCinemaId = s.getCinema() != null ? s.getCinema().getId() : null;
                     m.put("cinemaName", s.getCinema() != null ? s.getCinema().getName() : "DevCine");
+                    // Đánh dấu đơn thuộc cinema khác — FE có thể dùng để render read-only
+                    m.put("isOtherCinema", currentCinemaId != null && saleCinemaId != null && !currentCinemaId.equals(saleCinemaId));
                     m.put("seatCount", 0);
                     m.put("seats", "—");
                     m.put("totalPrice", s.getTotalPrice() != null ? s.getTotalPrice() : BigDecimal.ZERO);
@@ -219,6 +304,12 @@ public class CustomerController {
     @Transactional(readOnly = true)
     public ResponseEntity<?> getCustomerVouchers(@PathVariable Integer id) {
         try {
+            // Guard: Manager/Staff chỉ được xem khách thuộc cinema mình
+            if (!hasAccessToCustomer(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.fail("Khách hàng này không thuộc phạm vi quản lý của cụm rạp bạn."));
+            }
+
             LocalDateTime now = LocalDateTime.now();
             List<Voucher> vouchers = voucherRepository.findAllByCustomerIdWithPromotion(id);
 
@@ -266,6 +357,12 @@ public class CustomerController {
     @Transactional(readOnly = true)
     public ResponseEntity<?> getPointHistory(@PathVariable Integer id) {
         try {
+            // Guard: Manager/Staff chỉ được xem khách thuộc cinema mình
+            if (!hasAccessToCustomer(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.fail("Khách hàng này không thuộc phạm vi quản lý của cụm rạp bạn."));
+            }
+
             List<PointTransaction> txs = pointTransactionRepository.findByCustomer_UserIdOrderByCreatedAtDescIdDesc(id);
             List<Map<String, Object>> result = new ArrayList<>();
             if (txs != null) {
@@ -301,6 +398,12 @@ public class CustomerController {
         try {
             Customer customer = customerRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+
+            // Guard: Manager/Staff chỉ được sửa khách thuộc cinema mình
+            if (!hasAccessToCustomer(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.fail("Khách hàng này không thuộc phạm vi quản lý của cụm rạp bạn."));
+            }
 
             if (customer.getUser() != null) {
                 var user = customer.getUser();
@@ -344,6 +447,13 @@ public class CustomerController {
         try {
             Customer customer = customerRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+
+            // Guard: Manager/Staff chỉ được thao tác khách thuộc cinema mình
+            if (!hasAccessToCustomer(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.fail("Khách hàng này không thuộc phạm vi quản lý của cụm rạp bạn."));
+            }
+
             User user = customer.getUser();
             if (user == null) {
                 throw new RuntimeException("Không tìm thấy thông tin tài khoản người dùng");
@@ -394,6 +504,13 @@ public class CustomerController {
         try {
             Customer customer = customerRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+
+            // Guard: Manager/Staff chỉ được gửi reset password cho khách thuộc cinema mình
+            if (!hasAccessToCustomer(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.fail("Khách hàng này không thuộc phạm vi quản lý của cụm rạp bạn."));
+            }
+
             User user = customer.getUser();
             if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
                 throw new RuntimeException("Khách hàng này chưa cập nhật email để nhận liên kết đặt lại mật khẩu.");

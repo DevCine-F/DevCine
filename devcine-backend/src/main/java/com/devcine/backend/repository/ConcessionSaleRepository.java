@@ -54,5 +54,15 @@ public interface ConcessionSaleRepository extends JpaRepository<ConcessionSale, 
            "LEFT JOIN FETCH s.cinema cin " +
            "WHERE s.customer.userId = :customerId ORDER BY s.createdAt DESC")
     List<ConcessionSale> findByCustomerIdOrderByCreatedAtDesc(@Param("customerId") Integer customerId);
+
+    /**
+     * Kiểm tra nhanh khách có ConcessionSale COMPLETED tại cinema hay không
+     * (dùng để guard endpoint detail khi staff không phải ADMIN).
+     */
+    @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END " +
+           "FROM ConcessionSale s WHERE s.customer.userId = :customerId AND s.status = 'COMPLETED' " +
+           "AND s.cinema.id = :cinemaId")
+    boolean existsCompletedByCinemaAndCustomer(@Param("cinemaId") Integer cinemaId,
+                                               @Param("customerId") Integer customerId);
 }
 
