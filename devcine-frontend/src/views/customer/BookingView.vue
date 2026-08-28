@@ -374,6 +374,7 @@ const pagedFnbs = computed(() => {
 watch(fnbTotalPages, (total) => { if (fnbPage.value > total) fnbPage.value = total })
 
 // State for FnbOptionModal
+const MAX_FNB_QTY = 99
 const isFnbModalOpen = ref(false)
 const selectedFnbForModal = ref(null)
 
@@ -394,6 +395,10 @@ const decrementFnb = (fnbItem) => {
 }
 
 const openFnbModal = (fnbItem) => {
+  if (fnbQtyOf(fnbItem) >= MAX_FNB_QTY) {
+    toast.warning(`Tối đa ${MAX_FNB_QTY} phần/món.`)
+    return
+  }
   if (fnbItem.slots && fnbItem.slots.length > 0) {
     selectedFnbForModal.value = fnbItem
     isFnbModalOpen.value = true
@@ -405,6 +410,11 @@ const openFnbModal = (fnbItem) => {
 
 const handleFnbOptionConfirm = ({ options }) => {
   const fnbItem = selectedFnbForModal.value
+  if (!fnbItem) return
+  if (fnbQtyOf(fnbItem) >= MAX_FNB_QTY) {
+    toast.warning(`Tối đa ${MAX_FNB_QTY} phần/món.`)
+    return
+  }
   const existing = store.selectedFnbs.find(f => {
     if (f.fnbItem.id !== fnbItem.id) return false;
     const aIds = (f.options || []).map(o => o.optionItemId).sort().join(',');
@@ -1406,7 +1416,13 @@ const proceedToPayment = async () => {
                     <span class="material-symbols-outlined text-sm">remove</span>
                   </button>
                   <span class="min-w-[1.75rem] text-center text-sm font-bold">{{ fnbQtyOf(fnb) }}</span>
-                  <button @click="openFnbModal(fnb)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-primary-container/20 hover:text-primary-container transition-colors" title="Thêm 1">
+                  <button
+                    @click="openFnbModal(fnb)"
+                    :disabled="fnbQtyOf(fnb) >= MAX_FNB_QTY"
+                    :class="fnbQtyOf(fnb) >= MAX_FNB_QTY ? 'opacity-30 cursor-not-allowed' : 'hover:bg-primary-container/20 hover:text-primary-container'"
+                    class="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                    title="Thêm 1"
+                  >
                     <span class="material-symbols-outlined text-sm">add</span>
                   </button>
                 </div>

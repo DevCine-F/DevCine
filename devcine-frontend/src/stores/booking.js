@@ -175,6 +175,9 @@ export const useBookingStore = defineStore('booking', {
       this.calculateTotal();
     },
     updateFnb(fnbItem, quantity, options = []) {
+      const MAX_FNB_QTY = 99;
+      let q = Math.max(0, Number(quantity) || 0);
+
       const isOptionsEqual = (a, b) => {
           if (!a && !b) return true;
           if (!a || !b) return false;
@@ -186,11 +189,19 @@ export const useBookingStore = defineStore('booking', {
       
       const index = this.selectedFnbs.findIndex(f => f.fnbItem.id === fnbItem.id && isOptionsEqual(f.options, options));
       
-      if (quantity > 0) {
+      const otherQty = this.selectedFnbs
+        .filter((f, i) => f.fnbItem.id === fnbItem.id && i !== index)
+        .reduce((sum, f) => sum + f.quantity, 0);
+
+      if (otherQty + q > MAX_FNB_QTY) {
+        q = Math.max(0, MAX_FNB_QTY - otherQty);
+      }
+
+      if (q > 0) {
         if (index === -1) {
-          this.selectedFnbs.push({ fnbItem, quantity, options });
+          this.selectedFnbs.push({ fnbItem, quantity: q, options });
         } else {
-          this.selectedFnbs[index].quantity = quantity;
+          this.selectedFnbs[index].quantity = q;
         }
       } else if (index !== -1) {
         this.selectedFnbs.splice(index, 1);
