@@ -6,10 +6,12 @@ import com.devcine.backend.dto.response.SystemSettingResponseDTO;
 import com.devcine.backend.service.SystemSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/settings")
@@ -17,6 +19,23 @@ import java.util.List;
 public class SystemSettingController {
 
     private final SystemSettingService systemSettingService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private void notifySettingsUpdate(String key, String value) {
+        try {
+            if (messagingTemplate != null) {
+                Object payload = Map.of(
+                        "action", "SETTINGS_UPDATED",
+                        "key", key != null ? key : "",
+                        "value", value != null ? value : "",
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/settings-updates", payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<SystemSettingResponseDTO>>> getAllSettings() {
@@ -35,6 +54,8 @@ public class SystemSettingController {
     @PostMapping
     @PreAuthorize("@perm.can('settings', 'edit')")
     public ResponseEntity<ApiResponse<SystemSettingResponseDTO>> saveOrUpdateSetting(@RequestBody SystemSettingRequestDTO dto) {
-        return ResponseEntity.ok(ApiResponse.ok(systemSettingService.saveOrUpdateSetting(dto)));
+        SystemSettingResponseDTO res = systemSettingService.saveOrUpdateSetting(dto);
+        notifySettingsUpdate(dto.getSettingKey(), dto.getSettingValue());
+        return ResponseEntity.ok(ApiResponse.ok(res));
     }
 }

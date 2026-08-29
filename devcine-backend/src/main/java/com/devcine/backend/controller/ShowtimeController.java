@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +25,36 @@ import org.springframework.security.access.prepost.PreAuthorize;
 public class ShowtimeController {
 
     private final ShowtimeService showtimeService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private void notifyShowtimeEvent(Integer showtimeId, String type) {
+        try {
+            if (messagingTemplate != null && showtimeId != null) {
+                Object payload = Map.of(
+                        "type", type,
+                        "showtimeId", showtimeId,
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/showtime/" + showtimeId, payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
+
+    private void notifyScheduleUpdate(String action) {
+        try {
+            if (messagingTemplate != null) {
+                Object payload = Map.of(
+                        "action", action,
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/showtimes-schedule", payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
 
     @GetMapping("/sneak-previews")
     public ResponseEntity<ApiResponse<List<SneakPreviewDTO>>> getSneakPreviews() {
@@ -97,7 +128,9 @@ public class ShowtimeController {
     @PreAuthorize("@perm.can('schedules', 'add')")
     public ResponseEntity<?> createShowtime(@Valid @RequestBody ShowtimeRequest request) {
         try {
-            return ResponseEntity.ok(ApiResponse.ok(showtimeService.createShowtime(request)));
+            var res = showtimeService.createShowtime(request);
+            notifyScheduleUpdate("SHOWTIME_CREATED");
+            return ResponseEntity.ok(ApiResponse.ok(res));
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
@@ -108,7 +141,9 @@ public class ShowtimeController {
     public ResponseEntity<?> createBatchShowtimes(
             @Valid @RequestBody com.devcine.backend.dto.request.BatchShowtimeRequest request) {
         try {
-            return ResponseEntity.ok(ApiResponse.ok(showtimeService.createBatchShowtimes(request)));
+            var res = showtimeService.createBatchShowtimes(request);
+            notifyScheduleUpdate("BATCH_SHOWTIMES_CREATED");
+            return ResponseEntity.ok(ApiResponse.ok(res));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
@@ -136,6 +171,8 @@ public class ShowtimeController {
     public ResponseEntity<?> updateShowtime(@PathVariable Integer id, @RequestBody java.util.Map<String, Object> updates) {
         try {
             showtimeService.updateShowtime(id, updates);
+            notifyShowtimeEvent(id, "SHOWTIME_UPDATED");
+            notifyScheduleUpdate("SHOWTIME_UPDATED");
             return ResponseEntity.ok(ApiResponse.success("Đã cập nhật suất chiếu."));
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -147,6 +184,8 @@ public class ShowtimeController {
     public ResponseEntity<?> deleteShowtime(@PathVariable Integer id) {
         try {
             showtimeService.deleteShowtime(id);
+            notifyShowtimeEvent(id, "SHOWTIME_CANCELLED");
+            notifyScheduleUpdate("SHOWTIME_DELETED");
             return ResponseEntity.ok(ApiResponse.success("Đã xoá suất chiếu."));
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));

@@ -6,11 +6,24 @@ import { showtimeApi } from '@/api/customer'
 import api from '@/api/axios'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 
 const toast = useToastStore()
 const router = useRouter()
 const route = useRoute()
 const store = useBookingStore()
+
+const realtime = useSeatRealtime({
+  onScheduleUpdate: async () => {
+    if (selectedCinemaId.value) {
+      try {
+        const res = await showtimeApi.getByCinema(selectedCinemaId.value)
+        cinemaShowtimes.value = res.data || []
+      } catch (_) {}
+    }
+    loadInitialCinemas()
+  }
+})
 
 // ===== Dải ngày (7 ngày tới) =====
 const availableDates = computed(() => {
@@ -258,7 +271,14 @@ const loadInitialCinemas = async () => {
   }
 }
 
-onMounted(loadInitialCinemas)
+onMounted(() => {
+  loadInitialCinemas()
+  realtime.connect(null)
+})
+
+onUnmounted(() => {
+  realtime.disconnect()
+})
 </script>
 
 <template>

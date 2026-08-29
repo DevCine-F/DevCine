@@ -8,6 +8,7 @@ import TrailerModal from '@/components/common/TrailerModal.vue'
 import MovieCard from '@/components/customer/MovieCard.vue'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 
 const toast = useToastStore()
 const router = useRouter()
@@ -15,6 +16,13 @@ const movies = ref([])
 const loading = ref(true)
 const showTrailer = ref(false)
 const promoArticles = ref([])
+
+const realtime = useSeatRealtime({
+  onScheduleUpdate: () => {
+    fetchMovies()
+    fetchSneakPreviews()
+  }
+})
 
 // ===== Hero carousel: banner admin (2 chế độ) + fallback phim đang chiếu =====
 const currentSlide = ref(0)
@@ -161,6 +169,7 @@ onUnmounted(() => {
   clearTimeout(slideTimer)
   clearTimeout(videoTimer)
   clearTimeout(sneakSlideTimer)
+  realtime.disconnect()
 })
 
 const fetchPromoArticles = async () => {
@@ -205,6 +214,7 @@ onMounted(async () => {
   await Promise.all([fetchMovies(), fetchBanners()])
   restartAutoSlide()
   maybeStartVideo()
+  realtime.connect(null)
 })
 
 const nowShowingMovies = computed(() => movies.value.filter(m => m.status === 'active'))

@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @RestController
 @RequestMapping("/api/pricing")
@@ -35,6 +36,21 @@ public class PricingController {
     private final MovieFormatRepository movieFormatRepository;
     private final HolidayRepository holidayRepository;
     private final PricingService pricingService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private void notifyPricingUpdate(String action) {
+        try {
+            if (messagingTemplate != null) {
+                Object payload = Map.of(
+                        "action", action,
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/pricing-updates", payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
 
     // Mô hình 2 bậc: T2–T5 vs T6–CN & Lễ (gộp cao điểm).
     private static final List<Map<String, String>> DAY_TYPES = List.of(
@@ -124,6 +140,7 @@ public class PricingController {
                     pricingRuleRepository.save(rule);
                 }
             }
+            notifyPricingUpdate("BASE_MATRIX_UPDATED");
             return ResponseEntity.ok(ApiResponse.success("Đã lưu bảng giá nền."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -150,6 +167,7 @@ public class PricingController {
                     seatTypeRepository.save(s);
                 }
             }
+            notifyPricingUpdate("SEAT_TYPES_UPDATED");
             return ResponseEntity.ok(ApiResponse.success("Đã lưu loại ghế."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -177,6 +195,7 @@ public class PricingController {
                     movieFormatRepository.save(f);
                 }
             }
+            notifyPricingUpdate("FORMATS_UPDATED");
             return ResponseEntity.ok(ApiResponse.success("Đã lưu cấu hình định dạng."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -196,6 +215,7 @@ public class PricingController {
                     .holidayDate(date)
                     .name(body.getOrDefault("name", "Ngày lễ").toString())
                     .build());
+            notifyPricingUpdate("HOLIDAY_ADDED");
             return ResponseEntity.status(201).body(ApiResponse.ok(Map.of("id", h.getId())));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -206,6 +226,7 @@ public class PricingController {
     @PreAuthorize("@perm.can('pricing','edit')")
     public ResponseEntity<?> deleteHoliday(@PathVariable Integer id) {
         holidayRepository.deleteById(id);
+        notifyPricingUpdate("HOLIDAY_DELETED");
         return ResponseEntity.ok(ApiResponse.success("Đã xoá ngày lễ."));
     }
 

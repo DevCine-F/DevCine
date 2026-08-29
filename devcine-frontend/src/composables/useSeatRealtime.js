@@ -16,8 +16,15 @@ import { Client } from '@stomp/stompjs'
  * @param {Function} [opts.onHeld]    (seatIds) → ghế vừa bị giữ bởi quầy khác — cập nhật status sang HOLD.
  * @param {Function} [opts.onChange]  () → trạng thái khóa của người khác vừa đổi (để ép re-render nếu cần).
  * @param {Function} [opts.onFnbUpdate] (ev) → sự kiện cập nhật F&B real-time từ admin.
+ * @param {Function} [opts.onMaintenance] (seatIds, status) → ghế chuyển sang bảo trì hoặc mở lại.
+ * @param {Function} [opts.onPricingUpdate] (ev) → bảng giá vé nền được admin cập nhật.
+ * @param {Function} [opts.onShowtimeCancelled] (ev) → suất chiếu bị hủy.
+ * @param {Function} [opts.onShowtimeUpdated] (ev) → suất chiếu được cập nhật thông tin.
+ * @param {Function} [opts.onVoucherUpdate] (ev) → sự kiện voucher / khuyến mãi thay đổi từ admin.
+ * @param {Function} [opts.onSettingsUpdate] (ev) → cấu hình hệ thống (VietQR, giữ chỗ) thay đổi từ admin.
+ * @param {Function} [opts.onScheduleUpdate] (ev) → sự kiện lịch chiếu (tạo/sửa/xóa suất chiếu) từ admin.
  */
-export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate, onSettingsUpdate, onScheduleUpdate } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -56,6 +63,34 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
             onFnbUpdate?.(ev)
           } catch (_) {}
         }))
+        // Đồng bộ cập nhật bảng giá vé nền real-time
+        subs.push(client.subscribe('/topic/pricing-updates', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onPricingUpdate?.(ev)
+          } catch (_) {}
+        }))
+        // Đồng bộ cập nhật voucher/khuyến mãi real-time
+        subs.push(client.subscribe('/topic/voucher-updates', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onVoucherUpdate?.(ev)
+          } catch (_) {}
+        }))
+        // Đồng bộ cập nhật cấu hình hệ thống & VietQR real-time
+        subs.push(client.subscribe('/topic/settings-updates', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onSettingsUpdate?.(ev)
+          } catch (_) {}
+        }))
+        // Đồng bộ lịch chiếu công cộng real-time
+        subs.push(client.subscribe('/topic/showtimes-schedule', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onScheduleUpdate?.(ev)
+          } catch (_) {}
+        }))
       },
       onWebSocketClose: () => { connected.value = false },
     })
@@ -80,6 +115,14 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
       notMine.forEach(id => othersLocked.value.add(id))
       touch()
       if (notMine.length) onSold?.(notMine)
+    } else if (ev.type === 'SEAT_MAINTENANCE') {
+      ids.forEach(id => othersLocked.value.delete(id))
+      touch()
+      onMaintenance?.(ids, ev.status || 'MAINTENANCE')
+    } else if (ev.type === 'SHOWTIME_CANCELLED') {
+      onShowtimeCancelled?.(ev)
+    } else if (ev.type === 'SHOWTIME_UPDATED') {
+      onShowtimeUpdated?.(ev)
     }
   }
 

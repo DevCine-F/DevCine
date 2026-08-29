@@ -50,6 +50,36 @@ const seatRealtime = useSeatRealtime({
       )
     }
   },
+  onMaintenance: (seatIds, status) => {
+    const isMaint = status === 'MAINTENANCE' || status === 'LOCKED'
+    const newStatus = isMaint ? status : 'AVAILABLE'
+    if (store.availableSeats.length) {
+      store.availableSeats = store.availableSeats.map(s =>
+        seatIds.includes(s.seatId) ? { ...s, status: newStatus, seatStatus: newStatus } : s
+      )
+    }
+    if (isMaint) {
+      const lost = store.selectedSeats.filter(s => seatIds.includes(s.seatId))
+      lost.forEach(seat => store.toggleSeat(seat))
+      if (lost.length) {
+        toast.error(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được chuyển sang chế độ bảo trì và đã được gỡ khỏi lựa chọn.`)
+      }
+    }
+  },
+  onPricingUpdate: async () => {
+    await store.fetchSeats()
+    toast.info('Bảng giá vé vừa được cập nhật.')
+  },
+  onShowtimeCancelled: () => {
+    toast.error('Suất chiếu này vừa bị hủy hoặc thay đổi lịch. Đang quay lại trang lịch chiếu...')
+    setTimeout(() => {
+      router.replace('/lich-chieu')
+    }, 2000)
+  },
+  onShowtimeUpdated: () => {
+    toast.info('Thông tin suất chiếu vừa được cập nhật.')
+    store.fetchSeats()
+  },
   onFnbUpdate: async () => {
     await store.fetchFnbs()
     const removed = store.reconcileSelectedFnbs()
@@ -67,6 +97,24 @@ const seatRealtime = useSeatRealtime({
         selectedFnbForModal.value = updated
       }
     }
+  },
+  onVoucherUpdate: async () => {
+    await refreshVouchers()
+    await fetchVoucherEvals()
+    if (store.selectedVoucher) {
+      const stillActive = vouchers.value.some(v => v.id === store.selectedVoucher.id)
+      const ev = voucherEvals.value[store.selectedVoucher.id]
+      if (!stillActive || (ev && !ev.applicable)) {
+        store.selectedVoucher = null
+        discountAmount.value = 0
+        voucherSuccess.value = ''
+        voucherError.value = ''
+        toast.warning('Mã giảm giá bạn đang áp dụng vừa được cập nhật hoặc không còn khả dụng trên hệ thống.')
+      }
+    }
+  },
+  onSettingsUpdate: async () => {
+    await loadSettingsConfig()
   },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
@@ -235,7 +283,14 @@ watch(currentStep, async (s) => {
       toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi lựa chọn của bạn.`)
     }
   }
-  if (s === 4) ensureHeld()
+  if (s === 3) {
+    await refreshVouchers()
+    await fetchVoucherEvals()
+  }
+  if (s === 4) {
+    loadSettingsConfig()
+    ensureHeld()
+  }
 })
 // Đổi ghế/loại vé/combo/voucher → đơn đã giữ không còn đúng, sẽ giữ lại khi vào bước 4 lần tới
 watch(() => [store.selectedSeats.length, JSON.stringify(store.ticketQuantities), store.selectedFnbs.length, store.selectedVoucher?.id], () => {
@@ -509,11 +564,15 @@ const transferQrUrl = computed(() => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&ecc=M&data=${encodeURIComponent(payload)}`
 })
 
-const loadBankInfo = async () => {
+const loadSettingsConfig = async () => {
   try {
     const { data } = await settingsApi.getAll()
     const map = {}
     data.forEach(s => { map[s.settingKey] = s.settingValue })
+    const v = parseInt(map.SEAT_HOLD_MINUTES)
+    if (!isNaN(v)) holdMinutes.value = Math.min(30, Math.max(3, v))
+    const mt = parseInt(map.MAX_TICKETS_PER_BOOKING)
+    if (!isNaN(mt)) store.maxTicketsPerBooking = Math.min(20, Math.max(1, mt))
     bankInfo.value = {
       code: map.PAYMENT_BANK_CODE || '',
       name: map.PAYMENT_BANK_NAME || '',
@@ -524,6 +583,7 @@ const loadBankInfo = async () => {
     // Không chặn luồng đặt vé nếu lỗi — phần QR sẽ báo chưa cấu hình
   }
 }
+const loadBankInfo = loadSettingsConfig
 
 onMounted(async () => {
   if (!store.selectedShowtime) {
@@ -533,7 +593,7 @@ onMounted(async () => {
   }
   await store.fetchSeats()
   await store.fetchFnbs()
-  loadBankInfo()
+  await loadSettingsConfig()
   seatRealtime.connect(store.selectedShowtime.id) // bật khóa ghế real-time
 
   // Quay lại sau khi đăng nhập: khôi phục đúng bước nếu ghế vẫn còn chọn đủ
