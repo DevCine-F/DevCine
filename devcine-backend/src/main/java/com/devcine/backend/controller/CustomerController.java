@@ -49,6 +49,22 @@ public class CustomerController {
         return null;
     }
 
+    private Integer currentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return null;
+        if (auth.getPrincipal() instanceof Integer i) return i;
+        if (auth.getPrincipal() instanceof String s) {
+            try { return Integer.parseInt(s); } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private boolean isSelf(Integer customerId) {
+        if (customerId == null) return false;
+        Integer currentId = currentUserId();
+        return currentId != null && currentId.equals(customerId);
+    }
+
     /**
      * Kiểm tra người đang đăng nhập có role ADMIN hệ thống hay không.
      * ADMIN thấy toàn bộ dữ liệu, không bị scope theo cinema.
@@ -62,6 +78,7 @@ public class CustomerController {
 
     /**
      * Kiểm tra quyền truy cập vào profile của 1 khách hàng cụ thể.
+     * - Chính khách hàng (self-access): luôn được phép xem/sửa thông tin của mình.
      * - ADMIN: luôn được phép.
      * - Manager/Staff: chỉ được xem khách đã từng giao dịch tại cinema của mình
      *   (Booking CONFIRMED hoặc ConcessionSale COMPLETED).
@@ -69,6 +86,7 @@ public class CustomerController {
      * @return true nếu có quyền truy cập; false nếu bị cấm.
      */
     private boolean hasAccessToCustomer(Integer customerId) {
+        if (isSelf(customerId)) return true;
         if (isSystemAdmin()) return true;
         Integer cinemaId = currentCinemaId();
         if (cinemaId == null) return false; // không xác định cinema → từ chối an toàn
@@ -147,7 +165,7 @@ public class CustomerController {
 
     /** Chi tiết khách hàng kèm tổng chi tiêu & đơn hàng. */
     @GetMapping("/{id}")
-    @PreAuthorize("@perm.can('customers', 'view')")
+    @PreAuthorize("@perm.can('customers', 'view') or @perm.isSelf(#id)")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getCustomerProfile(@PathVariable Integer id) {
         try {
@@ -195,7 +213,7 @@ public class CustomerController {
      * context khi hỗ trợ khách, cột cinemaName phân biệt nguồn gốc từng đơn.
      */
     @GetMapping("/{id}/orders")
-    @PreAuthorize("@perm.can('customers', 'view')")
+    @PreAuthorize("@perm.can('customers', 'view') or @perm.isSelf(#id)")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getCustomerOrders(@PathVariable Integer id) {
         try {
@@ -300,7 +318,7 @@ public class CustomerController {
 
     /** Danh sách Voucher của khách hàng (Tab 3). */
     @GetMapping("/{id}/vouchers")
-    @PreAuthorize("@perm.can('customers', 'view')")
+    @PreAuthorize("@perm.can('customers', 'view') or @perm.isSelf(#id)")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getCustomerVouchers(@PathVariable Integer id) {
         try {
@@ -353,7 +371,7 @@ public class CustomerController {
 
     /** Lịch sử biến động điểm của khách hàng (Tab 3). */
     @GetMapping("/{id}/point-history")
-    @PreAuthorize("@perm.can('customers', 'view')")
+    @PreAuthorize("@perm.can('customers', 'view') or @perm.isSelf(#id)")
     @Transactional(readOnly = true)
     public ResponseEntity<?> getPointHistory(@PathVariable Integer id) {
         try {
@@ -391,7 +409,7 @@ public class CustomerController {
      * Các trường Email, SĐT, Điểm, Hạng được bảo vệ chỉ đọc.
      */
     @PutMapping("/{id}")
-    @PreAuthorize("@perm.can('customers', 'edit')")
+    @PreAuthorize("@perm.can('customers', 'edit') or @perm.isSelf(#id)")
     @Transactional
     public ResponseEntity<?> updateCustomerProfile(@PathVariable Integer id,
                                                    @RequestBody Map<String, Object> body) {

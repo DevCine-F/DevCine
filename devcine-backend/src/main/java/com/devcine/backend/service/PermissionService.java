@@ -75,6 +75,18 @@ public class PermissionService {
         });
     }
 
+    /**
+     * Kiểm tra người đang đăng nhập có phải chính là targetUserId hay không (self-access).
+     * Dùng trong @PreAuthorize, ví dụ: @PreAuthorize("@perm.can('customers', 'view') or @perm.isSelf(#id)").
+     */
+    public boolean isSelf(Integer targetUserId) {
+        if (targetUserId == null) return false;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        Integer currentId = currentUserId(auth);
+        return currentId != null && currentId.equals(targetUserId);
+    }
+
     private String currentRole(Authentication auth) {
         return auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -85,7 +97,12 @@ public class PermissionService {
     }
 
     private Integer currentUserId(Authentication auth) {
-        return auth.getPrincipal() instanceof Integer id ? id : null;
+        if (auth == null) return null;
+        if (auth.getPrincipal() instanceof Integer id) return id;
+        if (auth.getPrincipal() instanceof String s) {
+            try { return Integer.parseInt(s); } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     private Map<String, Set<String>> loadMatrix(String roleName) {
