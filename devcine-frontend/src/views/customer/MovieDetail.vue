@@ -551,9 +551,9 @@ const groupShowtimesByFormat = (showtimes) => {
                   :key="st.id"
                   @click="selectShowtime(st, cinema)"
                   :disabled="isSoldOut(st)"
-                  :title="isSoldOut(st) ? 'Suất chiếu đã hết ghế' : ''"
+                  :title="isSoldOut(st) ? 'Suất chiếu đã hết ghế' : st.roomName"
                   :class="[
-                    'group flex flex-col items-center justify-center gap-1 border rounded-lg w-[140px] min-h-[82px] px-3 py-2.5 flex-shrink-0 transition-all duration-200',
+                    'group flex flex-col items-center justify-center gap-1 border rounded-lg min-w-[160px] w-auto min-h-[82px] px-3.5 py-2.5 flex-shrink-0 transition-all duration-200',
                     isSoldOut(st)
                       ? 'border-[#2a2a2a] bg-[#161616] opacity-40 cursor-not-allowed'
                       : isLowSeats(st)
@@ -562,7 +562,7 @@ const groupShowtimesByFormat = (showtimes) => {
                   ]"
                 >
                   <!-- Dòng 1: Tên phòng -->
-                  <span class="block w-full text-center text-xs text-gray-400 font-medium leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
+                  <span class="block w-full text-center text-[11.5px] text-gray-400 font-medium leading-tight whitespace-nowrap" :title="st.roomName">
                     {{ st.roomName }}
                   </span>
 
