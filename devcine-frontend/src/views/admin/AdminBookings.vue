@@ -316,7 +316,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
     <div class="flex justify-between items-end flex-shrink-0">
       <div>
         <h1 class="text-3xl font-black text-on-surface tracking-tighter uppercase italic">Quản lý <span class="text-primary">Hoá đơn</span></h1>
-        <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">Toàn bộ đơn đặt vé &amp; bắp nước tại quầy · {{ totalElements }} đơn</p>
+        <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">Toàn bộ đơn đặt vé &amp; bắp nước · {{ totalElements }} đơn</p>
       </div>
       <button @click="exportCsv" class="px-6 py-3 bg-surface-container-high hover:bg-white/10 text-on-surface font-bold text-xs uppercase tracking-widest rounded transition-colors flex items-center gap-2 border border-outline-variant/20">
         <span class="material-symbols-outlined text-sm">download</span> Xuất CSV
