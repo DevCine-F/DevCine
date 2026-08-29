@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { RouterLink, RouterView, useRouter, useRoute } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../stores/auth'
 import adminRoutes from '../routers/admin'
@@ -11,14 +11,21 @@ import logo from '../assets/images/Logo_DevCine_Ngang_XoaNen.png'
 
 const { isLightMode, toggleTheme } = useTheme()
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
+const isMobileSidebarOpen = ref(false)
 const isAccountOpen = ref(false)
 const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Quản trị viên')
 const accountRole = computed(() => {
   if (authStore.role === 'admin') return 'Quản trị cấp cao'
   if (authStore.role === 'manager') return 'Quản lý cơ sở'
   return 'Nhân viên'
+})
+
+// Tự động đóng sidebar mobile khi chuyển trang
+watch(() => route.path, () => {
+  isMobileSidebarOpen.value = false
 })
 
 // Topbar hiện cơ sở của tài khoản; ADMIN không thuộc cơ sở nào nên giữ nhãn hệ thống
@@ -53,12 +60,27 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
 <template>
   <!-- Viewport Locking: Khóa cứng toàn bộ màn hình -->
   <div class="bg-surface text-on-surface font-body h-screen w-screen overflow-hidden flex">
-    <!-- Admin Sidebar -->
-    <aside class="w-72 border-r border-outline-variant/20 flex flex-col fixed h-screen bg-surface z-50">
-      <div class="p-8 flex justify-center border-b border-outline-variant/10 mb-2">
+    <!-- Backdrop cho Mobile Sidebar -->
+    <transition name="fade">
+      <div v-if="isMobileSidebarOpen"
+           class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+           @click="isMobileSidebarOpen = false"></div>
+    </transition>
+
+    <!-- Admin Sidebar: Desktop cố định, Mobile trượt dạng Off-canvas Drawer -->
+    <aside :class="[
+      'w-72 border-r border-outline-variant/20 flex flex-col fixed h-screen bg-surface z-50 transition-transform duration-300 ease-in-out',
+      isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+    ]">
+      <div class="p-6 lg:p-8 flex justify-between lg:justify-center items-center border-b border-outline-variant/10 mb-2">
         <RouterLink :to="firstAccessiblePath" class="flex flex-col items-center gap-3">
-          <img :src="logo" alt="DEVCINE" class="w-36 h-auto object-contain brightness-110">
+          <img :src="logo" alt="DEVCINE" class="w-32 lg:w-36 h-auto object-contain brightness-110">
         </RouterLink>
+        <button class="lg:hidden p-2 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-white/5 transition-colors"
+                @click="isMobileSidebarOpen = false"
+                title="Đóng menu">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
 
       <nav class="flex-grow px-4 pb-6 space-y-1.5 overflow-y-auto">
@@ -193,16 +215,23 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
 
     <!-- Main Content Area with Topbar -->
     <!-- flex-1 min-w-0 đảm bảo box này không bị bung ra (overflow) theo nội dung bên trong -->
-    <div class="ml-72 flex-1 h-screen flex flex-col bg-surface-container-lowest min-w-0">
+    <div class="lg:ml-72 ml-0 flex-1 h-screen flex flex-col bg-surface-container-lowest min-w-0">
       
       <!-- Enterprise Topbar -->
-      <header class="h-16 border-b border-outline-variant/10 bg-surface/95 backdrop-blur flex-shrink-0 sticky top-0 z-[100] flex justify-between items-center px-8">
-        <div class="flex items-center gap-2 min-w-0">
+      <header class="h-16 border-b border-outline-variant/10 bg-surface/95 backdrop-blur flex-shrink-0 sticky top-0 z-[100] flex justify-between items-center px-4 sm:px-8">
+        <div class="flex items-center gap-3 min-w-0">
+          <!-- Hamburger Button mở sidebar trên Mobile/Tablet -->
+          <button @click="isMobileSidebarOpen = true"
+                  class="lg:hidden p-2 -ml-2 rounded-xl text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors cursor-pointer flex items-center"
+                  title="Mở menu quản trị">
+            <span class="material-symbols-outlined text-2xl">menu</span>
+          </button>
+          
           <span v-if="authStore.cinemaName" class="material-symbols-outlined text-primary text-base shrink-0">store</span>
           <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant italic truncate">{{ workplaceLabel }}</span>
         </div>
         
-        <div class="flex items-center gap-6">
+        <div class="flex items-center gap-3 sm:gap-6">
           <!-- Theme Toggle -->
           <button @click="toggleTheme" class="relative p-2 hover:bg-white/5 rounded-full transition-colors cursor-pointer flex items-center">
             <span class="material-symbols-outlined text-on-surface-variant group-hover:text-white transition-colors">
@@ -219,7 +248,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
             </button>
             
             <!-- Notification Dropdown -->
-            <div class="absolute right-0 mt-2 w-80 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_10px_40px_-10px_var(--shadow-color)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
+            <div class="absolute right-0 mt-2 w-72 sm:w-80 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_10px_40px_-10px_var(--shadow-color)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
                <div class="p-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
                   <span class="text-xs font-black uppercase tracking-widest text-on-surface">Thông báo</span>
                   <span class="text-[9px] text-primary hover:underline cursor-pointer uppercase tracking-wider">Đánh dấu đã đọc</span>
@@ -256,7 +285,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <!-- Account Area -->
           <div class="relative" ref="accountMenuRef">
             <button @click="isAccountOpen = !isAccountOpen"
-                    class="flex items-center gap-3 pl-6 border-l border-outline-variant/10 cursor-pointer hover:opacity-80 transition-opacity">
+                    class="flex items-center gap-2 sm:gap-3 pl-3 sm:pl-6 border-l border-outline-variant/10 cursor-pointer hover:opacity-80 transition-opacity">
               <div class="text-right hidden md:block">
                  <p class="text-[10px] font-black text-on-surface uppercase tracking-wider">{{ displayName }}</p>
                  <p class="text-[8px] text-primary uppercase tracking-widest italic font-bold">{{ accountRole }}</p>
@@ -330,5 +359,13 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

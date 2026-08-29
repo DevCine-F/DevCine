@@ -856,37 +856,37 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-10 space-y-8">
-    <header class="flex justify-between items-end flex-wrap gap-4">
+  <div class="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-8">
+    <header class="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
       <div>
-        <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Thực đơn F&B / Combo</h1>
-        <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Combo bắp nước & đồ ăn khách chọn khi đặt vé</p>
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Thực đơn F&B / Combo</h1>
+        <p class="text-on-surface-variant text-xs sm:text-sm mt-1 uppercase tracking-widest font-bold">Combo bắp nước & đồ ăn khách chọn khi đặt vé</p>
       </div>
-      <button v-if="can('fnb_menu', 'add')" @click="activeTab === 'items' ? openCreate() : openGroupCreate()" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
+      <button v-if="can('fnb_menu', 'add')" @click="activeTab === 'items' ? openCreate() : openGroupCreate()" class="w-full sm:w-auto justify-center bg-primary text-on-primary px-6 py-3 rounded-xl font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs shadow-lg shadow-primary/20">
         <span class="material-symbols-outlined text-sm">add</span> {{ activeTab === 'items' ? 'Thêm món / combo' : 'Thêm kho tùy chọn' }}
       </button>
     </header>
 
     <!-- Sub-tabs -->
-    <div class="flex bg-surface-container-high p-1 rounded-xl w-fit">
+    <div class="flex bg-surface-container-high p-1 rounded-xl w-full sm:w-fit overflow-x-auto max-w-full">
       <button 
         @click="activeTab = 'items'" 
         :class="activeTab === 'items' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/5'"
-        class="px-6 py-2 rounded-lg font-bold text-sm uppercase tracking-widest transition-all"
+        class="flex-1 sm:flex-initial whitespace-nowrap px-4 sm:px-6 py-2 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-widest transition-all text-center"
       >
         Thực đơn & Combo
       </button>
       <button 
         @click="activeTab = 'groups'" 
         :class="activeTab === 'groups' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/5'"
-        class="px-6 py-2 rounded-lg font-bold text-sm uppercase tracking-widest transition-all"
+        class="flex-1 sm:flex-initial whitespace-nowrap px-4 sm:px-6 py-2 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-widest transition-all text-center"
       >
         Kho Tùy Chọn (Pools)
       </button>
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
       <div v-for="i in 6" :key="i" class="h-40 bg-surface-container-low rounded-2xl animate-pulse border border-white/5"></div>
     </div>
 
@@ -903,7 +903,7 @@ onMounted(() => {
       </div>
 
       <!-- Grid -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
         <div v-for="item in items" :key="item.id" class="bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden shadow-xl flex flex-col">
           <div class="h-36 bg-surface-container-high relative overflow-hidden">
             <img v-if="item.imageUrl" :src="item.imageUrl" class="w-full h-full object-cover" />
@@ -943,7 +943,7 @@ onMounted(() => {
         <p class="text-neutral-400 font-semibold">Chưa có kho tùy chọn nào.</p>
       </div>
       
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
         <div v-for="group in optionGroups" :key="group.id" class="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-5 shadow-xl flex flex-col space-y-4">
           <div class="flex justify-between items-start">
             <div>
