@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +30,21 @@ public class MarketingController {
     private final VoucherRepository voucherRepository;
     private final CustomerRepository customerRepository;
     private final com.devcine.backend.service.VoucherService voucherService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private void notifyVoucherUpdate(String action) {
+        try {
+            if (messagingTemplate != null) {
+                Object payload = Map.of(
+                        "action", action,
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/voucher-updates", payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
 
     @GetMapping("/promotions")
     public ResponseEntity<?> getAllPromotions() {
@@ -129,6 +146,7 @@ public class MarketingController {
                     .maxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO)
                     .build();
             promotionRepository.save(promo);
+            notifyVoucherUpdate("PROMOTION_CREATED");
             return ResponseEntity.status(201).body(ApiResponse.ok(promo));
         } catch (Exception e) {
             log.error("Lỗi tạo promotion", e);
@@ -190,6 +208,7 @@ public class MarketingController {
             if (body.containsKey("maxTicketQuantity")) promo.setMaxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0);
             if (body.containsKey("maxDiscountAmount")) promo.setMaxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO);
             promotionRepository.save(promo);
+            notifyVoucherUpdate("PROMOTION_UPDATED");
             return ResponseEntity.ok(ApiResponse.ok(promo));
         } catch (Exception e) {
             log.error("Lỗi cập nhật promotion {}", id, e);
@@ -205,6 +224,7 @@ public class MarketingController {
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher."));
             promo.setIsActive(promo.getIsActive() == null || !promo.getIsActive());
             promotionRepository.save(promo);
+            notifyVoucherUpdate("PROMOTION_TOGGLED");
             String msg = (Boolean.TRUE.equals(promo.getIsActive()) ? "Đã kích hoạt" : "Đã tạm dừng") + " voucher '" + promo.getCode() + "'.";
             return ResponseEntity.ok(ApiResponse.ok(promo, msg));
         } catch (Exception e) {
@@ -217,6 +237,7 @@ public class MarketingController {
     public ResponseEntity<?> deletePromotion(@PathVariable Integer id) {
         try {
             promotionRepository.deleteById(id);
+            notifyVoucherUpdate("PROMOTION_DELETED");
             return ResponseEntity.ok(ApiResponse.success("Đã xoá khuyến mãi."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail("Không thể xoá voucher do đã có khách hàng lưu hoặc sử dụng trong đơn hàng."));
@@ -267,6 +288,7 @@ public class MarketingController {
                     .validUntil(promo.getEndDate() != null ? promo.getEndDate() : LocalDateTime.now().plusMonths(1))
                     .build();
             voucherRepository.save(voucher);
+            notifyVoucherUpdate("VOUCHER_ISSUED");
             return ResponseEntity.status(201).body(ApiResponse.ok(voucher));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));

@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,21 @@ public class VoucherController {
     private final VoucherRepository voucherRepository;
     private final PromotionRepository promotionRepository;
     private final VoucherService voucherService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private void notifyVoucherUpdate(String action) {
+        try {
+            if (messagingTemplate != null) {
+                Object payload = Map.of(
+                        "action", action,
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/voucher-updates", payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
 
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<?> getActiveVouchers(@PathVariable Integer customerId) {
@@ -151,6 +168,7 @@ public class VoucherController {
     public ResponseEntity<?> claimByCode(@RequestParam Integer customerId, @RequestParam String code) {
         try {
             Voucher voucher = voucherService.claimByCode(customerId, code);
+            notifyVoucherUpdate("VOUCHER_CLAIMED");
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "voucherId", voucher.getId(),
                 "code", voucher.getPromotion().getCode() != null ? voucher.getPromotion().getCode() : ""
@@ -165,6 +183,7 @@ public class VoucherController {
     public ResponseEntity<?> redeemWithPoints(@RequestParam Integer customerId, @RequestParam Integer promoId) {
         try {
             Voucher voucher = voucherService.redeemWithPoints(customerId, promoId);
+            notifyVoucherUpdate("VOUCHER_REDEEMED");
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "voucherId", voucher.getId(),
                 "code", voucher.getPromotion().getCode() != null ? voucher.getPromotion().getCode() : "",

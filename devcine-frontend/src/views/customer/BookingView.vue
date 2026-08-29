@@ -98,6 +98,21 @@ const seatRealtime = useSeatRealtime({
       }
     }
   },
+  onVoucherUpdate: async () => {
+    await refreshVouchers()
+    await fetchVoucherEvals()
+    if (store.selectedVoucher) {
+      const stillActive = vouchers.value.some(v => v.id === store.selectedVoucher.id)
+      const ev = voucherEvals.value[store.selectedVoucher.id]
+      if (!stillActive || (ev && !ev.applicable)) {
+        store.selectedVoucher = null
+        discountAmount.value = 0
+        voucherSuccess.value = ''
+        voucherError.value = ''
+        toast.warning('Mã giảm giá bạn đang áp dụng vừa được cập nhật hoặc không còn khả dụng trên hệ thống.')
+      }
+    }
+  },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 
@@ -264,6 +279,10 @@ watch(currentStep, async (s) => {
     if (removed.length > 0) {
       toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi lựa chọn của bạn.`)
     }
+  }
+  if (s === 3) {
+    await refreshVouchers()
+    await fetchVoucherEvals()
   }
   if (s === 4) ensureHeld()
 })

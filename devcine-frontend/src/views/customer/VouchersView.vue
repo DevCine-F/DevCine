@@ -4,6 +4,7 @@ import { voucherApi, customerApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
@@ -15,6 +16,14 @@ const loyaltyPoints = ref(0)
 const isLoading = ref(false)
 const isLoadingRedeem = ref(false)
 const error = ref('')
+
+const realtime = useSeatRealtime({
+  onVoucherUpdate: () => {
+    fetchVouchers()
+    fetchRedeemable()
+    fetchPoints()
+  }
+})
 
 // Trạng thái đổi điểm
 const redeemTarget = ref(null) // promotion đang chờ xác nhận đổi
@@ -195,10 +204,12 @@ onMounted(() => {
   fetchVouchers()
   fetchPoints()
   fetchRedeemable()
+  realtime.connect(null)
 })
 
 onUnmounted(() => {
   if (lookupTimer) clearTimeout(lookupTimer)
+  realtime.disconnect()
 })
 </script>
 

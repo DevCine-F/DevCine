@@ -20,8 +20,9 @@ import { Client } from '@stomp/stompjs'
  * @param {Function} [opts.onPricingUpdate] (ev) → bảng giá vé nền được admin cập nhật.
  * @param {Function} [opts.onShowtimeCancelled] (ev) → suất chiếu bị hủy.
  * @param {Function} [opts.onShowtimeUpdated] (ev) → suất chiếu được cập nhật thông tin.
+ * @param {Function} [opts.onVoucherUpdate] (ev) → sự kiện voucher / khuyến mãi thay đổi từ admin.
  */
-export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -65,6 +66,13 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
           try {
             const ev = JSON.parse(msg.body)
             onPricingUpdate?.(ev)
+          } catch (_) {}
+        }))
+        // Đồng bộ cập nhật voucher/khuyến mãi real-time
+        subs.push(client.subscribe('/topic/voucher-updates', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onVoucherUpdate?.(ev)
           } catch (_) {}
         }))
       },
