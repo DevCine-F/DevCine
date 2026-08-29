@@ -108,6 +108,14 @@ const onFormatSurchargeInput = (e, f, field) => {
   if (field === 'weekendSurcharge' && !cleanDigits && rawOldVal.trim() === '') {
     f[field] = null
     input.value = ''
+    validateFormatItem(f)
+    return
+  }
+
+  if (field === 'surcharge' && !cleanDigits) {
+    f[field] = ''
+    input.value = ''
+    validateFormatItem(f)
     return
   }
 
@@ -130,6 +138,13 @@ const onFormatSurchargeInput = (e, f, field) => {
     newCaretPos = 0
   }
   input.setSelectionRange(newCaretPos, newCaretPos)
+
+  validateFormatItem(f)
+}
+
+const clearWeekendSurcharge = (f) => {
+  f.weekendSurcharge = null
+  validateFormatItem(f)
 }
 
 const formatMovieFormatName = (raw) => {
@@ -149,6 +164,63 @@ const formatMovieFormatName = (raw) => {
 const audienceEntries = computed(() => Object.entries(config.value?.audiences || {}))
 const roomTypes = computed(() => config.value?.roomTypes || [])
 
+const MAX_SURCHARGE = 1000000
+const formatErrors = reactive({})
+
+const getFormatSurchargeError = (val) => {
+  if (val === null || val === undefined || val === '') {
+    return 'Không được để trống'
+  }
+  const num = Number(val)
+  if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+    return 'Phải là số nguyên không âm'
+  }
+  if (num > MAX_SURCHARGE) {
+    return `Tối đa ${fmtThousand(MAX_SURCHARGE)} đ`
+  }
+  if (num % 1000 !== 0) {
+    return 'Phải là bội số 1.000 đ'
+  }
+  return null
+}
+
+const getFormatWeekendSurchargeError = (weekendVal, regularVal) => {
+  if (weekendVal === null || weekendVal === undefined || weekendVal === '') {
+    return null // Cho phép để trống = ngày thường
+  }
+  const num = Number(weekendVal)
+  if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+    return 'Phải là số nguyên không âm'
+  }
+  if (num > MAX_SURCHARGE) {
+    return `Tối đa ${fmtThousand(MAX_SURCHARGE)} đ`
+  }
+  if (num % 1000 !== 0) {
+    return 'Phải là bội số 1.000 đ'
+  }
+  const regNum = Number(regularVal || 0)
+  if (num < regNum) {
+    return `Phải ≥ ngày thường (${fmtThousand(regNum)} đ)`
+  }
+  return null
+}
+
+const validateFormatItem = (f) => {
+  const errSurcharge = getFormatSurchargeError(f.surcharge)
+  if (errSurcharge) {
+    formatErrors[`${f.id}_surcharge`] = errSurcharge
+  } else {
+    delete formatErrors[`${f.id}_surcharge`]
+  }
+
+  const errWeekend = getFormatWeekendSurchargeError(f.weekendSurcharge, f.surcharge)
+  if (errWeekend) {
+    formatErrors[`${f.id}_weekendSurcharge`] = errWeekend
+  } else {
+    delete formatErrors[`${f.id}_weekendSurcharge`]
+  }
+}
+
 const loadConfig = async () => {
   loading.value = true
   loadError.value = false
@@ -158,6 +230,7 @@ const loadConfig = async () => {
 
     Object.keys(baseMatrix).forEach(k => delete baseMatrix[k])
     Object.keys(baseErrors).forEach(k => delete baseErrors[k])
+    Object.keys(formatErrors).forEach(k => delete formatErrors[k])
     const existing = {}
     ;(data.baseMatrix || []).forEach(r => { existing[`${r.roomType}|${r.dayType}|${r.audienceType}`] = r.value })
     ;(data.roomTypes || []).forEach(rt => data.dayTypes.forEach(d => Object.keys(data.audiences).forEach(a => {
@@ -234,7 +307,35 @@ const saveBase = async () => {
   } finally { saving.value = false }
 }
 
+const validateAllFormats = () => {
+  let hasError = false
+  let firstErrorMsg = ''
+
+  ;(formats.value || []).forEach(f => {
+    validateFormatItem(f)
+    const errSur = formatErrors[`${f.id}_surcharge`]
+    const errWk = formatErrors[`${f.id}_weekendSurcharge`]
+    if (errSur && !firstErrorMsg) {
+      firstErrorMsg = `${f.name} (Phụ thu ngày thường): ${errSur}`
+    }
+    if (errWk && !firstErrorMsg) {
+      firstErrorMsg = `${f.name} (Phụ thu cuối tuần & lễ): ${errWk}`
+    }
+    if (errSur || errWk) {
+      hasError = true
+    }
+  })
+
+  if (hasError) {
+    toast.error(firstErrorMsg || 'Vui lòng sửa các ô phụ thu định dạng chưa hợp lệ.')
+    return false
+  }
+  return true
+}
+
 const saveFormats = async () => {
+  if (!validateAllFormats()) return
+
   saving.value = true
   try {
     await pricingApi.saveFormats(formats.value.map(f => ({
@@ -419,34 +520,55 @@ const TABS = [
                     <span>{{ f.name }}</span>
                   </div>
                 </td>
-                <td class="py-3.5 px-5 text-center">
-                  <div class="inline-flex items-center relative group">
-                    <input
-                      type="text"
-                      inputmode="numeric"
-                      :value="fmtThousand(f.surcharge ?? 0)"
-                      @input="onFormatSurchargeInput($event, f, 'surcharge')"
-                      class="w-36 bg-surface-container-high border border-outline-variant/20 group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary py-2 pl-3 pr-7 text-right font-bold text-on-surface outline-none transition-all tabular-nums text-sm shadow-sm"
-                    />
-                    <span class="absolute right-2.5 text-xs font-bold text-on-surface-variant/60 group-focus-within:text-primary pointer-events-none select-none">đ</span>
+                <td class="py-3.5 px-5 text-center align-top">
+                  <div class="inline-flex flex-col items-center">
+                    <div class="inline-flex items-center relative group">
+                      <input
+                        type="text"
+                        inputmode="numeric"
+                        :value="fmtThousand(f.surcharge)"
+                        @input="onFormatSurchargeInput($event, f, 'surcharge')"
+                        class="w-36 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm"
+                        :class="formatErrors[`${f.id}_surcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
+                      />
+                      <span class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="formatErrors[`${f.id}_surcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
+                    </div>
+                    <span v-if="formatErrors[`${f.id}_surcharge`]" class="text-[10px] font-bold text-red-400 mt-1 max-w-[140px] leading-tight text-center" :title="formatErrors[`${f.id}_surcharge`]">
+                      {{ formatErrors[`${f.id}_surcharge`] }}
+                    </span>
                   </div>
                 </td>
-                <td class="py-3.5 px-5 text-center">
-                  <div class="inline-flex items-center relative group">
-                    <input
-                      type="text"
-                      inputmode="numeric"
-                      :value="f.weekendSurcharge != null ? fmtThousand(f.weekendSurcharge) : ''"
-                      @input="onFormatSurchargeInput($event, f, 'weekendSurcharge')"
-                      placeholder="= ngày thường"
-                      class="w-40 bg-surface-container-high border border-outline-variant/20 group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary py-2 pl-3 pr-7 text-right font-bold text-on-surface outline-none transition-all tabular-nums text-sm placeholder:text-on-surface-variant/40 placeholder:text-xs placeholder:font-normal shadow-sm"
-                    />
-                    <span v-if="f.weekendSurcharge != null && f.weekendSurcharge !== ''" class="absolute right-2.5 text-xs font-bold text-on-surface-variant/60 group-focus-within:text-primary pointer-events-none select-none">đ</span>
+                <td class="py-3.5 px-5 text-center align-top">
+                  <div class="inline-flex flex-col items-center">
+                    <div class="inline-flex items-center relative group">
+                      <input
+                        type="text"
+                        inputmode="numeric"
+                        :value="f.weekendSurcharge != null ? fmtThousand(f.weekendSurcharge) : ''"
+                        @input="onFormatSurchargeInput($event, f, 'weekendSurcharge')"
+                        placeholder="= ngày thường"
+                        class="w-40 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm placeholder:text-on-surface-variant/40 placeholder:text-xs placeholder:font-normal shadow-sm"
+                        :class="formatErrors[`${f.id}_weekendSurcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
+                      />
+                      <span v-if="f.weekendSurcharge != null && f.weekendSurcharge !== ''" class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="formatErrors[`${f.id}_weekendSurcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
+                    </div>
+                    <span v-if="formatErrors[`${f.id}_weekendSurcharge`]" class="text-[10px] font-bold text-red-400 mt-1 max-w-[160px] leading-tight text-center" :title="formatErrors[`${f.id}_weekendSurcharge`]">
+                      {{ formatErrors[`${f.id}_weekendSurcharge`] }}
+                    </span>
                   </div>
                 </td>
               </tr>
             </tbody>
           </table>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-on-surface-variant">
+          <p class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm text-primary">info</span>
+            * Phụ thu cuối tuần & lễ để trống sẽ tự động áp dụng bằng mức phụ thu ngày thường.
+          </p>
+          <p class="text-on-surface-variant/80">
+            Quy định: Số nguyên từ 0 đ – 1.000.000 đ, bội số của 1.000 đ. Cuối tuần ≥ ngày thường.
+          </p>
         </div>
         <div>
           <button v-if="can('pricing', 'edit')" @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none">
