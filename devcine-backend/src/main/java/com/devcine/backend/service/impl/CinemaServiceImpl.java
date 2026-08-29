@@ -172,23 +172,18 @@ public class CinemaServiceImpl implements CinemaService {
     @Override
     @Transactional(readOnly = true)
     public CinemaResponse getCinemaById(Integer id) {
-        boolean isAdmin = com.devcine.backend.util.SecurityUtils.hasRole("ADMIN");
-        boolean scopedToCinema = com.devcine.backend.util.SecurityUtils.isManager()
-                || com.devcine.backend.util.SecurityUtils.hasRole("STAFF");
-        if (scopedToCinema) {
-            Integer staffCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
-            if (staffCinemaId == null || !staffCinemaId.equals(id)) {
-                throw new RuntimeException("Bạn không có quyền truy cập cơ sở này");
-            }
-        }
         Cinema cinema = cinemaRepository.findByIdWithManager(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cụm rạp với ID: " + id));
 
-        // Khách hàng / Public: Không xem được cụm rạp đã đóng
-        if (!isAdmin && !scopedToCinema) {
-            if ("CLOSED".equalsIgnoreCase(cinema.getStatus())) {
-                throw new IllegalArgumentException("Không tìm thấy cụm rạp hoặc cụm rạp đã ngừng hoạt động.");
-            }
+        // Khách hàng / Public / Nhân viên rạp khác: Không xem được cụm rạp đã đóng
+        // Chỉ ADMIN hoặc Quản lý/Nhân viên trực thuộc chính rạp này mới xem được thông tin rạp khi đang CLOSED
+        boolean isAdmin = com.devcine.backend.util.SecurityUtils.hasRole("ADMIN");
+        boolean isAssignedToThisCinema = (com.devcine.backend.util.SecurityUtils.isManager()
+                || com.devcine.backend.util.SecurityUtils.hasRole("STAFF"))
+                && id.equals(com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId());
+
+        if ("CLOSED".equalsIgnoreCase(cinema.getStatus()) && !isAdmin && !isAssignedToThisCinema) {
+            throw new IllegalArgumentException("Không tìm thấy cụm rạp hoặc cụm rạp đã ngừng hoạt động.");
         }
 
         return toResponse(cinema);
