@@ -51,9 +51,7 @@ public class AdminBookingController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size) {
 
-        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        Integer staffUserId = isAdmin ? null : (Integer) auth.getPrincipal();
+        Integer cinemaId = resolveCinemaScope();
 
         LocalDateTime fromDt = parseStart(from, MIN_DATE);
         LocalDateTime toDt = parseEnd(to, LocalDateTime.now().plusYears(10));
@@ -63,7 +61,7 @@ public class AdminBookingController {
 
         // 1. Lấy danh sách Bookings (Vé & Vé+F&B)
         Page<Booking> bookingResult = bookingRepository.searchForAdmin(
-                q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), staffUserId,
+                q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), cinemaId,
                 fromDt, toDt, hasFnbFilter, PageRequest.of(0, 2000));
 
         List<Integer> bookingIds = bookingResult.getContent().stream().map(Booking::getId).collect(Collectors.toList());
@@ -95,7 +93,10 @@ public class AdminBookingController {
             m.put("createdAt", b.getCreatedAt() != null ? b.getCreatedAt().toString() : null);
             m.put("createdAtRaw", b.getCreatedAt() != null ? b.getCreatedAt() : MIN_DATE);
             m.put("customerName", hasCustomer ? b.getCustomer().getUser().getFullName() : "Khách tại quầy");
-            m.put("channel", channelOf(b.getPaymentMethod()));
+            String channelVal = b.getChannel() != null && !b.getChannel().isBlank()
+                    ? ("ONLINE".equalsIgnoreCase(b.getChannel()) ? "Online" : "Quầy (POS)")
+                    : channelOf(b.getPaymentMethod());
+            m.put("channel", channelVal);
             m.put("movieTitle", b.getShowtime().getMovie().getTitle());
             m.put("roomName", b.getShowtime().getRoom().getName());
             m.put("showtimeStart", b.getShowtime().getStartTime().toString());
@@ -109,7 +110,7 @@ public class AdminBookingController {
         // 2. Lấy danh sách ConcessionSale (Bán nhanh F&B độc lập) nếu không lọc "chỉ vé"
         if (!hasFnbFilter.equals("NO")) {
             List<com.devcine.backend.entity.ConcessionSale> concessionList = concessionSaleRepository.searchForAdmin(
-                    q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), staffUserId,
+                    q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), cinemaId,
                     fromDt, toDt);
 
             List<Integer> saleIds = concessionList.stream().map(com.devcine.backend.entity.ConcessionSale::getId).collect(Collectors.toList());
@@ -183,6 +184,10 @@ public class AdminBookingController {
             // Thử tìm theo ConcessionSale
             return getConcessionDetail(id);
         }
+
+        Integer bookingCinemaId = (b.getShowtime() != null && b.getShowtime().getRoom() != null && b.getShowtime().getRoom().getCinema() != null)
+                ? b.getShowtime().getRoom().getCinema().getId() : null;
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(bookingCinemaId);
 
         List<Map<String, Object>> seats = bookingSeatRepository.findAllByBookingIdWithSeat(id).stream().map(bs -> {
             Seat seat = bs.getSeat();
@@ -268,7 +273,10 @@ public class AdminBookingController {
         dto.put("isConcession", false);
         dto.put("status", nn(b.getStatus()));
         dto.put("paymentMethod", nn(b.getPaymentMethod()));
-        dto.put("channel", b.getChannel() != null ? b.getChannel() : channelOf(b.getPaymentMethod()));
+        String channelVal = b.getChannel() != null && !b.getChannel().isBlank()
+                ? ("ONLINE".equalsIgnoreCase(b.getChannel()) ? "Online" : "Quầy (POS)")
+                : channelOf(b.getPaymentMethod());
+        dto.put("channel", channelVal);
         dto.put("totalPrice", b.getTotalPrice());
         dto.put("finalPrice", b.getFinalPrice());
         dto.put("createdAt", b.getCreatedAt() != null ? b.getCreatedAt().toString() : null);
@@ -301,6 +309,9 @@ public class AdminBookingController {
         if (s == null) {
             return ResponseEntity.status(404).body(ApiResponse.fail("Không tìm thấy hoá đơn."));
         }
+
+        Integer concessionCinemaId = s.getCinema() != null ? s.getCinema().getId() : null;
+        com.devcine.backend.util.SecurityUtils.assertCinemaAccess(concessionCinemaId);
 
         List<com.devcine.backend.entity.ConcessionSaleItem> items = concessionSaleItemRepository.findBySaleIdWithOptions(saleId);
         List<Map<String, Object>> fnbs = items.stream().map(ci -> {
@@ -387,11 +398,22 @@ public class AdminBookingController {
     }
 
     // ---- helpers ----
+    private Integer resolveCinemaScope() {
+        if (com.devcine.backend.util.SecurityUtils.isAdmin()) {
+            return null;
+        }
+        Integer cinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+        if (cinemaId == null) {
+            throw new org.springframework.security.access.AccessDeniedException("Tài khoản chưa được gán cụm rạp");
+        }
+        return cinemaId;
+    }
+
     private String channelOf(String method) {
         if (method == null) return "—";
         switch (method.toUpperCase()) {
-            case "CASH": case "CARD": case "TRANSFER": return "Quầy (POS)";
-            case "VNPAY": return "Online";
+            case "CASH": case "CARD": return "Quầy (POS)";
+            case "TRANSFER": case "VIETQR": case "VNPAY": return "Online";
             default: return method;
         }
     }

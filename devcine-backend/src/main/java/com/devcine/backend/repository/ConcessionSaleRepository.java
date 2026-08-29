@@ -18,7 +18,7 @@ public interface ConcessionSaleRepository extends JpaRepository<ConcessionSale, 
            "WHERE s.createdAt BETWEEN :from AND :to " +
            "AND (:status = '' OR s.status = :status) " +
            "AND (:method = '' OR s.paymentMethod = :method) " +
-           "AND (:staffUserId IS NULL OR st.userId = :staffUserId) " +
+           "AND (:cinemaId IS NULL OR cin.id = :cinemaId) " +
            "AND (:q = '' OR LOWER(s.saleCode) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.fullName) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')) " +
@@ -26,7 +26,7 @@ public interface ConcessionSaleRepository extends JpaRepository<ConcessionSale, 
     List<ConcessionSale> searchForAdmin(
             @Param("q") String q, @Param("status") String status,
             @Param("method") String method,
-            @Param("staffUserId") Integer staffUserId,
+            @Param("cinemaId") Integer cinemaId,
             @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Query("SELECT s FROM ConcessionSale s " +

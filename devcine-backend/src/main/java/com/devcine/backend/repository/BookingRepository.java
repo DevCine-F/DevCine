@@ -181,7 +181,7 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     boolean hasConfirmedBookingForMovie(@Param("customerId") Integer customerId,
                                         @Param("movieId") Integer movieId);
 
-    // Danh sách hoá đơn cho admin (lọc + phân trang). Param luôn non-null để tránh bẫy null-param Postgres.
+    // Danh sách hoá đơn cho admin (lọc + phân trang theo Cụm rạp). Param luôn non-null để tránh bẫy null-param Postgres.
     @Query(value = "SELECT b FROM Booking b " +
            "JOIN FETCH b.showtime s JOIN FETCH s.movie m JOIN FETCH s.room r " +
            "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user u " +
@@ -189,7 +189,7 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "WHERE b.createdAt BETWEEN :from AND :to " +
            "AND (:status = '' OR b.status = :status) " +
            "AND (:method = '' OR b.paymentMethod = :method) " +
-           "AND (:staffUserId IS NULL OR st.userId = :staffUserId) " +
+           "AND (:cinemaId IS NULL OR r.cinema.id = :cinemaId) " +
            "AND (:q = '' OR LOWER(b.bookingCode) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.fullName) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')) " +
@@ -197,12 +197,12 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "     OR (:hasFnb = 'YES' AND EXISTS (SELECT 1 FROM BookingFnb bf WHERE bf.booking = b)) " +
            "     OR (:hasFnb = 'NO' AND NOT EXISTS (SELECT 1 FROM BookingFnb bf WHERE bf.booking = b))) " +
            "ORDER BY b.createdAt DESC",
-           countQuery = "SELECT COUNT(b) FROM Booking b LEFT JOIN b.customer c LEFT JOIN c.user u " +
-           "LEFT JOIN b.soldBy st " +
+           countQuery = "SELECT COUNT(b) FROM Booking b JOIN b.showtime s JOIN s.room r " +
+           "LEFT JOIN b.customer c LEFT JOIN c.user u " +
            "WHERE b.createdAt BETWEEN :from AND :to " +
            "AND (:status = '' OR b.status = :status) " +
            "AND (:method = '' OR b.paymentMethod = :method) " +
-           "AND (:staffUserId IS NULL OR st.userId = :staffUserId) " +
+           "AND (:cinemaId IS NULL OR r.cinema.id = :cinemaId) " +
            "AND (:q = '' OR LOWER(b.bookingCode) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.fullName) LIKE CONCAT('%', LOWER(:q), '%') " +
            "     OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')) " +
@@ -211,7 +211,7 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "     OR (:hasFnb = 'NO' AND NOT EXISTS (SELECT 1 FROM BookingFnb bf WHERE bf.booking = b)))")
     Page<Booking> searchForAdmin(@Param("q") String q, @Param("status") String status,
                                  @Param("method") String method,
-                                 @Param("staffUserId") Integer staffUserId,
+                                 @Param("cinemaId") Integer cinemaId,
                                  @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
                                  @Param("hasFnb") String hasFnb,
                                  Pageable pageable);
