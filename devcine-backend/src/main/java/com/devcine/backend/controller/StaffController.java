@@ -174,8 +174,7 @@ public class StaffController {
     @GetMapping("/cinema-roster/{cinemaId}")
     @PreAuthorize("@perm.can('staff_management','view')")
     public ResponseEntity<?> getCinemaRoster(@PathVariable Integer cinemaId) {
-        List<Map<String, Object>> result = staffRepository.findAllWithDetails().stream()
-                .filter(s -> s.getCinema() != null && s.getCinema().getId().equals(cinemaId))
+        List<Map<String, Object>> result = staffRepository.findByCinemaIdWithDetails(cinemaId).stream()
                 .map(staff -> {
                     User u = staff.getUser();
                     Map<String, Object> m = new HashMap<>();

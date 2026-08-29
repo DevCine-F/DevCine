@@ -496,21 +496,9 @@ public class ShowtimeService {
         return result;
     }
 
+    @Cacheable(value = "showtimes_cinema", key = "#cinemaId")
     public List<ShowtimeDTO> getShowtimesByCinemaId(Integer cinemaId) {
-        List<Showtime> showtimes = showtimeRepository.findByCinemaId(cinemaId);
-        return showtimes.stream().map(s -> ShowtimeDTO.builder()
-                .id(s.getId())
-                .roomId(s.getRoom().getId())
-                .roomName(s.getRoom().getName())
-                .formatId(s.getFormat().getId())
-                .formatName(s.getFormat().getName())
-                .startTime(s.getStartTime())
-                .endTime(s.getEndTime())
-                .status(s.getStatus())
-                .movie(s.getMovie().getTitle())
-                .duration(s.getMovie().getDurationMins())
-                .earlyScreening("Xu\u1ea5t chi\u1ebfu s\u1edbm".equals(s.getStatus()))
-                .build()).collect(Collectors.toList());
+        return showtimeRepository.findDTOByCinemaId(cinemaId);
     }
 
     @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
@@ -611,6 +599,7 @@ public class ShowtimeService {
      * kiểm tra xung đột in-memory chống N+1, chụp snapshot sơ đồ ghế 1 lần/phòng và
      * batch insert.
      */
+    @CacheEvict(value = { "cinemas_showtimes", "showtimes_cinema", "upcomingShowtimes" }, allEntries = true)
     @org.springframework.transaction.annotation.Transactional
     public com.devcine.backend.dto.response.BatchShowtimeResult createBatchShowtimes(
             com.devcine.backend.dto.request.BatchShowtimeRequest req) {

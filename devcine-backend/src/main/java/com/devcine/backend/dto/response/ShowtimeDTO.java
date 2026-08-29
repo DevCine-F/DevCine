@@ -31,4 +31,24 @@ public class ShowtimeDTO {
      * FE dùng để hiện badge "Chiếu sớm 🎬" trên từng slot giờ chiếu.
      */
     private boolean earlyScreening;
+
+    /**
+     * Constructor phục vụ JPQL Constructor Projection (tránh SELECT toàn bộ entity
+     * và các cột nặng như layout_data, poster_base64, banner_base64).
+     */
+    public ShowtimeDTO(Integer id, Integer roomId, String roomName, Integer formatId, String formatName,
+                       LocalDateTime startTime, LocalDateTime endTime, String status, String movie,
+                       Integer duration, boolean earlyScreening) {
+        this.id = id;
+        this.roomId = roomId;
+        this.roomName = roomName;
+        this.formatId = formatId;
+        this.formatName = formatName;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.status = status;
+        this.movie = movie;
+        this.duration = duration;
+        this.earlyScreening = earlyScreening;
+    }
 }
