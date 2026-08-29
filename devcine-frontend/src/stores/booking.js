@@ -113,6 +113,9 @@ export const useBookingStore = defineStore('booking', {
       }
     },
     // Đối soát danh sách combo/món đã chọn với menu F&B mới nhất từ server
+    // ── THIẾT KẾ SNAPSHOT: chỉ GỠ món đã tạm ngưng/xóa, KHÔNG ghi đè giá đã snapshot ──
+    // Giá (snapshotPrice) được "đóng băng" lúc user bấm chọn — bất biến trước mọi cập nhật
+    // từ admin trong khi khách đang ở bước Combo. Đây là hành vi chuẩn CGV/Lotte Cinema.
     reconcileSelectedFnbs() {
       if (!this.selectedFnbs || this.selectedFnbs.length === 0) return [];
       const removedItems = [];
@@ -121,10 +124,18 @@ export const useBookingStore = defineStore('booking', {
       for (const sel of this.selectedFnbs) {
         const currentItem = (this.availableFnbs || []).find(i => i.id === sel.fnbItem.id && i.isActive !== false && !i.isDeleted);
         if (!currentItem) {
+          // Món đã tạm ngưng phục vụ hoặc bị xóa → gỡ khỏi giỏ
           removedItems.push(sel.fnbItem.name || 'Món');
         } else {
-          // Cập nhật giá mới nhất và entity mới nhất
-          sel.fnbItem = currentItem;
+          // ── Cập nhật metadata (tên, ảnh, slots...) nhưng GIỮ NGUYÊN snapshotPrice ──
+          // KHÔNG gán sel.fnbItem = currentItem để tránh ghi đè giá đã snapshot.
+          // Chỉ cập nhật các trường hiển thị (tên, ảnh, mô tả) để UI đồng bộ.
+          sel.fnbItem = {
+            ...currentItem,
+            price: sel.fnbItem.price, // GIỮ NGUYÊN giá gốc của fnbItem (không đổi)
+          };
+          // snapshotPrice vẫn là nguồn sự thật duy nhất cho tính tiền
+
           // Đối soát lại các vị con đã chọn (nếu vị bị xóa khỏi kho)
           if (sel.options && sel.options.length > 0 && currentItem.slots) {
             const validOptions = [];
@@ -232,9 +243,13 @@ export const useBookingStore = defineStore('booking', {
 
       if (q > 0) {
         if (index === -1) {
-          this.selectedFnbs.push({ fnbItem, quantity: q, options });
+          // ── Snapshot giá tại thời điểm user bấm chọn (Price Lock at Selection) ──
+          // Giá được "đóng băng" ngay lúc này, không bị ảnh hưởng nếu admin
+          // cập nhật giá sau đó trong khi khách đang ở bước Combo.
+          this.selectedFnbs.push({ fnbItem, quantity: q, options, snapshotPrice: fnbItem.price });
         } else {
           this.selectedFnbs[index].quantity = q;
+          // snapshotPrice GIỮ NGUYÊN — không cập nhật lại khi tăng số lượng
         }
       } else if (index !== -1) {
         this.selectedFnbs.splice(index, 1);
@@ -261,7 +276,10 @@ export const useBookingStore = defineStore('booking', {
                surcharge += (opt.surchargePrice || 0);
            }
         }
-        total += (fnb.fnbItem.price + surcharge) * fnb.quantity;
+        // Dùng snapshotPrice (giá tại thời điểm user bấm chọn) thay vì giá DB hiện tại
+        // → tránh tự động thay đổi tổng tiền khi admin cập nhật giá trong khi khách đặt vé
+        const basePrice = fnb.snapshotPrice ?? fnb.fnbItem.price;
+        total += (basePrice + surcharge) * fnb.quantity;
       }
       this.totalPrice = total;
     },
@@ -296,6 +314,9 @@ export const useBookingStore = defineStore('booking', {
           fnbs: this.selectedFnbs.map(f => ({ 
              fnbItemId: f.fnbItem.id, 
              quantity: f.quantity,
+             // Gửi snapshotPrice (giá lock lúc user bấm chọn) lên backend
+             // Backend sẽ verify và dùng làm priceSnapshot thay vì luôn fetch DB price
+             clientPrice: f.snapshotPrice ?? f.fnbItem.price,
              options: f.options ? f.options.map(o => ({ slotId: o.slotId, optionGroupId: o.optionGroupId, optionItemId: o.optionItemId })) : []
           })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,

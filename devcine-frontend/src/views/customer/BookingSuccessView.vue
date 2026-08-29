@@ -157,7 +157,7 @@ const fnbLines = computed(() => (store.selectedFnbs || []).filter(f => f && f.fn
                 <div class="font-medium text-white/90">{{ f.quantity }} × {{ formatComboTitle(f.fnbItem.name).title }}</div>
                 <div v-if="formatComboTitle(f.fnbItem.name).desc" class="text-xs text-gray-400 mt-0.5">{{ formatComboTitle(f.fnbItem.name).desc }}</div>
               </div>
-              <div class="text-white/70 font-mono text-right whitespace-nowrap pt-0.5">{{ (f.quantity * (f.fnbItem.price || 0)).toLocaleString('vi-VN') }} đ</div>
+              <div class="text-white/70 font-mono text-right whitespace-nowrap pt-0.5">{{ (f.quantity * ((f.snapshotPrice ?? f.fnbItem.price) || 0)).toLocaleString('vi-VN') }} đ</div>
             </div>
           </div>
         </div>

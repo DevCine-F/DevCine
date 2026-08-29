@@ -80,39 +80,6 @@ const seatRealtime = useSeatRealtime({
     toast.info('Thông tin suất chiếu vừa được cập nhật.')
     store.fetchSeats()
   },
-  onFnbUpdate: async () => {
-    await store.fetchFnbs()
-    const removed = store.reconcileSelectedFnbs()
-    if (removed.length > 0) {
-      toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi lựa chọn của bạn.`)
-    }
-    // Nếu đang mở popup chọn vị của món
-    if (isFnbModalOpen.value && selectedFnbForModal.value) {
-      const updated = (store.availableFnbs || []).find(i => i.id === selectedFnbForModal.value.id)
-      if (!updated) {
-        isFnbModalOpen.value = false
-        selectedFnbForModal.value = null
-        toast.warning('Món bạn đang chọn vừa tạm ngưng phục vụ.')
-      } else {
-        selectedFnbForModal.value = updated
-      }
-    }
-  },
-  onVoucherUpdate: async () => {
-    await refreshVouchers()
-    await fetchVoucherEvals()
-    if (store.selectedVoucher) {
-      const stillActive = vouchers.value.some(v => v.id === store.selectedVoucher.id)
-      const ev = voucherEvals.value[store.selectedVoucher.id]
-      if (!stillActive || (ev && !ev.applicable)) {
-        store.selectedVoucher = null
-        discountAmount.value = 0
-        voucherSuccess.value = ''
-        voucherError.value = ''
-        toast.warning('Mã giảm giá bạn đang áp dụng vừa được cập nhật hoặc không còn khả dụng trên hệ thống.')
-      }
-    }
-  },
   onSettingsUpdate: async () => {
     await loadSettingsConfig()
   },
@@ -276,17 +243,6 @@ const ensureHeld = async () => {
   return holdPromise // người bấm "Xác nhận" sớm sẽ chờ chung promise giữ ghế đang chạy ở nền
 }
 watch(currentStep, async (s) => {
-  if (s === 2) {
-    await store.fetchFnbs()
-    const removed = store.reconcileSelectedFnbs()
-    if (removed.length > 0) {
-      toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi lựa chọn của bạn.`)
-    }
-  }
-  if (s === 3) {
-    await refreshVouchers()
-    await fetchVoucherEvals()
-  }
   if (s === 4) {
     loadSettingsConfig()
     ensureHeld()
@@ -651,7 +607,9 @@ const fetchVoucherEvals = async () => {
     })
     const fnbTotal = store.selectedFnbs.reduce((acc, f) => {
       const surcharge = (f.options || []).reduce((s, o) => s + (o.surchargePrice || 0), 0)
-      return acc + (f.fnbItem.price + surcharge) * f.quantity
+      // Dùng snapshotPrice (giá lock tại thời điểm user chọn) để gửi đúng giá lên server preview voucher
+      const basePrice = f.snapshotPrice ?? f.fnbItem.price
+      return acc + (basePrice + surcharge) * f.quantity
     }, 0)
     const { data } = await voucherApi.preview({
       customerId: authStore.user.id,
@@ -780,7 +738,9 @@ const calculateDiscount = () => {
   const seatTotal = seatPrices.reduce((acc, p) => acc + p, 0)
   const fnbTotal = store.selectedFnbs.reduce((acc, f) => {
     const surcharge = (f.options || []).reduce((s, o) => s + (o.surchargePrice || 0), 0)
-    return acc + (f.fnbItem.price + surcharge) * f.quantity
+    // Dùng snapshotPrice để tính discount dựa trên giá đã lock của khách
+    const basePrice = f.snapshotPrice ?? f.fnbItem.price
+    return acc + (basePrice + surcharge) * f.quantity
   }, 0)
   const total = seatTotal + fnbTotal
 
@@ -805,14 +765,10 @@ const calculateDiscount = () => {
   discountAmount.value = Math.min(discount, total)
 }
 
-// Recalculate discount if seat or fnb selections change
+// Recalculate discount if seat or fnb selections change (local calculation only)
 watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
   calculateDiscount()
-  // Giỏ đổi → chấm lại điều kiện/số giảm ở server (chỉ khi đã tới bước Ưu đãi trở đi)
-  if (currentStep.value >= 3) fetchVoucherEvals()
 })
-// Vào bước "Ưu đãi" (3): chấm điều kiện toàn bộ voucher theo giỏ hiện tại để phân loại
-watch(currentStep, (s) => { if (s === 3) fetchVoucherEvals() })
 
 /**
  * Phân loại danh sách Voucher thành 2 nhóm chuẩn Lotte Cinema / CGV:
@@ -1842,7 +1798,7 @@ const proceedToPayment = async () => {
                   <div v-else-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-1 pl-8">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
                 </div>
                 <div class="flex flex-col items-end gap-1 shrink-0">
-                  <span class="font-semibold whitespace-nowrap">{{ ((fnb.fnbItem.price + (fnb.options || []).reduce((sum, o) => sum + (o.surchargePrice || 0), 0)) * fnb.quantity).toLocaleString('vi-VN') }}đ</span>
+                  <span class="font-semibold whitespace-nowrap">{{ (((fnb.snapshotPrice ?? fnb.fnbItem.price) + (fnb.options || []).reduce((sum, o) => sum + (o.surchargePrice || 0), 0)) * fnb.quantity).toLocaleString('vi-VN') }}đ</span>
                   <button @click="store.updateFnb(fnb.fnbItem, 0, fnb.options)" class="text-on-surface-variant/40 hover:text-error-container transition-colors flex items-center" title="Bỏ khỏi đơn">
                     <span class="material-symbols-outlined text-base">delete</span>
                   </button>
