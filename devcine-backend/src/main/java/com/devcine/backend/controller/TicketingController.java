@@ -154,6 +154,7 @@ public class TicketingController {
                     .map(m -> SeatSelectionDTO.builder()
                             .seatId(Integer.parseInt(m.get("seatId").toString()))
                             .ticketType(m.get("ticketType") != null ? m.get("ticketType").toString() : "ADULT")
+                            .unitPrice(m.get("unitPrice") != null ? new java.math.BigDecimal(m.get("unitPrice").toString()) : null)
                             .build())
                     .collect(Collectors.toList());
 
@@ -327,6 +328,7 @@ public class TicketingController {
                     .map(m -> SeatSelectionDTO.builder()
                             .seatId(Integer.parseInt(m.get("seatId").toString()))
                             .ticketType(m.get("ticketType") != null ? m.get("ticketType").toString() : "ADULT")
+                            .unitPrice(m.get("unitPrice") != null ? new java.math.BigDecimal(m.get("unitPrice").toString()) : null)
                             .build())
                     .collect(Collectors.toList());
 

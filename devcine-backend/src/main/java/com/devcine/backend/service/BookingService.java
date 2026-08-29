@@ -87,12 +87,18 @@ public class BookingService {
             }
         }
 
-        // Chuẩn hoá danh sách ghế kèm loại vé: 1 ghế có thể có nhiều loại vé (VD: Sweetbox)
+        // Chuẩn hoá danh sách ghế kèm loại vé & giá snapshot: 1 ghế có thể có nhiều loại vé (VD: Sweetbox)
         java.util.Map<Integer, java.util.List<String>> ticketTypesBySeat = new java.util.LinkedHashMap<>();
+        java.util.Map<Integer, java.util.List<BigDecimal>> unitPricesBySeat = new java.util.LinkedHashMap<>();
         if (request.getSeatSelections() != null && !request.getSeatSelections().isEmpty()) {
             for (var sel : request.getSeatSelections()) {
+                if (sel.getSeatId() == null) continue;
                 ticketTypesBySeat.computeIfAbsent(sel.getSeatId(), k -> new java.util.ArrayList<>())
                         .add(pricingService.normalizeAudience(sel.getTicketType()));
+                if (sel.getUnitPrice() != null) {
+                    unitPricesBySeat.computeIfAbsent(sel.getSeatId(), k -> new java.util.ArrayList<>())
+                            .add(sel.getUnitPrice());
+                }
             }
         } else if (request.getSeatIds() != null) {
             for (Integer seatId : request.getSeatIds()) {
@@ -291,9 +297,19 @@ public class BookingService {
                 }
             }
             if (seatPrice == null) {
-                seatPrice = BigDecimal.ZERO;
-                for (String t : types) {
-                    seatPrice = seatPrice.add(pricingService.priceFor(priceCtx, t));
+                // Price Snapshot (chuẩn CGV/LotteCinema): ưu tiên giá snapshot client gửi lên từ thời điểm chọn ghế
+                java.util.List<BigDecimal> clientPrices = unitPricesBySeat.get(entry.getKey());
+                if (clientPrices != null && clientPrices.size() == types.size()) {
+                    boolean allValid = clientPrices.stream().allMatch(p -> p != null && p.compareTo(new BigDecimal("10000")) >= 0);
+                    if (!allValid) {
+                        throw new IllegalArgumentException("Giá vé không hợp lệ.");
+                    }
+                    seatPrice = clientPrices.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+                } else {
+                    seatPrice = BigDecimal.ZERO;
+                    for (String t : types) {
+                        seatPrice = seatPrice.add(pricingService.priceFor(priceCtx, t));
+                    }
                 }
             }
             bookingSeats.add(BookingSeat.builder()
