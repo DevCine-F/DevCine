@@ -27,6 +27,8 @@ const loadingMap = ref(false)
 const mode = ref('relocate')   // chỉ còn 'relocate'
 const swaps = ref({})          // oldSeatId -> newSeatId
 const activeSource = ref(null) // oldSeatId đang chờ gán ghế đích
+const lockOldSeatsAsMaintenance = ref(true) // VẤN ĐỀ 1: Tự động khóa bảo trì ghế cũ
+const SEAT_RANK = { NORMAL: 0, VIP: 1, SWEETBOX: 2 } // VẤN ĐỀ 3: Thứ hạng ghế để phát hiện hạ hạng
 
 // ===== Đền bù =====
 const compOptions = ref([])
@@ -177,6 +179,7 @@ function resetWorkspace(preserveResult = false) {
   activeSource.value = null
   compChoice.value = 'NONE'
   compNote.value = ''
+  lockOldSeatsAsMaintenance.value = true
   if (!preserveResult) {
     result.value = null
   }
@@ -447,6 +450,14 @@ function onSeatClick(cell) {
         return
       }
     }
+
+    // VẤN ĐỀ 3 FIX: Kiểm tra không cho đổi giữa ghế đơn và ghế đôi Sweetbox
+    const sourceSeat = soldSeats.value.find(s => s.seatId === sourceId)
+    if (sourceSeat && isCoupleSeat(sourceSeat) !== isCoupleSeat(cell)) {
+      toast.warning('Không thể đổi giữa ghế đơn và ghế đôi Sweetbox. Vui lòng chọn cùng loại ghế.')
+      return
+    }
+
     swaps.value = { ...swaps.value, [sourceId]: cell.seatId }
     activeSource.value = null
   }
@@ -513,7 +524,7 @@ function buildCompensation() {
 async function submitRelocate() {
   if (!canSubmitRelocate.value) { toast.warning('Chọn ít nhất một cặp đổi ghế.'); return }
 
-  // Kiểm tra an toàn: đảm bảo không có ghế đích nào để lại ghế lẻ
+  // Kiểm tra an toàn 1: đảm bảo không có ghế đích nào để lại ghế lẻ
   for (const swap of selectedSwaps.value) {
     const destSeat = seatById.value.get(swap.newSeatId)
     if (destSeat && isSeatUnselectable(destSeat)) {
@@ -522,10 +533,33 @@ async function submitRelocate() {
     }
   }
 
+  // Kiểm tra an toàn 2: VẤN ĐỀ 3 FIX - Chặn đổi chéo ghế đơn và ghế đôi
+  for (const swap of selectedSwaps.value) {
+    const oldS = soldSeats.value.find(s => s.seatId === swap.oldSeatId)
+    const newS = seatById.value.get(swap.newSeatId)
+    if (oldS && newS && isCoupleSeat(oldS) !== isCoupleSeat(newS)) {
+      toast.warning(`Không thể đổi giữa ghế đơn ${oldS.seatLabel} và ghế đôi ${newS.label}.`)
+      return
+    }
+  }
+
+  // Kiểm tra an toàn 3: VẤN ĐỀ 3 FIX - Bắt buộc đền bù khi hạ hạng ghế
+  const hasDowngrade = selectedSwaps.value.some(s => {
+    const oldS = soldSeats.value.find(seat => seat.seatId === s.oldSeatId)
+    const newS = seatById.value.get(s.newSeatId)
+    const oldRank = SEAT_RANK[(oldS?.seatType || 'NORMAL').toUpperCase()] ?? 0
+    const newRank = SEAT_RANK[(newS?.seatType || 'NORMAL').toUpperCase()] ?? 0
+    return newRank < oldRank
+  })
+  if (hasDowngrade && compChoice.value === 'NONE') {
+    toast.warning('Đổi ghế bị hạ hạng: bắt buộc phải chọn hình thức đền bù thiện chí (Voucher hoặc Quà F&B).')
+    return
+  }
+
   const lines = selectedSwaps.value.map(s => `${seatById.value.get(s.oldSeatId)?.label || s.oldSeatId} → ${seatById.value.get(s.newSeatId)?.label || s.newSeatId}`).join(', ')
   const ok = await confirm.show({
     title: 'Xác nhận đổi ghế',
-    message: `Đổi ghế: ${lines}. ${compChoice.value !== 'NONE' ? 'Sẽ phát đền bù kèm theo.' : 'Không phát đền bù.'}`,
+    message: `Đổi ghế: ${lines}. ${compChoice.value !== 'NONE' ? 'Sẽ phát đền bù kèm theo.' : 'Không phát đền bù.'}${lockOldSeatsAsMaintenance.value ? ' Ghế cũ sẽ được tự động khóa bảo trì.' : ''}`,
     confirmText: 'Đổi & in lại', tone: 'primary'
   })
   if (!ok) return
@@ -536,7 +570,8 @@ async function submitRelocate() {
       swaps: selectedSwaps.value,
       compensation: buildCompensation(),
       reason: compNote.value || null,
-      allowOrphan: false
+      allowOrphan: false,
+      lockOldSeatsAsMaintenance: lockOldSeatsAsMaintenance.value
     })
     result.value = data.data ?? data
     toast.success('Đã đổi ghế & xử lý đền bù.')
@@ -705,19 +740,27 @@ onMounted(async () => {
           </div>
 
           <!-- Đền bù -->
-          <div class="border-t border-outline-variant/10 pt-3 space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đền bù</label>
+          <div class="border-t border-outline-variant/10 pt-3 space-y-2.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đền bù & Tùy chọn</label>
             <select v-model="compChoice" class="w-full py-2 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none focus:border-primary">
               <option value="NONE">Không đền bù</option>
               <option v-for="o in visibleCompOptions" :key="o.promotionId" :value="o.promotionId">
-                {{ o.label }}{{ o.type === 'DISCOUNT' && o.discountValue > 0 ? ` (${fmtPrice(o.discountValue)})` : '' }}
+                {{ o.label }}{{ o.type === 'DISCOUNT' && o.discountValue > 0 ? ` (${fmtPrice(o.discountValue)})` : '' }}{{ o.requiresManager ? ' [Quản lý duyệt]' : '' }}
               </option>
             </select>
             <input v-model="compNote" placeholder="Lý do / ghi chú (vd: ghế lỗi tựa lưng)" maxlength="255"
                    class="w-full py-2 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none focus:border-primary" />
 
+            <!-- VẤN ĐỀ 1: Cờ tự động khóa bảo trì ghế cũ -->
+            <label class="flex items-center gap-2 select-none cursor-pointer bg-surface/60 px-3 py-2 rounded-lg border border-outline-variant/10 text-xs hover:bg-surface transition-colors">
+              <input type="checkbox" v-model="lockOldSeatsAsMaintenance" class="rounded border-outline-variant/40 text-primary focus:ring-primary h-4 w-4 bg-surface" />
+              <span class="text-on-surface-variant">
+                Tự động khóa bảo trì ghế cũ <span class="text-amber-400 font-semibold">(khuyên dùng)</span>
+              </span>
+            </label>
+
             <button @click="submitRelocate" :disabled="!canSubmitRelocate || submitting"
-                    class="w-full py-3 rounded-xl bg-primary text-on-primary font-extrabold text-sm hover:opacity-90 disabled:opacity-40 flex items-center justify-center gap-2">
+                    class="w-full py-3 rounded-xl bg-primary text-on-primary font-extrabold text-sm hover:opacity-90 disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
               <span class="material-symbols-outlined text-lg">swap_horiz</span>
               {{ submitting ? 'Đang xử lý...' : 'Xác nhận & in lại vé' }}
             </button>
@@ -737,12 +780,18 @@ onMounted(async () => {
             <div v-if="result.compensation?.voucherIssued" class="p-2.5 rounded-lg bg-green-950/60 border border-green-500/30 space-y-1">
               <p class="text-green-200">Mã voucher đền bù cho khách:</p>
               <p class="text-base font-mono font-black text-green-400 tracking-wider select-all">{{ result.compensation.voucherCode }}</p>
-              <!-- BUG-13 FIX: field đúng là .value (không phải .amount) theo CompensationResult Java record -->
               <p v-if="result.compensation.value > 0" class="text-[11px] text-green-300/80">Trị giá: {{ fmtPrice(result.compensation.value) }}</p>
             </div>
-            <p v-else-if="result.compensation?.counterGift" class="text-amber-300">
-              ℹ Khách vãng lai: Đền trực tiếp tại quầy — hệ thống không phát voucher điện tử.
-            </p>
+            <div v-else-if="result.compensation?.counterGift" class="p-2.5 rounded-lg bg-amber-950/50 border border-amber-500/30 space-y-1.5">
+              <p class="text-amber-300 font-semibold flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">inventory_2</span>
+                Khách vãng lai: Tặng quà trực tiếp tại quầy F&B
+              </p>
+              <div v-if="result.compensation?.auditGiftCode" class="mt-1 flex items-center justify-between bg-black/40 px-2.5 py-1.5 rounded-lg border border-amber-500/20">
+                <span class="text-[11px] text-on-surface-variant">Mã phiếu đối soát quầy:</span>
+                <span class="font-mono font-black text-amber-400 text-xs tracking-wider select-all">{{ result.compensation.auditGiftCode }}</span>
+              </div>
+            </div>
             <p v-if="result.emailResent" class="flex items-center gap-1 text-green-300/80">
               <span class="material-symbols-outlined text-xs">mark_email_read</span> Đã gửi lại email xác nhận cho khách.
             </p>
