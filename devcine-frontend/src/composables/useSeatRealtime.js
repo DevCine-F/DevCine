@@ -31,7 +31,7 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
 
   const touch = () => { othersLocked.value = new Set(othersLocked.value); onChange?.() }
 
-  function connect(stId) {
+  function connect(stId = null) {
     if (client && showtimeId === stId) return // đã kết nối đúng suất này rồi → bỏ qua
     if (client) disconnect()
     showtimeId = stId
@@ -40,20 +40,22 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
       reconnectDelay: 3000,
       onConnect: () => {
         connected.value = true
-        const topic = `/topic/showtime/${showtimeId}`
-        subs.push(client.subscribe(topic, (msg) => handleBroadcast(JSON.parse(msg.body))))
-        // Kết quả riêng cho lệnh select của chính máy này
-        subs.push(client.subscribe('/user/queue/seat-result', (msg) => handleResult(JSON.parse(msg.body))))
-        // Đồng bộ danh sách ghế đang bị khóa lúc mới vào
-        subs.push(client.subscribe('/user/queue/seat-sync', (msg) => handleSync(JSON.parse(msg.body))))
-        // Đồng bộ cập nhật thực đơn F&B real-time
+        if (showtimeId) {
+          const topic = `/topic/showtime/${showtimeId}`
+          subs.push(client.subscribe(topic, (msg) => handleBroadcast(JSON.parse(msg.body))))
+          // Kết quả riêng cho lệnh select của chính máy này
+          subs.push(client.subscribe('/user/queue/seat-result', (msg) => handleResult(JSON.parse(msg.body))))
+          // Đồng bộ danh sách ghế đang bị khóa lúc mới vào
+          subs.push(client.subscribe('/user/queue/seat-sync', (msg) => handleSync(JSON.parse(msg.body))))
+          client.publish({ destination: `/app/showtime/${showtimeId}/sync`, body: '{}' })
+        }
+        // Đồng bộ cập nhật thực đơn F&B real-time (toàn hệ thống)
         subs.push(client.subscribe('/topic/fnb-updates', (msg) => {
           try {
             const ev = JSON.parse(msg.body)
             onFnbUpdate?.(ev)
           } catch (_) {}
         }))
-        client.publish({ destination: `/app/showtime/${showtimeId}/sync`, body: '{}' })
       },
       onWebSocketClose: () => { connected.value = false },
     })

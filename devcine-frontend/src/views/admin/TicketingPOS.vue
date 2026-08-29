@@ -225,17 +225,65 @@ const applySeatStatusUpdate = (seatIds, newStatus) => {
   }
 }
 
+const reloadPosCombos = async () => {
+  try {
+    const cbRes = await ticketingApi.getCombos()
+    combos.value = unwrapData(cbRes)
+  } catch (err) {
+    console.error('Không tải được thực đơn F&B:', err)
+  }
+}
+
+const reconcilePosCombos = () => {
+  if (!selectedCombos.value || selectedCombos.value.length === 0) return []
+  const availableMap = new Map((combos.value || []).map(f => [f.id, f]))
+  const validCombos = []
+  const removedNames = []
+
+  for (const c of selectedCombos.value) {
+    const currentItem = availableMap.get(c.id)
+    if (!currentItem || currentItem.isActive === false || currentItem.isDeleted) {
+      removedNames.push(c.name || 'Món')
+    } else {
+      // Cập nhật giá gốc mới nhất
+      c.name = currentItem.name
+      c.price = Number(currentItem.price || 0)
+
+      // Đối soát lại vị con đã chọn
+      if (c.options && c.options.length > 0 && currentItem.slots) {
+        const validOptions = []
+        let newSurcharge = 0
+        for (const opt of c.options) {
+          const slot = currentItem.slots.find(s => s.id === opt.slotId || s.slotLabel === opt.slotLabel)
+          const optItem = slot?.optionGroup?.items?.find(it => it.id === opt.optionItemId)
+          if (optItem) {
+            opt.surchargePrice = Number(optItem.surchargePrice || 0)
+            validOptions.push(opt)
+            newSurcharge += opt.surchargePrice
+          }
+        }
+        c.options = validOptions
+        c.surchargePrice = newSurcharge
+      }
+      validCombos.push(c)
+    }
+  }
+
+  selectedCombos.value = validCombos
+  return removedNames
+}
+
 const startSeatPolling = () => {
-  if (selectedShowtime.value) seatRealtime.connect(selectedShowtime.value.id) // kết nối WebSocket
+  seatRealtime.connect(selectedShowtime.value?.id || null) // kết nối WebSocket
 }
 const stopSeatPolling = () => {
-  seatRealtime.disconnect() // rời bước chọn ghế → nhả khóa của mình + ngắt WebSocket
+  seatRealtime.connect(null) // nhả khóa suất cũ nhưng vẫn giữ kết nối nhận sự kiện F&B
 }
 
 import { usePosStore } from '@/stores/usePosStore'
 const posStore = usePosStore()
 
-// ===== Khóa ghế real-time (WebSocket/STOMP) — đồng bộ với quầy POS khác & khách online =====
+// ===== Khóa ghế real-time & cập nhật F&B (WebSocket/STOMP) — đồng bộ với quầy POS khác & khách online =====
 const seatRealtime = useSeatRealtime({
   by: 'Quầy POS',
   // Ghế mình vừa chọn nhưng quầy khác đã giành trước → gỡ khỏi đơn + báo lỗi
@@ -268,6 +316,26 @@ const seatRealtime = useSeatRealtime({
   // Ghế vừa bị giữ bởi quầy/khách khác → cập nhật HOLD ngay lập tức
   onHeld: (seatIds) => {
     applySeatStatusUpdate(seatIds, 'HOLD')
+  },
+  // Đồng bộ thực đơn F&B real-time từ Admin
+  onFnbUpdate: async () => {
+    await reloadPosCombos()
+    const removed = reconcilePosCombos()
+    if (removed.length > 0) {
+      showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi đơn hàng.`, 'error')
+    }
+    // Nếu đang mở popup chọn vị của món
+    if (isFnbModalOpen.value && editingFnbItem.value) {
+      const updated = (combos.value || []).find(i => i.id === editingFnbItem.value.id && i.isActive !== false && !i.isDeleted)
+      if (!updated) {
+        isFnbModalOpen.value = false
+        editingFnbItem.value = null
+        editingFnbIndex.value = -1
+        showToast('Món đang chọn vị vừa tạm ngưng phục vụ.', 'error')
+      } else {
+        editingFnbItem.value = updated
+      }
+    }
   },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
@@ -776,6 +844,18 @@ const processConcessionPayment = async (method) => {
     showQrModal.value = false
     fnbStep.value = 3
   } catch (err) {
+    const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || ''
+    if (errMsg.includes('ngưng bán') || errMsg.includes('không tồn tại')) {
+      await reloadPosCombos()
+      const removed = reconcilePosCombos()
+      if (removed.length > 0) {
+        showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ nên đã được gỡ khỏi đơn. Vui lòng kiểm tra lại.`, 'error')
+        showCashModal.value = false
+        showQrModal.value = false
+        fnbStep.value = 1
+        return
+      }
+    }
     if (err.response?.status === 400 && err.response?.data?.message) {
       showToast(err.response.data.message, 'error')
     } else {
@@ -1282,6 +1362,18 @@ const processPayment = async (method) => {
     showQrModal.value = false
     currentStep.value = 6
   } catch (err) {
+    const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || ''
+    if (errMsg.includes('ngưng bán') || errMsg.includes('không tồn tại')) {
+      await reloadPosCombos()
+      const removed = reconcilePosCombos()
+      if (removed.length > 0) {
+        showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ nên đã được gỡ khỏi đơn. Vui lòng kiểm tra lại.`, 'error')
+        showCashModal.value = false
+        showQrModal.value = false
+        currentStep.value = 4
+        return
+      }
+    }
     if (err.response?.status === 422 && err.response?.data?.message) {
       outOfStockMessage.value = err.response.data.message
       showOutOfStockModal.value = true
@@ -1432,15 +1524,36 @@ const loadSettings = async () => {
   }
 }
 
+watch(currentStep, async (step) => {
+  if (step === 4 && saleMode.value === 'TICKET') {
+    await reloadPosCombos()
+    const removed = reconcilePosCombos()
+    if (removed.length > 0) {
+      showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi đơn hàng.`, 'error')
+    }
+  }
+})
+
+watch(saleMode, async (mode) => {
+  if (mode === 'FNB') {
+    await reloadPosCombos()
+    const removed = reconcilePosCombos()
+    if (removed.length > 0) {
+      showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi đơn hàng.`, 'error')
+    }
+  }
+})
+
 onMounted(() => {
   nowTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
   fetchData(); loadBankInfo(); loadSettings();
+  seatRealtime.connect(selectedShowtime.value?.id || null);
   window.addEventListener('keydown', handleGlobalKeydown)
 })
 onUnmounted(() => {
   if (nowTimer) clearInterval(nowTimer)
   stopHoldTimer()
-  stopSeatPolling()
+  seatRealtime.disconnect()
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
 </script>
