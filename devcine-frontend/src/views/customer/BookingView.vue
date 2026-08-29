@@ -243,6 +243,9 @@ const ensureHeld = async () => {
   return holdPromise // người bấm "Xác nhận" sớm sẽ chờ chung promise giữ ghế đang chạy ở nền
 }
 watch(currentStep, async (s) => {
+  if (s === 3) {
+    await fetchVoucherEvals()
+  }
   if (s === 4) {
     loadSettingsConfig()
     ensureHeld()
@@ -765,9 +768,10 @@ const calculateDiscount = () => {
   discountAmount.value = Math.min(discount, total)
 }
 
-// Recalculate discount if seat or fnb selections change (local calculation only)
+// Recalculate discount if seat or fnb selections change
 watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
   calculateDiscount()
+  if (currentStep.value >= 3) fetchVoucherEvals()
 })
 
 /**
