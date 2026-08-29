@@ -78,9 +78,15 @@ public class GlobalExceptionHandler {
                 HttpStatus.METHOD_NOT_ALLOWED);
     }
 
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
+        log.error("Unhandled RuntimeException: {}", ex.getMessage(), ex);
+        return new ResponseEntity<>(ApiResponse.fail(ex.getMessage() != null ? ex.getMessage() : "Lỗi xử lý nghiệp vụ."), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleAllExceptions(Exception ex) {
         log.error("Unhandled backend exception", ex);
-        return new ResponseEntity<>(ApiResponse.fail("Lỗi hệ thống nội bộ."), HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(ApiResponse.fail("Lỗi hệ thống nội bộ: " + ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

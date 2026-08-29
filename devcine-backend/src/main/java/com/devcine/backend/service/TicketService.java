@@ -124,6 +124,7 @@ public class TicketService {
         // Đồng bộ trạng thái vé từng ghế (giữ báo cáo tiến độ check-in nhất quán).
         List<Ticket> tickets = ticketRepository.findAllByBookingId(booking.getId());
         for (Ticket t : tickets) {
+            if (Boolean.TRUE.equals(t.getIsRevoked())) continue; // Bỏ qua vé đã bị thu hồi do đổi chỗ
             if (!Boolean.TRUE.equals(t.getIsCheckedIn())) {
                 t.setIsCheckedIn(true);
                 t.setCheckInTime(now);
@@ -138,6 +139,40 @@ public class TicketService {
         sendReceiptEmail(booking);
 
         return buildResponse(booking);
+    }
+
+    /**
+     * VẤN ĐỀ 2 FIX: Xác thực và check-in vé lẻ qua mã QR của từng vé.
+     * Chặn quét vé cũ đã bị thu hồi sau khi đổi chỗ.
+     */
+    @Transactional
+    public Ticket verifyAndCheckInTicket(String qrCode) {
+        if (qrCode == null || qrCode.isBlank()) {
+            throw new RuntimeException("Vui lòng cung cấp mã QR vé.");
+        }
+        Ticket ticket = ticketRepository.findByQrCode(qrCode.trim())
+                .orElseThrow(() -> new RuntimeException("Mã vé không tồn tại hoặc đã bị hủy sau khi đổi ghế."));
+
+        if (Boolean.TRUE.equals(ticket.getIsRevoked())) {
+            String seatLabel = ticket.getBookingSeat() != null && ticket.getBookingSeat().getSeat() != null
+                    ? ticket.getBookingSeat().getSeat().displayLabel() : "ghế mới";
+            throw new RuntimeException("VÉ ĐÃ BỊ THU HỒI: Chỗ ngồi đã được chuyển sang " + seatLabel + ". Vui lòng sử dụng vé in mới nhất.");
+        }
+
+        Booking booking = ticket.getBookingSeat() != null ? ticket.getBookingSeat().getBooking() : null;
+        if (booking != null) {
+            SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
+        }
+
+        if (Boolean.TRUE.equals(ticket.getIsCheckedIn())) {
+            throw new RuntimeException("Vé này đã được check-in vào lúc: "
+                    + (ticket.getCheckInTime() != null ? ticket.getCheckInTime().format(TIME_FMT) : "trước đó"));
+        }
+
+        ticket.setIsCheckedIn(true);
+        ticket.setCheckInTime(LocalDateTime.now());
+        ticket.setCheckedInBy(currentStaffOrNull());
+        return ticketRepository.save(ticket);
     }
 
     /**

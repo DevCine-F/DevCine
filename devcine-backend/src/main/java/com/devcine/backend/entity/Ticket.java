@@ -39,4 +39,12 @@ public class Ticket {
 
     @Column(name = "check_in_time")
     private LocalDateTime checkInTime;
+
+    @Column(name = "version")
+    @Builder.Default
+    private Integer version = 1;
+
+    @Column(name = "is_revoked")
+    @Builder.Default
+    private Boolean isRevoked = false;
 }

@@ -62,4 +62,21 @@ public class TicketController {
             return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
         }
     }
+
+    /**
+     * VẤN ĐỀ 2 FIX: Quét / check-in từng vé đơn lẻ qua mã QR vé (TICK_...).
+     * Tự động từ chối nếu vé đã bị thu hồi do đổi chỗ sang ghế khác.
+     */
+    @PostMapping("/verify-ticket")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> verifyTicket(@RequestParam("qr") String qr) {
+        try {
+            Ticket ticket = ticketService.verifyAndCheckInTicket(qr);
+            return ResponseEntity.ok(ApiResponse.ok(ticket, "Check-in vé thành công!"));
+        } catch (AccessDeniedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
+        }
+    }
 }
