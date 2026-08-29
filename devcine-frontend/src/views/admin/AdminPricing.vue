@@ -30,8 +30,33 @@ const toast = useToastStore()
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 const fmtThousand = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('vi-VN'))
 
-// Giới hạn giá trị tối đa cho 1 ô tiền vé (tránh tràn số/nhập nhầm)
+// Giới hạn giá trị tối đa cho 1 ô tiền vé
+const MIN_BASE_PRICE = 20000
+const MAX_BASE_PRICE = 1000000
 const MAX_PRICE = 999999999
+
+const baseErrors = reactive({})
+const baseTouched = ref(false)
+
+const getBasePriceError = (val) => {
+  if (val === null || val === undefined || val === '') {
+    return 'Không được để trống'
+  }
+  const num = Number(val)
+  if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+    return 'Phải là số nguyên không âm'
+  }
+  if (num < MIN_BASE_PRICE) {
+    return `Tối thiểu ${fmtThousand(MIN_BASE_PRICE)} đ`
+  }
+  if (num > MAX_BASE_PRICE) {
+    return `Tối đa ${fmtThousand(MAX_BASE_PRICE)} đ`
+  }
+  if (num % 1000 !== 0) {
+    return 'Phải là bội số 1.000 đ'
+  }
+  return null
+}
 
 const onBaseMatrixInput = (e, key) => {
   const input = e.target
@@ -42,10 +67,18 @@ const onBaseMatrixInput = (e, key) => {
   let cleanDigits = rawOldVal.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
   if (cleanDigits.length > 9) cleanDigits = cleanDigits.slice(0, 9)
 
-  const numVal = cleanDigits ? Math.min(Number(cleanDigits), MAX_PRICE) : 0
-  baseMatrix[key] = numVal
+  if (!cleanDigits) {
+    baseMatrix[key] = ''
+    input.value = ''
+    baseErrors[key] = getBasePriceError('')
+    return
+  }
 
-  const formattedVal = cleanDigits ? numVal.toLocaleString('vi-VN') : '0'
+  const numVal = Number(cleanDigits)
+  baseMatrix[key] = numVal
+  baseErrors[key] = getBasePriceError(numVal)
+
+  const formattedVal = numVal.toLocaleString('vi-VN')
   input.value = formattedVal
 
   let newCaretPos = 0
@@ -58,7 +91,7 @@ const onBaseMatrixInput = (e, key) => {
     }
   }
   if (digitsBefore === 0) {
-    newCaretPos = formattedVal === '0' ? 1 : 0
+    newCaretPos = 0
   }
   input.setSelectionRange(newCaretPos, newCaretPos)
 }
@@ -94,7 +127,7 @@ const onFormatSurchargeInput = (e, f, field) => {
     }
   }
   if (digitsBefore === 0) {
-    newCaretPos = formattedVal === '0' ? 1 : 0
+    newCaretPos = 0
   }
   input.setSelectionRange(newCaretPos, newCaretPos)
 }
@@ -124,6 +157,7 @@ const loadConfig = async () => {
     config.value = data
 
     Object.keys(baseMatrix).forEach(k => delete baseMatrix[k])
+    Object.keys(baseErrors).forEach(k => delete baseErrors[k])
     const existing = {}
     ;(data.baseMatrix || []).forEach(r => { existing[`${r.roomType}|${r.dayType}|${r.audienceType}`] = r.value })
     ;(data.roomTypes || []).forEach(rt => data.dayTypes.forEach(d => Object.keys(data.audiences).forEach(a => {
@@ -153,7 +187,40 @@ const loadConfig = async () => {
 
 onMounted(loadConfig)
 
+const validateAllBase = () => {
+  baseTouched.value = true
+  let hasError = false
+  let firstErrorMsg = ''
+
+  ;(roomTypes.value || []).forEach(rt => {
+    ;(config.value?.dayTypes || []).forEach(d => {
+      Object.keys(config.value?.audiences || {}).forEach(a => {
+        const key = `${rt.code}|${d.code}|${a}`
+        const err = getBasePriceError(baseMatrix[key])
+        if (err) {
+          baseErrors[key] = err
+          hasError = true
+          if (!firstErrorMsg) {
+            const audLabel = config.value?.audiences?.[a] || a
+            firstErrorMsg = `${rt.label} (${d.label} - ${audLabel}): ${err}`
+          }
+        } else {
+          delete baseErrors[key]
+        }
+      })
+    })
+  })
+
+  if (hasError) {
+    toast.error(firstErrorMsg || 'Vui lòng sửa các ô giá vé chưa hợp lệ.')
+    return false
+  }
+  return true
+}
+
 const saveBase = async () => {
+  if (!validateAllBase()) return
+
   saving.value = true
   try {
     const rules = Object.entries(baseMatrix).map(([k, value]) => {
@@ -292,16 +359,22 @@ const TABS = [
                       <span>{{ d.label }}</span>
                     </div>
                   </td>
-                  <td v-for="[code] in audienceEntries" :key="code" class="py-3 px-4 text-center">
-                    <div class="inline-flex items-center relative group">
-                      <input
-                        type="text"
-                        inputmode="numeric"
-                        :value="fmtThousand(baseMatrix[`${rt.code}|${d.code}|${code}`] ?? 0)"
-                        @input="onBaseMatrixInput($event, `${rt.code}|${d.code}|${code}`)"
-                        class="w-32 bg-surface-container-high border border-outline-variant/20 group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary py-2 pl-3 pr-7 text-right font-bold text-on-surface outline-none transition-all tabular-nums text-sm shadow-sm"
-                      />
-                      <span class="absolute right-2.5 text-xs font-bold text-on-surface-variant/60 group-focus-within:text-primary pointer-events-none select-none">đ</span>
+                  <td v-for="[code] in audienceEntries" :key="code" class="py-3 px-4 text-center align-top">
+                    <div class="inline-flex flex-col items-center">
+                      <div class="inline-flex items-center relative group">
+                        <input
+                          type="text"
+                          inputmode="numeric"
+                          :value="fmtThousand(baseMatrix[`${rt.code}|${d.code}|${code}`])"
+                          @input="onBaseMatrixInput($event, `${rt.code}|${d.code}|${code}`)"
+                          class="w-32 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm"
+                          :class="baseErrors[`${rt.code}|${d.code}|${code}`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
+                        />
+                        <span class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="baseErrors[`${rt.code}|${d.code}|${code}`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
+                      </div>
+                      <span v-if="baseErrors[`${rt.code}|${d.code}|${code}`]" class="text-[10px] font-bold text-red-400 mt-1 max-w-[130px] leading-tight text-center" :title="baseErrors[`${rt.code}|${d.code}|${code}`]">
+                        {{ baseErrors[`${rt.code}|${d.code}|${code}`] }}
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -309,10 +382,15 @@ const TABS = [
             </table>
           </div>
         </div>
-        <p class="text-xs text-on-surface-variant flex items-center gap-1.5">
-          <span class="material-symbols-outlined text-sm text-primary">info</span>
-          * Bậc "Cao điểm" gộp T6, T7, CN và mọi ngày trong tab "Ngày lễ".
-        </p>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-on-surface-variant">
+          <p class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm text-primary">info</span>
+            * Bậc "Cao điểm" gộp T6, T7, CN và mọi ngày trong tab "Ngày lễ".
+          </p>
+          <p class="text-on-surface-variant/80">
+            Quy định: Số nguyên từ 20.000 đ – 1.000.000 đ, bội số của 1.000 đ.
+          </p>
+        </div>
         <div>
           <button v-if="can('pricing', 'edit')" @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none">
             <span class="material-symbols-outlined text-base">{{ saving ? 'sync' : 'save' }}</span>
