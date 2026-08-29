@@ -279,7 +279,14 @@ export const useBookingStore = defineStore('booking', {
             this.selectedSeats.forEach(s => {
               const capacity = s.seatType === 'SWEETBOX' ? 2 : 1;
               for (let j = 0; j < capacity; j++) {
-                sels.push({ seatId: s.seatId, ticketType: this.audienceAssignment[assignIdx] || 'ADULT' });
+                const aud = this.audienceAssignment[assignIdx] || 'ADULT';
+                const byAud = this.priceTable[s.seatType];
+                const unitPrice = (byAud && byAud[aud] != null) ? Number(byAud[aud]) : (s.price || 0);
+                sels.push({
+                  seatId: s.seatId,
+                  ticketType: aud,
+                  unitPrice: unitPrice
+                });
                 assignIdx++;
               }
             });
