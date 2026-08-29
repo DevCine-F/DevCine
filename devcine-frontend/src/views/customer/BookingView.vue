@@ -50,6 +50,36 @@ const seatRealtime = useSeatRealtime({
       )
     }
   },
+  onMaintenance: (seatIds, status) => {
+    const isMaint = status === 'MAINTENANCE' || status === 'LOCKED'
+    const newStatus = isMaint ? status : 'AVAILABLE'
+    if (store.availableSeats.length) {
+      store.availableSeats = store.availableSeats.map(s =>
+        seatIds.includes(s.seatId) ? { ...s, status: newStatus, seatStatus: newStatus } : s
+      )
+    }
+    if (isMaint) {
+      const lost = store.selectedSeats.filter(s => seatIds.includes(s.seatId))
+      lost.forEach(seat => store.toggleSeat(seat))
+      if (lost.length) {
+        toast.error(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được chuyển sang chế độ bảo trì và đã được gỡ khỏi lựa chọn.`)
+      }
+    }
+  },
+  onPricingUpdate: async () => {
+    await store.fetchSeats()
+    toast.info('Bảng giá vé vừa được cập nhật.')
+  },
+  onShowtimeCancelled: () => {
+    toast.error('Suất chiếu này vừa bị hủy hoặc thay đổi lịch. Đang quay lại trang lịch chiếu...')
+    setTimeout(() => {
+      router.replace('/lich-chieu')
+    }, 2000)
+  },
+  onShowtimeUpdated: () => {
+    toast.info('Thông tin suất chiếu vừa được cập nhật.')
+    store.fetchSeats()
+  },
   onFnbUpdate: async () => {
     await store.fetchFnbs()
     const removed = store.reconcileSelectedFnbs()

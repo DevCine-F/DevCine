@@ -246,9 +246,9 @@ public class SeatIncidentService {
         // REALTIME WEBSOCKET STOMP: Broadcast tới tất cả suất chiếu active của phòng này
         if (seat.getRoom() != null && seat.getRoom().getId() != null) {
             List<Showtime> activeShowtimes = showtimeRepository.findActiveByRoomId(seat.getRoom().getId(), LocalDateTime.now());
-            String eventType = "AVAILABLE".equals(status) ? "SEAT_RELEASED" : "SEAT_LOCKED";
+            String eventType = "AVAILABLE".equals(status) ? "SEAT_RELEASED" : "SEAT_MAINTENANCE";
             for (Showtime activeSt : activeShowtimes) {
-                broadcastSeatEvent(activeSt.getId(), eventType, List.of(seat.getId()));
+                broadcastSeatEvent(activeSt.getId(), eventType, List.of(seat.getId()), status);
             }
         }
 
@@ -837,10 +837,18 @@ public class SeatIncidentService {
 
     /** Broadcast sự kiện trạng thái ghế qua WebSocket STOMP tới topic /topic/showtime/{id}. */
     private void broadcastSeatEvent(Integer showtimeId, String type, List<Integer> seatIds) {
+        broadcastSeatEvent(showtimeId, type, seatIds, null);
+    }
+
+    private void broadcastSeatEvent(Integer showtimeId, String type, List<Integer> seatIds, String status) {
         if (showtimeId == null || seatIds == null || seatIds.isEmpty() || messagingTemplate == null) return;
         try {
-            Object payload = Map.of("type", type, "seatIds", seatIds, "by", "INCIDENT_HANDLER");
-            messagingTemplate.convertAndSend("/topic/showtime/" + showtimeId, payload);
+            java.util.Map<String, Object> map = new java.util.HashMap<>();
+            map.put("type", type);
+            map.put("seatIds", seatIds);
+            map.put("by", "INCIDENT_HANDLER");
+            if (status != null) map.put("status", status);
+            messagingTemplate.convertAndSend("/topic/showtime/" + showtimeId, (Object) map);
             log.info("[SeatIncident] Broadcast STOMP {} cho suất #{}: ghế {}", type, showtimeId, seatIds);
         } catch (Exception e) {
             log.warn("[SeatIncident] Broadcast STOMP {} cho suất #{} thất bại: {}", type, showtimeId, e.getMessage());

@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +25,22 @@ import org.springframework.security.access.prepost.PreAuthorize;
 public class ShowtimeController {
 
     private final ShowtimeService showtimeService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private void notifyShowtimeEvent(Integer showtimeId, String type) {
+        try {
+            if (messagingTemplate != null && showtimeId != null) {
+                Object payload = Map.of(
+                        "type", type,
+                        "showtimeId", showtimeId,
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/showtime/" + showtimeId, payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
 
     @GetMapping("/sneak-previews")
     public ResponseEntity<ApiResponse<List<SneakPreviewDTO>>> getSneakPreviews() {
@@ -136,6 +153,7 @@ public class ShowtimeController {
     public ResponseEntity<?> updateShowtime(@PathVariable Integer id, @RequestBody java.util.Map<String, Object> updates) {
         try {
             showtimeService.updateShowtime(id, updates);
+            notifyShowtimeEvent(id, "SHOWTIME_UPDATED");
             return ResponseEntity.ok(ApiResponse.success("Đã cập nhật suất chiếu."));
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -147,6 +165,7 @@ public class ShowtimeController {
     public ResponseEntity<?> deleteShowtime(@PathVariable Integer id) {
         try {
             showtimeService.deleteShowtime(id);
+            notifyShowtimeEvent(id, "SHOWTIME_CANCELLED");
             return ResponseEntity.ok(ApiResponse.success("Đã xoá suất chiếu."));
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));

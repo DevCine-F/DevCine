@@ -317,6 +317,46 @@ const seatRealtime = useSeatRealtime({
   onHeld: (seatIds) => {
     applySeatStatusUpdate(seatIds, 'HOLD')
   },
+  // Ghế chuyển sang bảo trì hoặc mở lại
+  onMaintenance: (seatIds, status) => {
+    const isMaint = status === 'MAINTENANCE' || status === 'LOCKED'
+    const newStatus = isMaint ? status : 'AVAILABLE'
+    applySeatStatusUpdate(seatIds, newStatus)
+    if (isMaint) {
+      const lost = selectedSeats.value.filter(s => seatIds.includes(s.seatId))
+      if (lost.length) {
+        selectedSeats.value = selectedSeats.value.filter(s => !seatIds.includes(s.seatId))
+        if (selectedSeats.value.length === 0) stopHoldTimer()
+        showToast(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được chuyển sang chế độ bảo trì — đã gỡ khỏi đơn.`, 'error')
+      }
+    }
+  },
+  // Đồng bộ bảng giá vé nền
+  onPricingUpdate: async () => {
+    if (selectedShowtime.value) {
+      try {
+        const { data } = await ticketingApi.getSeats(selectedShowtime.value.id)
+        captureSeatMeta(data)
+        showToast('Bảng giá vé vừa được cập nhật.', 'info')
+      } catch (_) {}
+    }
+  },
+  // Suất chiếu bị hủy
+  onShowtimeCancelled: () => {
+    showToast('Suất chiếu này vừa bị hủy hoặc thay đổi lịch.', 'error')
+    resetPOS()
+  },
+  // Suất chiếu được cập nhật
+  onShowtimeUpdated: async () => {
+    showToast('Thông tin suất chiếu vừa được cập nhật.', 'info')
+    if (selectedShowtime.value) {
+      try {
+        const { data } = await ticketingApi.getSeats(selectedShowtime.value.id)
+        seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
+        captureSeatMeta(data)
+      } catch (_) {}
+    }
+  },
   // Đồng bộ thực đơn F&B real-time từ Admin
   onFnbUpdate: async () => {
     await reloadPosCombos()
