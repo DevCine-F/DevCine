@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import api from '@/api/axios'
 import { fnbApi, fnbGroupApi } from '@/api/admin/index'
 import { prepareImageForUpload } from '@/utils/imageUpload'
@@ -26,6 +26,73 @@ const editingGroupId = ref(null)
 // Kho Tùy Chọn (Pool) nay thuần túy: chỉ tên + danh sách vị. Ràng buộc min/max/required
 // đã chuyển xuống Slot của từng combo.
 const groupForm = ref({ name: '', items: [] })
+const groupItemNameRefs = ref([])
+const groupTouched = ref({ name: false })
+const groupItemTouched = ref([])
+const groupSubmitAttempted = ref(false)
+
+// ── Helpers chuẩn hóa text & masking tiền tệ ──
+const normalizeInputText = (text) => {
+  if (!text) return ''
+  return text.trim().replace(/\s+/g, ' ')
+}
+
+const handleCurrencyInput = (event, item, field = 'surchargePrice', displayField = 'surchargeDisplay') => {
+  const input = event.target
+  const rawOldVal = input.value || ''
+  const caretPos = input.selectionStart || 0
+
+  // Đếm số lượng chữ số nằm phía trước con trỏ
+  const digitsBefore = rawOldVal.slice(0, caretPos).replace(/\D/g, '').length
+
+  // Chỉ giữ lại chữ số và loại bỏ số 0 thừa phía trước
+  let cleanDigits = rawOldVal.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  if (!cleanDigits) cleanDigits = '0'
+
+  let numVal = Number(cleanDigits) || 0
+  if (numVal > 100000000) {
+    numVal = 100000000
+    cleanDigits = '100000000'
+  }
+
+  const formattedVal = numVal.toLocaleString('vi-VN')
+  item[field] = numVal
+  item[displayField] = formattedVal
+  input.value = formattedVal
+
+  // Tìm lại vị trí con trỏ chuột chính xác (tránh Cursor Jump)
+  let newCaretPos = 0
+  let digitsCount = 0
+  for (let i = 0; i < formattedVal.length; i++) {
+    if (/\d/.test(formattedVal[i])) {
+      digitsCount++
+    }
+    if (digitsCount === digitsBefore) {
+      newCaretPos = i + 1
+      break
+    }
+  }
+  if (digitsBefore === 0) {
+    newCaretPos = formattedVal === '0' ? 1 : 0
+  }
+  input.setSelectionRange(newCaretPos, newCaretPos)
+}
+
+const handleCurrencyPaste = (event, item, field = 'surchargePrice', displayField = 'surchargeDisplay') => {
+  event.preventDefault()
+  const pastedText = (event.clipboardData || window.clipboardData)?.getData('text') || ''
+  let cleanDigits = pastedText.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  if (!cleanDigits) cleanDigits = '0'
+
+  const numVal = Math.min(Number(cleanDigits) || 0, 100000000)
+  const formattedVal = numVal.toLocaleString('vi-VN')
+
+  item[field] = numVal
+  item[displayField] = formattedVal
+  if (event.target) {
+    event.target.value = formattedVal
+  }
+}
 
 const typeOptions = [
   { value: 'COMBO', label: 'Combo' },
@@ -193,42 +260,181 @@ const confirmDelete = async () => {
   }
 }
 
+// ── Validation Kho Tùy Chọn ──
+const groupNameError = computed(() => {
+  const n = (groupForm.value.name || '').trim()
+  if (!n) return 'Vui lòng nhập tên kho tùy chọn'
+  if (n.length < 2 || n.length > 100) return 'Tên kho phải từ 2 đến 100 ký tự'
+  if (/<|>|javascript:/i.test(groupForm.value.name || '')) return 'Tên kho chứa ký tự không hợp lệ'
+  const dup = optionGroups.value.some(g => 
+    (editingGroupId.value == null || g.id !== editingGroupId.value) && 
+    (g.name || '').trim().toLowerCase() === n.toLowerCase()
+  )
+  if (dup) return 'Tên kho tùy chọn đã tồn tại'
+  return ''
+})
+
+const groupItemErrors = computed(() => {
+  const items = groupForm.value.items
+  return items.map((item) => {
+    const e = {}
+    const n = (item.name || '').trim()
+    if (!n) {
+      e.name = 'Vui lòng nhập tên vị'
+    } else if (n.length > 50) {
+      e.name = 'Tên vị không được quá 50 ký tự'
+    } else {
+      const count = items.filter(it => (it.name || '').trim().toLowerCase() === n.toLowerCase()).length
+      if (count > 1) e.name = 'Tên vị này đã tồn tại trong danh sách'
+    }
+
+    const p = item.surchargePrice
+    if (p == null || p === '') {
+      e.price = 'Giá không hợp lệ'
+    } else {
+      const num = Number(p)
+      if (!Number.isInteger(num) || num < 0) e.price = 'Giá phụ thu không được là số âm'
+      else if (num > 100000000) e.price = 'Giá tối đa không vượt quá 100.000.000đ'
+    }
+    return e
+  })
+})
+
+const canSaveGroup = computed(() => {
+  if (groupNameError.value) return false
+  if (groupForm.value.items.length < 1 || groupForm.value.items.length > 50) return false
+  return groupItemErrors.value.every(e => Object.keys(e).length === 0)
+})
+
+const showGroupError = (field, msg) => (groupTouched.value[field] || groupSubmitAttempted.value ? msg : '')
+const showGroupItemError = (idx, field, msg) => {
+  const isTouched = groupItemTouched.value[idx]?.[field]
+  return (isTouched || groupSubmitAttempted.value) ? msg : ''
+}
+
 const openGroupCreate = () => {
   editingGroupId.value = null
-  groupForm.value = { name: '', items: [] }
+  groupForm.value = {
+    name: '',
+    items: [{ id: null, name: '', surchargePrice: 0, surchargeDisplay: '0' }]
+  }
+  groupItemNameRefs.value = []
+  groupTouched.value = { name: false }
+  groupItemTouched.value = [{ name: false, price: false }]
+  groupSubmitAttempted.value = false
   isGroupDrawerOpen.value = true
 }
 
 const openGroupEdit = (group) => {
   editingGroupId.value = group.id
+  const rawItems = group.items && group.items.length > 0 ? group.items : [{ id: null, name: '', surchargePrice: 0 }]
   groupForm.value = {
     name: group.name || '',
-    items: (group.items || []).map(i => ({ ...i }))
+    items: rawItems.map(i => ({
+      id: i.id || null,
+      name: i.name || '',
+      surchargePrice: Number(i.surchargePrice) || 0,
+      surchargeDisplay: (Number(i.surchargePrice) || 0).toLocaleString('vi-VN')
+    }))
   }
+  groupItemNameRefs.value = []
+  groupTouched.value = { name: false }
+  groupItemTouched.value = groupForm.value.items.map(() => ({ name: false, price: false }))
+  groupSubmitAttempted.value = false
   isGroupDrawerOpen.value = true
 }
 
-const handleGroupSave = async () => {
-  if (!groupForm.value.name?.trim()) {
-    toast.warning('Vui lòng nhập tên nhóm.')
+const addGroupItem = async () => {
+  if (groupForm.value.items.length >= 50) {
+    toast.warning('Đã đạt giới hạn tối đa số lượng vị (tối đa 50).')
     return
   }
+  groupForm.value.items.push({ id: null, name: '', surchargePrice: 0, surchargeDisplay: '0' })
+  groupItemTouched.value.push({ name: false, price: false })
+  await nextTick()
+  const lastIndex = groupForm.value.items.length - 1
+  if (groupItemNameRefs.value[lastIndex]) {
+    groupItemNameRefs.value[lastIndex].focus()
+  }
+}
+
+const removeGroupItem = (index) => {
+  if (groupForm.value.items.length <= 1) {
+    groupForm.value.items[0] = { id: null, name: '', surchargePrice: 0, surchargeDisplay: '0' }
+    if (groupItemTouched.value[0]) {
+      groupItemTouched.value[0] = { name: false, price: false }
+    }
+    return
+  }
+  groupForm.value.items.splice(index, 1)
+  groupItemTouched.value.splice(index, 1)
+  groupItemNameRefs.value.splice(index, 1)
+}
+
+const onGroupNameBlur = () => {
+  groupTouched.value.name = true
+  groupForm.value.name = normalizeInputText(groupForm.value.name)
+}
+
+const onGroupItemNameBlur = (idx) => {
+  if (!groupItemTouched.value[idx]) groupItemTouched.value[idx] = { name: false, price: false }
+  groupItemTouched.value[idx].name = true
+  if (groupForm.value.items[idx]) {
+    groupForm.value.items[idx].name = normalizeInputText(groupForm.value.items[idx].name)
+  }
+}
+
+const onGroupItemPriceBlur = (idx) => {
+  if (!groupItemTouched.value[idx]) groupItemTouched.value[idx] = { name: false, price: false }
+  groupItemTouched.value[idx].price = true
+}
+
+const handleGroupSave = async () => {
+  groupSubmitAttempted.value = true
+  groupForm.value.name = normalizeInputText(groupForm.value.name)
+  groupForm.value.items.forEach(it => {
+    it.name = normalizeInputText(it.name)
+  })
+
+  // Nếu có nhiều hơn 1 dòng và có dòng hoàn toàn trống, tự động lọc bỏ
+  if (groupForm.value.items.length > 1) {
+    const activeItems = groupForm.value.items.filter(it => it.name || (it.surchargePrice && it.surchargePrice > 0))
+    if (activeItems.length > 0) {
+      groupForm.value.items = activeItems
+      groupItemTouched.value = activeItems.map(() => ({ name: true, price: true }))
+    }
+  }
+
+  if (!canSaveGroup.value) {
+    if (groupNameError.value) {
+      toast.warning(groupNameError.value)
+    } else {
+      const firstErr = groupItemErrors.value.find(e => Object.keys(e).length > 0)
+      if (firstErr) {
+        toast.warning(firstErr.name || firstErr.price || 'Vui lòng kiểm tra lại danh sách vị con.')
+      } else if (groupForm.value.items.length === 0) {
+        toast.warning('Cần ít nhất 1 lựa chọn vị con.')
+      }
+    }
+    return
+  }
+
   isSaving.value = true
   try {
     const payload = {
-      name: groupForm.value.name.trim(),
+      name: groupForm.value.name,
       items: groupForm.value.items.map(i => ({
-        id: i.id,
-        name: i.name.trim(),
+        id: i.id || null,
+        name: i.name,
         surchargePrice: Number(i.surchargePrice) || 0
-      })).filter(i => i.name)
+      }))
     }
     if (editingGroupId.value) {
       await fnbGroupApi.update(editingGroupId.value, payload)
-      toast.success('Cập nhật nhóm thành công.')
+      toast.success('Cập nhật kho tùy chọn thành công.')
     } else {
       await fnbGroupApi.create(payload)
-      toast.success('Thêm nhóm thành công.')
+      toast.success('Thêm kho tùy chọn thành công.')
     }
     isGroupDrawerOpen.value = false
     await fetchOptionGroups()
@@ -245,22 +451,15 @@ const confirmDeleteGroup = async () => {
   isDeleting.value = true
   try {
     await fnbGroupApi.delete(deleteGroupTarget.value.id)
-    toast.success('Đã xoá nhóm.')
+    toast.success('Đã xoá kho tùy chọn.')
     deleteGroupTarget.value = null
     await fetchOptionGroups()
   } catch (err) {
-    toast.error(friendlyError(err, 'Không thể xoá nhóm.'))
+    toast.error(friendlyError(err, 'Không thể xoá kho tùy chọn.'))
     deleteGroupTarget.value = null
   } finally {
     isDeleting.value = false
   }
-}
-
-const addGroupItem = () => {
-  groupForm.value.items.push({ id: null, name: '', surchargePrice: 0 })
-}
-const removeGroupItem = (index) => {
-  groupForm.value.items.splice(index, 1)
 }
 
 // ── Cấu hình Ô chọn (Slot) khi tạo/sửa Combo ──
@@ -433,29 +632,159 @@ const pricePreview = computed(() => {
 })
 
 // ── Tạo Kho tùy chọn ngay trong form (inline) ──
+// ── Tạo Kho tùy chọn ngay trong form (inline) ──
 const isPoolCreateOpen = ref(false)
 const isPoolCreating = ref(false)
 const poolCreateTargetSlot = ref(null)
 const poolCreateForm = ref({ name: '', items: [] })
+const inlinePoolItemNameRefs = ref([])
+const poolCreateTouched = ref({ name: false })
+const poolCreateItemTouched = ref([])
+const poolCreateSubmitAttempted = ref(false)
+
+const poolCreateNameError = computed(() => {
+  const n = (poolCreateForm.value.name || '').trim()
+  if (!n) return 'Vui lòng nhập tên kho tùy chọn'
+  if (n.length < 2 || n.length > 100) return 'Tên kho phải từ 2 đến 100 ký tự'
+  if (/<|>|javascript:/i.test(poolCreateForm.value.name || '')) return 'Tên kho chứa ký tự không hợp lệ'
+  const dup = optionGroups.value.some(g => (g.name || '').trim().toLowerCase() === n.toLowerCase())
+  if (dup) return 'Tên kho tùy chọn đã tồn tại'
+  return ''
+})
+
+const poolCreateItemErrors = computed(() => {
+  const items = poolCreateForm.value.items
+  return items.map(item => {
+    const e = {}
+    const n = (item.name || '').trim()
+    if (!n) {
+      e.name = 'Vui lòng nhập tên vị'
+    } else if (n.length > 50) {
+      e.name = 'Tên vị không được quá 50 ký tự'
+    } else {
+      const count = items.filter(it => (it.name || '').trim().toLowerCase() === n.toLowerCase()).length
+      if (count > 1) e.name = 'Tên vị này đã tồn tại trong danh sách'
+    }
+
+    const p = item.surchargePrice
+    if (p == null || p === '') {
+      e.price = 'Giá không hợp lệ'
+    } else {
+      const num = Number(p)
+      if (!Number.isInteger(num) || num < 0) e.price = 'Giá phụ thu không được là số âm'
+      else if (num > 100000000) e.price = 'Giá tối đa không vượt quá 100.000.000đ'
+    }
+    return e
+  })
+})
+
+const canSaveInlinePool = computed(() => {
+  if (poolCreateNameError.value) return false
+  if (poolCreateForm.value.items.length < 1 || poolCreateForm.value.items.length > 50) return false
+  return poolCreateItemErrors.value.every(e => Object.keys(e).length === 0)
+})
+
+const showPoolCreateError = (field, msg) => (poolCreateTouched.value[field] || poolCreateSubmitAttempted.value ? msg : '')
+const showPoolCreateItemError = (idx, field, msg) => {
+  const isTouched = poolCreateItemTouched.value[idx]?.[field]
+  return (isTouched || poolCreateSubmitAttempted.value) ? msg : ''
+}
+
 const openInlinePoolCreate = (slot) => {
   poolCreateTargetSlot.value = slot
-  poolCreateForm.value = { name: '', items: [{ name: '', surchargePrice: 0 }] }
+  poolCreateForm.value = {
+    name: '',
+    items: [{ name: '', surchargePrice: 0, surchargeDisplay: '0' }]
+  }
+  inlinePoolItemNameRefs.value = []
+  poolCreateTouched.value = { name: false }
+  poolCreateItemTouched.value = [{ name: false, price: false }]
+  poolCreateSubmitAttempted.value = false
   isPoolCreateOpen.value = true
 }
-const addInlinePoolItem = () => poolCreateForm.value.items.push({ name: '', surchargePrice: 0 })
-const removeInlinePoolItem = (i) => poolCreateForm.value.items.splice(i, 1)
-const saveInlinePool = async () => {
-  if (!poolCreateForm.value.name?.trim()) {
-    toast.warning('Vui lòng nhập tên kho tùy chọn.')
+
+const addInlinePoolItem = async () => {
+  if (poolCreateForm.value.items.length >= 50) {
+    toast.warning('Đã đạt giới hạn tối đa số lượng vị (tối đa 50).')
     return
   }
+  poolCreateForm.value.items.push({ name: '', surchargePrice: 0, surchargeDisplay: '0' })
+  poolCreateItemTouched.value.push({ name: false, price: false })
+  await nextTick()
+  const lastIndex = poolCreateForm.value.items.length - 1
+  if (inlinePoolItemNameRefs.value[lastIndex]) {
+    inlinePoolItemNameRefs.value[lastIndex].focus()
+  }
+}
+
+const removeInlinePoolItem = (i) => {
+  if (poolCreateForm.value.items.length <= 1) {
+    poolCreateForm.value.items[0] = { name: '', surchargePrice: 0, surchargeDisplay: '0' }
+    if (poolCreateItemTouched.value[0]) {
+      poolCreateItemTouched.value[0] = { name: false, price: false }
+    }
+    return
+  }
+  poolCreateForm.value.items.splice(i, 1)
+  poolCreateItemTouched.value.splice(i, 1)
+  inlinePoolItemNameRefs.value.splice(i, 1)
+}
+
+const onPoolCreateNameBlur = () => {
+  poolCreateTouched.value.name = true
+  poolCreateForm.value.name = normalizeInputText(poolCreateForm.value.name)
+}
+
+const onPoolCreateItemNameBlur = (idx) => {
+  if (!poolCreateItemTouched.value[idx]) poolCreateItemTouched.value[idx] = { name: false, price: false }
+  poolCreateItemTouched.value[idx].name = true
+  if (poolCreateForm.value.items[idx]) {
+    poolCreateForm.value.items[idx].name = normalizeInputText(poolCreateForm.value.items[idx].name)
+  }
+}
+
+const onPoolCreateItemPriceBlur = (idx) => {
+  if (!poolCreateItemTouched.value[idx]) poolCreateItemTouched.value[idx] = { name: false, price: false }
+  poolCreateItemTouched.value[idx].price = true
+}
+
+const saveInlinePool = async () => {
+  poolCreateSubmitAttempted.value = true
+  poolCreateForm.value.name = normalizeInputText(poolCreateForm.value.name)
+  poolCreateForm.value.items.forEach(it => {
+    it.name = normalizeInputText(it.name)
+  })
+
+  if (poolCreateForm.value.items.length > 1) {
+    const activeItems = poolCreateForm.value.items.filter(it => it.name || (it.surchargePrice && it.surchargePrice > 0))
+    if (activeItems.length > 0) {
+      poolCreateForm.value.items = activeItems
+      poolCreateItemTouched.value = activeItems.map(() => ({ name: true, price: true }))
+    }
+  }
+
+  if (!canSaveInlinePool.value) {
+    if (poolCreateNameError.value) {
+      toast.warning(poolCreateNameError.value)
+    } else {
+      const firstItemErr = poolCreateItemErrors.value.find(e => Object.keys(e).length > 0)
+      if (firstItemErr) {
+        toast.warning(firstItemErr.name || firstItemErr.price || 'Vui lòng kiểm tra lại danh sách vị con.')
+      } else if (poolCreateForm.value.items.length === 0) {
+        toast.warning('Cần ít nhất 1 lựa chọn vị con.')
+      }
+    }
+    return
+  }
+
   isPoolCreating.value = true
   try {
     const payload = {
-      name: poolCreateForm.value.name.trim(),
-      items: poolCreateForm.value.items
-        .map(i => ({ name: (i.name || '').trim(), surchargePrice: Number(i.surchargePrice) || 0 }))
-        .filter(i => i.name)
+      name: poolCreateForm.value.name,
+      items: poolCreateForm.value.items.map(i => ({
+        name: i.name,
+        surchargePrice: Number(i.surchargePrice) || 0
+      }))
     }
     const { data } = await fnbGroupApi.create(payload)
     const created = data.data ?? data
@@ -894,24 +1223,75 @@ onMounted(() => {
         </div>
 
         <div class="flex-1 overflow-y-auto p-5 space-y-4">
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên kho tùy chọn</label>
-            <input v-model="poolCreateForm.name" class="w-full bg-surface-container-highest border border-outline-variant/20 p-3 rounded-lg text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: Tùy Chọn Nước" />
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên kho tùy chọn</label>
+              <span class="text-[10px] font-semibold tabular-nums" :class="(poolCreateForm.name || '').length >= 100 ? 'text-amber-400' : 'text-on-surface-variant/60'">{{ (poolCreateForm.name || '').length }}/100</span>
+            </div>
+            <input
+              v-model="poolCreateForm.name"
+              maxlength="100"
+              @blur="onPoolCreateNameBlur"
+              class="w-full bg-surface-container-highest border p-3 rounded-lg text-sm font-bold text-on-surface focus:border-primary outline-none"
+              :class="showPoolCreateError('name', poolCreateNameError) ? 'border-red-500/60' : 'border-outline-variant/20'"
+              placeholder="VD: Tùy Chọn Nước"
+            />
+            <p v-if="showPoolCreateError('name', poolCreateNameError)" class="text-[10px] text-red-400 font-semibold">{{ poolCreateNameError }}</p>
           </div>
 
           <div class="space-y-3 pt-3 border-t border-outline-variant/10">
             <div class="flex justify-between items-center">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-primary">Danh sách vị</label>
-              <button @click="addInlinePoolItem" class="text-xs font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
+              <div class="flex items-center gap-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-primary">Danh sách vị</label>
+                <span class="text-[10px] text-on-surface-variant font-medium">({{ poolCreateForm.items.length }}/50)</span>
+              </div>
+              <button
+                @click="addInlinePoolItem"
+                :disabled="poolCreateForm.items.length >= 50"
+                class="text-xs font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                :title="poolCreateForm.items.length >= 50 ? 'Đã đạt tối đa 50 vị' : ''"
+              >
                 <span class="material-symbols-outlined text-sm">add_circle</span> Thêm vị
               </button>
             </div>
-            <div v-for="(it, i) in poolCreateForm.items" :key="i" class="flex gap-2 items-center bg-surface-container-highest p-3 rounded-lg border border-outline-variant/20">
+            <div
+              v-for="(it, i) in poolCreateForm.items"
+              :key="i"
+              class="flex gap-2 items-center bg-surface-container-highest p-3 rounded-lg border"
+              :class="(showPoolCreateItemError(i, 'name', poolCreateItemErrors[i]?.name) || showPoolCreateItemError(i, 'price', poolCreateItemErrors[i]?.price)) ? 'border-red-500/50' : 'border-outline-variant/20'"
+            >
               <div class="flex-grow space-y-2">
-                <input v-model="it.name" class="w-full bg-surface-container border border-outline-variant/20 p-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none" placeholder="Tên vị (VD: Pepsi 32oz)" />
-                <input v-model="it.surchargePrice" type="number" min="0" class="w-full bg-surface-container border border-outline-variant/20 p-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none" placeholder="Phụ thu (VD: 10000)" />
+                <div class="space-y-1">
+                  <input
+                    :ref="el => { if (el) inlinePoolItemNameRefs[i] = el }"
+                    v-model="it.name"
+                    maxlength="50"
+                    @blur="onPoolCreateItemNameBlur(i)"
+                    class="w-full bg-surface-container border p-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none"
+                    :class="showPoolCreateItemError(i, 'name', poolCreateItemErrors[i]?.name) ? 'border-red-500/60' : 'border-outline-variant/20'"
+                    placeholder="Tên vị (VD: Pepsi 32oz)"
+                  />
+                  <p v-if="showPoolCreateItemError(i, 'name', poolCreateItemErrors[i]?.name)" class="text-[10px] text-red-400 font-semibold">{{ poolCreateItemErrors[i].name }}</p>
+                </div>
+
+                <div class="space-y-1">
+                  <input
+                    :value="it.surchargeDisplay ?? (it.surchargePrice != null ? Number(it.surchargePrice).toLocaleString('vi-VN') : '0')"
+                    @input="handleCurrencyInput($event, it)"
+                    @paste="handleCurrencyPaste($event, it)"
+                    @blur="onPoolCreateItemPriceBlur(i)"
+                    class="w-full bg-surface-container border p-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none"
+                    :class="showPoolCreateItemError(i, 'price', poolCreateItemErrors[i]?.price) ? 'border-red-500/60' : 'border-outline-variant/20'"
+                    placeholder="Phụ thu (VD: 10.000)"
+                  />
+                  <p v-if="showPoolCreateItemError(i, 'price', poolCreateItemErrors[i]?.price)" class="text-[10px] text-red-400 font-semibold">{{ poolCreateItemErrors[i].price }}</p>
+                </div>
               </div>
-              <button @click="removeInlinePoolItem(i)" class="w-8 h-8 rounded-lg hover:bg-red-500/20 text-on-surface-variant hover:text-red-400 flex flex-shrink-0 items-center justify-center transition-colors">
+              <button
+                @click="removeInlinePoolItem(i)"
+                class="w-8 h-8 rounded-lg hover:bg-red-500/20 text-on-surface-variant hover:text-red-400 flex flex-shrink-0 items-center justify-center transition-colors"
+                :title="poolCreateForm.items.length <= 1 ? 'Xóa nội dung' : 'Xóa vị này'"
+              >
                 <span class="material-symbols-outlined text-sm">close</span>
               </button>
             </div>
@@ -920,7 +1300,7 @@ onMounted(() => {
 
         <div class="p-5 border-t border-outline-variant/10 flex gap-3">
           <button @click="isPoolCreateOpen = false" class="flex-1 px-6 py-3 rounded-lg border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy</button>
-          <button @click="saveInlinePool" :disabled="isPoolCreating" class="flex-1 px-6 py-3 rounded-lg bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform disabled:opacity-60">{{ isPoolCreating ? 'Đang tạo...' : 'Tạo & chọn' }}</button>
+          <button @click="saveInlinePool" :disabled="isPoolCreating || (poolCreateSubmitAttempted && !canSaveInlinePool)" class="flex-1 px-6 py-3 rounded-lg bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform disabled:opacity-60">{{ isPoolCreating ? 'Đang tạo...' : 'Tạo & chọn' }}</button>
         </div>
       </div>
     </div>
@@ -965,26 +1345,77 @@ onMounted(() => {
         </div>
 
         <div class="flex-1 overflow-y-auto p-6 space-y-5">
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên kho tùy chọn</label>
-            <input v-model="groupForm.name" class="w-full bg-surface-container-highest border border-outline-variant/20 p-3 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: Tùy Chọn Bắp" />
-            <p class="text-[10px] text-on-surface-variant italic">Kho dùng chung — số lượng chọn (min/max) đặt riêng ở từng Ô chọn của combo.</p>
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên kho tùy chọn</label>
+              <span class="text-[10px] font-semibold tabular-nums" :class="(groupForm.name || '').length >= 100 ? 'text-amber-400' : 'text-on-surface-variant/60'">{{ (groupForm.name || '').length }}/100</span>
+            </div>
+            <input
+              v-model="groupForm.name"
+              maxlength="100"
+              @blur="onGroupNameBlur"
+              class="w-full bg-surface-container-highest border p-3 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none"
+              :class="showGroupError('name', groupNameError) ? 'border-red-500/60' : 'border-outline-variant/20'"
+              placeholder="VD: Tùy Chọn Bắp"
+            />
+            <p v-if="showGroupError('name', groupNameError)" class="text-[10px] text-red-400 font-semibold">{{ groupNameError }}</p>
+            <p class="text-[10px] text-on-surface-variant italic">Kho dùng chung – số lượng chọn (min/max) đặt riêng ở từng Ô chọn của combo.</p>
           </div>
 
           <div class="space-y-4 mt-2 pt-6 border-t border-outline-variant/10">
             <div class="flex justify-between items-center">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-primary">Danh sách Vị con</label>
-              <button @click="addGroupItem" class="text-xs font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
+              <div class="flex items-center gap-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-primary">Danh sách Vị con</label>
+                <span class="text-[10px] text-on-surface-variant font-medium">({{ groupForm.items.length }}/50)</span>
+              </div>
+              <button
+                @click="addGroupItem"
+                :disabled="groupForm.items.length >= 50"
+                class="text-xs font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                :title="groupForm.items.length >= 50 ? 'Đã đạt tối đa 50 vị' : ''"
+              >
                 <span class="material-symbols-outlined text-sm">add_circle</span> Thêm vị
               </button>
             </div>
             
-            <div v-for="(item, idx) in groupForm.items" :key="idx" class="flex gap-2 items-center bg-surface-container-highest p-3 rounded-xl border border-outline-variant/20">
+            <div
+              v-for="(item, idx) in groupForm.items"
+              :key="idx"
+              class="flex gap-2 items-center bg-surface-container-highest p-3 rounded-xl border"
+              :class="(showGroupItemError(idx, 'name', groupItemErrors[idx]?.name) || showGroupItemError(idx, 'price', groupItemErrors[idx]?.price)) ? 'border-red-500/50' : 'border-outline-variant/20'"
+            >
               <div class="flex-grow space-y-2">
-                <input v-model="item.name" class="w-full bg-surface-container border border-outline-variant/20 p-2 rounded-lg text-sm text-on-surface focus:border-primary outline-none" placeholder="Tên vị (VD: Caramel)" />
-                <input v-model="item.surchargePrice" type="number" min="0" class="w-full bg-surface-container border border-outline-variant/20 p-2 rounded-lg text-sm text-on-surface focus:border-primary outline-none" placeholder="Phụ thu (VD: 10000)" />
+                <div class="space-y-1">
+                  <input
+                    :ref="el => { if (el) groupItemNameRefs[idx] = el }"
+                    v-model="item.name"
+                    maxlength="50"
+                    @blur="onGroupItemNameBlur(idx)"
+                    class="w-full bg-surface-container border p-2 rounded-lg text-sm text-on-surface focus:border-primary outline-none"
+                    :class="showGroupItemError(idx, 'name', groupItemErrors[idx]?.name) ? 'border-red-500/60' : 'border-outline-variant/20'"
+                    placeholder="Tên vị (VD: Caramel)"
+                  />
+                  <p v-if="showGroupItemError(idx, 'name', groupItemErrors[idx]?.name)" class="text-[10px] text-red-400 font-semibold">{{ groupItemErrors[idx].name }}</p>
+                </div>
+
+                <div class="space-y-1">
+                  <input
+                    :value="item.surchargeDisplay ?? (item.surchargePrice != null ? Number(item.surchargePrice).toLocaleString('vi-VN') : '0')"
+                    @input="handleCurrencyInput($event, item)"
+                    @paste="handleCurrencyPaste($event, item)"
+                    @blur="onGroupItemPriceBlur(idx)"
+                    class="w-full bg-surface-container border p-2 rounded-lg text-sm text-on-surface focus:border-primary outline-none"
+                    :class="showGroupItemError(idx, 'price', groupItemErrors[idx]?.price) ? 'border-red-500/60' : 'border-outline-variant/20'"
+                    placeholder="Phụ thu (VD: 10.000)"
+                  />
+                  <p v-if="showGroupItemError(idx, 'price', groupItemErrors[idx]?.price)" class="text-[10px] text-red-400 font-semibold">{{ groupItemErrors[idx].price }}</p>
+                </div>
               </div>
-              <button @click="removeGroupItem(idx)" class="w-8 h-8 rounded-full hover:bg-red-500/20 text-on-surface-variant hover:text-red-400 flex flex-shrink-0 items-center justify-center transition-colors">
+              <button
+                @click="removeGroupItem(idx)"
+                class="w-8 h-8 rounded-full hover:bg-red-500/20 text-on-surface-variant hover:text-red-400 flex flex-shrink-0 items-center justify-center transition-colors"
+                :title="groupForm.items.length <= 1 ? 'Xóa nội dung' : 'Xóa vị này'"
+              >
                 <span class="material-symbols-outlined text-sm">close</span>
               </button>
             </div>
@@ -993,7 +1424,7 @@ onMounted(() => {
 
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
           <button @click="isGroupDrawerOpen = false" class="flex-1 px-6 py-3 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy</button>
-          <button @click="handleGroupSave" :disabled="isSaving" class="flex-1 px-6 py-3 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform disabled:opacity-60">{{ isSaving ? 'Đang lưu...' : 'Lưu' }}</button>
+          <button @click="handleGroupSave" :disabled="isSaving || (groupSubmitAttempted && !canSaveGroup)" class="flex-1 px-6 py-3 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:cursor-not-allowed">{{ isSaving ? 'Đang lưu...' : 'Lưu' }}</button>
         </div>
       </div>
     </div>

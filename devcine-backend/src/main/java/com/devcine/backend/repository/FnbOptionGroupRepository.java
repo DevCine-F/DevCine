@@ -14,4 +14,8 @@ public interface FnbOptionGroupRepository extends JpaRepository<FnbOptionGroup, 
     List<FnbOptionGroup> findAll();
 
     Optional<FnbOptionGroup> findByName(String name);
+
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Integer id);
 }

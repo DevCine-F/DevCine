@@ -47,21 +47,67 @@ public class FnbController {
     @PreAuthorize("@perm.can('fnb_menu','add')")
     public ResponseEntity<?> createOptionGroup(@RequestBody Map<String, Object> body) {
         try {
+            String rawName = (String) body.get("name");
+            if (rawName == null || rawName.trim().length() < 2 || rawName.trim().length() > 100) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Tên kho phải từ 2 đến 100 ký tự."));
+            }
+            String name = rawName.trim().replaceAll("\\s+", " ");
+            if (name.contains("<") || name.contains(">")) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Tên kho chứa ký tự không hợp lệ."));
+            }
+            if (fnbOptionGroupRepository.existsByNameIgnoreCase(name)) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Tên kho tùy chọn đã tồn tại."));
+            }
+
             com.devcine.backend.entity.FnbOptionGroup group = com.devcine.backend.entity.FnbOptionGroup.builder()
-                    .name((String) body.get("name"))
+                    .name(name)
                     .build();
             
             if (body.containsKey("items")) {
                 List<Map<String, Object>> itemsList = (List<Map<String, Object>>) body.get("items");
+                if (itemsList == null || itemsList.isEmpty()) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Cần ít nhất 1 lựa chọn vị con."));
+                }
+                if (itemsList.size() > 50) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Đã đạt giới hạn tối đa số lượng vị (tối đa 50)."));
+                }
+
+                java.util.Set<String> itemNames = new java.util.HashSet<>();
                 for (Map<String, Object> itemData : itemsList) {
+                    String rawItemName = (String) itemData.get("name");
+                    if (rawItemName == null || rawItemName.trim().isEmpty()) {
+                        return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập tên vị."));
+                    }
+                    String itemName = rawItemName.trim().replaceAll("\\s+", " ");
+                    if (itemName.length() > 50) {
+                        return ResponseEntity.badRequest().body(ApiResponse.fail("Tên vị không được quá 50 ký tự."));
+                    }
+                    if (!itemNames.add(itemName.toLowerCase())) {
+                        return ResponseEntity.badRequest().body(ApiResponse.fail("Tên vị '" + itemName + "' đã tồn tại trong danh sách."));
+                    }
+
+                    BigDecimal price = BigDecimal.ZERO;
+                    if (itemData.get("surchargePrice") != null) {
+                        price = new BigDecimal(itemData.get("surchargePrice").toString());
+                        if (price.compareTo(BigDecimal.ZERO) < 0) {
+                            return ResponseEntity.badRequest().body(ApiResponse.fail("Giá phụ thu không được là số âm."));
+                        }
+                        if (price.compareTo(new BigDecimal("100000000")) > 0) {
+                            return ResponseEntity.badRequest().body(ApiResponse.fail("Giá tối đa không vượt quá 100.000.000đ."));
+                        }
+                    }
+
                     com.devcine.backend.entity.FnbOptionItem optionItem = com.devcine.backend.entity.FnbOptionItem.builder()
                             .group(group)
-                            .name((String) itemData.get("name"))
-                            .surchargePrice(new BigDecimal(itemData.get("surchargePrice").toString()))
+                            .name(itemName)
+                            .surchargePrice(price)
                             .build();
                     group.getItems().add(optionItem);
                 }
+            } else {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Cần ít nhất 1 lựa chọn vị con."));
             }
+
             fnbOptionGroupRepository.save(group);
             return ResponseEntity.status(201).body(ApiResponse.ok(group));
         } catch (Exception e) {
@@ -74,12 +120,47 @@ public class FnbController {
     public ResponseEntity<?> updateOptionGroup(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
         try {
             com.devcine.backend.entity.FnbOptionGroup group = fnbOptionGroupRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy Nhóm tùy chọn"));
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy Kho tùy chọn"));
             
-            if (body.containsKey("name")) group.setName((String) body.get("name"));
+            if (body.containsKey("name")) {
+                String rawName = (String) body.get("name");
+                if (rawName == null || rawName.trim().length() < 2 || rawName.trim().length() > 100) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Tên kho phải từ 2 đến 100 ký tự."));
+                }
+                String name = rawName.trim().replaceAll("\\s+", " ");
+                if (name.contains("<") || name.contains(">")) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Tên kho chứa ký tự không hợp lệ."));
+                }
+                if (fnbOptionGroupRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Tên kho tùy chọn đã tồn tại."));
+                }
+                group.setName(name);
+            }
 
             if (body.containsKey("items")) {
                 List<Map<String, Object>> itemsList = (List<Map<String, Object>>) body.get("items");
+                if (itemsList == null || itemsList.isEmpty()) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Cần ít nhất 1 lựa chọn vị con."));
+                }
+                if (itemsList.size() > 50) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Đã đạt giới hạn tối đa số lượng vị (tối đa 50)."));
+                }
+
+                java.util.Set<String> itemNames = new java.util.HashSet<>();
+                for (Map<String, Object> itemData : itemsList) {
+                    String rawItemName = (String) itemData.get("name");
+                    if (rawItemName == null || rawItemName.trim().isEmpty()) {
+                        return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập tên vị."));
+                    }
+                    String itemName = rawItemName.trim().replaceAll("\\s+", " ");
+                    if (itemName.length() > 50) {
+                        return ResponseEntity.badRequest().body(ApiResponse.fail("Tên vị không được quá 50 ký tự."));
+                    }
+                    if (!itemNames.add(itemName.toLowerCase())) {
+                        return ResponseEntity.badRequest().body(ApiResponse.fail("Tên vị '" + itemName + "' đã tồn tại trong danh sách."));
+                    }
+                }
+
                 List<Integer> incomingIds = itemsList.stream()
                         .filter(i -> i.get("id") != null)
                         .map(i -> (Integer) i.get("id"))
@@ -87,19 +168,31 @@ public class FnbController {
                 group.getItems().removeIf(item -> item.getId() != null && !incomingIds.contains(item.getId()));
                 
                 for (Map<String, Object> itemData : itemsList) {
+                    String itemName = ((String) itemData.get("name")).trim().replaceAll("\\s+", " ");
+                    BigDecimal price = BigDecimal.ZERO;
+                    if (itemData.get("surchargePrice") != null) {
+                        price = new BigDecimal(itemData.get("surchargePrice").toString());
+                        if (price.compareTo(BigDecimal.ZERO) < 0) {
+                            return ResponseEntity.badRequest().body(ApiResponse.fail("Giá phụ thu không được là số âm."));
+                        }
+                        if (price.compareTo(new BigDecimal("100000000")) > 0) {
+                            return ResponseEntity.badRequest().body(ApiResponse.fail("Giá tối đa không vượt quá 100.000.000đ."));
+                        }
+                    }
+
                     if (itemData.get("id") != null) {
                         Integer itemId = (Integer) itemData.get("id");
                         com.devcine.backend.entity.FnbOptionItem existing = group.getItems().stream()
                                 .filter(i -> i.getId().equals(itemId)).findFirst().orElse(null);
                         if (existing != null) {
-                            existing.setName((String) itemData.get("name"));
-                            existing.setSurchargePrice(new BigDecimal(itemData.get("surchargePrice").toString()));
+                            existing.setName(itemName);
+                            existing.setSurchargePrice(price);
                         }
                     } else {
                         com.devcine.backend.entity.FnbOptionItem newItem = com.devcine.backend.entity.FnbOptionItem.builder()
                                 .group(group)
-                                .name((String) itemData.get("name"))
-                                .surchargePrice(new BigDecimal(itemData.get("surchargePrice").toString()))
+                                .name(itemName)
+                                .surchargePrice(price)
                                 .build();
                         group.getItems().add(newItem);
                     }
