@@ -113,6 +113,36 @@ const saveSettings = async () => {
   }
 }
 
+const fmtThousand = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('vi-VN'))
+
+const handlePointRateInput = (event) => {
+  const input = event.target
+  const rawOldVal = input.value || ''
+  const caretPos = input.selectionStart || 0
+
+  const digitsBefore = rawOldVal.slice(0, caretPos).replace(/\D/g, '').length
+  let cleanDigits = rawOldVal.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  if (cleanDigits.length > 9) cleanDigits = cleanDigits.slice(0, 9)
+
+  const numVal = cleanDigits ? Math.min(Number(cleanDigits), 100000000) : 0
+  settings.value.pointConversionRate = numVal
+
+  const formattedVal = cleanDigits ? numVal.toLocaleString('vi-VN') : ''
+  input.value = formattedVal
+
+  let newCaretPos = 0
+  let digitsCount = 0
+  for (let i = 0; i < formattedVal.length; i++) {
+    if (/\d/.test(formattedVal[i])) digitsCount++
+    if (digitsCount === digitsBefore) {
+      newCaretPos = i + 1
+      break
+    }
+  }
+  if (digitsBefore === 0) newCaretPos = 0
+  input.setSelectionRange(newCaretPos, newCaretPos)
+}
+
 onMounted(() => {
   loadSettings()
 })
@@ -204,7 +234,7 @@ onMounted(() => {
               <div class="w-full md:w-1/2 space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mức chi tiêu yêu cầu</label>
                 <div class="relative">
-                  <input v-model="settings.pointConversionRate" :disabled="isLoading" type="number" class="w-full bg-surface-container-highest border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-16 text-on-surface transition-all" placeholder="1000">
+                  <input :value="fmtThousand(settings.pointConversionRate)" @input="handlePointRateInput" :disabled="isLoading" type="text" inputmode="numeric" class="w-full bg-surface-container-highest border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-16 text-on-surface transition-all tabular-nums" placeholder="1.000">
                   <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">VNĐ</span>
                 </div>
               </div>

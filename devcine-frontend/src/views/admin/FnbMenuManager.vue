@@ -78,6 +78,47 @@ const handleCurrencyInput = (event, item, field = 'surchargePrice', displayField
   input.setSelectionRange(newCaretPos, newCaretPos)
 }
 
+const fmtThousand = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('vi-VN'))
+
+const handlePriceInput = (event) => {
+  const input = event.target
+  const rawOldVal = input.value || ''
+  const caretPos = input.selectionStart || 0
+
+  const digitsBefore = rawOldVal.slice(0, caretPos).replace(/\D/g, '').length
+  let cleanDigits = rawOldVal.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+
+  if (!cleanDigits) {
+    form.value.price = null
+    input.value = ''
+    return
+  }
+
+  let numVal = Number(cleanDigits) || 0
+  if (numVal > 100000000) {
+    numVal = 100000000
+    cleanDigits = '100000000'
+  }
+
+  const formattedVal = numVal.toLocaleString('vi-VN')
+  form.value.price = numVal
+  input.value = formattedVal
+
+  let newCaretPos = 0
+  let digitsCount = 0
+  for (let i = 0; i < formattedVal.length; i++) {
+    if (/\d/.test(formattedVal[i])) digitsCount++
+    if (digitsCount === digitsBefore) {
+      newCaretPos = i + 1
+      break
+    }
+  }
+  if (digitsBefore === 0) {
+    newCaretPos = 0
+  }
+  input.setSelectionRange(newCaretPos, newCaretPos)
+}
+
 const handleCurrencyPaste = (event, item, field = 'surchargePrice', displayField = 'surchargeDisplay') => {
   event.preventDefault()
   const pastedText = (event.clipboardData || window.clipboardData)?.getData('text') || ''
@@ -980,12 +1021,19 @@ onMounted(() => {
             </div>
             <div class="space-y-1.5">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá gốc (VNĐ)</label>
-              <input
-                v-model="form.price" type="number" min="0" @blur="touched.price = true"
-                class="w-full bg-surface-container-highest border p-3 rounded-lg text-sm font-bold text-on-surface focus:border-primary outline-none"
-                :class="showError('price', priceError) ? 'border-red-500/60' : 'border-outline-variant/20'"
-                placeholder="VD: 89000"
-              />
+              <div class="relative">
+                <input
+                  :value="fmtThousand(form.price)"
+                  @input="handlePriceInput"
+                  @blur="touched.price = true"
+                  type="text"
+                  inputmode="numeric"
+                  class="w-full bg-surface-container-highest border p-3 pr-10 rounded-lg text-sm font-bold text-on-surface focus:border-primary outline-none tabular-nums"
+                  :class="showError('price', priceError) ? 'border-red-500/60' : 'border-outline-variant/20'"
+                  placeholder="VD: 89.000"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant/60 pointer-events-none select-none">đ</span>
+              </div>
             </div>
           </div>
           <p v-if="showError('price', priceError)" class="text-[10px] text-red-400 font-semibold -mt-2">{{ priceError }}</p>
