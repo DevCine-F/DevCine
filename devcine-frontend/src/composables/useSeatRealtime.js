@@ -22,8 +22,9 @@ import { Client } from '@stomp/stompjs'
  * @param {Function} [opts.onShowtimeUpdated] (ev) → suất chiếu được cập nhật thông tin.
  * @param {Function} [opts.onVoucherUpdate] (ev) → sự kiện voucher / khuyến mãi thay đổi từ admin.
  * @param {Function} [opts.onSettingsUpdate] (ev) → cấu hình hệ thống (VietQR, giữ chỗ) thay đổi từ admin.
+ * @param {Function} [opts.onScheduleUpdate] (ev) → sự kiện lịch chiếu (tạo/sửa/xóa suất chiếu) từ admin.
  */
-export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate, onSettingsUpdate } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate, onSettingsUpdate, onScheduleUpdate } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -81,6 +82,13 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
           try {
             const ev = JSON.parse(msg.body)
             onSettingsUpdate?.(ev)
+          } catch (_) {}
+        }))
+        // Đồng bộ lịch chiếu công cộng real-time
+        subs.push(client.subscribe('/topic/showtimes-schedule', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onScheduleUpdate?.(ev)
           } catch (_) {}
         }))
       },

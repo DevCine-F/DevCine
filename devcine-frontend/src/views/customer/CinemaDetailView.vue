@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import api from '@/api/axios'
 import { useBookingStore } from '@/stores/booking'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 import { formatHotline } from '@/utils/cinemaValidators'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,6 +18,12 @@ const cinema = ref(null)
 const showtimes = ref([])
 const loading = ref(true)
 const selectedDate = ref('')
+
+const realtime = useSeatRealtime({
+  onScheduleUpdate: () => {
+    fetchAll()
+  }
+})
 
 // ---- Parse thời gian (backend trả mảng [y,m,d,h,min] hoặc chuỗi ISO) ----
 const toDate = (dt) => {
@@ -191,7 +198,14 @@ const goToBooking = (s) => {
   router.push('/booking')
 }
 
-onMounted(fetchAll)
+onMounted(() => {
+  fetchAll()
+  realtime.connect(null)
+})
+
+onUnmounted(() => {
+  realtime.disconnect()
+})
 </script>
 
 <template>

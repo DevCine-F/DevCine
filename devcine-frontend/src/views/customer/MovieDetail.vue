@@ -3,17 +3,25 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { useAuthStore } from '@/stores/auth'
 import { reviewApi } from '@/api/customer/index'
-import { onMounted, ref, computed, nextTick, watch } from 'vue'
+import { onMounted, onUnmounted, ref, computed, nextTick, watch } from 'vue'
 import api from '@/api/axios'
 import TrailerModal from '@/components/common/TrailerModal.vue'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { useSeatRealtime } from '@/composables/useSeatRealtime'
 
 const route = useRoute()
 const router = useRouter()
 const store = useBookingStore()
 const authStore = useAuthStore()
 const toast = useToastStore()
+
+const realtime = useSeatRealtime({
+  onScheduleUpdate: async () => {
+    const movieId = route.params.id || 1
+    await store.fetchShowtimes(movieId, store.selectedCity)
+  }
+})
 
 const movie = ref({})
 const loading = ref(true)
@@ -253,6 +261,12 @@ onMounted(async () => {
 
   // Khôi phục bản nháp đánh giá sau khi khách đăng nhập quay lại (chỉ khi đủ quyền)
   if (canReview.value) restoreReviewDraft()
+
+  realtime.connect(null)
+})
+
+onUnmounted(() => {
+  realtime.disconnect()
 })
 
 const onCityChange = async () => {
