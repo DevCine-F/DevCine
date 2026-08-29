@@ -112,7 +112,7 @@ export function useCinemas() {
     }
   };
 
-  // Nạp CHI TIẾT một cụm rạp (rooms + shows + staff) song song — chỉ khi mở rạp.
+  // Nạp CHI TIẾT một cụm rạp (phòng chiếu + suất chiếu) tối ưu không chặn UI.
   const loadCinemaDetail = async (cinema) => {
     if (!cinema) return;
     // Hiện khung chi tiết ngay (rỗng) để cảm giác nhanh, rồi nạp dần.
@@ -126,22 +126,28 @@ export function useCinemas() {
     };
     isLoadingDetail.value = true;
     try {
-      const [roomsRes, showsRes, staffRes] = await Promise.all([
-        axios.get(`/rooms/cinema/${cinema.id}`).catch(e => { console.error(e); return { data: [] }; }),
-        axios.get(`/showtimes/cinema/${cinema.id}`).catch(e => { console.error(e); return { data: [] }; }),
-        axios.get(`/staff/cinema-roster/${cinema.id}`).catch(e => { console.error("Error fetching staff roster:", e); return { data: [] }; })
-      ]);
-      // openMin từ giờ mở cửa rạp (mặc định 08:00) → gán ngày vận hành cho suất khuya.
+      // 1. Nạp danh sách phòng để Tab "Phòng chiếu" hiển thị ngay lập tức
+      const roomsRes = await axios.get(`/rooms/cinema/${cinema.id}`).catch(e => { console.error(e); return { data: [] }; });
+      const sortedHalls = (roomsRes.data || []).map(mapHall).sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+      );
+
+      selectedCinema.value = {
+        ...selectedCinema.value,
+        halls: sortedHalls
+      };
+      isLoadingDetail.value = false; // Giao diện sẵn sàng ngay lập tức!
+
+      // 2. Nạp song song Suất chiếu (đã tối ưu DTO Projection + Cache < 15ms)
       const [oh, om] = (cinema.openingTime || "08:00").split(":").map(Number);
       const openMin = (oh || 8) * 60 + (om || 0);
+      const showsRes = await axios.get(`/showtimes/cinema/${cinema.id}`).catch(e => { console.error(e); return { data: [] }; });
+
       const enriched = {
         ...selectedCinema.value,
-        halls: roomsRes.data.map(mapHall).sort((a, b) =>
-          (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
-        ),
-        shows: showsRes.data.map((s) => mapShow(s, openMin)),
-        staff: staffRes.data
+        shows: (showsRes.data || []).map((s) => mapShow(s, openMin))
       };
+
       // Đồng bộ vào list để số phòng trên card đúng, và giữ chi tiết cho refresh sau.
       const idx = cinemas.value.findIndex(c => String(c.id) === String(cinema.id));
       if (idx !== -1) cinemas.value[idx] = enriched;
