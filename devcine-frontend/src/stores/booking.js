@@ -107,10 +107,43 @@ export const useBookingStore = defineStore('booking', {
     async fetchFnbs() {
       try {
         const { data } = await fnbApi.getAll();
-        this.availableFnbs = data;
+        this.availableFnbs = Array.isArray(data) ? data : (data.data || []);
       } catch (err) {
         console.error('Failed to fetch fnbs', err);
       }
+    },
+    // Đối soát danh sách combo/món đã chọn với menu F&B mới nhất từ server
+    reconcileSelectedFnbs() {
+      if (!this.selectedFnbs || this.selectedFnbs.length === 0) return [];
+      const removedItems = [];
+      const updatedFnbs = [];
+
+      for (const sel of this.selectedFnbs) {
+        const currentItem = (this.availableFnbs || []).find(i => i.id === sel.fnbItem.id && i.isActive !== false && !i.isDeleted);
+        if (!currentItem) {
+          removedItems.push(sel.fnbItem.name || 'Món');
+        } else {
+          // Cập nhật giá mới nhất và entity mới nhất
+          sel.fnbItem = currentItem;
+          // Đối soát lại các vị con đã chọn (nếu vị bị xóa khỏi kho)
+          if (sel.options && sel.options.length > 0 && currentItem.slots) {
+            const validOptions = [];
+            for (const opt of sel.options) {
+              const slot = currentItem.slots.find(s => s.id === opt.slotId || s.slotLabel === opt.slotLabel);
+              const optItemExists = slot?.optionGroup?.items?.some(it => it.id === opt.optionItemId);
+              if (optItemExists) {
+                validOptions.push(opt);
+              }
+            }
+            sel.options = validOptions;
+          }
+          updatedFnbs.push(sel);
+        }
+      }
+
+      this.selectedFnbs = updatedFnbs;
+      this.calculateTotal();
+      return removedItems;
     },
     setMovie(movie) {
       this.selectedMovie = movie;

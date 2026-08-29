@@ -9,6 +9,7 @@ import com.devcine.backend.repository.FnbOptionGroupRepository;
 import com.devcine.backend.repository.FnbComboSlotRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +31,22 @@ public class FnbController {
     private final FnbItemRepository fnbItemRepository;
     private final FnbOptionGroupRepository fnbOptionGroupRepository;
     private final FnbComboSlotRepository fnbComboSlotRepository;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private void notifyFnbUpdate(String action, Object id) {
+        try {
+            if (messagingTemplate != null) {
+                Object payload = Map.of(
+                        "action", action,
+                        "id", id != null ? id : 0,
+                        "timestamp", System.currentTimeMillis()
+                );
+                messagingTemplate.convertAndSend("/topic/fnb-updates", payload);
+            }
+        } catch (Exception e) {
+            // best-effort notification
+        }
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<FnbItem>>> getActiveFnbs() {
@@ -109,6 +126,7 @@ public class FnbController {
             }
 
             fnbOptionGroupRepository.save(group);
+            notifyFnbUpdate("GROUP_CREATED", group.getId());
             return ResponseEntity.status(201).body(ApiResponse.ok(group));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -199,6 +217,7 @@ public class FnbController {
                 }
             }
             fnbOptionGroupRepository.save(group);
+            notifyFnbUpdate("GROUP_UPDATED", group.getId());
             return ResponseEntity.ok(ApiResponse.ok(group));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -220,6 +239,7 @@ public class FnbController {
             }
 
             fnbOptionGroupRepository.delete(group);
+            notifyFnbUpdate("GROUP_DELETED", id);
             return ResponseEntity.ok(ApiResponse.success("Đã xoá Kho tùy chọn."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -249,6 +269,7 @@ public class FnbController {
                 applySlots(item, body.get("slots"));
             }
             fnbItemRepository.save(item);
+            notifyFnbUpdate("ITEM_CREATED", item.getId());
             return ResponseEntity.status(201).body(ApiResponse.ok(item));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -271,6 +292,7 @@ public class FnbController {
                 applySlots(item, body.get("slots"));
             }
             fnbItemRepository.save(item);
+            notifyFnbUpdate("ITEM_UPDATED", item.getId());
             return ResponseEntity.ok(ApiResponse.ok(item));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
@@ -286,6 +308,7 @@ public class FnbController {
             // Soft-delete: đánh dấu đã xoá (KHÁC với tạm ngưng isActive). Giữ row cho lịch sử.
             item.setIsDeleted(true);
             fnbItemRepository.save(item);
+            notifyFnbUpdate("ITEM_DELETED", id);
             return ResponseEntity.ok(ApiResponse.success("Đã xoá món F&B."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));

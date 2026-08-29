@@ -15,8 +15,9 @@ import { Client } from '@stomp/stompjs'
  * @param {Function} [opts.onReleased] (seatIds) → ghế vừa được nhả (hết hạn/huỷ) — cập nhật status sang AVAILABLE.
  * @param {Function} [opts.onHeld]    (seatIds) → ghế vừa bị giữ bởi quầy khác — cập nhật status sang HOLD.
  * @param {Function} [opts.onChange]  () → trạng thái khóa của người khác vừa đổi (để ép re-render nếu cần).
+ * @param {Function} [opts.onFnbUpdate] (ev) → sự kiện cập nhật F&B real-time từ admin.
  */
-export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -45,6 +46,13 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
         subs.push(client.subscribe('/user/queue/seat-result', (msg) => handleResult(JSON.parse(msg.body))))
         // Đồng bộ danh sách ghế đang bị khóa lúc mới vào
         subs.push(client.subscribe('/user/queue/seat-sync', (msg) => handleSync(JSON.parse(msg.body))))
+        // Đồng bộ cập nhật thực đơn F&B real-time
+        subs.push(client.subscribe('/topic/fnb-updates', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onFnbUpdate?.(ev)
+          } catch (_) {}
+        }))
         client.publish({ destination: `/app/showtime/${showtimeId}/sync`, body: '{}' })
       },
       onWebSocketClose: () => { connected.value = false },

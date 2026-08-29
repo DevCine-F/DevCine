@@ -50,6 +50,24 @@ const seatRealtime = useSeatRealtime({
       )
     }
   },
+  onFnbUpdate: async () => {
+    await store.fetchFnbs()
+    const removed = store.reconcileSelectedFnbs()
+    if (removed.length > 0) {
+      toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi lựa chọn của bạn.`)
+    }
+    // Nếu đang mở popup chọn vị của món
+    if (isFnbModalOpen.value && selectedFnbForModal.value) {
+      const updated = (store.availableFnbs || []).find(i => i.id === selectedFnbForModal.value.id)
+      if (!updated) {
+        isFnbModalOpen.value = false
+        selectedFnbForModal.value = null
+        toast.warning('Món bạn đang chọn vừa tạm ngưng phục vụ.')
+      } else {
+        selectedFnbForModal.value = updated
+      }
+    }
+  },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 
@@ -209,7 +227,16 @@ const ensureHeld = async () => {
   }
   return holdPromise // người bấm "Xác nhận" sớm sẽ chờ chung promise giữ ghế đang chạy ở nền
 }
-watch(currentStep, (s) => { if (s === 4) ensureHeld() })
+watch(currentStep, async (s) => {
+  if (s === 2) {
+    await store.fetchFnbs()
+    const removed = store.reconcileSelectedFnbs()
+    if (removed.length > 0) {
+      toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi lựa chọn của bạn.`)
+    }
+  }
+  if (s === 4) ensureHeld()
+})
 // Đổi ghế/loại vé/combo/voucher → đơn đã giữ không còn đúng, sẽ giữ lại khi vào bước 4 lần tới
 watch(() => [store.selectedSeats.length, JSON.stringify(store.ticketQuantities), store.selectedFnbs.length, store.selectedVoucher?.id], () => {
   held.value = false
@@ -1120,8 +1147,15 @@ const proceedToPayment = async () => {
     }
   } else {
     held.value = false
-    // store.lastHoldError là message backend → chuẩn hoá sang tiếng Việt, không lộ chuỗi kỹ thuật
-    toast.error(friendlyError(store.lastHoldError, 'Giữ ghế thất bại, vui lòng thử lại.'))
+    await store.fetchFnbs()
+    const removed = store.reconcileSelectedFnbs()
+    if (removed.length > 0) {
+      toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ nên đã được gỡ khỏi lựa chọn. Vui lòng kiểm tra lại.`)
+      currentStep.value = 2
+    } else {
+      // store.lastHoldError là message backend → chuẩn hoá sang tiếng Việt, không lộ chuỗi kỹ thuật
+      toast.error(friendlyError(store.lastHoldError, 'Giữ ghế thất bại, vui lòng thử lại.'))
+    }
     // Làm mới sơ đồ ghế để cập nhật trạng thái mới nhất
     await store.fetchSeats()
   }
