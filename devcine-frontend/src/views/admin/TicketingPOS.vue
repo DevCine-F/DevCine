@@ -377,6 +377,8 @@ const seatRealtime = useSeatRealtime({
       }
     }
   },
+  onVoucherUpdate: () => {},
+  onSettingsUpdate: () => {},
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 

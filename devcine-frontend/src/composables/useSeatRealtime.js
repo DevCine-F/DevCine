@@ -21,8 +21,9 @@ import { Client } from '@stomp/stompjs'
  * @param {Function} [opts.onShowtimeCancelled] (ev) → suất chiếu bị hủy.
  * @param {Function} [opts.onShowtimeUpdated] (ev) → suất chiếu được cập nhật thông tin.
  * @param {Function} [opts.onVoucherUpdate] (ev) → sự kiện voucher / khuyến mãi thay đổi từ admin.
+ * @param {Function} [opts.onSettingsUpdate] (ev) → cấu hình hệ thống (VietQR, giữ chỗ) thay đổi từ admin.
  */
-export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate, onSettingsUpdate } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -73,6 +74,13 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
           try {
             const ev = JSON.parse(msg.body)
             onVoucherUpdate?.(ev)
+          } catch (_) {}
+        }))
+        // Đồng bộ cập nhật cấu hình hệ thống & VietQR real-time
+        subs.push(client.subscribe('/topic/settings-updates', (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            onSettingsUpdate?.(ev)
           } catch (_) {}
         }))
       },

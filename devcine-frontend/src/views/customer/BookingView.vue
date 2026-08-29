@@ -113,6 +113,9 @@ const seatRealtime = useSeatRealtime({
       }
     }
   },
+  onSettingsUpdate: async () => {
+    await loadSettingsConfig()
+  },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 
@@ -284,7 +287,10 @@ watch(currentStep, async (s) => {
     await refreshVouchers()
     await fetchVoucherEvals()
   }
-  if (s === 4) ensureHeld()
+  if (s === 4) {
+    loadSettingsConfig()
+    ensureHeld()
+  }
 })
 // Đổi ghế/loại vé/combo/voucher → đơn đã giữ không còn đúng, sẽ giữ lại khi vào bước 4 lần tới
 watch(() => [store.selectedSeats.length, JSON.stringify(store.ticketQuantities), store.selectedFnbs.length, store.selectedVoucher?.id], () => {
@@ -558,11 +564,15 @@ const transferQrUrl = computed(() => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&ecc=M&data=${encodeURIComponent(payload)}`
 })
 
-const loadBankInfo = async () => {
+const loadSettingsConfig = async () => {
   try {
     const { data } = await settingsApi.getAll()
     const map = {}
     data.forEach(s => { map[s.settingKey] = s.settingValue })
+    const v = parseInt(map.SEAT_HOLD_MINUTES)
+    if (!isNaN(v)) holdMinutes.value = Math.min(30, Math.max(3, v))
+    const mt = parseInt(map.MAX_TICKETS_PER_BOOKING)
+    if (!isNaN(mt)) store.maxTicketsPerBooking = Math.min(20, Math.max(1, mt))
     bankInfo.value = {
       code: map.PAYMENT_BANK_CODE || '',
       name: map.PAYMENT_BANK_NAME || '',
@@ -573,6 +583,7 @@ const loadBankInfo = async () => {
     // Không chặn luồng đặt vé nếu lỗi — phần QR sẽ báo chưa cấu hình
   }
 }
+const loadBankInfo = loadSettingsConfig
 
 onMounted(async () => {
   if (!store.selectedShowtime) {
@@ -582,7 +593,7 @@ onMounted(async () => {
   }
   await store.fetchSeats()
   await store.fetchFnbs()
-  loadBankInfo()
+  await loadSettingsConfig()
   seatRealtime.connect(store.selectedShowtime.id) // bật khóa ghế real-time
 
   // Quay lại sau khi đăng nhập: khôi phục đúng bước nếu ghế vẫn còn chọn đủ
