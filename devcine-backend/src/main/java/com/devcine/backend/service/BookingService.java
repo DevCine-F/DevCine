@@ -429,18 +429,6 @@ public class BookingService {
                 throw new RuntimeException(eval.reason());
             }
 
-            // Guard bổ sung: load Promotion FRESH từ DB (không dùng lazy association có thể stale)
-            // để chặn booking khi mã đã hết lượt toàn hệ thống — đặc biệt quan trọng trong môi trường
-            // concurrent (nhiều khách cùng tạo booking với cùng promotion).
-            Promotion freshPromo = promotionRepository.findById(voucher.getPromotion().getId()).orElse(null);
-            if (freshPromo != null
-                    && freshPromo.getUsageLimit() != null
-                    && freshPromo.getUsageLimit() > 0
-                    && freshPromo.getUsedCount() != null
-                    && freshPromo.getUsedCount() >= freshPromo.getUsageLimit()) {
-                throw new RuntimeException("Mã khuyến mãi đã hết lượt sử dụng.");
-            }
-
             BigDecimal discount = eval.discountAmount();
 
             finalPrice = totalPrice.subtract(discount);

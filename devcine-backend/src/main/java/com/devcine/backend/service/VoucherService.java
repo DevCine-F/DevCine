@@ -153,28 +153,16 @@ public class VoucherService {
             return new VoucherEval(false, "Không tìm thấy chương trình ưu đãi.", BigDecimal.ZERO);
         }
 
-        // 1. Trạng thái hoạt động & Thời hạn áp dụng (Hard check)
-        if (Boolean.FALSE.equals(promo.getIsActive())) {
-            return new VoucherEval(false, "Mã ưu đãi đang tạm dừng áp dụng.", BigDecimal.ZERO);
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (promo.getStartDate() != null && promo.getStartDate().isAfter(now)) {
-            return new VoucherEval(false, "Mã ưu đãi chưa đến ngày áp dụng.", BigDecimal.ZERO);
-        }
+        // 1. Thời hạn áp dụng của Voucher (Snapshot)
         // Hạn sử dụng: ưu tiên validUntil của Voucher (snapshot tại thời điểm cấp phát).
         // Chỉ fallback về promo.endDate nếu voucher chưa có validUntil (dữ liệu cũ / guest).
-        // Không dùng OR — nếu snapshot còn hạn thì khách vẫn được dùng dù Admin đã sửa endDate chiến dịch.
+        // Khi Admin tạm dừng/sửa chiến dịch sau đó, các voucher ĐÃ trong ví khách vẫn có hiệu lực đến validUntil.
         LocalDateTime effectiveExpiry = voucher.getValidUntil() != null
                 ? voucher.getValidUntil()
                 : promo.getEndDate();
+        LocalDateTime now = LocalDateTime.now();
         if (effectiveExpiry != null && effectiveExpiry.isBefore(now)) {
             return new VoucherEval(false, "Mã ưu đãi đã hết hạn sử dụng.", BigDecimal.ZERO);
-        }
-
-        // 2. Giới hạn lượt dùng toàn sàn (Hard check: nếu hết lượt thì đơn bao nhiêu tiền cũng không thể dùng)
-        if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
-                && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
-            return new VoucherEval(false, "Mã đã hết lượt sử dụng toàn hệ thống.", BigDecimal.ZERO);
         }
 
         // 3. Đối tượng áp dụng (Hard check)
