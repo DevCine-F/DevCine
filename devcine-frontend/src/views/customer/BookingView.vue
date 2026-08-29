@@ -638,10 +638,16 @@ const fetchVoucherEvals = async () => {
   // Các lần refresh sau: isVoucherEvalsReady đã = true → danh sách giữ nguyên, silent update.
   try {
     const assign = store.audienceAssignment
-    const seatPrices = store.selectedSeats.map((seat, i) => {
-      const aud = assign[i] || 'ADULT'
-      const byAud = store.priceTable[seat.seatType]
-      return (byAud && byAud[aud] != null) ? Number(byAud[aud]) : (seat.price || 0)
+    const seatPrices = []
+    let assignIdx = 0
+    store.selectedSeats.forEach(seat => {
+      const capacity = seat.seatType === 'SWEETBOX' ? 2 : 1
+      for (let j = 0; j < capacity; j++) {
+        const aud = assign[assignIdx] || 'ADULT'
+        const byAud = store.priceTable[seat.seatType]
+        seatPrices.push((byAud && byAud[aud] != null) ? Number(byAud[aud]) : (seat.price || 0))
+        assignIdx++
+      }
     })
     const fnbTotal = store.selectedFnbs.reduce((acc, f) => {
       const surcharge = (f.options || []).reduce((s, o) => s + (o.surchargePrice || 0), 0)
@@ -759,7 +765,19 @@ const calculateDiscount = () => {
     discountAmount.value = 0
     return
   }
-  const seatTotal = store.selectedSeats.reduce((acc, s) => acc + s.price, 0)
+  const assign = store.audienceAssignment
+  const seatPrices = []
+  let assignIdx = 0
+  store.selectedSeats.forEach(s => {
+    const capacity = s.seatType === 'SWEETBOX' ? 2 : 1
+    for (let j = 0; j < capacity; j++) {
+      const aud = assign[assignIdx] || 'ADULT'
+      const byAud = store.priceTable[s.seatType]
+      seatPrices.push((byAud && byAud[aud] != null) ? Number(byAud[aud]) : (s.price || 0))
+      assignIdx++
+    }
+  })
+  const seatTotal = seatPrices.reduce((acc, p) => acc + p, 0)
   const fnbTotal = store.selectedFnbs.reduce((acc, f) => {
     const surcharge = (f.options || []).reduce((s, o) => s + (o.surchargePrice || 0), 0)
     return acc + (f.fnbItem.price + surcharge) * f.quantity
@@ -770,8 +788,7 @@ const calculateDiscount = () => {
   let base = total
   const maxTickets = Number(v.maxTicketQuantity || 0)
   if (maxTickets > 0) {
-    base = store.selectedSeats
-      .map(s => s.price)
+    base = seatPrices
       .sort((a, b) => b - a)
       .slice(0, maxTickets)
       .reduce((acc, p) => acc + p, 0)
