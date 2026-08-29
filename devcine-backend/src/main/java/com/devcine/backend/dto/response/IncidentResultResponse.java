@@ -29,6 +29,7 @@ public record IncidentResultResponse(
             Integer voucherId,            // ID của Voucher vừa sinh (null nếu NONE / khách vãng lai)
             String voucherCode,           // Code của Promotion template (vd: COMP_50K) — dùng để giao tiếp với khách
             boolean counterGift,          // true = đền trực tiếp tại quầy (khách vãng lai)
+            String auditGiftCode,         // Mã phiếu xuất quà nội bộ đối soát quầy F&B cho khách vãng lai
             BigDecimal value
     ) {}
 }

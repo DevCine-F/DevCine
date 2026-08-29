@@ -15,5 +15,6 @@ public record CompensationOption(
         String label,              // "Tặng Combo Bắp nước", "Voucher giảm 50.000đ"...
         String type,               // DISCOUNT | GIFT_FNB | GIFT_TICKET
         BigDecimal discountValue,  // 50000 / 100000 / 0(quà)
-        boolean cancelOnly         // true → chỉ hiện ở luồng Hủy chỗ (đền nguyên vé)
+        boolean cancelOnly,        // true → chỉ hiện ở luồng Hủy chỗ (đền nguyên vé)
+        boolean requiresManager    // true → yêu cầu Quản lý (Manager/Admin) phê duyệt
 ) {}

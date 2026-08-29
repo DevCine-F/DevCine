@@ -26,8 +26,14 @@ public record RelocateRequest(
         String reason,
 
         /** Cho phép bỏ qua luật chống ghế mồ côi (mirror POS "allow single seat"). */
-        boolean allowOrphan
+        boolean allowOrphan,
+
+        /** Cờ tự động khóa bảo trì ghế cũ (mặc định true từ UI khi đổi do ghế hỏng). */
+        Boolean lockOldSeatsAsMaintenance
 ) {
+    public boolean shouldLockOldSeats() {
+        return lockOldSeatsAsMaintenance == null || lockOldSeatsAsMaintenance;
+    }
     /** Một cặp đổi: ghế nguồn (đang thuộc đơn) → ghế đích (đang trống). */
     public record SeatSwap(
             @NotNull(message = "Thiếu ghế nguồn.")
