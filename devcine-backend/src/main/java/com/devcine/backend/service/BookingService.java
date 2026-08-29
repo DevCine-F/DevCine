@@ -369,7 +369,17 @@ public class BookingService {
                     }
                 }
                 if (fnbPrice == null) {
-                    fnbPrice = item.getPrice().add(lineSurcharge);
+                    BigDecimal dbPrice = item.getPrice(); // giá hiện tại trong DB
+                    if (fnbDTO.getClientPrice() != null && fnbDTO.getClientPrice().compareTo(BigDecimal.ZERO) > 0) {
+                        // Price Lock at Selection: dùng min(clientPrice, dbPrice)
+                        // - Admin tăng giá sau khi khách lock → clientPrice < dbPrice → tôn trọng snapshot của khách
+                        // - Admin giảm giá → dbPrice < clientPrice → khách được hưởng giá thấp hơn
+                        // - Không dùng threshold % vì gây hỏng snapshot khi admin thay đổi giá lớn
+                        fnbPrice = fnbDTO.getClientPrice().min(dbPrice).add(lineSurcharge);
+                    } else {
+                        // Không có clientPrice → fallback DB price (backward-compatible với POS/API cũ)
+                        fnbPrice = dbPrice.add(lineSurcharge);
+                    }
                 }
 
                 BookingFnb bookingFnb = BookingFnb.builder()
