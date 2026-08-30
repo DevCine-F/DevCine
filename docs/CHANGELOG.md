@@ -4,6 +4,15 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.2] — 2026-08-31
+
+### Fixed & Enhanced — Tách bạch Khung giờ mở bán và Vòng đời giữ đơn (Late Booking & Hold Window)
+- Bỏ logic ép rút ngắn thời gian giữ đơn (`expiresAt`) về mốc `startTime + bookingLateMinutes` trong `BookingService.java`. Đơn hàng phát sinh hợp lệ được hưởng trọn vẹn thời gian chờ thanh toán (`now + SEAT_HOLD_MINUTES`).
+- Bổ sung cơ chế `isContinuationOfValidHold`: Cho phép hoàn tất đơn hàng (`completePayment`) hoặc chuyển tiếp đơn giữ chỗ hợp lệ đã tạo trong khung giờ mở bán kể cả khi thời điểm thanh toán thực tế đã vượt qua mốc kết thúc bán vé trễ.
+- Nâng cấp luồng POS Chuyển khoản QR (`TicketingPOS.vue`): Khởi tạo giữ đơn (`HOLD`) ngay khi thu ngân mở modal Chuyển khoản QR để chốt thời điểm tạo đơn và khóa ghế, hoàn tất trực tiếp trên đơn đã giữ khi xác nhận, và tự động gọi `releaseHold` giải phóng ghế nếu hủy/đóng modal.
+
+---
+
 ## [1.6.1] — 2026-08-30
 
 ### Fixed — Chuyển đổi Validation tại nguồn cho luồng Đặt vé (Fail-Early)
