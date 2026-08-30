@@ -368,8 +368,8 @@ watch(secondsLeft, (s) => { if (s === 0) handleHoldExpired() })
 onMounted(async () => {
   if (store.selectedShowtime?.startTime) {
     const stTime = new Date(store.selectedShowtime.startTime).getTime()
-    if (stTime < (Date.now() - 15 * 60 * 1000)) {
-      toast.error('Suất chiếu đã quá 15 phút sau khi bắt đầu, không thể tiếp tục đặt vé.')
+    if (stTime <= Date.now()) {
+      toast.warning('Suất chiếu đã bắt đầu, không thể tiếp tục đặt vé.')
       router.replace('/lich-chieu')
       return
     }

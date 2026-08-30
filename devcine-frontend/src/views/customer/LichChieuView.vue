@@ -129,11 +129,19 @@ const fmtEndTime = (st) => {
 const isSoldOut = (st) => (st.totalSeats > 0) && (st.availableSeats <= 0)
 const isLowSeats = (st) => (st.totalSeats > 0) && st.availableSeats > 0 && st.availableSeats < 10
 
+// ===== Mốc thời gian thực để tự động ẩn suất chiếu đã bắt đầu =====
+const currentTime = ref(Date.now())
+let timeInterval = null
+
 // Gom suất chiếu theo phim cho ngày đã chọn từ cinemaShowtimes (nhóm theo định dạng LotteCinema style)
 const moviesForDate = computed(() => {
   const map = new Map()
   for (const s of cinemaShowtimes.value) {
     if (dateKey(s.startTime) !== selectedDate.value) continue
+    const d = toDate(s.startTime)
+    // Ẩn suất chiếu đã qua giờ bắt đầu
+    if (d && d.getTime() <= currentTime.value) continue
+
     if (!map.has(s.movieId)) {
       map.set(s.movieId, {
         id: s.movieId, title: s.movieTitle, posterUrl: s.moviePosterUrl, ageRating: s.movieAgeRating,
@@ -147,8 +155,6 @@ const moviesForDate = computed(() => {
     const m = map.get(s.movieId)
     if (s.status === 'Xuất chiếu sớm') m.hasEarlyScreening = true
     if (s.formatName) m.formatSet.add(s.formatName)
-    const d = toDate(s.startTime)
-    const isPast = selectedDate.value === todayStr && d && d.getTime() < (Date.now() - 15 * 60 * 1000)
     
     const formatName = s.formatName || '2D Phụ Đề'
     
@@ -166,24 +172,36 @@ const moviesForDate = computed(() => {
       availableSeats: s.availableSeats,
       time: getTimeString(s.startTime),
       sort: d ? d.getTime() : 0,
-      past: isPast,
       raw: s
     })
   }
-  return Array.from(map.values()).map(m => ({
-    ...m,
-    formats: Array.from(m.formatSet),
-    formatGroups: Array.from(m.formatGroupsMap.values()).map(g => ({
-      ...g,
-      showtimes: g.showtimes.sort((a, b) => a.sort - b.sort)
-    }))
-  }))
+
+  const result = []
+  for (const m of map.values()) {
+    const formatGroups = Array.from(m.formatGroupsMap.values())
+      .filter(g => g.showtimes.length > 0)
+      .map(g => ({
+        ...g,
+        showtimes: g.showtimes.sort((a, b) => a.sort - b.sort)
+      }))
+
+    if (formatGroups.length > 0) {
+      result.push({
+        ...m,
+        formats: Array.from(m.formatSet),
+        formatGroups
+      })
+    }
+  }
+  return result
 })
 
-// Tập ngày (yyyy-mm-dd) có suất chiếu tại rạp đang chọn — để chấm nhấn trên thanh ngày
+// Tập ngày (yyyy-mm-dd) có suất chiếu còn hiệu lực tại rạp đang chọn — để chấm nhấn trên thanh ngày
 const datesWithShowtimes = computed(() => {
   const set = new Set()
   for (const s of cinemaShowtimes.value) {
+    const d = toDate(s.startTime)
+    if (d && d.getTime() <= currentTime.value) continue
     const k = dateKey(s.startTime)
     if (k) set.add(k)
   }
@@ -236,7 +254,11 @@ const changeCinema = () => {
 }
 
 const goToBooking = (st) => {
-  if (st.past) return
+  const d = toDate(st.startTime)
+  if (d && d.getTime() <= currentTime.value) {
+    toast.warning('Suất chiếu đã bắt đầu, không thể đặt vé.')
+    return
+  }
   const s = st.raw
   store.setMovie({ id: s.movieId, title: s.movieTitle, posterUrl: s.moviePosterUrl, ageRating: s.movieAgeRating, durationMins: s.movieDurationMins })
   store.setShowtime(
@@ -274,9 +296,13 @@ const loadInitialCinemas = async () => {
 onMounted(() => {
   loadInitialCinemas()
   realtime.connect(null)
+  timeInterval = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 15000) // Quét mỗi 15 giây để tự động ẩn suất chiếu vừa đến giờ
 })
 
 onUnmounted(() => {
+  if (timeInterval) clearInterval(timeInterval)
   realtime.disconnect()
 })
 </script>
@@ -519,11 +545,11 @@ onUnmounted(() => {
                     v-for="st in group.showtimes"
                     :key="st.id"
                     @click="goToBooking(st)"
-                    :disabled="st.past || isSoldOut(st)"
-                    :title="st.past ? 'Suất chiếu đã bắt đầu' : (isSoldOut(st) ? 'Suất chiếu đã hết ghế' : st.roomName)"
+                    :disabled="isSoldOut(st)"
+                    :title="isSoldOut(st) ? 'Suất chiếu đã hết ghế' : st.roomName"
                     :class="[
                       'group flex flex-col items-center justify-center gap-1 border rounded-lg min-w-[160px] w-auto min-h-[82px] px-3.5 py-2.5 flex-shrink-0 transition-all duration-200',
-                      (st.past || isSoldOut(st))
+                      isSoldOut(st)
                         ? 'border-[#2a2a2a] bg-[#161616] opacity-40 cursor-not-allowed'
                         : isLowSeats(st)
                           ? 'border-[#8b6914]/40 bg-[#1f1b12] hover:border-[#f5c518] hover:bg-[#282214] cursor-pointer'
@@ -539,13 +565,13 @@ onUnmounted(() => {
                     <div class="relative flex items-center justify-center w-full h-[26px]">
                       <span
                         class="text-xl font-bold leading-none tracking-tight tabular-nums transition-all duration-200 group-hover:opacity-0 group-hover:scale-90 absolute"
-                        :class="(st.past || isSoldOut(st)) ? 'text-gray-500' : 'text-[#f5c518]'"
+                        :class="isSoldOut(st) ? 'text-gray-500' : 'text-[#f5c518]'"
                       >
                         {{ st.time }}
                       </span>
                       <span
                         class="text-sm font-bold leading-none tracking-tight tabular-nums transition-all duration-200 opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 text-[#f5c518]"
-                        :class="(st.past || isSoldOut(st)) ? 'text-gray-500' : ''"
+                        :class="isSoldOut(st) ? 'text-gray-500' : ''"
                       >
                         {{ st.time }}<span v-if="fmtEndTime(st)" class="text-gray-400 font-normal mx-0.5">~</span>{{ fmtEndTime(st) }}
                       </span>
@@ -555,14 +581,10 @@ onUnmounted(() => {
                     <span
                       v-if="st.totalSeats > 0"
                       class="text-[11px] font-medium leading-tight whitespace-nowrap"
-                      :class="st.past ? 'text-gray-500' : (isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-[#f5c518]/80' : 'text-gray-400'))"
+                      :class="isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-[#f5c518]/80' : 'text-gray-400')"
                     >
-                      <template v-if="st.past">Đã chiếu</template>
-                      <template v-else-if="isSoldOut(st)">Hết ghế</template>
+                      <template v-if="isSoldOut(st)">Hết ghế</template>
                       <template v-else>{{ st.availableSeats }} / {{ st.totalSeats }} Ghế ngồi</template>
-                    </span>
-                    <span v-else-if="st.past" class="text-[11px] font-medium text-gray-500">
-                      Đã chiếu
                     </span>
                   </button>
                 </div>

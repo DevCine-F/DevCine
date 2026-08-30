@@ -263,11 +263,19 @@ onMounted(async () => {
   if (canReview.value) restoreReviewDraft()
 
   realtime.connect(null)
+  timeInterval = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 15000)
 })
 
 onUnmounted(() => {
+  if (timeInterval) clearInterval(timeInterval)
   realtime.disconnect()
 })
+
+// Mốc thời gian thực để tự động ẩn suất chiếu đã bắt đầu
+const currentTime = ref(Date.now())
+let timeInterval = null
 
 const onCityChange = async () => {
   const movieId = route.params.id || 1
@@ -298,17 +306,21 @@ const cinemaOptions = computed(() => {
     .map(c => ({ id: c.id, name: c.name }))
 })
 
-// Rạp hiển thị: có suất ở ngày đang chọn + khớp bộ lọc rạp
+// Rạp hiển thị: có suất hợp lệ ở ngày đang chọn + khớp bộ lọc rạp
 const visibleCinemas = computed(() =>
   store.cinemaShowtimes.filter(c => {
     const sts = c.showtimesByDate?.[activeDateStr.value]
-    const hasDate = Array.isArray(sts) && sts.length > 0
+    const hasValidShowtimes = Array.isArray(sts) && sts.some(st => new Date(st.startTime).getTime() > currentTime.value)
     const matchCinema = !selectedCinemaId.value || c.cinemaId === selectedCinemaId.value
-    return hasDate && matchCinema
+    return hasValidShowtimes && matchCinema
   })
 )
 
 const selectShowtime = (showtime, cinema) => {
+  if (new Date(showtime.startTime).getTime() <= currentTime.value) {
+    toast.warning('Suất chiếu đã bắt đầu, không thể đặt vé.')
+    return
+  }
   if (isSoldOut(showtime)) return // hết ghế → chặn chọn
   store.setMovie(movie.value)
   store.setShowtime(showtime, cinema)
@@ -336,7 +348,10 @@ const isLowSeats = (st) => (st.totalSeats > 0) && st.availableSeats > 0 && st.av
 const uniqueDates = computed(() => {
   const dates = new Set()
   store.cinemaShowtimes.forEach(c => {
-    Object.keys(c.showtimesByDate).forEach(d => dates.add(d))
+    Object.entries(c.showtimesByDate || {}).forEach(([dateStr, sts]) => {
+      const hasActive = (sts || []).some(st => new Date(st.startTime).getTime() > currentTime.value)
+      if (hasActive) dates.add(dateStr)
+    })
   })
   return Array.from(dates).sort()
 })
@@ -345,6 +360,7 @@ const groupShowtimesByFormat = (showtimes) => {
   if (!showtimes) return {}
   const groups = {}
   showtimes.forEach(st => {
+    if (new Date(st.startTime).getTime() <= currentTime.value) return
     const format = st.formatName || '2D Phụ Đề'
     if (!groups[format]) {
       groups[format] = []

@@ -69,6 +69,10 @@ const fmtEndTime = (st) => {
 const isSoldOut = (st) => (st.totalSeats > 0) && (st.availableSeats <= 0)
 const isLowSeats = (st) => (st.totalSeats > 0) && st.availableSeats > 0 && st.availableSeats < 10
 
+// Mốc thời gian thực để tự động ẩn suất chiếu đã bắt đầu
+const currentTime = ref(Date.now())
+let timeInterval = null
+
 const fetchAll = async () => {
   loading.value = true
   try {
@@ -88,7 +92,14 @@ const fetchAll = async () => {
 }
 
 const availableDates = computed(() => {
-  const set = new Set(showtimes.value.map(s => getDateString(s.startTime)).filter(Boolean))
+  const set = new Set()
+  showtimes.value.forEach(s => {
+    const d = toDate(s.startTime)
+    if (d && d.getTime() > currentTime.value) {
+      const ds = getDateString(s.startTime)
+      if (ds) set.add(ds)
+    }
+  })
   return [...set].sort()
 })
 
@@ -102,7 +113,12 @@ const dateLabel = (ds) => {
 const moviesOfDay = computed(() => {
   const map = new Map()
   showtimes.value
-    .filter(s => getDateString(s.startTime) === selectedDate.value)
+    .filter(s => {
+      const matchDate = getDateString(s.startTime) === selectedDate.value
+      const d = toDate(s.startTime)
+      const isFuture = d && d.getTime() > currentTime.value
+      return matchDate && isFuture
+    })
     .forEach(s => {
       if (!map.has(s.movieId)) {
         map.set(s.movieId, {
@@ -122,8 +138,8 @@ const moviesOfDay = computed(() => {
       map.get(s.movieId).shows.push(s)
     })
 
-  const arr = [...map.values()]
-  arr.forEach(m => {
+  const arr = []
+  for (const m of map.values()) {
     // Sắp xếp các suất chiếu theo thời gian bắt đầu
     m.shows.sort((a, b) => {
       const ta = toDate(a.startTime)?.getTime() || 0
@@ -143,8 +159,11 @@ const moviesOfDay = computed(() => {
       }
       formatMap.get(format).shows.push(s)
     })
-    m.formatGroups = [...formatMap.values()]
-  })
+    m.formatGroups = [...formatMap.values()].filter(g => g.shows.length > 0)
+    if (m.formatGroups.length > 0) {
+      arr.push(m)
+    }
+  }
   return arr
 })
 
@@ -173,6 +192,11 @@ const mapSrc = computed(() => {
 const statusLabel = (s) => ({ ACTIVE: 'Đang hoạt động', MAINTENANCE: 'Đang bảo trì', CLOSED: 'Tạm đóng cửa' }[s] || 'Đang hoạt động')
 
 const goToBooking = (s) => {
+  const d = toDate(s.startTime)
+  if (d && d.getTime() <= currentTime.value) {
+    toast.warning('Suất chiếu đã bắt đầu, không thể đặt vé.')
+    return
+  }
   if (isSoldOut(s)) return
   store.setMovie({
     id: s.movieId,
@@ -201,9 +225,13 @@ const goToBooking = (s) => {
 onMounted(() => {
   fetchAll()
   realtime.connect(null)
+  timeInterval = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 15000)
 })
 
 onUnmounted(() => {
+  if (timeInterval) clearInterval(timeInterval)
   realtime.disconnect()
 })
 </script>
