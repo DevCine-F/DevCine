@@ -127,11 +127,15 @@ const districtOptions = computed(() => {
 // Đổi tỉnh thì reset lựa chọn quận.
 watch(filterCity, () => { filterDistrict.value = "Tất cả"; });
 
-const filteredCinemas = computed(() => cinemas.value.filter(c => {
-  const matchCity = filterCity.value === "Tất cả" || c.city === filterCity.value;
-  const matchDistrict = filterDistrict.value === "Tất cả" || c.district === filterDistrict.value;
-  return matchCity && matchDistrict;
-}));
+const filteredCinemas = computed(() =>
+  cinemas.value
+    .filter(c => {
+      const matchCity = filterCity.value === "Tất cả" || c.city === filterCity.value;
+      const matchDistrict = filterDistrict.value === "Tất cả" || c.district === filterDistrict.value;
+      return matchCity && matchDistrict;
+    })
+    .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0))
+);
 
 const openCinemaDetail = (cinema) => {
   loadCinemaDetail(cinema);

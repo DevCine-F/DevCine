@@ -15,7 +15,7 @@ public interface CinemaRepository extends JpaRepository<Cinema, Integer> {
     @Query("SELECT DISTINCT c.city FROM Cinema c WHERE c.city IS NOT NULL")
     List<String> findAllCities();
 
-    @Query("SELECT c FROM Cinema c LEFT JOIN FETCH c.manager m LEFT JOIN FETCH m.user")
+    @Query("SELECT c FROM Cinema c LEFT JOIN FETCH c.manager m LEFT JOIN FETCH m.user ORDER BY c.id DESC")
     List<Cinema> findAllWithManager();
 
     // Nạp kèm manager + user (LEFT JOIN FETCH) để tránh lỗi lazy/khoá ngoại manager_id trỏ tới staff đã xoá.

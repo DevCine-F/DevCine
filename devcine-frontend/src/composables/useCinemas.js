@@ -183,7 +183,7 @@ export function useCinemas() {
         inventory: [],
         shows: []
       };
-      cinemas.value.push(savedCinema);
+      cinemas.value.unshift(savedCinema);
       toast.success(`Đã tạo cụm rạp "${payload.name}"`);
 
       // Reset form
