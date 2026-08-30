@@ -187,18 +187,30 @@ public class BookingService {
         }
 
         // Validate thời gian bán: chỉ cho mua trước giờ chiếu + khoảng trễ cho phép (lateMinutes sau giờ chiếu)
-        // Ngoại lệ: Nếu đây là đơn chuyển tiếp từ một đơn giữ chỗ (heldBooking) ĐÃ ĐƯỢC TẠO HỢP LỆ trong khung giờ và CHƯA HẾT HẠN giữ chỗ,
-        // thì vẫn cho phép tiếp tục hoàn tất.
+        // Mốc thời gian được tính từ thời điểm bắt đầu phiên chọn suất chiếu (sessionStartedAt) hoặc đơn giữ chỗ hợp lệ.
         int lateMinutes = systemSettingService.getBookingLateMinutes();
+        int holdMinutes = systemSettingService.getSeatHoldMinutes(); // thời gian giữ ghế admin cấu hình
+
+        LocalDateTime effectiveStartTime = request.getSessionStartedAt() != null
+                ? request.getSessionStartedAt()
+                : LocalDateTime.now();
+
+        // Chống treo màn hình (Idle Guard): Nếu sessionStartedAt cách hiện tại quá SEAT_HOLD_MINUTES -> phiên coi như hết hạn
+        if (request.getSessionStartedAt() != null
+                && request.getSessionStartedAt().isBefore(LocalDateTime.now().minusMinutes(holdMinutes))) {
+            effectiveStartTime = LocalDateTime.now();
+        }
+
+        boolean isStartedWithinAllowedWindow = showtime.getStartTime() == null
+                || !effectiveStartTime.isAfter(showtime.getStartTime().plusMinutes(lateMinutes));
+
         boolean isContinuationOfValidHold = oldBooking != null
                 && oldBooking.getExpiresAt() != null
                 && oldBooking.getExpiresAt().isAfter(LocalDateTime.now())
                 && (showtime.getStartTime() == null || oldBooking.getCreatedAt() == null
                     || !oldBooking.getCreatedAt().isAfter(showtime.getStartTime().plusMinutes(lateMinutes)));
 
-        if (!isContinuationOfValidHold
-                && showtime.getStartTime() != null
-                && LocalDateTime.now().isAfter(showtime.getStartTime().plusMinutes(lateMinutes))) {
+        if (!isContinuationOfValidHold && !isStartedWithinAllowedWindow) {
             throw new RuntimeException("Suất chiếu đã quá giờ cho phép đặt vé (quá " + lateMinutes + " phút sau khi bắt đầu).");
         }
         if (showtime.getStatus() != null && "CANCELLED".equalsIgnoreCase(showtime.getStatus())) {
@@ -222,7 +234,6 @@ public class BookingService {
         }
 
         // Validate seats
-        int holdMinutes = systemSettingService.getSeatHoldMinutes(); // thời gian giữ ghế admin cấu hình
         List<BookingSeat> existingReservedSeats = bookingSeatRepository.findReservedSeatsByShowtime(request.getShowtimeId());
         for (BookingSeat reserved : existingReservedSeats) {
             if (selectedSeatIds.contains(reserved.getSeat().getId())) {

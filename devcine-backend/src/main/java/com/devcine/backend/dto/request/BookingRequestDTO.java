@@ -28,4 +28,6 @@ public class BookingRequestDTO {
      * CHỈ có hiệu lực ở kênh POS (nhân viên đã qua quyền pos_ticketing); kênh ONLINE luôn bỏ qua cờ này.
      */
     private Boolean allowOrphan;
+    /** Mốc thời gian bắt đầu phiên chọn suất chiếu từ Frontend. */
+    private java.time.LocalDateTime sessionStartedAt;
 }

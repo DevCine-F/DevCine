@@ -15,6 +15,7 @@ export const useBookingStore = defineStore('booking', {
     bookingStep: 1, // 1: Select Seat, 2: F&B, 3: Payment, 4: Success
     bookingId: null,
     bookingCode: null,
+    sessionStartedAt: null,
     heldAt: null, // Thời điểm server tạo đơn giữ ghế (ISO) — mốc bắt đầu đếm ngược
     paymentMethod: null, // Phương thức thanh toán đã chọn (VNPAY/TRANSFER)
     paidAt: null, // Thời điểm thanh toán thành công (ISO string)
@@ -171,6 +172,7 @@ export const useBookingStore = defineStore('booking', {
       this.finalPrice = 0;
       this.bookingId = null;
       this.bookingCode = null;
+      this.sessionStartedAt = new Date().toISOString();
       this.heldAt = null;
       this.paymentMethod = null;
       this.paidAt = null;
@@ -320,7 +322,8 @@ export const useBookingStore = defineStore('booking', {
              options: f.options ? f.options.map(o => ({ slotId: o.slotId, optionGroupId: o.optionGroupId, optionItemId: o.optionItemId })) : []
           })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
-          paymentMethod: paymentMethod
+          paymentMethod: paymentMethod,
+          sessionStartedAt: this.sessionStartedAt
         };
         const { data } = await bookingApi.holdSeats(payload);
         this.bookingId = data.id;

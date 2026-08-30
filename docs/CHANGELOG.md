@@ -4,6 +4,16 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.4] — 2026-08-31
+
+### Enhanced & Fixed — Bảo vệ phiên giao dịch từ khi chọn suất chiếu (Session-Based Late Booking Protection)
+- Bổ sung `sessionStartedAt` trong `BookingRequestDTO`, `TicketingController.java`, `TicketingPOS.vue` và `stores/booking.js`: Ghi nhận mốc thời gian người dùng bắt đầu chọn suất chiếu tại Bước 1.
+- Kiểm tra khung giờ mở bán (`startTime + bookingLateMinutes`) đối chiếu với `sessionStartedAt` thay vì mốc bấm thanh toán ở bước cuối, bảo vệ toàn bộ quy trình chọn ghế, chọn bắp nước, áp voucher và quét mã QR.
+- Tích hợp **Idle Guard**: Tự động hủy phiên nếu người dùng treo máy quá thời hạn giữ đơn (`SEAT_HOLD_MINUTES`) tính từ `sessionStartedAt`.
+- Cấp trọn vẹn thời gian giữ đơn (`expiresAt`) tính từ mốc bắt đầu phiên, ngăn chặn dứt điểm lỗi `400 Bad Request` khi quét QR hoặc thu tiền sau giờ kết thúc mở bán.
+
+---
+
 ## [1.6.3] — 2026-08-31
 
 ### Fixed — Chuẩn hóa Ngày vận hành (Operating Day) & Khắc phục lỗi chọn ngày tạo suất chiếu

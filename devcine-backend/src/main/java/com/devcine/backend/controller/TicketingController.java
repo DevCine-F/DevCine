@@ -201,6 +201,7 @@ public class TicketingController {
                             .voucherId(voucherId)
                             .paymentMethod(paymentMethod)
                             .heldBookingId(heldBookingId)
+                            .sessionStartedAt(parseIsoDateTime(body.get("sessionStartedAt")))
                             // POS override "Cho phép lẻ ghế" (chỉ hiệu lực ở kênh POS đã qua quyền pos_ticketing)
                             .allowOrphan(Boolean.parseBoolean(String.valueOf(body.getOrDefault("allowOrphan", "false"))))
                             .build();
@@ -374,6 +375,7 @@ public class TicketingController {
                             .voucherId(voucherId)
                             .paymentMethod(paymentMethod)
                             .heldBookingId(heldBookingId)
+                            .sessionStartedAt(parseIsoDateTime(body.get("sessionStartedAt")))
                             .allowOrphan(Boolean.parseBoolean(String.valueOf(body.getOrDefault("allowOrphan", "false"))))
                             .build();
 
@@ -405,6 +407,23 @@ public class TicketingController {
             throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+        }
+    }
+
+    private LocalDateTime parseIsoDateTime(Object obj) {
+        if (obj == null) return null;
+        try {
+            String s = obj.toString().trim();
+            if (s.isEmpty()) return null;
+            if (s.endsWith("Z")) {
+                return java.time.Instant.parse(s).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+            } else if (s.contains("+") || s.matches(".*[+-]\\d{2}:?\\d{2}$")) {
+                return java.time.OffsetDateTime.parse(s).toLocalDateTime();
+            } else {
+                return java.time.LocalDateTime.parse(s);
+            }
+        } catch (Exception e) {
+            return null;
         }
     }
 }

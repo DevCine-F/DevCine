@@ -394,8 +394,8 @@ Quan hệ: `@ManyToMany` với `Category` qua bảng nối **`movie_genre_mappin
 - **Khóa bi quan chống race:** `findByIdForUpdate(showtimeId)` (SELECT … FOR UPDATE) **tuần tự hóa** mọi lệnh giữ ghế cùng suất → chống bán trùng POS + online.
 - **Giữ ghế 2 pha:** ghế đang HOLD **quá hạn** (`createdAt < now - SEAT_HOLD_MINUTES`) mới được nhả (`status=EXPIRED`); HOLD còn sống của **bất kỳ** đơn nào (kể cả cùng tài khoản) đều bị chặn.
 - **Anti-fraud theo kênh:** vé **CHILD/SENIOR** cần xác minh giấy tờ ⇒ **cấm bán ONLINE** (chặn ở service dù UI đã ẩn); ONLINE chỉ ADULT/U22.
-- **Chống phe vé & Khung giờ bán vé muộn (Late Booking):** `selectedSeatIds.size() > MAX_TICKETS` (SystemSetting) → từ chối. Khung giờ khởi tạo đơn mới đóng sau `startTime + bookingLateMinutes`.
-- **Bảo lưu vòng đời giữ đơn (Hold Order Lifetime):** Mọi đơn hàng được tạo hợp lệ trong khung giờ mở bán đều được hưởng trọn vẹn thời hạn giữ chỗ (`expiresAt = now + SEAT_HOLD_MINUTES`) mà không bị ép rút ngắn theo mốc giờ đóng bán. Khi thanh toán hoặc xử lý đơn có `heldBookingId` còn trong hạn `expiresAt`, hệ thống nhận diện đơn là sự tiếp nối hợp lệ (`isContinuationOfValidHold`) và cho phép hoàn tất mà không chặn lại theo thời gian thực tế.
+- **Chống phe vé & Khung giờ bán vé muộn (Late Booking):** `selectedSeatIds.size() > MAX_TICKETS` (SystemSetting) → từ chối. Khung giờ khởi tạo phiên mở bán đối chiếu với `sessionStartedAt` (mốc thời gian khi nhân viên/khách hàng bấm chọn suất chiếu) $\le$ `startTime + bookingLateMinutes`.
+- **Bảo vệ phiên & Vòng đời giữ đơn (Session Protection & Hold Order Lifetime):** Mọi giao dịch được bắt đầu trong khung giờ mở bán đều được bảo vệ toàn bộ các bước chọn ghế, chọn bắp nước, áp voucher và thanh toán trong suốt thời hạn giữ đơn (`expiresAt = effectiveStartTime + SEAT_HOLD_MINUTES`) mà không bị ép rút ngắn theo mốc giờ đóng bán. Tích hợp **Idle Guard**: nếu phiên treo máy quá `SEAT_HOLD_MINUTES` so với hiện tại, hệ thống tự động từ chối.
 - **Giữ chỗ trước tại POS (QR Payment Hold):** Tại quầy POS, mở modal Chuyển khoản QR sẽ lập tức gọi `holdSeats` để khóa ghế và chốt mốc thời gian tạo đơn; khi khách quét xong chỉ cần gọi hoàn tất, nếu hủy modal thì tự động nhả ghế qua `releaseHold`.
 - **Chốt giá server-side:** `PricingService.buildContext(showtime)` nạp ngữ cảnh **một lần**, mỗi ghế `priceFor(ctx, ticketType)` → lưu vào `price_snapshot` (bất biến).
 - **Voucher tại đặt vé:** gọi `VoucherService.evaluate(...)` (nguồn sự thật duy nhất) → `finalPrice = totalPrice − discount` (kẹp ≥ 0). Tách `finalPrice` khỏi `totalPrice` để **sửa bug giảm giá 2 lần** ở VNPAY.
@@ -409,7 +409,7 @@ Quan hệ: `@ManyToMany` với `Category` qua bảng nối **`movie_genre_mappin
 - Khách vãng lai (customer=null): bỏ qua tích điểm & email.
 - Auto-tạo `Customer` BRONZE khi admin/staff đặt hộ user chưa có hồ sơ (dùng `@MapsId` — set association, **persist không merge**).
 
-**Refactor & Nợ kỹ thuật.** Bỏ quy tắc "nhả HOLD nếu cùng member" (gây 2 phiên cùng tài khoản cướp ghế) → chỉ nhả HOLD quá hạn + khóa bi quan. Tách email theo `channel` (ONLINE có QR, POS chỉ hoá đơn) thay vì suy từ `staffSchedule`. POS rewrite dùng `ticketingApi` + tái dùng `holdSeats`/`completePayment`. Tách biệt Khung giờ mở bán (`startTime + lateMinutes`) khỏi Vòng đời giữ đơn (`expiresAt`) để bảo vệ các đơn phát sinh sát giờ đóng bán.
+**Refactor & Nợ kỹ thuật.** Bỏ quy tắc "nhả HOLD nếu cùng member" (gây 2 phiên cùng tài khoản cướp ghế) → chỉ nhả HOLD quá hạn + khóa bi quan. Tách email theo `channel` (ONLINE có QR, POS chỉ hoá đơn) thay vì suy từ `staffSchedule`. POS rewrite dùng `ticketingApi` + tái dùng `holdSeats`/`completePayment`. Tách biệt Khung giờ mở bán (`startTime + lateMinutes`) khỏi Vòng đời giữ đơn (`expiresAt`) và bảo vệ toàn bộ phiên giao dịch từ thời điểm chọn suất (`sessionStartedAt`).
 
 ---
 

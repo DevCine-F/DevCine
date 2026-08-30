@@ -71,6 +71,7 @@ const showCashModal = ref(false)
 const showQrModal = ref(false)
 const qrBookingId = ref(null)
 const qrHoldLoading = ref(false)
+const sessionStartedAt = ref(null)
 const cashGiven = ref(0)
 
 const error = ref('')
@@ -1004,6 +1005,7 @@ const selectShowtime = async (st) => {
     return
   }
   selectedShowtime.value = st
+  sessionStartedAt.value = new Date().toISOString()
   selectedSeats.value = []
   stopHoldTimer()
   isLoadingSeats.value = true
@@ -1325,6 +1327,7 @@ const openQrModal = async () => {
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: 'TRANSFER',
       heldBookingId: restoredBookingId.value,
+      sessionStartedAt: sessionStartedAt.value,
       allowOrphan: canOverrideOrphan.value && allowOrphan.value
     }
     const { data } = await ticketingApi.hold(payload)
@@ -1436,6 +1439,7 @@ const processPayment = async (method) => {
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method,
       heldBookingId: qrBookingId.value || restoredBookingId.value,
+      sessionStartedAt: sessionStartedAt.value,
       allowOrphan: canOverrideOrphan.value && allowOrphan.value // chỉ ADMIN/MANAGER mới gửi cờ (BE cũng gate lại theo vai trò)
     }
     
@@ -1603,6 +1607,7 @@ const resetPOS = () => {
   showQrModal.value = false
   qrBookingId.value = null
   qrHoldLoading.value = false
+  sessionStartedAt.value = null
   showMobileReceiptDrawer.value = false
   cashGiven.value = 0
   clearVoucherState()
