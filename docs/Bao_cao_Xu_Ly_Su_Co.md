@@ -29,7 +29,7 @@
 | Độ ưu tiên | Cao | Tác nhân | Nhân viên bán vé & soát vé / Quản lý rạp |
 | Mô tả | Thực hiện đổi vị trí chỗ ngồi cho khách hàng sang ghế trống mới tương đương trong cùng suất chiếu theo cơ chế cập nhật tại chỗ (In-place Repointing), giữ nguyên mã vé/QR code gốc, cấp voucher đền bù thiện chí (nếu có) và in lại vé mới cho khách. <td colspan=3/> |
 | Luồng chạy | Bước 1: Sau khi tra cứu thông tin vé thành công, nhân viên chọn chế độ "Đổi ghế" (Relocate). <br> Bước 2: Nhân viên nhấn nút "Chọn" tại ghế nguồn gặp sự cố trong danh sách ghế của đơn; ghế nguồn đổi sang viền sáng màu xanh dương trên sơ đồ. <br> Bước 3: Nhân viên click chọn vị trí ghế đích còn trống (ô màu xám) trên sơ đồ phòng chiếu; ghế đích chuyển sang màu xanh lá và hiển thị ánh xạ (ví dụ: B5 -> C7). Hỗ trợ chọn đổi nhiều ghế cùng lúc cho nhóm khách. <br> Bước 4: Nhân viên chọn hình thức đền bù thiện chí từ danh mục (Không đền bù, Tặng Combo Bắp nước, Voucher giảm 50.000đ, Voucher giảm 100.000đ) và nhập lý do sự cố (ví dụ: Ghế lỗi tựa lưng). <br> Bước 5: Nhân viên nhấn nút "Xác nhận & in lại vé". Hộp thoại xác nhận hiển thị tóm tắt thông tin đổi ghế và gói đền bù để kiểm tra lại. <br> Bước 6: Nhân viên bấm xác nhận; hệ thống kiểm tra xung đột đồng thời, cập nhật đổi khóa ngoại ghế tại chỗ (BookingSeat.seat_id = new_seat_id), sinh voucher đền bù (cho khách có tài khoản), ghi log kiểm toán vào bảng seat_incidents, gửi lại email vé mới cho đơn Online và trả về dữ liệu in lại vé tại quầy POS. <td colspan=3/> |
-| Lưu ý | - Chỉ được phép đổi ghế khi suất chiếu CHƯA BẮT ĐẦU. Nếu suất chiếu đã đến hoặc qua giờ bắt đầu, hệ thống khóa chức năng đổi ghế và yêu cầu chuyển sang hủy chỗ. <br> - Không áp dụng chênh lệch thu thêm hoặc hoàn tiền vé (nguyên tắc Flat Pricing trong cùng suất). <br> - Ghế đã từng xử lý sự cố trước đó sẽ bị chặn không cho thao tác lần thứ hai để chống gian lận. <br> - Đối với khách vãng lai (không có tài khoản), nhân viên trao quà trực tiếp tại quầy; hệ thống không sinh voucher điện tử. <td colspan=3/> |
+| Lưu ý | - Được phép đổi ghế trước giờ chiếu và trong lúc suất đang diễn ra để xử lý sự cố thực tế. Khi suất đã kết thúc, hệ thống khóa chức năng đổi ghế; trong 2 giờ tiếp theo vẫn cho phép khóa ghế bảo trì và hoàn thiện ghi nhận sự cố. <br> - Không áp dụng chênh lệch thu thêm hoặc hoàn tiền vé (nguyên tắc Flat Pricing trong cùng suất). <br> - Ghế đã từng xử lý sự cố trước đó sẽ bị chặn không cho thao tác lần thứ hai để chống gian lận. <br> - Đối với khách vãng lai (không có tài khoản), nhân viên trao quà trực tiếp tại quầy; hệ thống không sinh voucher điện tử. <td colspan=3/> |
 
 ---
 
@@ -38,7 +38,7 @@
 | Mã Use case | UC-39 | Tên Use Case | Hủy chỗ và đền bù bằng Voucher khi phát sinh sự cố phòng chiếu |
 |---|---|---|---|
 | Độ ưu tiên | Cao | Tác nhân | Nhân viên bán vé & soát vé / Quản lý rạp |
-| Mô tả | Xử lý tình huống bất khả kháng khi phòng chiếu không còn ghế trống phù hợp hoặc suất chiếu đã bắt đầu; hệ thống thực hiện hủy chỗ trên đơn vé, giải phóng ghế và đền bù 100% giá trị bằng Voucher vé xem phim miễn phí (Vé mời) hoặc Voucher giảm giá. <td colspan=3/> |
+| Mô tả | Xử lý tình huống bất khả kháng khi phòng chiếu không còn ghế trống phù hợp hoặc không thể tiếp tục phục vụ khách; hệ thống thực hiện hủy chỗ trên đơn vé, giải phóng ghế và đền bù 100% giá trị bằng Voucher vé xem phim miễn phí (Vé mời) hoặc Voucher giảm giá. <td colspan=3/> |
 | Luồng chạy | Bước 1: Sau khi tra cứu đơn vé, nhân viên chuyển sang chế độ "Hủy chỗ" (Cancel). <br> Bước 2: Nhân viên tích chọn vào ô checkbox của các ghế cần hủy trong danh sách ghế của đơn hàng. <br> Bước 3: Hệ thống tự động tính toán tổng giá trị vé bị hủy dựa trên giá snapshot ban đầu (totalValue = sum(priceSnapshot)). <br> Bước 4: Nhân viên chọn mẫu voucher đền bù (cho phép chọn mẫu Đền bù: Vé mời COMP_TICKET_FULL hoặc voucher giảm giá) và nhập lý do hủy chỗ. <br> Bước 5: Nhân viên nhấn nút "Hủy chỗ & đền bù" và xác nhận thông báo chính sách không hoàn tiền mặt mà đền bù bằng voucher tương đương. <br> Bước 6: Hệ thống cập nhật trạng thái dòng ghế sang CANCELLED, lập tức giải phóng vị trí ghế trên sơ đồ, khởi tạo Voucher đền bù (hạn 90 ngày) vào tài khoản khách hàng và ghi vết lịch sử vào bảng seat_incidents. <td colspan=3/> |
 | Lưu ý | - Nghiêm cấm hoàn tiền mặt hoặc chuyển khoản; toàn bộ bồi thường thực hiện qua voucher hoặc quà tặng theo quy định vận hành của rạp. <br> - Ghế bị hủy chuyển sang trạng thái CANCELLED sẽ không được in lại vé. <br> - Mẫu đền bù Vé mời (COMP_TICKET_FULL) chỉ được kích hoạt và sử dụng tại luồng Hủy chỗ. <td colspan=3/> |
 
@@ -66,7 +66,8 @@
 
 ### 2. Quy tắc đổi ghế, hủy chỗ & khóa ghế
 - **Đổi ghế (Relocate):**
-  - Chỉ thực hiện khi suất chiếu chưa bắt đầu (`startTime > NOW()`). Khi suất đã bắt đầu (`started = true`), hệ thống khóa nút đổi ghế.
+  - Cho phép khi trạng thái suất là `UPCOMING` hoặc `IN_PROGRESS`. Từ thời điểm `endTime`, trạng thái chuyển sang `ENDED` và hệ thống khóa đổi ghế.
+  - Trạng thái `EXPIRED` bắt đầu tại `endTime + 2 giờ`; khi đó màn hình chỉ cho phép xem, không cho thay đổi dữ liệu sự cố.
   - **Repoint tại chỗ:** Cập nhật `BookingSeat.seat_id = new_seat_id`, giữ nguyên mã vé, mã QR code gốc và giá snapshot. Tự động gửi lại Email vé cho đơn Online và hỗ trợ in lại vé tại quầy.
   - Ghế đích phải cùng phòng chiếu, là ô ghế hợp lệ (`is_seat_cell = true`, `is_active = true`), đang ở trạng thái `AVAILABLE`, và không bị chiếm giữ bởi giao dịch khác.
   - Không cho phép chuyển nhiều ghế nguồn về cùng một vị trí ghế đích.
@@ -144,6 +145,7 @@
 | TC-PASS-07 | Khóa bảo trì ghế hỏng trực tiếp | Nhấn nút Báo hỏng tại ghế E5, nhập lý do "Lỗi đệm ngồi" | Seat.seat_status chuyển MAINTENANCE, ghế chuyển đỏ trên sơ đồ, sinh bản ghi SEAT_MAINTENANCE. |
 | TC-PASS-08 | Hủy chỗ và đền bù Vé mời | Ghế F3 hủy, chọn mẫu COMP_TICKET_FULL | BookingSeat.status chuyển CANCELLED, giải phóng vị trí ghế trên sơ đồ, cấp voucher vé mời cho khách. |
 | TC-PASS-09 | Lọc và phân trang lịch sử sự cố | Tab Lịch sử, chọn lọc theo loại RELOCATE và khoảng ngày | Bảng lịch sử lọc chính xác các bản ghi thuộc cụm rạp, phân trang dữ liệu hoạt động mượt mà. |
+| TC-PASS-10 | Đổi ghế khi suất đang chiếu | Suất có `startTime < NOW() < endTime`, ghế nguồn gặp sự cố và còn ghế đích hợp lệ | Đổi ghế thành công, khóa bảo trì ghế cũ và ghi vết RELOCATE. |
 
 ### 2. Kịch bản kiểm thử Thất bại & Thông báo lỗi (Fail Cases)
 
@@ -154,7 +156,7 @@
 | TC-FAIL-03 | Nhập SĐT không có đơn đặt vé nào | IllegalArgumentException (HTTP 400) | Không tìm thấy đơn đã xác nhận cho số điện thoại này. |
 | TC-FAIL-04 | Tra cứu đơn vé chưa thanh toán hoặc đã hủy | IllegalArgumentException (HTTP 400) | Đơn chưa thanh toán hoặc không hợp lệ để xử lý. |
 | TC-FAIL-05 | Nhân viên rạp A cố tra cứu/xử lý vé của rạp B | AccessDeniedException (HTTP 403) | Bạn không có quyền thực hiện thao tác này. |
-| TC-FAIL-06 | Đổi ghế khi suất chiếu đã bắt đầu | IllegalArgumentException (HTTP 400) | Suất đã bắt đầu — chỉ có thể hủy chỗ, không đổi ghế. |
+| TC-FAIL-06 | Đổi ghế khi suất chiếu đã kết thúc | IllegalArgumentException (HTTP 400) | Suất chiếu đã kết thúc — không thể đổi ghế. |
 | TC-FAIL-07 | Ghế đích vừa bị người khác đặt (Race Condition) | IllegalStateException (HTTP 409) | Ghế đích vừa bị chiếm bởi giao dịch khác. Vui lòng chọn ghế trống khác. |
 | TC-FAIL-08 | Chọn nhiều ghế nguồn đổi về cùng 1 ghế đích | IllegalArgumentException (HTTP 400) | Không thể đổi nhiều ghế về cùng một vị trí đích. |
 | TC-FAIL-09 | Chọn ghế đích đang bảo trì hoặc đang bị khóa | IllegalArgumentException (HTTP 400) | Ghế đích đang bảo trì/khóa, không thể chuyển tới. |

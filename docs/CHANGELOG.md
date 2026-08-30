@@ -4,6 +4,25 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.0] — 2026-08-30
+
+### 🔒 Fixed — An toàn xử lý sự cố ghế
+- Đổi ghế mặc định khóa ghế nguồn sang `MAINTENANCE` trong cùng transaction và chỉ broadcast trạng thái sau commit.
+- Chặn đổi chéo ghế đơn/Sweetbox, bắt buộc đền bù khi hạ hạng và kiểm tra ghế mồ côi ở backend sau khi đã khóa bi quan suất chiếu.
+- Redis seat lock dùng owner token, tự gia hạn TTL và compare-and-delete; lock chỉ được nhả sau khi transaction DB commit.
+
+### 🎫 Fixed — Thu hồi QR vé cũ
+- Thêm bảng `ticket_qr_histories`; mỗi lần đổi ghế lưu QR/version cũ rồi sinh QR mới bằng UUID.
+- `POST /api/tickets/verify-ticket` trả DTO an toàn, nhận diện QR cũ và cảnh báo ghế hiện hành.
+- Màn Quét & In vé tự phân biệt booking code với QR vé lẻ; booking code giữ luồng xác minh/in, QR vé lẻ chạy check-in.
+
+### 🛡️ Fixed — Kiểm soát đền bù
+- Staff tối đa 50.000đ và tối đa 5 lần đền bù trong cửa sổ 8 giờ; vé mời/voucher lớn yêu cầu Manager hoặc Admin.
+- Mã quà tại quầy của khách vãng lai được lưu vào `seat_incidents.audit_gift_code` và hiển thị trong lịch sử đối soát.
+- Batch-load Ticket và Staff ngoài vòng lặp đổi ghế để loại N+1 query.
+
+---
+
 ## [1.5.0] — 2026-07-11
 
 ### ✨ Changed — Tách bước Quét & In vé tại quầy

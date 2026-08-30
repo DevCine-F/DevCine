@@ -183,7 +183,6 @@ public class MailService {
 
     private String buildIncidentRelocateHtml(com.devcine.backend.dto.IncidentRelocateEmailData data) {
         String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";
-        int seatCount = data.seats() != null ? data.seats().size() : 0;
 
         // Khối Lý do sự cố
         String reasonBlock = "";
@@ -255,18 +254,37 @@ public class MailService {
             fnbBlock.append("</div>");
         }
 
-        // Khối QR check-in vé xem phim mới
-        String bookingQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
-                + URLEncoder.encode(data.bookingCode() == null ? "" : data.bookingCode(), StandardCharsets.UTF_8);
+        // QR soát vé phải dùng QR hiện hành của từng Ticket, không dùng bookingCode ổn định của đơn.
+        StringBuilder ticketQrItems = new StringBuilder();
+        if (data.seats() != null) {
+            for (TicketEmailData.SeatLine seat : data.seats()) {
+                if (seat == null || seat.qrCode() == null || seat.qrCode().isBlank()) continue;
+                String ticketQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="
+                        + URLEncoder.encode(seat.qrCode(), StandardCharsets.UTF_8);
+                ticketQrItems.append("""
+                        <div style="display:inline-block;vertical-align:top;text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:16px;margin:4px;">
+                          <div style="font-size:13px;color:#111;font-weight:800;margin-bottom:8px;">Ghế %s</div>
+                          <img src="%s" alt="QR vé ghế %s" width="160" height="160" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
+                          <div style="font-size:11px;color:#888;margin-top:8px;">QR vé hiện hành</div>
+                        </div>
+                        """.formatted(escape(seat.seatLabel()), ticketQrUrl, escape(seat.seatLabel())));
+            }
+        }
+
+        String ticketQrContent = ticketQrItems.isEmpty()
+                ? "<div style=\"font-size:13px;color:#8a6d00;background:#fff8e6;border-radius:10px;padding:14px;\">"
+                  + "Chưa thể hiển thị QR vé hiện hành. Vui lòng mở vé trong tài khoản hoặc liên hệ quầy hỗ trợ.</div>"
+                : ticketQrItems.toString();
         String ticketQrBlock = """
                 <div style="margin:20px 0 8px;">
-                  <div style="font-weight:700;color:#111;margin-bottom:6px;font-size:14px;">Vé điện tử & Mã QR vào phòng chiếu</div>
-                  <div style="text-align:center;background:#fafafa;border:1px solid #eee;border-radius:12px;padding:20px;">
-                    <img src="%s" alt="QR Vé vào rạp" width="180" height="180" style="border:1px solid #eee;border-radius:10px;background:#fff;" />
-                    <div style="font-size:12px;color:#888;margin-top:12px;">Đưa mã QR này tại quầy soát vé để check-in cho <b>toàn bộ đơn (%d ghế)</b></div>
+                  <div style="font-weight:700;color:#111;margin-bottom:6px;font-size:14px;">QR vé mới vào phòng chiếu</div>
+                  <div style="text-align:center;">%s</div>
+                  <div style="font-size:12px;color:#888;text-align:center;margin-top:10px;line-height:1.5;">
+                    Chỉ sử dụng QR mới tương ứng với từng ghế. QR vé trước khi đổi ghế đã bị thu hồi.<br/>
+                    Mã đặt vé <b>%s</b> vẫn được giữ nguyên để tra cứu giao dịch.
                   </div>
                 </div>
-                """.formatted(bookingQrUrl, seatCount);
+                """.formatted(ticketQrContent, escape(data.bookingCode()));
 
         return """
                 <div style="max-width:560px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#fff;border:1px solid #eee;border-radius:14px;overflow:hidden;">

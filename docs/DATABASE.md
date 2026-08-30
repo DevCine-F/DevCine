@@ -187,7 +187,7 @@
 
 ---
 
-## 5. Showtime & Booking Domain (5 bảng)
+## 5. Showtime & Booking Domain (7 bảng)
 
 ### 5.1 `showtimes`
 
@@ -233,8 +233,42 @@
 | `is_age_verified` | `BOOLEAN` | DEFAULT false | Đã xác minh tuổi chưa |
 | `checked_in_by` | `INTEGER` | FK → `staffs.user_id` | Nhân viên check-in |
 | `check_in_time` | `TIMESTAMP` | — | Thời điểm check-in |
+| `version` | `INTEGER` | DEFAULT 1 | Phiên bản QR hiện hành của vé |
+| `is_revoked` | `BOOLEAN` | DEFAULT false | Cờ tương thích cho vé bị thu hồi |
 
-### 5.5 `reviews`
+### 5.5 `ticket_qr_histories`
+
+| Cột | Type | Constraint | Mô tả |
+|-----|------|-----------|-------|
+| `id` | `INTEGER` | PK, AUTO_INCREMENT | ID lịch sử QR |
+| `ticket_id` | `INTEGER` | NOT NULL, FK → `tickets.id` | Vé hiện hành liên quan |
+| `qr_code` | `VARCHAR(500)` | NOT NULL, UNIQUE | QR cũ đã bị thu hồi |
+| `ticket_version` | `INTEGER` | NOT NULL | Phiên bản của QR cũ |
+| `revoked_at` | `TIMESTAMP` | NOT NULL | Thời điểm thu hồi |
+| `revoked_reason` | `VARCHAR(255)` | — | Lý do thu hồi, gồm nhãn ghế cũ/mới |
+
+### 5.6 `seat_incidents`
+
+| Cột | Type | Constraint | Mô tả |
+|-----|------|-----------|-------|
+| `id` | `INTEGER` | PK, AUTO_INCREMENT | ID sự cố |
+| `incident_type` | `VARCHAR(20)` | NOT NULL | RELOCATE, CANCEL, SEAT_MAINTENANCE, EMERGENCY_CLOSURE |
+| `booking_id` | `INTEGER` | FK → `bookings.id` | Đơn liên quan |
+| `showtime_id` | `INTEGER` | FK → `showtimes.id` | Suất chiếu liên quan |
+| `old_seat_id` | `INTEGER` | FK → `seats.id` | Ghế nguồn |
+| `new_seat_id` | `INTEGER` | FK → `seats.id` | Ghế đích sau khi đổi |
+| `old_seat_label` | `VARCHAR(10)` | — | Snapshot nhãn ghế nguồn |
+| `new_seat_label` | `VARCHAR(10)` | — | Snapshot nhãn ghế đích |
+| `compensation_type` | `VARCHAR(20)` | — | NONE, DISCOUNT, GIFT_FNB, GIFT_TICKET |
+| `compensation_amount` | `DECIMAL(15,2)` | — | Giá trị đền bù quy tiền |
+| `voucher_id` | `INTEGER` | FK → `vouchers.id` | Voucher đền bù đã phát |
+| `audit_gift_code` | `VARCHAR(80)` | UNIQUE | Mã phiếu quà quầy cho khách vãng lai |
+| `handled_by` | `INTEGER` | FK → `staffs.user_id` | Nhân viên xử lý |
+| `cinema_id` | `INTEGER` | FK → `cinemas.id` | Cụm rạp xử lý |
+| `reason` | `VARCHAR(255)` | — | Lý do/ghi chú |
+| `created_at` | `TIMESTAMP` | NOT NULL | Thời điểm xử lý |
+
+### 5.7 `reviews`
 
 | Cột | Type | Constraint | Mô tả |
 |-----|------|-----------|-------|
@@ -380,6 +414,8 @@ users       ←──── 1:1 ────→ customers     (shared PK: user_i
 users       ←──── 1:1 ────→ staffs        (shared PK: user_id)
 customers   ←──── 1:1 ────→ wallets       (customer_id UNIQUE)
 booking_seats ←── 1:1 ────→ tickets       (booking_seat_id UNIQUE)
+tickets       ←── 1:N ────→ ticket_qr_histories
+bookings      ←── 1:N ────→ seat_incidents
 ```
 
 ### Quan hệ 1:N

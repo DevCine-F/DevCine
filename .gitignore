@@ -67,6 +67,9 @@ bin/
 .codegraph/
 .agents/
 
+# Temp files
+temp/
+
 # Word/Office lock & temp files
 ~$*
 
