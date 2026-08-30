@@ -4,6 +4,16 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.3] — 2026-08-31
+
+### Fixed — Chuẩn hóa Ngày vận hành (Operating Day) & Khắc phục lỗi chọn ngày tạo suất chiếu
+- Khắc phục lỗi tạo suất chiếu ngày tương lai bị lùi về ngày hôm trước: Đồng bộ logic giữa ngày vận hành (Business Operating Day) và lịch dương thực tế (Calendar Date) trong `ShowtimeDrawer.vue` (`getActualDateTimeStr`).
+- Tự động nhận diện suất ca đêm sau nửa đêm (`00:00` đến `< openMin` của rạp) để tăng 1 ngày lịch thực tế (`dateObj + 1`), giúp hàm `mapShow` khi tải lại lùi 1 ngày về đúng tab ngày vận hành mà Admin đang chọn.
+- Luân chuyển dữ liệu ngày theo chuẩn ISO `YYYY-MM-DD` (`selectedDateIso`, `fullDate` trong `useShowtimes.js`), loại bỏ việc parse chuỗi `DD/MM` thủ công và xóa bỏ nguy cơ fallback sai về ngày hôm nay (`getLocalTodayStr`).
+- Ràng buộc hai chiều `v-model:selected-date` giữa `CinemaManager.vue`, `CinemaShowtimesTab.vue` và `ShowtimeDrawer.vue`.
+
+---
+
 ## [1.6.2] — 2026-08-31
 
 ### Fixed & Enhanced — Tách bạch Khung giờ mở bán và Vòng đời giữ đơn (Late Booking & Hold Window)

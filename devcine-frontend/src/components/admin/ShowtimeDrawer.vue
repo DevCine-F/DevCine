@@ -15,6 +15,7 @@ const props = defineProps({
   cinemaId: Number,
   cinema: Object,
   selectedDate: String,
+  selectedDateIso: String,
   editData: {
     type: Object,
     default: null
@@ -32,14 +33,56 @@ const getLocalTodayStr = () => {
 };
 
 const getSelectedDateStr = () => {
-  if (!props.selectedDate) return getLocalTodayStr();
-  if (props.selectedDate.includes('/')) {
-    const [d, m] = props.selectedDate.split('/');
-    const year = new Date().getFullYear();
-    return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  if (props.editData?.startTime) {
+    const st = typeof props.editData.startTime === 'string'
+      ? props.editData.startTime
+      : (props.editData.fullDateTime || '');
+    if (st.includes('T')) return st.split('T')[0];
+    if (st.includes('-')) return st.slice(0, 10);
   }
-  return props.selectedDate;
+  if (props.selectedDateIso) return props.selectedDateIso;
+  if (props.selectedDate) {
+    if (props.selectedDate.includes('/')) {
+      const [d, m] = props.selectedDate.split('/');
+      const year = new Date().getFullYear();
+      return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    if (props.selectedDate.includes('-')) return props.selectedDate;
+  }
+  return getLocalTodayStr();
 };
+
+const getActualDateTimeStr = () => {
+  const baseDateStr = getSelectedDateStr();
+  if (!form.startHour || !form.startMinute) return `${baseDateStr}T00:00:00`;
+
+  const [y, m, d] = baseDateStr.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+
+  const { openMin } = cinemaWindow.value;
+  const startMins = parseInt(form.startHour) * 60 + parseInt(form.startMinute);
+  if (startMins < openMin) {
+    // Suất chiếu sau nửa đêm (rạng sáng) thuộc ca đêm của ngày vận hành đang chọn:
+    // Calendar Date thực tế của suất phải là ngày tiếp theo (dateObj + 1 ngày).
+    dateObj.setDate(dateObj.getDate() + 1);
+  }
+
+  const pad = (n) => n.toString().padStart(2, '0');
+  const actualDateStr = `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+  return `${actualDateStr}T${form.startHour}:${form.startMinute}:00`;
+};
+
+const selectedDateDisplay = computed(() => {
+  if (props.selectedDate) {
+    if (props.selectedDate.includes('/')) {
+      return `${props.selectedDate}/${new Date().getFullYear()}`;
+    }
+    return props.selectedDate;
+  }
+  const today = new Date();
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${pad(today.getDate())}/${pad(today.getMonth() + 1)}/${today.getFullYear()}`;
+});
 
 const isFormatCompatibleWithRoomType = (formatName, roomType) => {
   const fn = (formatName || '').trim().toUpperCase();
@@ -388,8 +431,8 @@ const timeConflictError = computed(() => {
 
   const duration = movie.durationMins || movie.duration || 120;
   const turnaround = room.turnaroundTimeMins || 15;
-  const showDateStr = getSelectedDateStr();
-  const start = new Date(`${showDateStr}T${form.startHour}:${form.startMinute}:00`);
+  const actualStartStr = getActualDateTimeStr();
+  const start = new Date(actualStartStr);
   if (isNaN(start.getTime())) return '';
   const end = new Date(start.getTime() + (duration + turnaround) * 60000);
 
@@ -623,8 +666,7 @@ const handleSave = async () => {
   }
 
   try {
-    const showDateStr = getSelectedDateStr();
-    const formattedStartTime = `${showDateStr}T${form.startHour}:${form.startMinute}:00`;
+    const formattedStartTime = getActualDateTimeStr();
     await submit(formattedStartTime, false);
   } catch (error) {
     toast.error(friendlyError(error, 'Có lỗi xảy ra khi lưu suất chiếu.'));
@@ -727,7 +769,7 @@ const handleSave = async () => {
 
         <div ref="timeField">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-            Thời gian bắt đầu <span class="text-primary font-medium lowercase tracking-normal">(Suất chiếu cho ngày {{ selectedDate }}/{{ new Date().getFullYear() }})</span>
+            Thời gian bắt đầu <span class="text-primary font-medium lowercase tracking-normal">(Suất chiếu cho ngày {{ selectedDateDisplay }})</span>
           </label>
           <div class="flex gap-4">
             <div class="flex-1">

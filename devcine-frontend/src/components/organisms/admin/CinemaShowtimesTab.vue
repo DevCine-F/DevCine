@@ -66,6 +66,7 @@ const props = defineProps({
 
 defineEmits([
   'update:selectedDate',
+  'update:selected-date',
   'add-showtime',
   'open-batch',
   'publish',
@@ -112,7 +113,7 @@ const handleDragStart = (event, show) => {
       <button
         v-for="d in dates"
         :key="d.date"
-        @click="$emit('update:selectedDate', d.date)"
+        @click="$emit('update:selectedDate', d.date); $emit('update:selected-date', d.date)"
         :class="
           selectedDate === d.date
             ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20'

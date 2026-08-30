@@ -19,13 +19,17 @@ export function useShowtimes(selectedCinema) {
 
   const generateDates = () => {
     const today = new Date();
+    const pad = (n) => n.toString().padStart(2, '0');
     return Array.from({ length: 5 }, (_, i) => {
       const d = new Date(today);
       d.setDate(today.getDate() + i - 1);
       const dayNames = ['CN', '2', '3', '4', '5', '6', '7'];
+      const dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+      const fullDateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       return {
         day: i === 1 ? 'Hôm nay' : `Thứ ${dayNames[d.getDay()]}`,
-        date: `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`,
+        date: dateStr,
+        fullDate: fullDateStr,
         isToday: i === 1
       };
     });
@@ -34,6 +38,16 @@ export function useShowtimes(selectedCinema) {
   const dates = generateDates();
   const selectedDate = ref(dates[1].date);
   const isToday = computed(() => selectedDate.value === dates[1].date);
+  const selectedDateIso = computed(() => {
+    const matched = dates.find(d => d.date === selectedDate.value);
+    if (matched) return matched.fullDate;
+    if (selectedDate.value && selectedDate.value.includes('/')) {
+      const [d, m] = selectedDate.value.split('/');
+      const year = new Date().getFullYear();
+      return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    return selectedDate.value;
+  });
 
   // ===== Cửa sổ giờ hoạt động động (co giãn theo cụm rạp) =====
   // openMin/closeMin theo phút; nếu đóng ≤ mở ⇒ qua nửa đêm (closeMin += 1440).
@@ -234,6 +248,7 @@ export function useShowtimes(selectedCinema) {
   return {
     dates,
     selectedDate,
+    selectedDateIso,
     isToday,
     gridCols,
     hourMarks,

@@ -68,6 +68,7 @@ const handleConfirmDelete = async () => {
 const {
   dates,
   selectedDate,
+  selectedDateIso,
   isToday,
   gridCols,
   hourMarks,
@@ -393,7 +394,7 @@ onUnmounted(() => {
             v-else-if="activeTab === 'showtimes'"
             :cinema="selectedCinema"
             :dates="dates"
-            :selected-date="selectedDate"
+            v-model:selected-date="selectedDate"
             :is-today="isToday"
             :grid-cols="gridCols"
             :hour-marks="hourMarks"
@@ -505,6 +506,7 @@ onUnmounted(() => {
       :cinema-id="selectedCinema?.id"
       :cinema="selectedCinema"
       :selected-date="selectedDate"
+      :selected-date-iso="selectedDateIso"
       @close="showAddShowtimeDrawer = false"
       @saved="() => loadCinemaDetail(selectedCinema)"
     />
