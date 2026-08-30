@@ -185,6 +185,20 @@ entity/WalletTransaction.java
 ⚠️ NẾU BẤT KỲ BƯỚC NÀO FAIL → @Transactional ROLLBACK TOÀN BỘ
 ```
 
+### 2.1 Cơ chế Kiểm Tra Tại Nguồn Phía Khách Hàng (Frontend Fail-Early Validation Guard)
+Để loại trừ triệt để tình trạng khách hàng đi qua các bước Combo, Voucher rồi mới bị báo lỗi vi phạm ghế mồ côi hoặc không khớp số lượng vé khi thanh toán, hệ thống thiết lập pipeline kiểm tra tại nguồn (`validateStep1` trong `BookingView.vue`):
+
+1. **Pipeline kiểm tra trước khi chuyển bước:**
+   - **Vé:** Bắt buộc `totalTickets > 0` (Toast: "Vui lòng chọn số lượng vé trước khi tiếp tục.").
+   - **Ghế đôi Sweetbox:** Mỗi ghế đôi yêu cầu đủ 2 vé (Toast: "Ghế đôi [Tên ghế] cần có 2 vé để đặt. Vui lòng kiểm tra lại loại ghế hoặc bổ sung thêm số lượng vé.").
+   - **Số lượng ghế vs vé:** Số chỗ ngồi đã chọn phải bằng đúng tổng số vé (Toast: "Bạn đã chọn [X]/[Y] chỗ ngồi. Vui lòng chọn đủ ghế cho số vé đã chọn.").
+   - **Ghế mồ côi (Seat Gap Rule):** Quét toàn bộ hàng ghế trên ma trận `store.availableSeats`, đồng bộ với logic `validateSeatGapFromSnapshot` của Backend (nhận diện AISLE, MAINTENANCE, SWEETBOX span=2 làm rào cản 'X'). Nếu để lại 1 ghế trống đơn lẻ bị cô lập -> Toast: "Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi."
+   - **Xác thực:** Yêu cầu đăng nhập trước khi tiếp tục (`ensureAuthForBooking`).
+
+2. **Quy tắc điều hướng Stepper:**
+   - Người dùng click vào bất kỳ bước nào phía sau (`goToStep(id)` với `id > 1`) khi đang ở Bước 1 đều bị chặn lại và bắt buộc vượt qua `validateStep1()`.
+   - Nút "Tiếp tục" không dùng `:disabled` để đảm bảo người dùng luôn nhận được thông báo phản hồi rõ ràng khi dữ liệu chưa đạt.
+
 ---
 
 ## 3. ✅ Luồng Quét QR & In vé (CRITICAL)

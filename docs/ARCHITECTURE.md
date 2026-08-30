@@ -268,3 +268,17 @@ Bước 2 — IN VÉ (khi bấm nút):
   "timestamp": "2026-05-26T22:00:00+07:00"
 }
 ```
+
+### 7.4 Frontend Validation Conventions (Fail-Early Pattern)
+
+1. **Non-Disabled Action Pattern:**
+   - Các nút điều hướng chính (như nút "Tiếp tục", "Xác nhận") không sử dụng thuộc tính `:disabled` gây khó hiểu cho người dùng khi form chưa hợp lệ.
+   - Nút luôn bấm được; khi bấm, hệ thống kích hoạt pipeline kiểm tra tại nguồn, chặn chuyển bước và bắn thông báo toast mô tả chính xác điều kiện còn thiếu.
+
+2. **Stepper Boundary Enforcement:**
+   - Thanh tiến trình (Stepper) chỉ cho phép quay lại các bước trước đó tự do (`id < currentStep`).
+   - Việc nhảy cóc tới các bước tiếp theo (`id > currentStep`) bắt buộc phải kích hoạt và vượt qua toàn bộ validation của bước hiện tại.
+
+3. **Seat Matrix & Gap Rule Synchronization:**
+   - Thuật toán kiểm tra ghế mồ côi ở Frontend phải sử dụng cùng logic rào cản với Backend `validateSeatGapFromSnapshot`: Các ô không phải ghế (AISLE), ghế bảo trì (MAINTENANCE) và ghế đôi (SWEETBOX span=2) được xử lý đồng nhất thành điểm chặn ranh giới.
+

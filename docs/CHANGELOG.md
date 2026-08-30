@@ -4,6 +4,17 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.1] — 2026-08-30
+
+### Fixed — Chuyển đổi Validation tại nguồn cho luồng Đặt vé (Fail-Early)
+- Khắc phục lỗi báo vi phạm ghế mồ côi muộn ở Bước 4 (Thanh toán) bằng cách chuyển toàn bộ kiểm tra nghiệp vụ về chặn ngay tại Bước 1 (Chọn vé & ghế).
+- Nút "Tiếp tục" luôn ở trạng thái tương tác (bỏ :disabled), kích hoạt kiểm tra và hiển thị toast thông báo cụ thể khi người dùng bấm nút thay vì bị im lặng.
+- Khóa chặt lỗ hổng nhảy cóc trên thanh tiến trình Stepper (goToStep): Chặn hoàn toàn việc người dùng click trực tiếp vào Step 2, 3, 4 khi Bước 1 chưa hợp lệ.
+- Đồng bộ 100% thuật toán quét ghế mồ côi (validateSeatGap) giữa Frontend và Backend snapshot (tính đến lối đi AISLE, ghế bảo trì MAINTENANCE, và ghế đôi Sweetbox span=2).
+- Bổ sung thông báo chi tiết khi ghế đôi Sweetbox chưa đủ 2 vé: "Ghế đôi [Tên ghế] cần có 2 vé để đặt. Vui lòng kiểm tra lại loại ghế hoặc bổ sung thêm số lượng vé."
+
+---
+
 ## [1.6.0] — 2026-08-30
 
 ### 🔒 Fixed — An toàn xử lý sự cố ghế
