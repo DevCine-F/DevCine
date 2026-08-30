@@ -2,6 +2,7 @@ package com.devcine.backend.service;
 
 import com.devcine.backend.dto.TicketEmailData;
 import com.devcine.backend.dto.response.BookingPrintResponse;
+import com.devcine.backend.dto.response.TicketVerificationResponse;
 import com.devcine.backend.entity.Booking;
 import com.devcine.backend.entity.BookingFnb;
 import com.devcine.backend.entity.BookingSeat;
@@ -11,6 +12,7 @@ import com.devcine.backend.entity.Room;
 import com.devcine.backend.entity.Seat;
 import com.devcine.backend.entity.Showtime;
 import com.devcine.backend.entity.Ticket;
+import com.devcine.backend.entity.TicketQrHistory;
 import com.devcine.backend.entity.User;
 import com.devcine.backend.entity.Staff;
 import com.devcine.backend.repository.BookingFnbRepository;
@@ -18,6 +20,7 @@ import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.TicketRepository;
+import com.devcine.backend.repository.TicketQrHistoryRepository;
 import com.devcine.backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -38,6 +44,7 @@ public class TicketService {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
 
     private final TicketRepository ticketRepository;
+    private final TicketQrHistoryRepository ticketQrHistoryRepository;
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
     private final BookingFnbRepository bookingFnbRepository;
@@ -146,17 +153,31 @@ public class TicketService {
      * Chặn quét vé cũ đã bị thu hồi sau khi đổi chỗ.
      */
     @Transactional
-    public Ticket verifyAndCheckInTicket(String qrCode) {
+    public TicketVerificationResponse verifyAndCheckInTicket(String qrCode) {
         if (qrCode == null || qrCode.isBlank()) {
-            throw new RuntimeException("Vui lòng cung cấp mã QR vé.");
+            throw new IllegalArgumentException("Vui lòng cung cấp mã QR vé.");
         }
-        Ticket ticket = ticketRepository.findByQrCode(qrCode.trim())
-                .orElseThrow(() -> new RuntimeException("Mã vé không tồn tại hoặc đã bị hủy sau khi đổi ghế."));
+
+        String normalizedQrCode = qrCode.trim();
+        Ticket ticket = ticketRepository.findByQrCodeWithDetails(normalizedQrCode).orElse(null);
+        if (ticket == null) {
+            TicketQrHistory revokedQr = ticketQrHistoryRepository.findByQrCodeWithDetails(normalizedQrCode)
+                    .orElseThrow(() -> new IllegalArgumentException("Mã vé không tồn tại hoặc không hợp lệ."));
+            Ticket currentTicket = revokedQr.getTicket();
+            Booking currentBooking = currentTicket.getBookingSeat().getBooking();
+            SecurityUtils.assertCinemaAccess(cinemaIdOf(currentBooking));
+            String currentSeatLabel = currentTicket.getBookingSeat().getSeat().displayLabel();
+            throw new IllegalArgumentException(
+                    "VÉ ĐÃ BỊ THU HỒI: Chỗ ngồi đã được chuyển sang " + currentSeatLabel
+                    + ". Vui lòng sử dụng vé in mới nhất.");
+        }
 
         if (Boolean.TRUE.equals(ticket.getIsRevoked())) {
             String seatLabel = ticket.getBookingSeat() != null && ticket.getBookingSeat().getSeat() != null
                     ? ticket.getBookingSeat().getSeat().displayLabel() : "ghế mới";
-            throw new RuntimeException("VÉ ĐÃ BỊ THU HỒI: Chỗ ngồi đã được chuyển sang " + seatLabel + ". Vui lòng sử dụng vé in mới nhất.");
+            throw new IllegalArgumentException(
+                    "VÉ ĐÃ BỊ THU HỒI: Chỗ ngồi đã được chuyển sang " + seatLabel
+                    + ". Vui lòng sử dụng vé in mới nhất.");
         }
 
         Booking booking = ticket.getBookingSeat() != null ? ticket.getBookingSeat().getBooking() : null;
@@ -165,14 +186,25 @@ public class TicketService {
         }
 
         if (Boolean.TRUE.equals(ticket.getIsCheckedIn())) {
-            throw new RuntimeException("Vé này đã được check-in vào lúc: "
+            throw new IllegalArgumentException("Vé này đã được check-in vào lúc: "
                     + (ticket.getCheckInTime() != null ? ticket.getCheckInTime().format(TIME_FMT) : "trước đó"));
         }
 
         ticket.setIsCheckedIn(true);
         ticket.setCheckInTime(LocalDateTime.now());
         ticket.setCheckedInBy(currentStaffOrNull());
-        return ticketRepository.save(ticket);
+        Ticket savedTicket = ticketRepository.save(ticket);
+        BookingSeat bookingSeat = savedTicket.getBookingSeat();
+        Booking savedBooking = bookingSeat.getBooking();
+        Showtime showtime = savedBooking.getShowtime();
+        return new TicketVerificationResponse(
+                savedTicket.getId(),
+                savedBooking.getBookingCode(),
+                bookingSeat.getSeat().displayLabel(),
+                showtime.getMovie() != null ? showtime.getMovie().getTitle() : "Phim",
+                showtime.getRoom() != null ? showtime.getRoom().getName() : "",
+                showtime.getStartTime(),
+                savedTicket.getCheckInTime());
     }
 
     /**
@@ -241,12 +273,24 @@ public class TicketService {
         String format = showtime != null && showtime.getFormat() != null ? showtime.getFormat().getName() : "";
 
         List<BookingPrintResponse.SeatLine> seatLines = new ArrayList<>();
+        Map<Integer, Ticket> activeTicketsByBookingSeatId = ticketRepository.findAllByBookingIdWithSeat(booking.getId())
+                .stream()
+                .filter(ticket -> !Boolean.TRUE.equals(ticket.getIsRevoked()))
+                .collect(Collectors.toMap(
+                        ticket -> ticket.getBookingSeat().getId(),
+                        Function.identity(),
+                        (first, ignored) -> first));
         boolean requiresStudentVerification = false;
         for (BookingSeat bs : bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())) {
             Seat seat = bs.getSeat();
             String label = seat.displayLabel();
             String type = bs.getTicketType();
-            seatLines.add(new BookingPrintResponse.SeatLine(label, type, bs.getPriceSnapshot()));
+            Ticket activeTicket = activeTicketsByBookingSeatId.get(bs.getId());
+            seatLines.add(new BookingPrintResponse.SeatLine(
+                    label,
+                    type,
+                    bs.getPriceSnapshot(),
+                    activeTicket != null ? activeTicket.getQrCode() : null));
             
             if (seat.getSeatType() != null && "SWEETBOX".equals(seat.getSeatType().getName()) && type != null && List.of("U22", "CHILD", "SENIOR").contains(type.toUpperCase())) {
                 requiresStudentVerification = true;
@@ -316,8 +360,8 @@ public class TicketService {
     }
 
     /**
-     * Gửi LẠI email vé cho đơn ONLINE sau khi đổi ghế (nhãn ghế mới, QR giữ nguyên vì đổi ghế là
-     * repoint booking_seat tại chỗ). Trả false (im lặng) nếu đơn POS / không có email — không phải lỗi.
+     * Gửi lại email xác nhận đơn ONLINE. Mã đơn giữ nguyên để tra cứu; QR soát vé phiên bản mới
+     * được gửi bởi luồng email sự cố chuyên biệt sau khi đổi ghế.
      */
     @Transactional
     public boolean resendTicketEmailIfOnline(Integer bookingId) {

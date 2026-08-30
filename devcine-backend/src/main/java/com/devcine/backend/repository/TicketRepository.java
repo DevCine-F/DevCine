@@ -21,12 +21,16 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
             JOIN FETCH bs.booking b
             JOIN FETCH b.showtime st
             JOIN FETCH st.movie
-            JOIN FETCH st.room
+            JOIN FETCH st.room r
+            JOIN FETCH r.cinema
             WHERE t.qrCode = :qrCode
             """)
     Optional<Ticket> findByQrCodeWithDetails(@Param("qrCode") String qrCode);
 
     Optional<Ticket> findByBookingSeatId(Integer bookingSeatId);
+
+    @Query("SELECT t FROM Ticket t JOIN FETCH t.bookingSeat bs WHERE bs.id IN :bookingSeatIds")
+    List<Ticket> findByBookingSeatIds(@Param("bookingSeatIds") List<Integer> bookingSeatIds);
 
     // JOIN FETCH bs.seat để tránh N+1 khi printByBookingCode loop qua tickets và đọc seat để check-in
     @Query("SELECT t FROM Ticket t JOIN FETCH t.bookingSeat bs JOIN FETCH bs.seat JOIN FETCH bs.booking b WHERE b.id = :bookingId")
