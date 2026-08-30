@@ -78,7 +78,7 @@ const paidAtText = computed(() =>
 )
 
 const seatsText = computed(() =>
-  store.selectedSeats.map(s => s.rowChar + s.colNum).join(', ') || '—'
+  store.selectedSeats.map(s => s.label || (s.rowChar + s.colNum)).join(', ') || '—'
 )
 
 const totalAmount = computed(() => store.finalPrice || store.totalPrice || 0)

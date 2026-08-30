@@ -287,20 +287,24 @@ const posStore = usePosStore()
 // ===== Khóa ghế real-time & cập nhật F&B (WebSocket/STOMP) — đồng bộ với quầy POS khác & khách online =====
 const seatRealtime = useSeatRealtime({
   by: 'Quầy POS',
+  isMySeat: (seatId) => selectedSeats.value.some(s => Number(s.seatId) === Number(seatId)),
   // Ghế mình vừa chọn nhưng quầy khác đã giành trước → gỡ khỏi đơn + báo lỗi
   onDenied: (seatId) => {
-    const lost = selectedSeats.value.find(s => s.seatId === seatId)
-    selectedSeats.value = selectedSeats.value.filter(s => s.seatId !== seatId)
+    const numId = Number(seatId)
+    const lost = selectedSeats.value.find(s => Number(s.seatId) === numId)
+    selectedSeats.value = selectedSeats.value.filter(s => Number(s.seatId) !== numId)
     if (selectedSeats.value.length === 0) stopHoldTimer()
     const label = lost ? seatLabel(lost) : 'này'
     showToast(`Ghế ${label} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
   },
   // Ghế bị bán ở nơi khác → đánh dấu SOLD trực tiếp + gỡ khỏi đơn nếu đang chọn
   onSold: (seatIds) => {
-    applySeatStatusUpdate(seatIds, 'SOLD')
-    const lost = selectedSeats.value.filter(s => seatIds.includes(s.seatId))
+    const numIds = seatIds.map(Number)
+    applySeatStatusUpdate(numIds, 'SOLD')
+    if (isPaying.value || currentStep.value === 6) return
+    const lost = selectedSeats.value.filter(s => numIds.includes(Number(s.seatId)))
     if (lost.length) {
-      selectedSeats.value = selectedSeats.value.filter(s => !seatIds.includes(s.seatId))
+      selectedSeats.value = selectedSeats.value.filter(s => !numIds.includes(Number(s.seatId)))
       if (selectedSeats.value.length === 0) stopHoldTimer()
       showToast(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được bán ở quầy khác — đã gỡ khỏi đơn.`, 'error')
     }

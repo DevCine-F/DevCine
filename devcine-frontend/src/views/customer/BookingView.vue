@@ -22,14 +22,20 @@ const toast = useToastStore()
 // ===== Khóa ghế real-time (WebSocket/STOMP) — đồng bộ với quầy POS & khách online khác =====
 const seatRealtime = useSeatRealtime({
   by: 'Khách online',
+  isMySeat: (seatId) => store.selectedSeats.some(s => Number(s.seatId) === Number(seatId)),
   onDenied: (seatId) => {
-    const seat = store.selectedSeats.find(s => s.seatId === seatId)
+    const numId = Number(seatId)
+    const seat = store.selectedSeats.find(s => Number(s.seatId) === numId)
     if (seat) store.toggleSeat(seat) // gỡ ghế đã giành hụt khỏi lựa chọn
     const label = seatLabel(seat)
     toast.error(`Ghế ${label} vừa được chọn hoặc đã được bán ở nơi khác. Vui lòng chọn vị trí ghế khác!`)
   },
   onSold: (seatIds) => {
-    const lost = store.selectedSeats.filter(s => seatIds.includes(s.seatId))
+    // Nếu đang trong quá trình thanh toán hoặc đã thanh toán thành công → bỏ qua, không gỡ ghế
+    if (isPaying.value || store.bookingStep === 4) return
+
+    const numIds = seatIds.map(Number)
+    const lost = store.selectedSeats.filter(s => numIds.includes(Number(s.seatId)))
     lost.forEach(seat => store.toggleSeat(seat))
     if (lost.length) {
       toast.error(`Ghế ${lost.map(s => seatLabel(s)).join(', ')} vừa được bán ở nơi khác — đã gỡ khỏi lựa chọn.`)
@@ -38,7 +44,7 @@ const seatRealtime = useSeatRealtime({
     // thay vì viền vàng (othersLocked) — tránh phải F5 sau khi admin xử lý đổi ghế incident
     if (store.availableSeats.length) {
       store.availableSeats = store.availableSeats.map(s =>
-        seatIds.includes(s.seatId) ? { ...s, status: 'SOLD' } : s
+        numIds.includes(Number(s.seatId)) ? { ...s, status: 'SOLD' } : s
       )
     }
   },
@@ -554,6 +560,9 @@ onMounted(async () => {
   await store.fetchFnbs()
   await loadSettingsConfig()
   seatRealtime.connect(store.selectedShowtime.id) // bật khóa ghế real-time
+  if (store.selectedSeats.length > 0) {
+    seatRealtime.syncMySeats(store.selectedSeats.map(s => s.seatId))
+  }
 
   // Quay lại sau khi đăng nhập: khôi phục đúng bước nếu ghế vẫn còn chọn đủ
   const resumeStep = Number(route.query.step)
@@ -1171,15 +1180,19 @@ const proceedToPayment = async () => {
         toast.error(friendlyError(err, 'Không tạo được cổng thanh toán, vui lòng thử lại.'));
       }
     } else {
+      isPaying.value = true
       try {
         const paid = await store.confirmPayment(paymentMethod.value)
         if (paid) {
+          seatRealtime.disconnect()
           router.push('/success')
         } else {
           toast.error('Thanh toán chưa thành công, vui lòng thử lại.')
         }
       } catch (err) {
         toast.error(friendlyError(err, 'Thanh toán chưa thành công, vui lòng thử lại.'))
+      } finally {
+        isPaying.value = false
       }
     }
   } else {

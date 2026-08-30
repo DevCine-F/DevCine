@@ -24,7 +24,7 @@ import { Client } from '@stomp/stompjs'
  * @param {Function} [opts.onSettingsUpdate] (ev) → cấu hình hệ thống (VietQR, giữ chỗ) thay đổi từ admin.
  * @param {Function} [opts.onScheduleUpdate] (ev) → sự kiện lịch chiếu (tạo/sửa/xóa suất chiếu) từ admin.
  */
-export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate, onSettingsUpdate, onScheduleUpdate } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', isMySeat, onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate, onSettingsUpdate, onScheduleUpdate } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -37,6 +37,23 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
     (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'
 
   const touch = () => { othersLocked.value = new Set(othersLocked.value); onChange?.() }
+
+  const isMine = (id) => {
+    const numId = Number(id)
+    if (mySeats.has(numId)) return true
+    if (typeof isMySeat === 'function' && isMySeat(numId)) {
+      mySeats.add(numId)
+      return true
+    }
+    return false
+  }
+
+  function syncMySeats(seatIds = []) {
+    if (!Array.isArray(seatIds)) return
+    seatIds.forEach(id => {
+      if (id != null) mySeats.add(Number(id))
+    })
+  }
 
   function connect(stId = null) {
     if (client && showtimeId === stId) return // đã kết nối đúng suất này rồi → bỏ qua
@@ -98,12 +115,12 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
   }
 
   function handleBroadcast(ev) {
-    const ids = ev.seatIds || []
+    const ids = (ev.seatIds || []).map(Number)
     if (ev.type === 'SEAT_LOCKED') {
-      ids.forEach(id => { if (!mySeats.has(id)) othersLocked.value.add(id) })
+      ids.forEach(id => { if (!isMine(id)) othersLocked.value.add(id) })
       touch()
       // Thông báo để cập nhật status ghế → HOLD trong seatData
-      if (ids.some(id => !mySeats.has(id))) onHeld?.(ids.filter(id => !mySeats.has(id)))
+      if (ids.some(id => !isMine(id))) onHeld?.(ids.filter(id => !isMine(id)))
     } else if (ev.type === 'SEAT_RELEASED') {
       ids.forEach(id => othersLocked.value.delete(id))
       touch()
@@ -111,7 +128,7 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
       onReleased?.(ids)
     } else if (ev.type === 'SEAT_SOLD') {
       // Bỏ qua ghế của chính mình (mình là người vừa bán) → không tự báo "đã bán ở quầy khác"
-      const notMine = ids.filter(id => !mySeats.has(id))
+      const notMine = ids.filter(id => !isMine(id))
       notMine.forEach(id => othersLocked.value.add(id))
       touch()
       if (notMine.length) onSold?.(notMine)
@@ -127,37 +144,41 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
   }
 
   function handleResult(ev) {
+    const numId = Number(ev.seatId)
     if (ev.type === 'SELECT_DENIED') {
-      mySeats.delete(ev.seatId)
-      othersLocked.value.add(ev.seatId) // ghế thuộc về người đến trước → khóa trên máy này
+      mySeats.delete(numId)
+      othersLocked.value.add(numId) // ghế thuộc về người đến trước → khóa trên máy này
       touch()
-      onDenied?.(ev.seatId)
+      onDenied?.(numId)
     }
     // SELECT_OK: không cần làm gì thêm, ghế đã được giữ optimistic ở select()
   }
 
   function handleSync(ev) {
-    (ev.seatIds || []).forEach(id => { if (!mySeats.has(id)) othersLocked.value.add(id) })
+    (ev.seatIds || []).map(Number).forEach(id => { if (!isMine(id)) othersLocked.value.add(id) })
     touch()
   }
 
   /** Thử giữ ghế (optimistic): đánh dấu là của mình rồi gửi lên server chờ xác nhận. */
   function select(seatId) {
+    const numId = Number(seatId)
+    mySeats.add(numId)
+    othersLocked.value.delete(numId)
     if (!client || !connected.value) return
-    mySeats.add(seatId)
     client.publish({
       destination: `/app/showtime/${showtimeId}/select`,
-      body: JSON.stringify({ seatId, by }),
+      body: JSON.stringify({ seatId: numId, by }),
     })
   }
 
   /** Bỏ chọn ghế — nhả khóa cho máy khác chọn được ngay. */
   function deselect(seatId) {
+    const numId = Number(seatId)
+    mySeats.delete(numId)
     if (!client || !connected.value) return
-    mySeats.delete(seatId)
     client.publish({
       destination: `/app/showtime/${showtimeId}/deselect`,
-      body: JSON.stringify({ seatId }),
+      body: JSON.stringify({ seatId: numId }),
     })
   }
 
@@ -179,8 +200,8 @@ export function useSeatRealtime({ by = 'Quầy khác', onDenied, onSold, onRelea
     connected.value = false
   }
 
-  const isLockedByOthers = (seatId) => othersLocked.value.has(seatId)
+  const isLockedByOthers = (seatId) => othersLocked.value.has(Number(seatId))
 
-  return { connected, othersLocked, connect, disconnect, select, deselect, isLockedByOthers }
+  return { connected, othersLocked, connect, disconnect, select, deselect, syncMySeats, isLockedByOthers }
 }
 
