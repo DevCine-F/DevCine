@@ -78,6 +78,10 @@ public class SeatIncident {
     @JoinColumn(name = "voucher_id")
     private Voucher voucher;
 
+    /** Mã phiếu quà tại quầy cho khách vãng lai, dùng để đối soát F&B. */
+    @Column(name = "audit_gift_code", unique = true, length = 80)
+    private String auditGiftCode;
+
     @Column(name = "reason", length = 255)
     private String reason;
 

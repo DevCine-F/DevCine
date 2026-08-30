@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -33,6 +34,15 @@ public interface SeatIncidentRepository extends JpaRepository<SeatIncident, Inte
            "WHERE si.booking.id = :bookingId " +
            "AND si.incidentType IN ('RELOCATE', 'CANCEL')")
     Set<Integer> findProcessedSeatIdsByBooking(@Param("bookingId") Integer bookingId);
+
+    /** Số lần đền bù có giá trị do một nhân viên thực hiện trong cửa sổ thời gian trượt. */
+    @Query("SELECT COUNT(si) FROM SeatIncident si " +
+           "WHERE si.handledBy.userId = :staffId " +
+           "AND si.createdAt >= :since " +
+           "AND si.incidentType IN ('RELOCATE', 'CANCEL') " +
+           "AND si.compensationType IS NOT NULL AND si.compensationType <> 'NONE'")
+    long countCompensationsHandledSince(@Param("staffId") Integer staffId,
+                                        @Param("since") LocalDateTime since);
 
     /**
      * Lịch sử sự cố (cinema-scoped + filter). Param luôn non-null để tránh bẫy null-param Postgres
@@ -65,4 +75,11 @@ public interface SeatIncidentRepository extends JpaRepository<SeatIncident, Inte
            "LEFT JOIN FETCH si.voucher v LEFT JOIN FETCH v.promotion " +
            "WHERE si.id = :id")
     Optional<SeatIncident> findDetailById(@Param("id") Integer id);
+
+    /** Lịch sử đổi ghế của một đơn, dùng cho màn quản lý hoá đơn và đối soát. */
+    @Query("SELECT si FROM SeatIncident si " +
+           "LEFT JOIN FETCH si.handledBy h LEFT JOIN FETCH h.user " +
+           "WHERE si.booking.id = :bookingId AND si.incidentType = 'RELOCATE' " +
+           "ORDER BY si.createdAt DESC, si.id DESC")
+    List<SeatIncident> findRelocationsByBookingId(@Param("bookingId") Integer bookingId);
 }

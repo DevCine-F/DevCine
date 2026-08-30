@@ -18,6 +18,7 @@ public record IncidentListItem(
         String compensationType,
         BigDecimal compensationAmount,
         String voucherCode,
+        String auditGiftCode,
         String handledByName,
         String reason
 ) {
@@ -37,6 +38,7 @@ public record IncidentListItem(
                 .compensationType(si.getCompensationType())
                 .compensationAmount(si.getCompensationAmount())
                 .voucherCode(voucherCode)
+                .auditGiftCode(si.getAuditGiftCode())
                 .handledByName(handledBy)
                 .reason(si.getReason())
                 .build();
