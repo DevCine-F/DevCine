@@ -29,11 +29,21 @@ public record IncidentBookingContext(
             String roomName,
             String formatName,
             LocalDateTime startTime,
+            LocalDateTime endTime,
             Integer cinemaId,
             String cinemaName,
-            boolean started,        // suất đã bắt đầu → chặn đổi ghế, chỉ cho hủy/goodwill (Edge #5)
-            boolean expired         // suất kết thúc > 2h → chặn TOÀN BỘ thao tác xử lý sự cố
+            ShowtimeStatus status,
+            boolean started,        // true từ lúc bắt đầu; vẫn cho đổi ghế khi IN_PROGRESS
+            boolean ended,          // true từ lúc kết thúc; chặn đổi ghế
+            boolean expired         // true khi kết thúc quá 2h; chỉ cho xem
     ) {}
+
+    public enum ShowtimeStatus {
+        UPCOMING,
+        IN_PROGRESS,
+        ENDED,
+        EXPIRED
+    }
 
     @Builder
     public record IncidentSeatLine(

@@ -11,6 +11,10 @@ import java.util.List;
  */
 public record SeatRelocatedEvent(
         Integer bookingId,
+        Integer showtimeId,
+        List<Integer> oldSeatIds,
+        List<Integer> newSeatIds,
+        boolean oldSeatsLockedForMaintenance,
         String reason,
         List<IncidentRelocateEmailData.SeatSwapLine> swaps,
         IncidentResultResponse.CompensationResult comp,

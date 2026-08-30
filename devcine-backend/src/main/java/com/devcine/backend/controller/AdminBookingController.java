@@ -3,9 +3,11 @@ package com.devcine.backend.controller;
 import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Booking;
 import com.devcine.backend.entity.Seat;
+import com.devcine.backend.entity.SeatIncident;
 import com.devcine.backend.repository.BookingFnbRepository;
 import com.devcine.backend.repository.BookingRepository;
 import com.devcine.backend.repository.BookingSeatRepository;
+import com.devcine.backend.repository.SeatIncidentRepository;
 import com.devcine.backend.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -33,6 +35,7 @@ public class AdminBookingController {
     private final BookingSeatRepository bookingSeatRepository;
     private final BookingFnbRepository bookingFnbRepository;
     private final TicketRepository ticketRepository;
+    private final SeatIncidentRepository seatIncidentRepository;
     private final com.devcine.backend.repository.ConcessionSaleRepository concessionSaleRepository;
     private final com.devcine.backend.repository.ConcessionSaleItemRepository concessionSaleItemRepository;
 
@@ -259,6 +262,10 @@ public class AdminBookingController {
             return tk;
         }).collect(Collectors.toList());
 
+        List<Map<String, Object>> relocations = seatIncidentRepository.findRelocationsByBookingId(id).stream()
+                .map(this::toRelocationSummary)
+                .collect(Collectors.toList());
+
         boolean hasCustomer = b.getCustomer() != null && b.getCustomer().getUser() != null;
         String cinemaName = (b.getShowtime().getRoom() != null && b.getShowtime().getRoom().getCinema() != null)
                 ? b.getShowtime().getRoom().getCinema().getName() : "DevCine Landmark 81";
@@ -301,7 +308,20 @@ public class AdminBookingController {
         dto.put("seats", seats);
         dto.put("fnbs", fnbs);
         dto.put("tickets", tickets);
+        dto.put("relocations", relocations);
         return ResponseEntity.ok(ApiResponse.ok(dto));
+    }
+
+    private Map<String, Object> toRelocationSummary(SeatIncident incident) {
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("incidentId", incident.getId());
+        summary.put("oldSeatLabel", nn(incident.getOldSeatLabel()));
+        summary.put("newSeatLabel", nn(incident.getNewSeatLabel()));
+        summary.put("reason", nn(incident.getReason()));
+        summary.put("createdAt", incident.getCreatedAt() != null ? incident.getCreatedAt().toString() : null);
+        summary.put("handledBy", incident.getHandledBy() != null && incident.getHandledBy().getUser() != null
+                ? incident.getHandledBy().getUser().getFullName() : "Quản trị viên");
+        return summary;
     }
 
     private ResponseEntity<?> getConcessionDetail(Integer saleId) {
