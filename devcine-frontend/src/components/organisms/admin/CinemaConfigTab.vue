@@ -148,6 +148,16 @@ const closeMinute = computed({
   }
 });
 
+const isOvernight = computed(() => {
+  const oh = parseInt(openHour.value || '8', 10);
+  const om = parseInt(openMinute.value || '0', 10);
+  const ch = parseInt(closeHour.value || '23', 10);
+  const cm = parseInt(closeMinute.value || '30', 10);
+  const openMin = (isNaN(oh) ? 8 : oh) * 60 + (isNaN(om) ? 0 : om);
+  const closeMin = (isNaN(ch) ? 23 : ch) * 60 + (isNaN(cm) ? 30 : cm);
+  return closeMin <= openMin;
+});
+
 // ===== Tiện ích: chip input (lưu canonical vào form.amenities dạng "a, b, c") =====
 const amenityDraft = ref('')
 const amenityChips = computed(() =>
@@ -323,8 +333,9 @@ const STATUS_META = {
           <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Giờ hoạt động</h4>
           <p class="text-[10px] text-on-surface-variant mt-0.5">Khung giờ mở cửa &amp; giờ bắt đầu suất chiếu muộn nhất hằng ngày</p>
         </div>
-        <span class="text-blue-400 text-xs font-black bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg">
+        <span class="text-blue-400 text-xs font-black bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
           {{ form.openingTime || '--:--' }} – {{ form.closingTime || '--:--' }}
+          <span v-if="isOvernight" class="text-amber-400 text-[10px] font-bold bg-amber-500/20 px-1.5 py-0.5 rounded leading-none">(+1 ngày)</span>
         </span>
       </header>
 
@@ -335,22 +346,46 @@ const STATUS_META = {
           <div class="p-4 rounded-xl bg-surface-container/60 border border-outline-variant/10 flex flex-col gap-2.5 relative z-30">
             <label class="text-xs font-black uppercase tracking-widest text-on-surface">Giờ mở cửa</label>
             
-            <div class="flex items-center gap-2 max-w-[220px]">
-              <CustomSelect v-model="openHour" :options="hourOptions" placeholder="Giờ" class="flex-1 min-w-0" />
+            <div class="flex items-center gap-2">
+              <div class="w-28 shrink-0">
+                <CustomSelect v-model="openHour" :options="hourOptions" placeholder="Giờ" />
+              </div>
               <span class="text-base font-black text-on-surface-variant/40 select-none">:</span>
-              <CustomSelect v-model="openMinute" :options="minuteOptions" placeholder="Phút" class="flex-1 min-w-0" />
+              <div class="w-28 shrink-0">
+                <CustomSelect v-model="openMinute" :options="minuteOptions" placeholder="Phút" />
+              </div>
             </div>
           </div>
 
           <!-- Box: Giờ bắt đầu suất cuối -->
           <div class="p-4 rounded-xl bg-surface-container/60 border border-outline-variant/10 flex flex-col gap-2.5 relative z-20">
-            <label class="text-xs font-black uppercase tracking-widest text-on-surface">Giờ bắt đầu suất cuối</label>
-            
-            <div class="flex items-center gap-2 max-w-[220px]">
-              <CustomSelect v-model="closeHour" :options="hourOptions" placeholder="Giờ" class="flex-1 min-w-0" />
-              <span class="text-base font-black text-on-surface-variant/40 select-none">:</span>
-              <CustomSelect v-model="closeMinute" :options="minuteOptions" placeholder="Phút" class="flex-1 min-w-0" />
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-xs font-black uppercase tracking-widest text-on-surface">Giờ bắt đầu suất cuối</label>
+              <span v-if="isOvernight" class="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                <span class="material-symbols-outlined text-xs leading-none">bedtime</span>
+                Rạng sáng hôm sau
+              </span>
             </div>
+            
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2 shrink-0">
+                <div class="w-28 shrink-0">
+                  <CustomSelect v-model="closeHour" :options="hourOptions" placeholder="Giờ" />
+                </div>
+                <span class="text-base font-black text-on-surface-variant/40 select-none">:</span>
+                <div class="w-28 shrink-0">
+                  <CustomSelect v-model="closeMinute" :options="minuteOptions" placeholder="Phút" />
+                </div>
+              </div>
+              <span v-if="isOvernight" class="text-xs text-on-surface-variant/60 italic select-none font-medium shrink-0">
+                (+1 ngày)
+              </span>
+            </div>
+
+            <p v-if="isOvernight" class="text-[11px] text-amber-300/90 flex items-center gap-1.5 mt-0.5">
+              <span class="material-symbols-outlined text-xs text-amber-400 shrink-0">info</span>
+              <span>Mốc giờ này được tính là rạng sáng ngày hôm sau (ca chiếu khuya của ngày vận hành).</span>
+            </p>
           </div>
 
         </div>
@@ -417,15 +452,15 @@ const STATUS_META = {
          khiến position:fixed bị "giam" trong panel thay vì neo theo viewport. -->
     <Teleport to="body">
       <transition name="fab">
-        <div v-if="isDirty" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 bg-surface-container-highest border border-outline-variant/20 shadow-2xl shadow-black/40 rounded-2xl pl-5 pr-3 py-3">
+        <div v-if="isDirty" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 bg-[#1e1e20] border border-outline-variant/40 shadow-[0_12px_40px_rgba(0,0,0,0.9)] ring-1 ring-white/10 rounded-2xl pl-5 pr-3 py-3">
           <span class="material-symbols-outlined text-amber-400 text-lg">edit_note</span>
           <span class="text-xs font-bold text-on-surface hidden sm:inline">Có thay đổi chưa lưu</span>
           <button @click="handleReset" :disabled="saving"
-            class="px-4 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all disabled:opacity-50">
+            class="px-4 py-2.5 rounded-xl border border-outline-variant/30 text-on-surface-variant text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all disabled:opacity-50">
             Hoàn tác
           </button>
           <button @click="saveConfig" :disabled="saving"
-            class="bg-primary text-on-primary font-black text-[10px] uppercase tracking-widest px-6 py-2.5 rounded-xl hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            class="bg-primary text-on-primary font-black text-[10px] uppercase tracking-widest px-6 py-2.5 rounded-xl hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20">
             <span v-if="saving" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
             <span v-else class="material-symbols-outlined text-sm">save</span>
             {{ saving ? 'Đang lưu...' : 'Lưu cấu hình' }}
