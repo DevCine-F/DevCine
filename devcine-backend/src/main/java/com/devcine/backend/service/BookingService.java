@@ -186,9 +186,18 @@ public class BookingService {
             throw new RuntimeException("Mỗi lần đặt tối đa " + maxTickets + " vé.");
         }
 
-        // Validate thời gian bán: chỉ cho mua trước giờ chiếu + khoảng trễ cho phép (10 phút sau giờ chiếu)
+        // Validate thời gian bán: chỉ cho mua trước giờ chiếu + khoảng trễ cho phép (lateMinutes sau giờ chiếu)
+        // Ngoại lệ: Nếu đây là đơn chuyển tiếp từ một đơn giữ chỗ (heldBooking) ĐÃ ĐƯỢC TẠO HỢP LỆ trong khung giờ và CHƯA HẾT HẠN giữ chỗ,
+        // thì vẫn cho phép tiếp tục hoàn tất.
         int lateMinutes = systemSettingService.getBookingLateMinutes();
-        if (showtime.getStartTime() != null
+        boolean isContinuationOfValidHold = oldBooking != null
+                && oldBooking.getExpiresAt() != null
+                && oldBooking.getExpiresAt().isAfter(LocalDateTime.now())
+                && (showtime.getStartTime() == null || oldBooking.getCreatedAt() == null
+                    || !oldBooking.getCreatedAt().isAfter(showtime.getStartTime().plusMinutes(lateMinutes)));
+
+        if (!isContinuationOfValidHold
+                && showtime.getStartTime() != null
                 && LocalDateTime.now().isAfter(showtime.getStartTime().plusMinutes(lateMinutes))) {
             throw new RuntimeException("Suất chiếu đã quá giờ cho phép đặt vé (quá " + lateMinutes + " phút sau khi bắt đầu).");
         }
@@ -251,13 +260,9 @@ public class BookingService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime expiresAt = now.plusMinutes(holdMinutes);
-        LocalDateTime maxBookingTime = showtime.getStartTime() != null
-                ? showtime.getStartTime().plusMinutes(lateMinutes)
-                : null;
-        if (maxBookingTime != null && maxBookingTime.isBefore(expiresAt)) {
-            expiresAt = maxBookingTime;
-        }
+        LocalDateTime expiresAt = isContinuationOfValidHold && oldBooking != null && oldBooking.getExpiresAt() != null
+                ? oldBooking.getExpiresAt()
+                : now.plusMinutes(holdMinutes);
 
         Booking booking = Booking.builder()
                 .customer(customer)

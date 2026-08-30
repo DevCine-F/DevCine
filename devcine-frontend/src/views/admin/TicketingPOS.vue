@@ -69,6 +69,8 @@ const bankInfo = ref({ code: '', name: '', accountNo: '', accountName: '' })
 const maxTicketsPerBooking = ref(8)
 const showCashModal = ref(false)
 const showQrModal = ref(false)
+const qrBookingId = ref(null)
+const qrHoldLoading = ref(false)
 const cashGiven = ref(0)
 
 const error = ref('')
@@ -1303,9 +1305,53 @@ const openCashModal = () => {
   cashGiven.value = 0
   showCashModal.value = true
 }
-const openQrModal = () => {
+const openQrModal = async () => {
   if (!checkoutReady()) return
-  showQrModal.value = true
+  if (isPaying.value || isHolding.value || qrHoldLoading.value) return
+  
+  if (saleMode.value === 'FNB') {
+    showQrModal.value = true
+    return
+  }
+
+  qrHoldLoading.value = true
+  try {
+    const payload = {
+      showtimeId: selectedShowtime.value.id,
+      seatIds: selectedSeats.value.map(s => s.seatId),
+      seatSelections: selectedSeats.value.map(s => ({ seatId: s.seatId, ticketType: s.ticketType || 'ADULT' })),
+      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
+      customerId: member.value ? member.value.customerId : null,
+      voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
+      paymentMethod: 'TRANSFER',
+      heldBookingId: restoredBookingId.value,
+      allowOrphan: canOverrideOrphan.value && allowOrphan.value
+    }
+    const { data } = await ticketingApi.hold(payload)
+    const resData = data.data ?? data
+    qrBookingId.value = resData.bookingId
+    restoredBookingId.value = resData.bookingId
+    showQrModal.value = true
+  } catch (err) {
+    const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || ''
+    showToast(friendlyError(err, errMsg || 'Không thể tạo đơn giữ chỗ.'), 'error')
+  } finally {
+    qrHoldLoading.value = false
+  }
+}
+
+const closeQrModal = async () => {
+  showQrModal.value = false
+  if (qrBookingId.value) {
+    const idToRelease = qrBookingId.value
+    qrBookingId.value = null
+    if (restoredBookingId.value === idToRelease) {
+      restoredBookingId.value = null
+    }
+    try {
+      await ticketingApi.releaseHold(idToRelease)
+    } catch (_) {}
+  }
 }
 
 const checkMemberCard = async () => {
@@ -1372,7 +1418,7 @@ const selectedOwnedVoucher = computed(() =>
 const selectVoucher = (v) => { voucherCodeInput.value = v.code; showVoucherDropdown.value = false }
 
 const processPayment = async (method) => {
-  if (isHolding.value || isPaying.value) return
+  if (isHolding.value || isPaying.value || qrHoldLoading.value) return
   if (saleMode.value === 'FNB') return processConcessionPayment(method)
   if (selectedSeats.value.length === 0) {
     showToast('Chưa chọn ghế.', 'error')
@@ -1389,21 +1435,27 @@ const processPayment = async (method) => {
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method,
-      heldBookingId: restoredBookingId.value,
+      heldBookingId: qrBookingId.value || restoredBookingId.value,
       allowOrphan: canOverrideOrphan.value && allowOrphan.value // chỉ ADMIN/MANAGER mới gửi cờ (BE cũng gate lại theo vai trò)
     }
     
     if (method === 'TRANSFER') {
-      const holdRes = await ticketingApi.hold(payload)
-      const bookingId = holdRes.data.bookingId
+      let bookingId = qrBookingId.value || restoredBookingId.value
+      if (!bookingId) {
+        const holdRes = await ticketingApi.hold(payload)
+        const resData = holdRes.data?.data ?? holdRes.data
+        bookingId = resData.bookingId
+      }
       await ticketingApi.mockWebhookSuccess(bookingId)
       const bookingRes = await bookingAdminApi.detail(bookingId)
       completedBooking.value = bookingRes.data.data ?? bookingRes.data
     } else {
       const { data } = await ticketingApi.pay(payload)
-      completedBooking.value = data
+      completedBooking.value = data.data ?? data
     }
     
+    qrBookingId.value = null
+    restoredBookingId.value = null
     stopHoldTimer()
     stopSeatPolling()
     showCashModal.value = false
@@ -1549,6 +1601,8 @@ const resetPOS = () => {
   fnbStep.value = 1
   showCashModal.value = false
   showQrModal.value = false
+  qrBookingId.value = null
+  qrHoldLoading.value = false
   showMobileReceiptDrawer.value = false
   cashGiven.value = 0
   clearVoucherState()
@@ -2121,11 +2175,13 @@ onUnmounted(() => {
               </div>
 
               <div class="grid grid-cols-2 gap-4">
-                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openCashModal" :disabled="isPaying">
+                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openCashModal" :disabled="isPaying || qrHoldLoading">
                   <span class="material-symbols-outlined">payments</span> Tiền mặt
                 </AppButton>
-                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openQrModal" :disabled="isPaying">
-                  <span class="material-symbols-outlined">qr_code_2</span> Chuyển khoản QR
+                <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openQrModal" :disabled="isPaying || qrHoldLoading">
+                  <span v-if="qrHoldLoading" class="material-symbols-outlined animate-spin">progress_activity</span>
+                  <span v-else class="material-symbols-outlined">qr_code_2</span>
+                  {{ qrHoldLoading ? 'Đang tạo đơn...' : 'Chuyển khoản QR' }}
                 </AppButton>
               </div>
               <p v-if="isPaying" class="text-center text-xs text-on-surface-variant">Đang xử lý thanh toán...</p>
@@ -2327,11 +2383,13 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                  <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openCashModal" :disabled="isPaying">
+                  <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openCashModal" :disabled="isPaying || qrHoldLoading">
                     <span class="material-symbols-outlined">payments</span> Tiền mặt
                   </AppButton>
-                  <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openQrModal" :disabled="isPaying">
-                    <span class="material-symbols-outlined">qr_code_2</span> Chuyển khoản QR
+                  <AppButton variant="outline" class="flex flex-col gap-1 py-6" @click="openQrModal" :disabled="isPaying || qrHoldLoading">
+                    <span v-if="qrHoldLoading" class="material-symbols-outlined animate-spin">progress_activity</span>
+                    <span v-else class="material-symbols-outlined">qr_code_2</span>
+                    {{ qrHoldLoading ? 'Đang tạo đơn...' : 'Chuyển khoản QR' }}
                   </AppButton>
                 </div>
                 <p v-if="isPaying" class="text-center text-xs text-on-surface-variant">Đang xử lý thanh toán...</p>
@@ -2615,7 +2673,7 @@ onUnmounted(() => {
 
     <!-- Modal: Chuyển khoản QR (VietQR) -->
     <transition name="fade">
-      <div v-if="showQrModal" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showQrModal = false">
+      <div v-if="showQrModal" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="closeQrModal">
         <div class="w-full max-w-lg bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden">
           <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center gap-3">
             <span class="material-symbols-outlined text-primary">qr_code_2</span>
@@ -2649,7 +2707,7 @@ onUnmounted(() => {
           </div>
 
           <div class="px-7 py-5 border-t border-outline-variant/10 flex gap-3">
-            <AppButton variant="ghost" class="flex-1" @click="showQrModal = false">Hủy</AppButton>
+            <AppButton variant="ghost" class="flex-1" @click="closeQrModal" :disabled="isPaying">Hủy</AppButton>
             <AppButton variant="primary" class="flex-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all" :disabled="!cleanQrUrl || isPaying || isHolding" @click.stop.prevent="processPayment('TRANSFER')">
               <span v-if="isPaying" class="material-symbols-outlined text-base animate-spin mr-1 align-middle">progress_activity</span>
               {{ isPaying ? 'Đang xử lý...' : 'Xác nhận đã chuyển khoản' }}
