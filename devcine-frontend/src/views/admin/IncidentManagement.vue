@@ -5,10 +5,12 @@ import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
 import { friendlyError } from '@/utils/friendlyError'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
+import { useAuthStore } from '@/stores/auth'
 import SeatGridRenderer from '@/components/common/SeatGridRenderer.vue'
 
 const toast = useToastStore()
 const confirm = useConfirmStore()
+const auth = useAuthStore()
 
 // ===== Tabs =====
 const activeTab = ref('handle') // 'handle' | 'history'
@@ -27,8 +29,13 @@ const loadingMap = ref(false)
 const mode = ref('relocate')   // chỉ còn 'relocate'
 const swaps = ref({})          // oldSeatId -> newSeatId
 const activeSource = ref(null) // oldSeatId đang chờ gán ghế đích
-const lockOldSeatsAsMaintenance = ref(true) // VẤN ĐỀ 1: Tự động khóa bảo trì ghế cũ
-const SEAT_RANK = { NORMAL: 0, VIP: 1, SWEETBOX: 2 } // VẤN ĐỀ 3: Thứ hạng ghế để phát hiện hạ hạng
+const lockOldSeatsAsMaintenance = ref(true) // Tự động khóa bảo trì ghế cũ
+const SEAT_RANK = { NORMAL: 0, VIP: 1, SWEETBOX: 2 } // Thứ hạng ghế để phát hiện hạ hạng
+
+// ===== Ngoại lệ ghế lẻ (Orphan Override) =====
+// Chỉ ADMIN/MANAGER mới được bật — BE cũng gate lại theo vai trò
+const allowOrphan = ref(false)
+const canOverrideOrphan = computed(() => auth.isAdmin || auth.isManager)
 
 // ===== Đền bù =====
 const compOptions = ref([])
@@ -102,9 +109,18 @@ const seatById = computed(() => {
   return m
 })
 const chosenDest = computed(() => new Set(Object.values(swaps.value)))
-const started = computed(() => ctx.value?.showtime?.started === true)
-// expired: suất chiếu đã kết thúc quá 2 giờ → chặn toàn bộ thao tác xử lý sự cố
-const expired = computed(() => ctx.value?.showtime?.expired === true)
+const showtimeStatus = computed(() => {
+  const showtime = ctx.value?.showtime
+  if (showtime?.status) return showtime.status
+  if (showtime?.expired === true) return 'EXPIRED'
+  if (showtime?.ended === true) return 'ENDED'
+  if (showtime?.started === true) return 'IN_PROGRESS'
+  return 'UPCOMING'
+})
+const inProgress = computed(() => showtimeStatus.value === 'IN_PROGRESS')
+const ended = computed(() => showtimeStatus.value === 'ENDED')
+const expired = computed(() => showtimeStatus.value === 'EXPIRED')
+const canRelocate = computed(() => showtimeStatus.value === 'UPCOMING' || inProgress.value)
 
 const visibleCompOptions = computed(() =>
   compOptions.value.filter(o => !o.cancelOnly))
@@ -113,7 +129,7 @@ const selectedSwaps = computed(() =>
   Object.entries(swaps.value).filter(([, dest]) => dest != null)
     .map(([oldSeatId, newSeatId]) => ({ oldSeatId: Number(oldSeatId), newSeatId })))
 
-const canSubmitRelocate = computed(() => selectedSwaps.value.length > 0 && !started.value && !expired.value)
+const canSubmitRelocate = computed(() => selectedSwaps.value.length > 0 && canRelocate.value)
 
 // ================= Tra cứu =================
 async function doLookup(preserveResult = false) {
@@ -180,12 +196,13 @@ function resetWorkspace(preserveResult = false) {
   compChoice.value = 'NONE'
   compNote.value = ''
   lockOldSeatsAsMaintenance.value = true
+  allowOrphan.value = false
   if (!preserveResult) {
     result.value = null
   }
 }
 
-// ================= Tương tác sơ đồ & Chặn ghế lẻ (Lotte Proactive Locking) =================
+// ================= Tương tác sơ đồ & Chặn ghế lẻ =================
 function isSeatMaintenance(cell) {
   if (!cell) return false
   return cell.status === 'MAINTENANCE' || cell.status === 'LOCKED' ||
@@ -222,8 +239,11 @@ const currentTargetSize = computed(() => {
   return isCoupleSeat(currentTargetSeat.value) ? 2 : 1
 })
 
+// FIX NGỮ NGHĨA: ghế có thể dùng làm đích = AVAILABLE + không phải đích đã chọn + không phải ghế của đơn
+// (ghế nguồn của đơn sẽ bị khóa sau khi đổi nên không tính là ô trống)
 const isSeatFreeForRelocate = (s) =>
-  !!s && s.status === 'AVAILABLE' && !isSeatMaintenance(s) && !chosenDest.value.has(s.seatId)
+  !!s && s.status === 'AVAILABLE' && !isSeatMaintenance(s) &&
+  !chosenDest.value.has(s.seatId) && !bookingSeatIds.value.has(s.seatId)
 
 const WALL_SLOT = Object.freeze({ state: 'WALL', w: 1 })
 
@@ -246,8 +266,10 @@ const seatRowSlots = computed(() => {
 
     for (const c of cells) {
       if (c.kind === 'AISLE') continue
+      // FIX: ghế của đơn đang xử lý sẽ trở thành rào cản sau khi đổi → treat như BUSY
+      const isFree = isSeatFreeForRelocate(c)
       slots[c.gridCol] = {
-        state: isSeatFreeForRelocate(c) ? 'FREE' : 'BUSY',
+        state: isFree ? 'FREE' : 'BUSY',
         w: isCoupleSeat(c) ? 2 : 1,
         cell: c,
       }
@@ -338,9 +360,11 @@ const snapBlockAt = (anchorCell) => {
   return safe[0].seats
 }
 
-const unselectableSeatIds = computed(() => {
+// Ghế đích mà nếu chọn sẽ để lại orphan (không có snap an toàn)
+// → Đây là "orphan dest" — hiển thị khoanh đỏ nhạt thay vì dấu X
+const orphanDestIds = computed(() => {
   const ids = new Set()
-  if (!currentTargetSize.value || started.value || expired.value) return ids
+  if (!currentTargetSize.value || !canRelocate.value) return ids
 
   for (const slots of seatRowSlots.value.values()) {
     for (const e of slots) {
@@ -351,17 +375,28 @@ const unselectableSeatIds = computed(() => {
   return ids
 })
 
-const isSeatUnselectable = (seat) => !!seat && unselectableSeatIds.value.has(seat.seatId)
+// isSeatUnselectable: chặn cứng (X) chỉ khi !allowOrphan
+// khi allowOrphan = true → không truyền prop này → SeatGridRenderer không render X
+const isSeatUnselectable = computed(() => {
+  if (allowOrphan.value) return null // tắt hẳn chặn cứng khi đã bật ngoại lệ
+  return (seat) => !!seat && orphanDestIds.value.has(seat.seatId)
+})
+
+// isOrphanDest: dùng để tô khoanh đỏ qua customSeatClass (cả khi allowOrphan = true)
+const isOrphanDest = (seat) => !!seat && orphanDestIds.value.has(seat.seatId)
+
+// Tổng số ghế orphan hiện có (để hiện cảnh báo)
+const hasOrphanDest = computed(() => orphanDestIds.value.size > 0 && canRelocate.value)
 
 // customSeatClass: trả về class CSS đặc biệt cho incident mode
-// Trả về null để SeatGridRenderer dùng logic mặc định (màu VIP/Sweetbox/Standard/Unselectable)
 function incidentSeatClass(seat) {
   if (!seat || seat.kind === 'AISLE' || seat.seatId == null) return null
 
-  const isCanInteract = !started.value && !expired.value
+  const isCanInteract = canRelocate.value
   const isSource = bookingSeatIds.value.has(seat.seatId)
-  const isDest = !started.value && !expired.value && chosenDest.value.has(seat.seatId)
+  const isDest = canRelocate.value && chosenDest.value.has(seat.seatId)
   const isMaint = isSeatMaintenance(seat)
+  const isOrphan = canRelocate.value && isOrphanDest(seat)
 
   const isDouble = isCoupleSeat(seat)
   const sizeClass = isDouble
@@ -392,8 +427,17 @@ function incidentSeatClass(seat) {
     return `${base} bg-gradient-to-br from-green-400 to-green-600 border-green-300 text-white cursor-pointer shadow-[0_0_20px_rgba(34,197,94,0.5)] scale-[1.02] z-10`
   }
 
-  // 3. Trả về null để SeatGridRenderer xử lý theo logic mặc định
-  // (VIP đỏ, Sweetbox tím, Standard xám, SOLD mờ, MAINTENANCE xám red, UNSELECTABLE có dấu X)
+  // 3. Ghế sẽ để lại orphan nếu chọn → khoanh đỏ nhạt (kiểu POS)
+  //    Nếu allowOrphan=false → pointer-events-none (SeatGridRenderer cũng chặn qua isSeatUnselectable)
+  //    Nếu allowOrphan=true  → cursor-pointer (nhân viên chủ ý override)
+  if (isOrphan && seat.status === 'AVAILABLE' && !isMaint) {
+    const cursorCls = allowOrphan.value
+      ? 'cursor-pointer hover:bg-red-500/40'
+      : 'cursor-not-allowed pointer-events-none'
+    return `${base} relative bg-red-500/20 border-2 border-dashed border-red-400/70 text-red-300 ${cursorCls}`
+  }
+
+  // 4. Trả về null để SeatGridRenderer xử lý theo logic mặc định
   return null
 }
 
@@ -402,12 +446,15 @@ function incidentSeatTitle(seat) {
   if (!seat || seat.seatId == null) return ''
   const isMaint = isSeatMaintenance(seat)
   const typeLbl = seatTypeLabel(seat.seatType)
-  if (isMaint) return `Ghế ${seat.label} (${typeLbl} · Bảo trì / khóa)${!started.value && !expired.value ? ' — Chuột phải để mở lại' : ''}`
+  if (isMaint) return `Ghế ${seat.label} (${typeLbl} · Bảo trì / khóa)${!expired.value ? ' — Chuột phải để mở lại' : ''}`
   if (bookingSeatIds.value.has(seat.seatId)) return `Ghế ${seat.label} (${typeLbl} · Ghế của đơn đang xử lý)`
-  if (!started.value && !expired.value && chosenDest.value.has(seat.seatId)) return `Ghế ${seat.label} (${typeLbl} · Ghế đích đã chọn)`
-  if (isSeatUnselectable(seat)) return `Ghế ${seat.label} (${typeLbl} · Không thể chọn vì sẽ để lại ghế trống đơn lẻ)`
+  if (canRelocate.value && chosenDest.value.has(seat.seatId)) return `Ghế ${seat.label} (${typeLbl} · Ghế đích đã chọn)`
+  if (canRelocate.value && isOrphanDest(seat)) {
+    if (allowOrphan.value) return `Ghế ${seat.label} (${typeLbl} · ⚠ Sẽ để lại 1 ghế trống lẻ — ngoại lệ đang bật)`
+    return `Ghế ${seat.label} (${typeLbl} · Không thể chọn: sẽ để lại ghế trống đơn lẻ)`
+  }
   if (seat.status === 'AVAILABLE') {
-    if (started.value || expired.value) return `Ghế ${seat.label} (${typeLbl} · Trống)`
+    if (expired.value) return `Ghế ${seat.label} (${typeLbl} · Trống)`
     return `Ghế ${seat.label} (${typeLbl} · Trống) — Chuột phải để khóa bảo trì`
   }
   return `Ghế ${seat.label} (${typeLbl} · Đã bán)`
@@ -421,7 +468,7 @@ function incidentBypassClick(seat) {
 
 function onSeatClick(cell) {
   if (!cell || cell.kind === 'AISLE' || cell.seatId == null) return
-  if (started.value || expired.value) return // Khi suất đã bắt đầu hoặc hết hạn: chặn click chọn trên sơ đồ ghế
+  if (!canRelocate.value) return
 
   const isSource = bookingSeatIds.value.has(cell.seatId)
   if (isSource) {
@@ -435,10 +482,21 @@ function onSeatClick(cell) {
     if (src) { delete swaps.value[src]; swaps.value = { ...swaps.value } }
     return
   }
-  if (isSeatUnselectable(cell)) {
-    toast.warning('Không thể chọn vị trí này vì sẽ để lại 1 ghế trống đơn lẻ.')
-    return
+
+  // Ghế sẽ để lại orphan
+  if (isOrphanDest(cell) && cell.status === 'AVAILABLE' && !isSeatMaintenance(cell)) {
+    if (!allowOrphan.value) {
+      if (canOverrideOrphan.value) {
+        toast.warning('Vị trí này sẽ để lại 1 ghế trống lẻ. Bật "Cho phép lẻ ghế" để tiếp tục.')
+      } else {
+        toast.warning('Không thể chọn vị trí này vì sẽ để lại 1 ghế trống đơn lẻ.')
+      }
+      return
+    }
+    // allowOrphan = true → cho phép, tiếp tục xuống dưới
+    toast.warning('⚠ Lưu ý: vị trí này sẽ để lại 1 ghế trống lẻ bên cạnh (ngoại lệ đã được bật).')
   }
+
   if (cell.status === 'AVAILABLE' && !isSeatMaintenance(cell) && mode.value === 'relocate') {
     let sourceId = activeSource.value
     if (sourceId == null) {
@@ -451,7 +509,7 @@ function onSeatClick(cell) {
       }
     }
 
-    // VẤN ĐỀ 3 FIX: Kiểm tra không cho đổi giữa ghế đơn và ghế đôi Sweetbox
+    // Kiểm tra không cho đổi giữa ghế đơn và ghế đôi Sweetbox
     const sourceSeat = soldSeats.value.find(s => s.seatId === sourceId)
     if (sourceSeat && isCoupleSeat(sourceSeat) !== isCoupleSeat(cell)) {
       toast.warning('Không thể đổi giữa ghế đơn và ghế đôi Sweetbox. Vui lòng chọn cùng loại ghế.')
@@ -464,7 +522,7 @@ function onSeatClick(cell) {
 }
 
 function onSourceClick(seatId) {
-  if (started.value || expired.value) return
+  if (!canRelocate.value) return
   activeSource.value = activeSource.value === seatId ? null : seatId
 }
 
@@ -485,6 +543,10 @@ function onSeatContextMenu(cell) {
 
 // ================= Khóa / Mở ghế bảo trì =================
 async function toggleSeatMaintenance(seat) {
+  if (expired.value) {
+    toast.warning('Đã hết cửa sổ xử lý sự cố. Chỉ có thể xem thông tin.')
+    return
+  }
   const seatId = seat.seatId || seat.id
   const cell = seatById.value.get(seatId)
   const isMaint = isSeatMaintenance(cell) || seat.seatStatus === 'MAINTENANCE'
@@ -524,16 +586,18 @@ function buildCompensation() {
 async function submitRelocate() {
   if (!canSubmitRelocate.value) { toast.warning('Chọn ít nhất một cặp đổi ghế.'); return }
 
-  // Kiểm tra an toàn 1: đảm bảo không có ghế đích nào để lại ghế lẻ
-  for (const swap of selectedSwaps.value) {
-    const destSeat = seatById.value.get(swap.newSeatId)
-    if (destSeat && isSeatUnselectable(destSeat)) {
-      toast.warning(`Ghế đích ${destSeat.label} vi phạm quy định chặn ghế lẻ. Vui lòng chọn ghế khác.`)
-      return
+  // Kiểm tra an toàn 1: đảm bảo không có ghế đích nào để lại orphan ngoài ý muốn
+  if (!allowOrphan.value) {
+    for (const swap of selectedSwaps.value) {
+      const destSeat = seatById.value.get(swap.newSeatId)
+      if (destSeat && isOrphanDest(destSeat)) {
+        toast.warning(`Ghế đích ${destSeat.label} sẽ để lại ghế trống lẻ. Bật "Cho phép lẻ ghế" hoặc chọn ghế khác.`)
+        return
+      }
     }
   }
 
-  // Kiểm tra an toàn 2: VẤN ĐỀ 3 FIX - Chặn đổi chéo ghế đơn và ghế đôi
+  // Kiểm tra an toàn 2: Chặn đổi chéo ghế đơn và ghế đôi
   for (const swap of selectedSwaps.value) {
     const oldS = soldSeats.value.find(s => s.seatId === swap.oldSeatId)
     const newS = seatById.value.get(swap.newSeatId)
@@ -543,7 +607,7 @@ async function submitRelocate() {
     }
   }
 
-  // Kiểm tra an toàn 3: VẤN ĐỀ 3 FIX - Bắt buộc đền bù khi hạ hạng ghế
+  // Kiểm tra an toàn 3: Bắt buộc đền bù khi hạ hạng ghế
   const hasDowngrade = selectedSwaps.value.some(s => {
     const oldS = soldSeats.value.find(seat => seat.seatId === s.oldSeatId)
     const newS = seatById.value.get(s.newSeatId)
@@ -556,10 +620,14 @@ async function submitRelocate() {
     return
   }
 
+  // Cảnh báo bổ sung khi gửi với allowOrphan = true
+  const sendingWithOrphan = allowOrphan.value && canOverrideOrphan.value &&
+    selectedSwaps.value.some(s => isOrphanDest(seatById.value.get(s.newSeatId)))
+
   const lines = selectedSwaps.value.map(s => `${seatById.value.get(s.oldSeatId)?.label || s.oldSeatId} → ${seatById.value.get(s.newSeatId)?.label || s.newSeatId}`).join(', ')
   const ok = await confirm.show({
     title: 'Xác nhận đổi ghế',
-    message: `Đổi ghế: ${lines}. ${compChoice.value !== 'NONE' ? 'Sẽ phát đền bù kèm theo.' : 'Không phát đền bù.'}${lockOldSeatsAsMaintenance.value ? ' Ghế cũ sẽ được tự động khóa bảo trì.' : ''}`,
+    message: `Đổi ghế: ${lines}. ${compChoice.value !== 'NONE' ? 'Sẽ phát đền bù kèm theo.' : 'Không phát đền bù.'}${lockOldSeatsAsMaintenance.value ? ' Ghế cũ sẽ được tự động khóa bảo trì.' : ''}${sendingWithOrphan ? '\n⚠ Cảnh báo: sẽ để lại 1 ghế trống lẻ (ngoại lệ quản lý).' : ''}`,
     confirmText: 'Đổi & in lại', tone: 'primary'
   })
   if (!ok) return
@@ -570,7 +638,7 @@ async function submitRelocate() {
       swaps: selectedSwaps.value,
       compensation: buildCompensation(),
       reason: compNote.value || null,
-      allowOrphan: false,
+      allowOrphan: canOverrideOrphan.value && allowOrphan.value, // chỉ ADMIN/MANAGER gửi true
       lockOldSeatsAsMaintenance: lockOldSeatsAsMaintenance.value
     })
     result.value = data.data ?? data
@@ -611,7 +679,6 @@ function switchTab(tab) {
 
 const fmtPrice = (n) => (n != null ? Number(n).toLocaleString('vi-VN') + 'đ' : '0đ')
 const fmtTime = (s) => (s ? new Date(s).toLocaleString('vi-VN') : '')
-// BUG-12 FIX: Thêm label cho EMERGENCY_CLOSURE
 const typeLabel = (t) => ({ RELOCATE: 'Đổi ghế', CANCEL: 'Hủy chỗ', SEAT_MAINTENANCE: 'Khóa ghế', EMERGENCY_CLOSURE: 'Đóng cửa khẩn cấp' }[t] || t)
 const compLabel = (t) => ({ NONE: '—', DISCOUNT: 'Voucher giảm', GIFT_FNB: 'Quà F&B', GIFT_TICKET: 'Vé mời' }[t] || t)
 
@@ -683,7 +750,7 @@ onMounted(async () => {
         </div>
 
         <!-- Vé đang xử lý -->
-        <div v-if="ctx && !expired" class="bg-surface-container-high rounded-2xl p-4 border border-outline-variant/10 flex flex-col gap-3">
+        <div v-if="ctx" class="bg-surface-container-high rounded-2xl p-4 border border-outline-variant/10 flex flex-col gap-3">
           <div class="flex items-center justify-between">
             <span class="font-black text-on-surface">#{{ ctx.bookingCode }}</span>
             <span :class="['text-[10px] font-bold px-2 py-0.5 rounded uppercase', ctx.channel === 'POS' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300']">{{ ctx.channel }}</span>
@@ -698,10 +765,13 @@ onMounted(async () => {
           </div>
 
           <div v-if="expired" class="text-[11px] font-semibold text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
-            ⛔ Suất chiếu đã kết thúc — đã qua cửa sổ xử lý sự cố (2 giờ sau khi chiếu xong). Không thể thực hiện thao tác.
+            ⛔ Đã hết cửa sổ xử lý sự cố (2 giờ sau khi chiếu xong). Màn hình chỉ cho phép xem.
           </div>
-          <div v-else-if="started" class="text-[11px] font-semibold text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
-            ⚠ Suất đã bắt đầu — không thể đổi ghế.
+          <div v-else-if="ended" class="text-[11px] font-semibold text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+            ⛔ Suất chiếu đã kết thúc — không thể đổi ghế. Vẫn có thể khóa ghế hỏng trong cửa sổ xử lý sự cố.
+          </div>
+          <div v-else-if="inProgress" class="text-[11px] font-semibold text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
+            ⚠ Suất đang chiếu — chỉ đổi ghế khi phát sinh sự cố thực tế.
           </div>
           <div v-if="!ctx.hasCustomer" class="text-[11px] font-semibold text-blue-300 bg-blue-500/10 rounded-lg px-3 py-2">
             ℹ Khách vãng lai — đền trực tiếp tại quầy, hệ thống không phát voucher điện tử (chỉ ghi vết).
@@ -719,13 +789,14 @@ onMounted(async () => {
                     <span class="material-symbols-outlined text-[11px]">build</span> Bảo trì
                   </span>
                 </div>
-                <button @click="toggleSeatMaintenance(s)" :title="isSeatMaintenance(seatById.get(s.seatId)) ? 'Mở khóa ghế này' : 'Báo hỏng ghế này (bảo trì)'"
-                        :class="['flex items-center p-1 rounded transition-colors', isSeatMaintenance(seatById.get(s.seatId)) ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' : 'text-red-400 hover:text-red-300 hover:bg-red-400/10']">
+                <button @click="toggleSeatMaintenance(s)" :disabled="expired"
+                        :title="expired ? 'Đã hết cửa sổ xử lý sự cố' : (isSeatMaintenance(seatById.get(s.seatId)) ? 'Mở khóa ghế này' : 'Báo hỏng ghế này (bảo trì)')"
+                        :class="['flex items-center p-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed', isSeatMaintenance(seatById.get(s.seatId)) ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' : 'text-red-400 hover:text-red-300 hover:bg-red-400/10']">
                   <span class="material-symbols-outlined text-lg">{{ isSeatMaintenance(seatById.get(s.seatId)) ? 'lock_open' : 'build' }}</span>
                 </button>
               </div>
-              <!-- Relocate: hiển thị đích (chỉ hiển thị khi suất chiếu chưa bắt đầu) -->
-              <div v-if="mode === 'relocate' && !started && !expired" class="flex items-center justify-between mt-2 text-xs">
+              <!-- Relocate: cho phép trước giờ chiếu và trong lúc suất đang diễn ra -->
+              <div v-if="mode === 'relocate' && canRelocate" class="flex items-center justify-between mt-2 text-xs">
                 <button @click="onSourceClick(s.seatId)"
                         :class="['px-2 py-1 rounded font-semibold', activeSource === s.seatId ? 'bg-blue-500 text-white' : 'bg-blue-900/40 text-blue-200']">
                   {{ activeSource === s.seatId ? 'Chọn ghế đích trên sơ đồ →' : 'Chọn' }}
@@ -740,7 +811,7 @@ onMounted(async () => {
           </div>
 
           <!-- Đền bù -->
-          <div class="border-t border-outline-variant/10 pt-3 space-y-2.5">
+          <div v-if="canRelocate" class="border-t border-outline-variant/10 pt-3 space-y-2.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đền bù & Tùy chọn</label>
             <select v-model="compChoice" class="w-full py-2 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none focus:border-primary">
               <option value="NONE">Không đền bù</option>
@@ -751,7 +822,7 @@ onMounted(async () => {
             <input v-model="compNote" placeholder="Lý do / ghi chú (vd: ghế lỗi tựa lưng)" maxlength="255"
                    class="w-full py-2 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface text-sm outline-none focus:border-primary" />
 
-            <!-- VẤN ĐỀ 1: Cờ tự động khóa bảo trì ghế cũ -->
+            <!-- Cờ tự động khóa bảo trì ghế cũ -->
             <label class="flex items-center gap-2 select-none cursor-pointer bg-surface/60 px-3 py-2 rounded-lg border border-outline-variant/10 text-xs hover:bg-surface transition-colors">
               <input type="checkbox" v-model="lockOldSeatsAsMaintenance" class="rounded border-outline-variant/40 text-primary focus:ring-primary h-4 w-4 bg-surface" />
               <span class="text-on-surface-variant">
@@ -793,7 +864,7 @@ onMounted(async () => {
               </div>
             </div>
             <p v-if="result.emailResent" class="flex items-center gap-1 text-green-300/80">
-              <span class="material-symbols-outlined text-xs">mark_email_read</span> Đã gửi lại email xác nhận cho khách.
+              <span class="material-symbols-outlined text-xs">mark_email_read</span> Đã xếp hàng gửi lại email xác nhận cho khách.
             </p>
           </div>
         </div>
@@ -815,12 +886,18 @@ onMounted(async () => {
               <p class="text-sm font-bold text-on-surface">{{ ctx?.showtime?.roomName }}</p>
               <p class="text-[11px] text-on-surface-variant">{{ ctx?.showtime?.movieTitle }}</p>
             </div>
-            <div v-if="started && !expired" class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-[14px]">lock</span> Chỉ xem — suất đã bắt đầu
+            <div v-if="expired" class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">lock</span> Chỉ xem — hết cửa sổ xử lý
+            </div>
+            <div v-else-if="ended" class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">lock</span> Chỉ xem — suất đã kết thúc
+            </div>
+            <div v-else-if="inProgress" class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">movie</span> Đang chiếu — cho phép xử lý sự cố
             </div>
           </div>
 
-          <!-- SeatGridRenderer: dùng đúng component của POS/Cinema -->
+          <!-- SeatGridRenderer -->
           <div class="flex-grow min-h-0 overflow-auto flex items-start justify-center">
             <SeatGridRenderer
               :seats="seatMap.seats"
@@ -828,7 +905,7 @@ onMounted(async () => {
               :matrix-col="seatMap.matrixCol"
               mode="pos"
               size="compact"
-              :readonly="false"
+              :readonly="ended || expired"
               show-screen
               screen-title="MÀN HÌNH CHÍNH"
               show-row-labels
@@ -841,42 +918,75 @@ onMounted(async () => {
             />
           </div>
 
-          <!-- Chú thích (legend) - matching POS design -->
-          <div class="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant shrink-0 pt-2 border-t border-outline-variant/10">
-            <span class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-blue-900/60 border border-blue-500/70"></span>
-              Ghế của đơn
-            </span>
-            <span v-if="!started && !expired" class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-green-400 to-green-600"></span>
-              Ghế đích
-            </span>
-            <span class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-slate-800/80 border border-slate-600/50"></span>
-              Thường
-            </span>
-            <span class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50"></span>
-              VIP
-            </span>
-            <span class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50"></span>
-              Sweetbox
-            </span>
-            <span class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500">
-                <span class="material-symbols-outlined text-[8px]">build</span>
+          <!-- Thanh dưới: cảnh báo + toggle allowOrphan + legend -->
+          <div class="shrink-0 border-t border-outline-variant/10 pt-3 flex flex-col gap-2">
+
+            <!-- Cảnh báo ghế lẻ + Toggle "Cho phép lẻ ghế" (giống POS) -->
+            <div v-if="canRelocate" class="flex items-center justify-between gap-3 flex-wrap">
+              <!-- Cảnh báo khi có orphan và chưa bật ngoại lệ -->
+              <span v-if="hasOrphanDest && !allowOrphan"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/40 text-[10px] font-bold uppercase tracking-wider text-red-400">
+                <span class="material-symbols-outlined text-[15px]">warning</span>
+                Có ghế trống lẻ — chọn ghế khác hoặc bật ngoại lệ
               </span>
-              Bảo trì
-            </span>
-            <span class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-surface-container-high opacity-40 border border-white/5"></span>
-              Đã bán
-            </span>
-            <span class="flex items-center gap-1.5">
-              <span class="w-3.5 h-3.5 rounded-md bg-surface-container-high border border-white/5 relative seat-unselectable"></span>
-              Ghế lẻ bị chặn
-            </span>
+              <!-- Thông báo khi đã bật ngoại lệ -->
+              <span v-else-if="hasOrphanDest && allowOrphan"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/40 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                <span class="material-symbols-outlined text-[15px]">warning</span>
+                Ngoại lệ bật — khoanh đỏ vẫn click được
+              </span>
+              <span v-else class="flex-1"></span>
+
+              <!-- Toggle "Cho phép lẻ ghế" — chỉ ADMIN/MANAGER thấy -->
+              <button v-if="canOverrideOrphan" type="button" @click="allowOrphan = !allowOrphan"
+                      :title="allowOrphan ? 'Đang cho phép để trống ghế lẻ (ngoại lệ quản lý)' : 'Bật để cho phép đổi ghế dù để lại 1 ghế trống lẻ'"
+                      class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all"
+                      :class="allowOrphan
+                        ? 'border-amber-500/60 bg-amber-500/10 text-amber-400'
+                        : 'border-outline-variant/20 text-on-surface-variant/60 hover:border-outline-variant/40'">
+                <span class="material-symbols-outlined text-[15px]">{{ allowOrphan ? 'toggle_on' : 'toggle_off' }}</span>
+                Cho phép lẻ ghế
+              </button>
+            </div>
+
+            <!-- Legend -->
+            <div class="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+              <span class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-blue-900/60 border border-blue-500/70"></span>
+                Ghế của đơn
+              </span>
+              <span v-if="canRelocate" class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-green-400 to-green-600"></span>
+                Ghế đích
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-slate-800/80 border border-slate-600/50"></span>
+                Thường
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50"></span>
+                VIP
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50"></span>
+                Sweetbox
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500">
+                  <span class="material-symbols-outlined text-[8px]">build</span>
+                </span>
+                Bảo trì
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-surface-container-high opacity-40 border border-white/5"></span>
+                Đã bán
+              </span>
+              <!-- Legend ghế lẻ: khoanh đỏ nét đứt (thay dấu X cũ) -->
+              <span class="flex items-center gap-1.5">
+                <span class="w-3.5 h-3.5 rounded-md bg-red-500/20 border-2 border-dashed border-red-400/70"></span>
+                Ghế lẻ bị chặn
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -891,7 +1001,6 @@ onMounted(async () => {
             <option value="">Tất cả</option>
             <option value="RELOCATE">Đổi ghế</option>
             <option value="SEAT_MAINTENANCE">Khóa ghế</option>
-            <!-- BUG-11 FIX: Thêm EMERGENCY_CLOSURE vào filter -->
             <option value="EMERGENCY_CLOSURE">Đóng cửa khẩn cấp</option>
           </select>
         </div>
@@ -924,7 +1033,7 @@ onMounted(async () => {
               <th class="text-left py-2 px-2">Mã vé</th>
               <th class="text-left py-2 px-2">Ghế</th>
               <th class="text-left py-2 px-2">Đền bù</th>
-              <th class="text-left py-2 px-2">Voucher</th>
+              <th class="text-left py-2 px-2">Mã đối soát</th>
               <th class="text-left py-2 px-2">Nhân viên</th>
               <th class="text-left py-2 px-2">Lý do</th>
             </tr>
@@ -936,7 +1045,7 @@ onMounted(async () => {
               <td class="py-2 px-2 font-mono text-on-surface">{{ row.bookingCode || '—' }}</td>
               <td class="py-2 px-2 text-on-surface">{{ row.oldSeatLabel }}<span v-if="row.newSeatLabel"> → {{ row.newSeatLabel }}</span></td>
               <td class="py-2 px-2 text-on-surface-variant">{{ compLabel(row.compensationType) }}<span v-if="row.compensationAmount > 0"> · {{ fmtPrice(row.compensationAmount) }}</span></td>
-              <td class="py-2 px-2 font-mono text-xs text-primary">{{ row.voucherCode || '—' }}</td>
+              <td class="py-2 px-2 font-mono text-xs text-primary">{{ row.auditGiftCode || row.voucherCode || '—' }}</td>
               <td class="py-2 px-2 text-on-surface-variant">{{ row.handledByName || '—' }}</td>
               <td class="py-2 px-2 text-on-surface-variant/70 text-xs max-w-[180px] truncate" :title="row.reason">{{ row.reason || '—' }}</td>
             </tr>

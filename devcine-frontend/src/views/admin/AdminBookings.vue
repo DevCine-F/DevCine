@@ -242,6 +242,7 @@ const paymentLabelFull = (m) => {
 }
 
 const buildInv = (d) => {
+  const ticketBySeatLabel = new Map((d.tickets || []).map(ticket => [ticket.seatLabel, ticket]))
   return {
     bookingCode: d.bookingCode,
     movieTitle: d.isConcession ? '' : d.movieTitle,
@@ -257,7 +258,8 @@ const buildInv = (d) => {
     seats: (d.seats || []).map(s => ({
       seatLabel: s.label,
       ticketType: s.ticketType || 'ADULT',
-      price: Number(s.price || 0)
+      price: Number(s.price || 0),
+      qrCode: ticketBySeatLabel.get(s.label)?.qrCode || null
     })),
     fnbs: (d.fnbs || []).map(f => ({
       name: f.name,
@@ -269,7 +271,8 @@ const buildInv = (d) => {
     ticketDiscount: Number(d.discountAmount || 0),
     fnbDiscount: 0,
     memberName: d.customerName && d.customerName !== 'Khách tại quầy' ? d.customerName : null,
-    memberTier: d.membershipTier
+    memberTier: d.membershipTier,
+    relocations: d.relocations || []
   }
 }
 
@@ -625,12 +628,72 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               </div>
             </div>
 
-            <!-- MÃ QR ĐƠN HÀNG (Khung QR trung tâm duy nhất đại diện cho toàn bộ đơn hàng) -->
+            <!-- LỊCH SỬ ĐỔI GHẾ: dữ liệu hiện hành luôn là ghế mới, ghế cũ chỉ để đối soát -->
+            <div v-if="detail.relocations && detail.relocations.length">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-1 h-3.5 rounded-full bg-amber-400"></span>
+                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Lịch sử đổi ghế</p>
+              </div>
+              <div class="space-y-2">
+                <div
+                  v-for="item in detail.relocations"
+                  :key="item.incidentId"
+                  class="p-3.5 px-4 rounded-2xl bg-amber-400/5 border border-amber-400/20"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="text-sm font-bold text-on-surface">
+                      <span class="text-red-300 line-through">{{ item.oldSeatLabel }}</span>
+                      <span class="mx-2 text-on-surface-variant">→</span>
+                      <span class="text-green-400">{{ item.newSeatLabel }}</span>
+                    </p>
+                    <p class="text-[10px] text-on-surface-variant shrink-0">
+                      {{ fmtDateTime(item.createdAt).date }} {{ fmtDateTime(item.createdAt).time }}
+                    </p>
+                  </div>
+                  <p class="text-[11px] text-on-surface-variant mt-1">
+                    Xử lý bởi <b class="text-on-surface">{{ item.handledBy }}</b>
+                    <span v-if="item.reason"> · {{ item.reason }}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- QR VÉ HIỆN HÀNH: thay đổi khi đổi ghế, QR phiên bản cũ đã bị thu hồi -->
+            <div v-if="detail.tickets && detail.tickets.length && !detail.isConcession">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-1 h-3.5 rounded-full bg-green-400"></span>
+                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">QR vé hiện hành</p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div
+                  v-for="ticket in detail.tickets"
+                  :key="ticket.qrCode"
+                  class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex items-center gap-4"
+                >
+                  <div class="p-1.5 bg-white rounded-lg border border-black/10 shrink-0">
+                    <img
+                      :src="`https://api.qrserver.com/v1/create-qr-code/?size=110x110&margin=0&data=${encodeURIComponent(ticket.qrCode)}`"
+                      :alt="`QR vé ghế ${ticket.seatLabel}`"
+                      class="w-20 h-20 block"
+                    />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-sm font-black text-on-surface">Ghế {{ ticket.seatLabel }}</p>
+                    <p class="text-[10px] mt-1 font-bold uppercase tracking-wider" :class="ticket.isCheckedIn ? 'text-green-400' : 'text-amber-400'">
+                      {{ ticket.isCheckedIn ? 'Đã check-in' : 'Chưa check-in' }}
+                    </p>
+                    <p class="text-[9px] text-on-surface-variant/60 mt-1">QR cũ không còn hiệu lực sau khi đổi ghế</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- MÃ ĐƠN TRA CỨU: giữ nguyên sau đổi ghế, không phải QR vé vào phòng -->
             <div v-if="!detail.isConcession">
               <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center gap-2">
                   <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Mã QR đơn hàng</p>
+                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Mã đơn tra cứu / nhận vé</p>
                 </div>
                 <span
                   class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border"
@@ -652,7 +715,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 </div>
                 <div>
                   <p class="text-base font-black text-on-surface font-mono tracking-wider">{{ detail.bookingCode }}</p>
-                  <p class="text-[11px] text-on-surface-variant mt-0.5">Mã QR đại diện cho toàn bộ đơn hàng</p>
+                  <p class="text-[11px] text-on-surface-variant mt-0.5">Giữ nguyên để tra cứu giao dịch, không dùng trực tiếp để soát vé</p>
                 </div>
               </div>
             </div>
