@@ -145,25 +145,60 @@ const stopCamera = async () => {
   }
 }
 
+const isPrinting = ref(false)
+const printCountdown = ref(3)
+let printTimer = null
+
+const startPrintCountdown = () => {
+  stopPrintCountdown()
+  printCountdown.value = 3
+  printTimer = setInterval(() => {
+    if (printCountdown.value > 1) {
+      printCountdown.value -= 1
+    } else {
+      stopPrintCountdown()
+      doPrint()
+    }
+  }, 1000)
+}
+
+const stopPrintCountdown = () => {
+  if (printTimer) {
+    clearInterval(printTimer)
+    printTimer = null
+  }
+}
+
+const cancelAutoPrint = () => {
+  stopPrintCountdown()
+}
+
+const doPrintImmediate = () => {
+  stopPrintCountdown()
+  doPrint()
+}
+
 const handleCheckIn = async (code) => {
   if (!code || !code.trim()) return
 
+  stopPrintCountdown()
   isLoading.value = true
   checkInResult.value = null
 
   try {
-    // Bước 1: chỉ XÁC MINH đơn (chưa in) → hiển thị "Quét thành công" + chi tiết
+    // Bước 1: XÁC MINH đơn hợp lệ
     const response = await api.post('/tickets/lookup', null, {
       params: { code: code.trim() }
     })
 
     checkInResult.value = {
       success: true,
-      message: 'Đơn hợp lệ — sẵn sàng in vé.',
+      message: 'Đơn hợp lệ — đang chuyển sang in vé...',
       data: response.data,
       printed: false
     }
     playBeep('success')
+    startPrintCountdown()
   } catch (error) {
     const errorMsg = friendlyError(error, 'Đã xảy ra lỗi khi quét vé.')
     checkInResult.value = {
@@ -178,9 +213,9 @@ const handleCheckIn = async (code) => {
   }
 }
 
-// Bước 2: bấm "In vé" → đánh dấu đã in + mở cửa sổ in vé giấy
-const isPrinting = ref(false)
+// Bước 2: tự động gọi hoặc bấm in ngay → đánh dấu đã in + mở cửa sổ in vé giấy K80
 const doPrint = async () => {
+  stopPrintCountdown()
   const booking = checkInResult.value?.data
   if (!booking || isPrinting.value) return
   isPrinting.value = true
@@ -195,7 +230,7 @@ const doPrint = async () => {
       printed: true
     }
     playBeep('success')
-    printBooking(response.data) // mở cửa sổ in vé giấy
+    printBooking(response.data) // mở cửa sổ in vé giấy K80
   } catch (error) {
     checkInResult.value = {
       success: false,
@@ -215,6 +250,7 @@ const submitManual = () => {
 }
 
 const resetScanner = () => {
+  stopPrintCountdown()
   checkInResult.value = null
   qrCodeInput.value = ''
   if (activeTab.value === 'camera') {
@@ -223,6 +259,7 @@ const resetScanner = () => {
 }
 
 const switchTab = (tab) => {
+  stopPrintCountdown()
   activeTab.value = tab
   if (tab === 'camera') {
     startCamera()
@@ -234,18 +271,19 @@ const switchTab = (tab) => {
 // Quick Mock Tool for Development/Testing
 const triggerMockCheckIn = (status = 'success') => {
   stopCamera()
+  stopPrintCountdown()
   isLoading.value = true
   setTimeout(() => {
     isLoading.value = false
     if (status === 'success') {
       checkInResult.value = {
         success: true,
-        message: 'Đơn hợp lệ — sẵn sàng in vé. (Dữ liệu giả lập)',
+        message: 'Đơn hợp lệ — đang chuyển sang in vé... (Dữ liệu giả lập)',
         printed: false,
         data: {
           bookingCode: '0AA550BA-0',
-          movieTitle: 'Godzilla x Kong: Đế Chế Mới',
-          cinemaName: 'Test HN',
+          movieTitle: 'Godzilla x Kong: Đế Chế Mới (T13)',
+          cinemaName: 'DevCine Cinema Plaza',
           roomName: 'Phòng 1',
           format: '2D',
           startTime: '2026-07-10T16:00:00',
@@ -259,10 +297,12 @@ const triggerMockCheckIn = (status = 'success') => {
           totalPrice: 289000,
           finalPrice: 289000,
           discount: 0,
-          printedAt: null
+          printedAt: null,
+          requiresStudentVerification: true
         }
       }
       playBeep('success')
+      startPrintCountdown()
     } else {
       checkInResult.value = {
         success: false,
@@ -281,6 +321,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  stopPrintCountdown()
   stopCamera()
 })
 </script>
@@ -394,16 +435,37 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Chưa in: nút In vé (thực sự in + đánh dấu đã in) -->
-          <button v-if="!checkInResult.printed" @click="doPrint" :disabled="isPrinting"
-            class="flex items-center gap-2 text-sm font-bold text-on-primary bg-primary hover:bg-primary/90 rounded-xl px-8 py-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:scale-100 cursor-pointer">
-            <span class="material-symbols-outlined text-base">print</span> {{ isPrinting ? 'Đang in...' : 'In vé giấy' }}
-          </button>
-          <!-- Đã in: cho phép in lại (không đánh dấu lại) -->
-          <button v-else @click="printBooking(checkInResult.data)"
-            class="flex items-center gap-2 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-xl px-5 py-2.5 transition-all cursor-pointer">
-            <span class="material-symbols-outlined text-base">print</span> In lại vé giấy
-          </button>
+          <!-- Chưa in: Khối đếm ngược 3s tự động in vé -->
+          <div v-if="!checkInResult.printed" class="w-full max-w-md bg-primary/10 border border-primary/25 rounded-2xl p-5 text-center space-y-3 shadow-inner">
+            <div class="flex items-center justify-center gap-2.5 text-primary font-black text-sm">
+              <span class="material-symbols-outlined animate-spin text-xl">progress_activity</span>
+              <span class="tracking-wide">Tự động chuyển sang in vé trong: {{ printCountdown }}s</span>
+            </div>
+            <div class="w-full bg-surface-container-highest rounded-full h-2.5 overflow-hidden">
+              <div class="bg-primary h-full transition-all duration-1000 ease-linear rounded-full" :style="{ width: ((printCountdown / 3) * 100) + '%' }"></div>
+            </div>
+            <div class="flex items-center justify-center gap-4 pt-1">
+              <button @click="doPrintImmediate" :disabled="isPrinting" class="text-xs font-bold text-primary hover:underline cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">print</span> In ngay bây giờ
+              </button>
+              <span class="text-outline-variant/30">|</span>
+              <button @click="cancelAutoPrint" class="text-xs font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer">
+                Dừng đếm ngược
+              </button>
+            </div>
+          </div>
+
+          <!-- Đã in: Nút quay lại màn hình quét & In lại vé giấy (không tự động nhảy) -->
+          <div v-else class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 w-full max-w-md">
+            <button @click="resetScanner" class="w-full sm:w-auto flex-1 bg-primary text-on-primary font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
+              <span class="material-symbols-outlined text-lg">qr_code_scanner</span>
+              Quay lại màn hình quét
+            </button>
+            <button @click="printBooking(checkInResult.data)" class="w-full sm:w-auto text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-xl px-5 py-3.5 transition-all cursor-pointer flex items-center justify-center gap-1.5">
+              <span class="material-symbols-outlined text-base">print</span>
+              In lại vé giấy
+            </button>
+          </div>
         </div>
 
         <!-- Failure Banner -->
@@ -416,13 +478,12 @@ onUnmounted(() => {
             <p class="text-sm text-on-surface font-bold mt-2 max-w-md">{{ checkInResult.message }}</p>
             <p class="text-[10px] text-on-surface-variant mt-1">Vui lòng kiểm tra lại mã đặt vé hoặc liên hệ quản lý.</p>
           </div>
-        </div>
-
-        <!-- Action Button -->
-        <div class="text-center pt-4">
-          <button @click="resetScanner" class="bg-primary text-on-primary font-bold px-8 py-3 rounded-xl shadow-lg hover:shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer">
-            Quét đơn tiếp theo
-          </button>
+          <div class="text-center pt-2 w-full max-w-md">
+            <button @click="resetScanner" class="w-full bg-primary text-on-primary font-bold px-8 py-3.5 rounded-xl shadow-lg hover:shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
+              <span class="material-symbols-outlined text-lg">arrow_back</span>
+              Quay lại màn hình quét
+            </button>
+          </div>
         </div>
       </div>
 
