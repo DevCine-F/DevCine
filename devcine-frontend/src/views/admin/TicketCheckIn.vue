@@ -455,15 +455,11 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Đã in: Nút quay lại màn hình quét & In lại vé giấy (không tự động nhảy) -->
-          <div v-else class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 w-full max-w-md">
-            <button @click="resetScanner" class="w-full sm:w-auto flex-1 bg-primary text-on-primary font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
+          <!-- Đã in: Nút quay lại màn hình quét -->
+          <div v-else class="pt-2 w-full max-w-md">
+            <button @click="resetScanner" class="w-full bg-primary text-on-primary font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
               <span class="material-symbols-outlined text-lg">qr_code_scanner</span>
               Quay lại màn hình quét
-            </button>
-            <button @click="printBooking(checkInResult.data)" class="w-full sm:w-auto text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-xl px-5 py-3.5 transition-all cursor-pointer flex items-center justify-center gap-1.5">
-              <span class="material-symbols-outlined text-base">print</span>
-              In lại vé giấy
             </button>
           </div>
         </div>
