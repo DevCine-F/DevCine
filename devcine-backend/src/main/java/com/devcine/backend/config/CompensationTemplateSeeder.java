@@ -23,6 +23,7 @@ import java.util.List;
  *
  * <p>Cờ seed: {@code COMP_TEMPLATES_SEEDED_V1}.
  */
+@org.springframework.context.annotation.Profile("never")
 @Component
 @Order(101) // Chạy sau FnbDataSeeder (Order 100)
 @RequiredArgsConstructor

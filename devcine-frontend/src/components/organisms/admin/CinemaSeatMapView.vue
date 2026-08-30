@@ -41,10 +41,6 @@ defineProps({
 })
 
 defineEmits(['back', 'reset', 'save', 'update:layout', 'dirty'])
-
-const goToIncidents = () => {
-  router.push('/admin/incidents')
-}
 </script>
 
 <template>
@@ -108,17 +104,8 @@ const goToIncidents = () => {
         <p class="text-amber-200/70 text-xs leading-relaxed">
           Phòng chiếu này đã phát sinh vé đặt. Để bảo vệ dữ liệu vé của khách hàng,
           sơ đồ ghế không thể chỉnh sửa.
-          <br />
-          Nếu có ghế bị hỏng hoặc sự cố, hãy chuyển sang <strong class="text-amber-300">Xử lý sự cố ghế</strong>.
         </p>
       </div>
-      <button
-        @click="goToIncidents"
-        class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[9px] font-black uppercase tracking-widest hover:bg-amber-500/30 transition-all whitespace-nowrap"
-      >
-        <span class="material-symbols-outlined text-sm">build</span>
-        Xử lý sự cố ghế
-      </button>
     </div>
 
     <div class="flex-grow overflow-hidden min-h-0">

@@ -186,31 +186,16 @@ const handleCheckIn = async (code) => {
   checkInResult.value = null
 
   try {
-    const normalizedCode = code.trim()
-    const isIndividualTicketQr = /^(DEVCINE-T-|TICK_)/i.test(normalizedCode)
-    if (isIndividualTicketQr) {
-      const response = await api.post('/tickets/verify-ticket', null, {
-        params: { qr: normalizedCode }
-      })
-      checkInResult.value = {
-        kind: 'ticket',
-        success: true,
-        message: 'Vé hợp lệ và đã được check-in.',
-        data: response.data,
-        printed: false
-      }
-    } else {
-      // Booking code: chỉ xác minh đơn, chưa đánh dấu đã in.
-      const response = await api.post('/tickets/lookup', null, {
-        params: { code: normalizedCode }
-      })
-      checkInResult.value = {
-        kind: 'booking',
-        success: true,
-        message: 'Đơn hợp lệ, sẵn sàng in vé.',
-        data: response.data,
-        printed: false
-      }
+    // Bước 1: XÁC MINH đơn hợp lệ
+    const response = await api.post('/tickets/lookup', null, {
+      params: { code: code.trim() }
+    })
+
+    checkInResult.value = {
+      success: true,
+      message: 'Đơn hợp lệ — đang chuyển sang in vé...',
+      data: response.data,
+      printed: false
     }
     playBeep('success')
     startPrintCountdown()
@@ -218,7 +203,6 @@ const handleCheckIn = async (code) => {
     const errorMsg = friendlyError(error, 'Đã xảy ra lỗi khi quét vé.')
     checkInResult.value = {
       success: false,
-      kind: 'unknown',
       message: errorMsg,
       data: null,
       printed: false
@@ -233,7 +217,7 @@ const handleCheckIn = async (code) => {
 const doPrint = async () => {
   stopPrintCountdown()
   const booking = checkInResult.value?.data
-  if (!booking || checkInResult.value?.kind === 'ticket' || isPrinting.value) return
+  if (!booking || isPrinting.value) return
   isPrinting.value = true
   try {
     const response = await api.post('/tickets/print', null, {
@@ -241,7 +225,6 @@ const doPrint = async () => {
     })
     checkInResult.value = {
       success: true,
-      kind: 'booking',
       message: 'Đã in vé cho toàn bộ đơn!',
       data: response.data,
       printed: true
@@ -251,7 +234,6 @@ const doPrint = async () => {
   } catch (error) {
     checkInResult.value = {
       success: false,
-      kind: 'booking',
       message: friendlyError(error, 'Không in được vé.'),
       data: null,
       printed: false
@@ -387,7 +369,7 @@ onUnmounted(() => {
       <!-- LOADING STATE -->
       <div v-if="isLoading" class="text-center py-12 space-y-4">
         <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang kiểm tra mã vé...</p>
+        <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang xử lý & in vé...</p>
       </div>
 
       <!-- RESULT STATE -->
@@ -400,13 +382,13 @@ onUnmounted(() => {
           </div>
           <div>
             <h2 class="text-2xl font-black uppercase italic" :class="checkInResult.printed ? 'text-green-400' : 'text-primary'">
-              {{ checkInResult.kind === 'ticket' ? 'Đã Check-in!' : (checkInResult.printed ? 'Đã In Vé!' : 'Quét Thành Công') }}
+              {{ checkInResult.printed ? 'Đã In Vé!' : 'Quét Thành Công' }}
             </h2>
             <p class="text-xs text-on-surface-variant mt-1">{{ checkInResult.message }}</p>
           </div>
 
           <!-- Booking Info Details -->
-          <div v-if="checkInResult.kind !== 'ticket'" class="w-full max-w-md bg-surface-container-high rounded-2xl border border-outline-variant/20 p-6 text-left space-y-4">
+          <div class="w-full max-w-md bg-surface-container-high rounded-2xl border border-outline-variant/20 p-6 text-left space-y-4">
             <div class="border-b border-outline-variant/10 pb-3 flex justify-between items-center">
               <span class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã đặt vé</span>
               <span class="font-mono font-bold text-sm text-primary">{{ checkInResult.data.bookingCode }}</span>
@@ -453,68 +435,27 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Individual Ticket Details -->
-          <div v-else class="w-full max-w-md bg-surface-container-high rounded-2xl border border-outline-variant/20 p-6 text-left space-y-4">
-            <div class="border-b border-outline-variant/10 pb-3 flex justify-between items-center">
-              <span class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã đặt vé</span>
-              <span class="font-mono font-bold text-sm text-primary">{{ checkInResult.data.bookingCode }}</span>
+          <!-- Chưa in: Khối đếm ngược 3s tự động in vé -->
+          <div v-if="!checkInResult.printed" class="w-full max-w-md bg-primary/10 border border-primary/25 rounded-2xl p-5 text-center space-y-3 shadow-inner">
+            <div class="flex items-center justify-center gap-2.5 text-primary font-black text-sm">
+              <span class="material-symbols-outlined animate-spin text-xl">progress_activity</span>
+              <span class="tracking-wide">Tự động chuyển sang in vé trong: {{ printCountdown }}s</span>
             </div>
-            <div>
-              <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Phim</span>
-              <span class="text-sm font-black text-on-surface">{{ checkInResult.data.movieTitle }}</span>
+            <div class="w-full bg-surface-container-highest rounded-full h-2.5 overflow-hidden">
+              <div class="bg-primary h-full transition-all duration-1000 ease-linear rounded-full" :style="{ width: ((printCountdown / 3) * 100) + '%' }"></div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Ghế hiện hành</span>
-                <span class="text-lg font-black text-primary">{{ checkInResult.data.seatLabel }}</span>
-              </div>
-              <div>
-                <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Phòng chiếu</span>
-                <span class="text-sm font-bold text-on-surface">{{ checkInResult.data.roomName }}</span>
-              </div>
-            </div>
-            <div class="border-t border-outline-variant/10 pt-3 flex justify-between items-center text-[10px] text-on-surface-variant/70">
-              <span>Check-in lúc:</span>
-              <span>{{ formatDateTime(checkInResult.data.checkInTime) }}</span>
+            <div class="flex items-center justify-center gap-4 pt-1">
+              <button @click="doPrintImmediate" :disabled="isPrinting" class="text-xs font-bold text-primary hover:underline cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">print</span> In ngay bây giờ
+              </button>
+              <span class="text-outline-variant/30">|</span>
+              <button @click="cancelAutoPrint" class="text-xs font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer">
+                Dừng đếm ngược
+              </button>
             </div>
           </div>
 
-          <!-- Hành động sau khi quét Booking -->
-          <template v-if="checkInResult.kind !== 'ticket'">
-            <!-- Chưa in: Khối đếm ngược 3s tự động in vé -->
-            <div v-if="!checkInResult.printed" class="w-full max-w-md bg-primary/10 border border-primary/25 rounded-2xl p-5 text-center space-y-3 shadow-inner">
-              <div class="flex items-center justify-center gap-2.5 text-primary font-black text-sm">
-                <span class="material-symbols-outlined animate-spin text-xl">progress_activity</span>
-                <span class="tracking-wide">Tự động chuyển sang in vé trong: {{ printCountdown }}s</span>
-              </div>
-              <div class="w-full bg-surface-container-highest rounded-full h-2.5 overflow-hidden">
-                <div class="bg-primary h-full transition-all duration-1000 ease-linear rounded-full" :style="{ width: ((printCountdown / 3) * 100) + '%' }"></div>
-              </div>
-              <div class="flex items-center justify-center gap-4 pt-1">
-                <button @click="doPrintImmediate" :disabled="isPrinting" class="text-xs font-bold text-primary hover:underline cursor-pointer flex items-center gap-1">
-                  <span class="material-symbols-outlined text-sm">print</span> In ngay bây giờ
-                </button>
-                <span class="text-outline-variant/30">|</span>
-                <button @click="cancelAutoPrint" class="text-xs font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer">
-                  Dừng đếm ngược
-                </button>
-              </div>
-            </div>
-
-            <!-- Đã in: Nút quay lại màn hình quét & in lại -->
-            <div v-else class="pt-2 w-full max-w-md flex flex-col gap-2.5">
-              <button @click="printBooking(checkInResult.data)" class="w-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-bold px-6 py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-xs">
-                <span class="material-symbols-outlined text-base">print</span>
-                In lại vé giấy
-              </button>
-              <button @click="resetScanner" class="w-full bg-primary text-on-primary font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
-                <span class="material-symbols-outlined text-lg">qr_code_scanner</span>
-                Quay lại màn hình quét
-              </button>
-            </div>
-          </template>
-
-          <!-- Hành động sau khi quét Vé đơn lẻ -->
+          <!-- Đã in: Nút quay lại màn hình quét -->
           <div v-else class="pt-2 w-full max-w-md">
             <button @click="resetScanner" class="w-full bg-primary text-on-primary font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
               <span class="material-symbols-outlined text-lg">qr_code_scanner</span>
@@ -529,7 +470,7 @@ onUnmounted(() => {
             <span class="material-symbols-outlined text-5xl">cancel</span>
           </div>
           <div>
-            <h2 class="text-2xl font-black text-red-400 uppercase italic">Kiểm Tra Vé Thất Bại</h2>
+            <h2 class="text-2xl font-black text-red-400 uppercase italic">In Vé Thất Bại</h2>
             <p class="text-sm text-on-surface font-bold mt-2 max-w-md">{{ checkInResult.message }}</p>
             <p class="text-[10px] text-on-surface-variant mt-1">Vui lòng kiểm tra lại mã đặt vé hoặc liên hệ quản lý.</p>
           </div>
@@ -598,17 +539,17 @@ onUnmounted(() => {
       <div v-else-if="activeTab === 'manual'" class="max-w-md mx-auto w-full space-y-6">
         <div class="text-center space-y-2">
           <span class="material-symbols-outlined text-4xl text-primary/60">input</span>
-          <h2 class="font-black text-lg text-on-surface uppercase">Nhập mã vé thủ công</h2>
-          <p class="text-xs text-on-surface-variant">Nhập booking code hoặc mã QR trên từng vé giấy</p>
+          <h2 class="font-black text-lg text-on-surface uppercase">Nhập mã đặt vé thủ công</h2>
+          <p class="text-xs text-on-surface-variant">Nhập mã đặt vé (booking code) in trên vé điện tử của khách hàng</p>
         </div>
 
         <form @submit.prevent="submitManual" class="space-y-4">
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã vé</label>
+            <label class="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">Mã đặt vé</label>
             <input
               v-model="qrCodeInput"
               type="text"
-              placeholder="Ví dụ: 0AA550BA-0 hoặc DEVCINE-T-..."
+              placeholder="Ví dụ: 0AA550BA-0"
               class="w-full bg-surface-container-high border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-3.5 text-sm font-mono text-on-surface shadow-inner uppercase tracking-wider"
               required
             >
@@ -619,7 +560,7 @@ onUnmounted(() => {
             :disabled="!qrCodeInput.trim()"
             class="w-full bg-primary text-on-primary font-bold py-3.5 rounded-xl shadow-lg hover:shadow-primary/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none cursor-pointer text-center text-sm"
           >
-            Kiểm tra mã vé
+            Xác nhận & In vé
           </button>
         </form>
       </div>

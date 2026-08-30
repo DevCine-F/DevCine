@@ -89,6 +89,7 @@ public class MailService {
     /**
      * Gửi email THÔNG BÁO ĐỔI GHẾ SỰ CỐ & ĐỀN BÙ VOUCHER (kèm mã QR voucher và mã QR vé mới).
      */
+    /*
     @Async
     public void sendIncidentRelocateEmail(com.devcine.backend.dto.IncidentRelocateEmailData data) {
         if (!enabled) {
@@ -115,6 +116,7 @@ public class MailService {
             log.error("Gửi email đổi ghế sự cố thất bại cho đơn {}: {}", data.bookingCode(), e.getMessage(), e);
         }
     }
+    */
 
     private String buildCancellationHtml(CancellationEmailData data) {
         String time = data.startTime() != null ? data.startTime().format(TIME_FMT) : "—";

@@ -2,7 +2,6 @@ package com.devcine.backend.controller;
 
 import com.devcine.backend.dto.ApiResponse;
 import com.devcine.backend.entity.Ticket;
-import com.devcine.backend.dto.response.TicketVerificationResponse;
 import com.devcine.backend.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -72,8 +71,8 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
     public ResponseEntity<?> verifyTicket(@RequestParam("qr") String qr) {
         try {
-            TicketVerificationResponse result = ticketService.verifyAndCheckInTicket(qr);
-            return ResponseEntity.ok(ApiResponse.ok(result, "Check-in vé thành công!"));
+            Ticket ticket = ticketService.verifyAndCheckInTicket(qr);
+            return ResponseEntity.ok(ApiResponse.ok(ticket, "Check-in vé thành công!"));
         } catch (AccessDeniedException ex) {
             throw ex;
         } catch (Exception ex) {

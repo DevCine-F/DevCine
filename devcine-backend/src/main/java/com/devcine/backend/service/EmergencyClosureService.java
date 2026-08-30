@@ -34,6 +34,7 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@org.springframework.context.annotation.Profile("never")
 @RequiredArgsConstructor
 public class EmergencyClosureService {
 

@@ -17,6 +17,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  */
 @Slf4j
 @Component
+@org.springframework.context.annotation.Profile("never")
 @RequiredArgsConstructor
 public class SeatIncidentEventListener {
 
@@ -29,6 +30,7 @@ public class SeatIncidentEventListener {
     public void onSeatRelocated(SeatRelocatedEvent event) {
         broadcastCommittedSeatChanges(event);
         log.info("[SeatIncident] Bắt đầu gửi email sự cố sau commit cho đơn #{}", event.bookingId());
+        /*
         try {
             ticketService.sendIncidentRelocateEmailIfOnline(
                     event.bookingId(),
@@ -40,6 +42,7 @@ public class SeatIncidentEventListener {
         } catch (Exception e) {
             log.error("[SeatIncident] Lỗi gửi email nền cho đơn #{}: {}", event.bookingId(), e.getMessage(), e);
         }
+        */
     }
 
     private void broadcastCommittedSeatChanges(SeatRelocatedEvent event) {

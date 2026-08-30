@@ -41,9 +41,9 @@ const features = ref([
   // Quản lý hóa đơn: xem danh sách/chi tiết (STAFF chỉ thấy đơn của mình)
   { id: 'bookings', moduleId: 'operations', name: 'Quản lý & Tra cứu hóa đơn', actions: ['view'],
     labels: { view: 'Xem danh sách / chi tiết hóa đơn' } },
-  // Xử lý sự cố phòng chiếu / đổi ghế đền bù: view = tra cứu & xem lịch sử; handle = đổi ghế/hủy chỗ/khóa ghế + phát đền bù
-  { id: 'incident_handling', moduleId: 'operations', name: 'Xử lý sự cố ghế & Đổi ghế', actions: ['view', 'handle'],
-    labels: { view: 'Tra cứu vé & lịch sử sự cố', handle: 'Đổi ghế / hủy chỗ / khóa ghế hỏng & phát đền bù' } },
+  // Tạm ẩn phân hệ Xử lý sự cố ghế khỏi ma trận phân quyền
+  // { id: 'incident_handling', moduleId: 'operations', name: 'Xử lý sự cố ghế & Đổi ghế', actions: ['view', 'handle'],
+  //   labels: { view: 'Tra cứu vé & lịch sử sự cố', handle: 'Đổi ghế / hủy chỗ / khóa ghế hỏng & phát đền bù' } },
 
   // ===== NỘI DUNG & SẢN PHẨM =====
   { id: 'movies', moduleId: 'content', name: 'Quản lý phim & Danh mục phân loại', actions: ['view', 'add', 'edit', 'delete'],

@@ -27,6 +27,7 @@ import java.util.List;
  * Xử lý sự cố phòng chiếu / đổi ghế đền bù (khu quản trị). Chịu Strict Cinema Scoping ở Service
  * (STAFF/MANAGER chỉ thao tác trong cụm rạp của mình). Feature quyền: {@code incident_handling}.
  */
+@org.springframework.context.annotation.Profile("never")
 @RestController
 @RequestMapping("/api/staff/incidents")
 @RequiredArgsConstructor

@@ -413,28 +413,7 @@ tables_data = [
             [8, "created_at", "DATETIME", "Thời điểm đăng đánh giá", "NOT NULL, DEFAULT GETDATE()"]
         ]
     },
-    {
-        "num": 25,
-        "code": "seat_incidents",
-        "title_vn": "Bảng Sự cố ghế và đền bù",
-        "rows": [
-            [1, "id", "INT", "Khóa chính sự cố ghế", "PK, IDENTITY(1,1)"],
-            [2, "incident_type", "VARCHAR(50)", "Phân loại sự cố (SEAT_CHANGE, CANCEL_SEAT, MAINTENANCE_LOCK)", "NOT NULL"],
-            [3, "booking_id", "INT", "Đơn đặt vé phát sinh sự cố", "FK → bookings(id), NULL"],
-            [4, "showtime_id", "INT", "Suất chiếu xảy ra sự cố", "FK → showtimes(id), NULL"],
-            [5, "old_seat_id", "INT", "Ghế gặp sự cố ban đầu", "FK → seats(id), NULL"],
-            [6, "new_seat_id", "INT", "Ghế mới được đổi sang (NULL nếu chỉ hủy chỗ)", "FK → seats(id), NULL"],
-            [7, "old_seat_label", "VARCHAR(10)", "Nhãn ghế cũ lưu lịch sử (snapshot)", "NULL"],
-            [8, "new_seat_label", "VARCHAR(10)", "Nhãn ghế mới lưu lịch sử (snapshot)", "NULL"],
-            [9, "compensation_type", "VARCHAR(50)", "Hình thức đền bù (NONE, VOUCHER, GIFT)", "NOT NULL, DEFAULT 'NONE'"],
-            [10, "compensation_amount", "DECIMAL(18,0)", "Giá trị tiền đền bù (0 nếu tặng quà/voucher)", "NOT NULL, DEFAULT 0"],
-            [11, "voucher_id", "INT", "Voucher đền bù đã cấp phát cho khách hàng", "FK → vouchers(id), NULL"],
-            [12, "reason", "NVARCHAR(255)", "Lý do phát sinh sự cố", "NULL"],
-            [13, "handled_by", "INT", "Nhân viên trực tiếp xử lý sự cố", "FK → staffs(user_id), NULL"],
-            [14, "cinema_id", "INT", "Cụm rạp phát sinh sự cố", "FK → cinemas(id), NULL"],
-            [15, "created_at", "DATETIME", "Thời điểm ghi nhận sự cố", "NOT NULL, DEFAULT GETDATE()"]
-        ]
-    },
+
     {
         "num": 26,
         "code": "fnb_items",

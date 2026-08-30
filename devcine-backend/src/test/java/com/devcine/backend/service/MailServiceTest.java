@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+@org.junit.jupiter.api.Disabled("Tạm ẩn phân hệ sự cố")
 class MailServiceTest {
 
     @Test

@@ -46,7 +46,7 @@ chia theo 7 nhóm chức năng.
 | 18 | `movie_categories` | Bảng nối N-N phim ↔ thể loại (di sản, trùng vai trò) |
 | 19 | `age_ratings` | Danh mục phân loại độ tuổi (P, K, T13, T16, T18…) |
 
-## A.4. Suất chiếu, đặt vé, vé & sự cố (6 bảng)
+## A.4. Suất chiếu, đặt vé & vé (5 bảng)
 | # | Bảng | Mục đích ngắn gọn |
 |---|---|---|
 | 20 | `showtimes` | Suất chiếu (phim + phòng + định dạng + giờ) |
@@ -54,7 +54,6 @@ chia theo 7 nhóm chức năng.
 | 22 | `booking_seats` | Từng ghế trong một đơn đặt vé (chốt giá) |
 | 23 | `tickets` | Vé điện tử phát hành cho mỗi ghế đã đặt |
 | 24 | `reviews` | Đánh giá/bình luận phim của khách |
-| 25 | `seat_incidents` | Sự cố ghế: đổi ghế đền bù / hủy chỗ / khóa ghế hỏng |
 
 ## A.5. Bắp nước — F&B (9 bảng)
 | # | Bảng | Mục đích ngắn gọn |
@@ -469,28 +468,6 @@ Vé điện tử phát hành **cho từng ghế** đã đặt (quan hệ 1-1 v�
 | hidden | boolean | mặc định false | true = bị admin ẩn khỏi trang công khai |
 | created_at | datetime | not null | Thời điểm tạo |
 
-### 25. `seat_incidents` (SeatIncident)
-Phân hệ **Xử lý sự cố / Đổi ghế đền bù**. Vì mô hình Flat Pricing khiến đổi ghế cùng suất
-luôn chênh lệch 0đ, đền bù đi theo **goodwill** (voucher quà từ Promotion-template `COMP_*`)
-chứ không theo phép trừ giá. Không hoàn tiền.
-
-| Cột | Kiểu | Khóa | Ý nghĩa |
-|---|---|---|---|
-| id | int | PK | Định danh sự cố |
-| incident_type | string | not null | Loại sự cố (đổi ghế / hủy chỗ / khóa ghế hỏng) |
-| booking_id | int | FK→bookings | Đơn bị ảnh hưởng |
-| showtime_id | int | FK→showtimes | Suất chiếu xảy ra sự cố |
-| old_seat_id | int | FK→seats | Ghế cũ |
-| new_seat_id | int | FK→seats | Ghế mới (null nếu chỉ hủy chỗ) |
-| old_seat_label | string | | Nhãn ghế cũ (snapshot để tra cứu lịch sử) |
-| new_seat_label | string | | Nhãn ghế mới (snapshot) |
-| compensation_type | string | mặc định NONE | Hình thức đền bù |
-| compensation_amount | decimal | mặc định 0 | Giá trị đền (0 với voucher quà GIFT_*) |
-| voucher_id | int | FK→vouchers | Voucher đền bù đã phát (null với khách vãng lai) |
-| reason | string | | Lý do sự cố |
-| handled_by | int | FK→staffs | Nhân viên xử lý |
-| cinema_id | int | FK→cinemas | Cụm rạp (phục vụ Cinema Scoping) |
-| created_at | datetime | not null | Thời điểm ghi nhận |
 
 ---
 

@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@org.springframework.context.annotation.Profile("never")
 @RequiredArgsConstructor
 public class SeatIncidentService {
 

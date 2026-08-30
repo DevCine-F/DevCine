@@ -82,7 +82,6 @@ public class DataSeeder {
             boolean permissionMatrixV8 = systemSettingRepository.findById("PERMISSION_MATRIX_V8").isPresent();
             if (!permissionMatrixV8 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
-                        + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"dashboard_stats\":[\"view\",\"export\"],"
                         + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"schedules\":[\"view\",\"add\",\"edit\",\"delete\"],"
@@ -109,7 +108,6 @@ public class DataSeeder {
                         + "\"dashboard_stats\":[\"view\"],"
                         + "\"pos_ticketing\":[\"view\",\"add\"],"
                         + "\"bookings\":[\"view\"],"
-                        + "\"incident_handling\":[\"view\",\"handle\"],"
                         + "\"schedules\":[\"view\",\"add\",\"edit\"],"
                         + "\"customers\":[\"view\",\"edit\"],"
                         + "\"cinemas\":[\"view\",\"edit\"],"

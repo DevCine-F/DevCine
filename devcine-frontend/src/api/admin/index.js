@@ -111,19 +111,19 @@ export const ticketingApi = {
   applyVoucher: (customerId, code) => api.post('/vouchers/apply', null, { params: { customerId, code } }),
 };
 
-// Xử lý sự cố phòng chiếu / đổi ghế đền bù (feature quyền: incident_handling)
-export const incidentApi = {
-  lookup: (query) => api.get('/staff/incidents/lookup', { params: { query } }),
-  lookupByPhone: (phone) => api.get('/staff/incidents/lookup-by-phone', { params: { phone } }),
-  seatOccupant: (showtimeId, seatId) => api.get('/staff/incidents/seat-occupant', { params: { showtimeId, seatId } }),
-  compensationOptions: () => api.get('/staff/incidents/compensation-options'),
-  seats: (showtimeId) => api.get(`/seats/showtime/${showtimeId}`, { params: { channel: 'POS' } }),
-  setSeatStatus: (seatId, payload) => api.patch(`/staff/incidents/seats/${seatId}/status`, payload),
-  relocate: (payload) => api.post('/staff/incidents/relocate', payload),
-  cancel: (payload) => api.post('/staff/incidents/cancel', payload),
-  history: (params) => api.get('/staff/incidents', { params }),
-  detail: (id) => api.get(`/staff/incidents/${id}`),
-};
+// Xử lý sự cố phòng chiếu / đổi ghế đền bù (Tạm ẩn)
+// export const incidentApi = {
+//   lookup: (query) => api.get('/staff/incidents/lookup', { params: { query } }),
+//   lookupByPhone: (phone) => api.get('/staff/incidents/lookup-by-phone', { params: { phone } }),
+//   seatOccupant: (showtimeId, seatId) => api.get('/staff/incidents/seat-occupant', { params: { showtimeId, seatId } }),
+//   compensationOptions: () => api.get('/staff/incidents/compensation-options'),
+//   seats: (showtimeId) => api.get(`/seats/showtime/${showtimeId}`, { params: { channel: 'POS' } }),
+//   setSeatStatus: (seatId, payload) => api.patch(`/staff/incidents/seats/${seatId}/status`, payload),
+//   relocate: (payload) => api.post('/staff/incidents/relocate', payload),
+//   cancel: (payload) => api.post('/staff/incidents/cancel', payload),
+//   history: (params) => api.get('/staff/incidents', { params }),
+//   detail: (id) => api.get(`/staff/incidents/${id}`),
+// };
 
 export const posPendingOrderApi = {
   hold: (payload) => api.post('/admin/pos/bookings/hold', payload),

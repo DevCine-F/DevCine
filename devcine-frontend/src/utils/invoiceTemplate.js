@@ -85,7 +85,6 @@ export function buildInvoiceHtml(inv) {
   // 1. Phân tích Dữ liệu Vé (Ticket Data)
   const rawSeats = inv.seats || inv.seatList || []
   const rawSeatRows = inv.seatRows || []
-  const relocations = inv.relocations || []
   const hasTickets = Boolean(
     rawSeats.length > 0 ||
     rawSeatRows.length > 0 ||
@@ -165,36 +164,6 @@ export function buildInvoiceHtml(inv) {
   const ticketSeatTotal = ticketGroups.reduce((a, b) => a + b.subtotal, 0) || Number(inv.seatTotal || 0)
   const ticketDiscount = Number(inv.ticketDiscount || 0)
   const totalTicketPrice = Math.max(0, ticketSeatTotal - ticketDiscount)
-
-  const activeTicketQrs = rawSeats
-    .filter(s => typeof s === 'object' && s.qrCode)
-    .map(s => ({ seatLabel: s.seatLabel || s.label || '', qrCode: s.qrCode }))
-
-  const ticketQrHtml = activeTicketQrs.length > 0
-    ? activeTicketQrs.map(ticket => `
-        <div class="ticket-qr-item">
-          <div class="center bold qr-seat-label">GHẾ ${esc(ticket.seatLabel)}</div>
-          <div class="center qr-box">
-            <img class="qr-img" src="${qrUrl(ticket.qrCode)}" alt="QR vé ghế ${esc(ticket.seatLabel)}" />
-          </div>
-          <div class="center qr-caption">QR VÉ HIỆN HÀNH</div>
-        </div>
-      `).join('')
-    : `
-        <div class="center bold qr-header">MÃ ĐƠN TRA CỨU</div>
-        <div class="center qr-box">
-          <img class="qr-img" src="${qrUrl(bookingCode)}" alt="Mã đơn ${bookingCode}" />
-        </div>
-        <div class="center mono bold code-under-qr">${bookingCode}</div>
-        <div class="center qr-caption">KHÔNG DÙNG TRỰC TIẾP ĐỂ SOÁT VÉ</div>
-      `
-
-  const relocationNoticeHtml = relocations.length > 0
-    ? `<div class="relocation-notice">
-        <div class="bold">VÉ ĐÃ ĐƯỢC ĐỔI GHẾ</div>
-        ${relocations.map(item => `<div>${esc(item.oldSeatLabel)} → <b>${esc(item.newSeatLabel)}</b>${item.createdAt ? ` · ${esc(formatDateTime(item.createdAt))}` : ''}</div>`).join('')}
-       </div>`
-    : ''
 
   // 2. Phân tích Dữ liệu Bắp Nước (F&B Data)
   const rawFnbs = inv.fnbs || inv.combos || []
@@ -303,7 +272,6 @@ export function buildInvoiceHtml(inv) {
           </tr>
         </table>
         <div class="room-line">Phòng: ${roomDisplay}</div>
-        ${relocationNoticeHtml}
         <div class="line-single">------------------------------------------------</div>
         
         <div class="bold seat-title">DANH SÁCH GHẾ:</div>
@@ -338,8 +306,11 @@ export function buildInvoiceHtml(inv) {
         </table>
         <div class="line-single">------------------------------------------------</div>
         
-        <div class="center bold qr-header">QR VÉ VÀO PHÒNG</div>
-        <div class="ticket-qr-list">${ticketQrHtml}</div>
+        <div class="center bold qr-header">MÃ QR</div>
+        <div class="center qr-box">
+          <img class="qr-img" src="${qrUrl(bookingCode)}" alt="${bookingCode}" />
+        </div>
+        <div class="center mono bold code-under-qr">${bookingCode}</div>
         <div class="empty-line"></div>
         <div class="center thanks-msg">Cảm ơn quý khách &amp; Hẹn gặp lại!</div>
         <div class="line-double">================================================</div>
@@ -415,7 +386,7 @@ export function buildInvoiceHtml(inv) {
         </table>
         <div class="line-single">------------------------------------------------</div>
         
-        <div class="center bold qr-header">MÃ NHẬN HÀNG</div>
+        <div class="center bold qr-header">MÃ QR</div>
         <div class="center qr-box">
           <img class="qr-img" src="${qrUrl(bookingCode)}" alt="${bookingCode}" />
         </div>
@@ -577,25 +548,6 @@ export function buildInvoiceHtml(inv) {
       font-size: 13px;
       letter-spacing: 2px;
       margin-top: 6px;
-    }
-    .ticket-qr-list {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .ticket-qr-item {
-      width: 100%;
-      padding: 6px 0 10px;
-      border-bottom: 1px dashed #999;
-    }
-    .ticket-qr-item:last-child { border-bottom: 0; }
-    .qr-seat-label { font-size: 14px; }
-    .qr-caption { font-size: 10px; color: #555; }
-    .relocation-notice {
-      margin-top: 6px;
-      padding: 6px 8px;
-      border: 1px dashed #111;
-      font-size: 11px;
     }
     .qr-box {
       margin: 6px 0;

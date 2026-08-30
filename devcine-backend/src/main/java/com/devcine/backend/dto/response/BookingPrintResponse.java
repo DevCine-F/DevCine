@@ -30,8 +30,8 @@ public record BookingPrintResponse(
         String cashierName,
         boolean requiresStudentVerification
 ) {
-    /** Một ghế trong đơn: nhãn ghế, loại đối tượng, giá đã chốt và QR vé hiện hành. */
-    public record SeatLine(String seatLabel, String ticketType, BigDecimal price, String qrCode) {}
+    /** Một ghế trong đơn: nhãn ghế, loại đối tượng và giá đã chốt. */
+    public record SeatLine(String seatLabel, String ticketType, BigDecimal price) {}
 
     /** Một dòng combo/đồ ăn kèm: tên, số lượng, đơn giá đã chốt, tổng phụ thu và các lựa chọn đi kèm. */
     public record FnbLine(

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@org.junit.jupiter.api.Disabled("Tạm ẩn phân hệ sự cố")
 class SeatIncidentShowtimeStatusTest {
 
     private static final LocalDateTime START = LocalDateTime.of(2026, 8, 30, 20, 0);
