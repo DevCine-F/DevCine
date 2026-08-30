@@ -47,11 +47,17 @@ public class VNPAYConfig {
         String ipAddress;
         try {
             ipAddress = request.getHeader("X-FORWARDED-FOR");
-            if (ipAddress == null) {
+            if (ipAddress == null || ipAddress.isBlank() || "unknown".equalsIgnoreCase(ipAddress)) {
                 ipAddress = request.getRemoteAddr();
             }
         } catch (Exception e) {
-            ipAddress = "Invalid IP:" + e.getMessage();
+            ipAddress = "127.0.0.1";
+        }
+        if (ipAddress == null || ipAddress.isBlank() || ipAddress.contains(":") || "0:0:0:0:0:0:0:1".equals(ipAddress)) {
+            ipAddress = "127.0.0.1";
+        }
+        if (ipAddress.contains(",")) {
+            ipAddress = ipAddress.split(",")[0].trim();
         }
         return ipAddress;
     }
