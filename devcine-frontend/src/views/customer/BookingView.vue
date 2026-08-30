@@ -119,15 +119,6 @@ const stepMeta = computed(() => ({
   4: { title: '04. Phương Thức Thanh Toán', desc: 'Chọn phương thức thanh toán phù hợp nhất' },
 }[currentStep.value]))
 
-// Bước 1: phải chọn số lượng vé > 0 và chọn ĐÚNG số ghế bằng tổng số vé
-const canProceed = computed(() => {
-  if (currentStep.value === 1) {
-    const seatsSelectedTickets = store.selectedSeats.reduce((acc, seat) => acc + (seat.seatType === 'SWEETBOX' ? 2 : 1), 0);
-    return store.totalTickets > 0 && seatsSelectedTickets === store.totalTickets;
-  }
-  return true
-})
-
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
 // Bắt buộc đăng nhập trước khi rời bước chọn ghế. Store Pinia giữ nguyên suất/ghế đã chọn
@@ -157,7 +148,7 @@ const validateSeatGap = () => {
 
   for (const rowKey in rows) {
     const seatsInRow = rows[rowKey];
-    const hasSelection = seatsInRow.some(s => selectedIds.includes(s.seatId));
+    const hasSelection = seatsInRow.some(s => s.seatId != null && selectedIds.includes(s.seatId));
     if (!hasSelection) continue;
 
     const maxCol = Math.max(...seatsInRow.map(s => s.gridCol));
@@ -166,7 +157,12 @@ const validateSeatGap = () => {
     const state = new Array(maxCol + 1).fill('X');
     seatsInRow.forEach(s => {
       const col = s.gridCol;
-      if (s.status !== 'AVAILABLE' && s.seatStatus !== 'AVAILABLE') {
+      if (col < 0 || col > maxCol) return;
+      if (s.kind && s.kind !== 'SEAT') {
+        state[col] = 'X';
+        return;
+      }
+      if (isSeatMaintenance(s)) {
         state[col] = 'X';
       } else if (selectedIds.includes(s.seatId)) {
         state[col] = 'S';
@@ -176,7 +172,7 @@ const validateSeatGap = () => {
         state[col] = 'E';
       }
 
-      if (s.seatType === 'SWEETBOX' && col + 1 <= maxCol) {
+      if ((s.span === 2 || s.seatType === 'SWEETBOX') && col + 1 <= maxCol) {
         state[col + 1] = 'X';
       }
     });
@@ -197,40 +193,86 @@ const validateSeatGap = () => {
   return true;
 };
 
-const goNext = () => {
-  if (holdExpiredNow()) { handleHoldExpired(); return } // hết giờ giữ chỗ → không cho đi tiếp
-  if (currentStep.value < steps.length && canProceed.value) {
-    // Rời bước chọn ghế (1 → 2): yêu cầu đăng nhập, chưa đăng nhập thì dắt đi đăng nhập
-    if (currentStep.value === 1) {
-      if (!validateSeatGap()) {
-        toast.warning('Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi');
-        return;
-      }
-      if (!ensureAuthForBooking()) return;
-    }
-    currentStep.value++
-    scrollTop()
+const validateStep1 = () => {
+  if (store.totalTickets === 0) {
+    toast.warning('Vui lòng chọn số lượng vé trước khi tiếp tục.');
+    return false;
   }
-}
+
+  const selectedCapacity = store.selectedSeats.reduce((acc, seat) => acc + (seat.seatType === 'SWEETBOX' ? 2 : 1), 0);
+  const hasSweetbox = store.selectedSeats.some(s => s.seatType === 'SWEETBOX');
+
+  if (hasSweetbox && store.totalTickets < 2) {
+    const sb = store.selectedSeats.find(s => s.seatType === 'SWEETBOX');
+    const label = seatLabel(sb);
+    toast.warning(`Ghế đôi ${label} cần có 2 vé để đặt. Vui lòng kiểm tra lại loại ghế hoặc bổ sung thêm số lượng vé.`);
+    return false;
+  }
+
+  if (selectedCapacity < store.totalTickets) {
+    toast.warning(`Bạn đã chọn ${selectedCapacity}/${store.totalTickets} chỗ ngồi. Vui lòng chọn đủ ghế cho số vé đã chọn.`);
+    return false;
+  }
+
+  if (selectedCapacity > store.totalTickets) {
+    if (hasSweetbox) {
+      const sb = store.selectedSeats.find(s => s.seatType === 'SWEETBOX');
+      const label = seatLabel(sb);
+      toast.warning(`Ghế đôi ${label} cần có 2 vé để đặt. Vui lòng kiểm tra lại loại ghế hoặc bổ sung thêm số lượng vé.`);
+    } else {
+      toast.warning(`Bạn đã chọn ${selectedCapacity}/${store.totalTickets} chỗ ngồi. Vui lòng kiểm tra lại số lượng ghế đã chọn.`);
+    }
+    return false;
+  }
+
+  if (!validateSeatGap()) {
+    toast.warning('Vui lòng không để trống 1 ghế đơn lẻ bên cạnh hoặc sát lối đi.');
+    return false;
+  }
+
+  if (!ensureAuthForBooking()) {
+    return false;
+  }
+
+  return true;
+};
+
+const goNext = () => {
+  if (holdExpiredNow()) { handleHoldExpired(); return; } // hết giờ giữ chỗ → không cho đi tiếp
+  if (currentStep.value === 1) {
+    if (!validateStep1()) return;
+  }
+  if (currentStep.value < steps.length) {
+    currentStep.value++;
+    scrollTop();
+  }
+};
 const goBack = () => {
   if (currentStep.value > 1) {
-    currentStep.value--
-    scrollTop()
-    return
+    currentStep.value--;
+    scrollTop();
+    return;
   }
   // Ở bước 1 (chọn ghế): quay về trang trước (thường là màn chọn suất/lịch chiếu);
   // nếu không có lịch sử điều hướng thì về trang Lịch chiếu.
-  if (window.history.length > 1) router.back()
-  else router.push('/lich-chieu')
-}
+  if (window.history.length > 1) router.back();
+  else router.push('/lich-chieu');
+};
 const goToStep = (id) => {
-  // Cho phép quay lại bất kỳ bước trước; chỉ chặn nhảy tới khi chưa chọn ghế
-  if (id > currentStep.value && store.selectedSeats.length === 0) return
-  // Nhảy từ bước chọn ghế sang bước sau cũng cần đăng nhập
-  if (currentStep.value === 1 && id > 1 && !ensureAuthForBooking()) return
-  currentStep.value = id
-  scrollTop()
-}
+  if (id === currentStep.value) return;
+  // Cho phép quay lại bất kỳ bước trước mà không cần validate
+  if (id < currentStep.value) {
+    currentStep.value = id;
+    scrollTop();
+    return;
+  }
+  // Nếu đang ở bước 1 và muốn nhảy tới bước sau (2, 3, 4) -> bắt buộc vượt qua validateStep1
+  if (currentStep.value === 1 && id > 1) {
+    if (!validateStep1()) return;
+  }
+  currentStep.value = id;
+  scrollTop();
+};
 
 // Giữ ghế (tạo đơn) SẴN ở nền ngay khi mở bước Thanh toán → lúc bấm "Xác nhận" chỉ còn completePayment (nhanh hơn)
 let holdPromise = null
@@ -1845,8 +1887,7 @@ const proceedToPayment = async () => {
           <button
             v-if="currentStep < steps.length"
             @click="goNext"
-            :disabled="!canProceed"
-            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-4 rounded-2xl font-headline font-extrabold text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 disabled:grayscale disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
+            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-4 rounded-2xl font-headline font-extrabold text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer"
           >
             Tiếp tục
             <span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
