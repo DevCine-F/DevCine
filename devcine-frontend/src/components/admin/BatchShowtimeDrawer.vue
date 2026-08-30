@@ -74,10 +74,9 @@ const movieOptions = computed(() => {
     .sort((a, b) => (b.id || 0) - (a.id || 0))
     .map(m => {
       const isUpcoming = (m.status || '').toLowerCase() === 'upcoming';
-      const duration = m.durationMins || m.duration || 120;
       return {
         value: m.id,
-        label: `${m.title || m.name} - ${duration}p`,
+        label: m.title || m.name,
         badge: {
           text: isUpcoming ? 'Sắp chiếu' : 'Đang chiếu',
           type: isUpcoming ? 'upcoming' : 'active',
@@ -87,6 +86,31 @@ const movieOptions = computed(() => {
         }
       };
     });
+});
+
+const selectedMovie = computed(() => {
+  if (!form.movieId) return null;
+  return movies.value.find(m => m.id === form.movieId) || null;
+});
+
+const selectedMovieMeta = computed(() => {
+  if (!selectedMovie.value) return null;
+  const m = selectedMovie.value;
+  const duration = m.durationMins || m.duration || null;
+  
+  const formatDate = (dStr) => {
+    if (!dStr) return null;
+    const parts = String(dStr).slice(0, 10).split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dStr;
+  };
+
+  return {
+    duration: duration ? `${duration} phút` : null,
+    startDate: formatDate(m.startDate || m.releaseDate),
+    endDate: formatDate(m.endDate),
+    ageRating: m.ageRating || m.rating || null,
+    supportedFormats: m.supportedFormats || m.format || null
+  };
 });
 
 // Định dạng lọc theo phim đã chọn (giống ShowtimeDrawer)
@@ -695,20 +719,45 @@ const handleCreate = async () => {
       <!-- Body -->
       <div class="flex-1 overflow-y-auto p-8 space-y-6">
         <!-- Phim + định dạng -->
-        <div class="grid grid-cols-2 gap-4">
-          <div ref="movieField">
-            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>
-            <CustomSelect v-model="form.movieId" :options="movieOptions" :searchable="true" placeholder="-- Chọn phim --"
-              @update:modelValue="() => { form.formatId = ''; fieldErrors.movieId = ''; }"
-              :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
-            <p v-if="fieldErrors.movieId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.movieId }}</p>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-4">
+            <div ref="movieField">
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Phim</label>
+              <CustomSelect v-model="form.movieId" :options="movieOptions" :searchable="true" placeholder="-- Chọn phim --"
+                @update:modelValue="() => { form.formatId = ''; fieldErrors.movieId = ''; }"
+                :class="fieldErrors.movieId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
+              <p v-if="fieldErrors.movieId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.movieId }}</p>
+            </div>
+            <div ref="formatField">
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Định dạng</label>
+              <CustomSelect v-model="form.formatId" :options="formatOptions" :disabled="!form.movieId" placeholder="-- Chọn định dạng --"
+                :class="fieldErrors.formatId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
+              <p v-if="fieldErrors.formatId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.formatId }}</p>
+            </div>
           </div>
-          <div ref="formatField">
-            <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Định dạng</label>
-            <CustomSelect v-model="form.formatId" :options="formatOptions" :disabled="!form.movieId" placeholder="-- Chọn định dạng --"
-              :class="fieldErrors.formatId ? 'rounded-xl ring-1 ring-red-500/60' : ''" />
-            <p v-if="fieldErrors.formatId" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.formatId }}</p>
-          </div>
+
+          <!-- Thông tin chi tiết phim đã chọn -->
+          <Transition name="fade">
+            <div
+              v-if="selectedMovie && selectedMovieMeta"
+              class="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/70"
+            >
+              <div v-if="selectedMovieMeta.duration" class="inline-flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[15px] text-primary">schedule</span>
+                <span class="font-medium text-white/90">{{ selectedMovieMeta.duration }}</span>
+              </div>
+              <div v-if="selectedMovieMeta.startDate" class="inline-flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[15px] text-primary">event_available</span>
+                <span>Khởi chiếu: <strong class="text-white/90 font-semibold">{{ selectedMovieMeta.startDate }}</strong></span>
+              </div>
+              <div v-if="selectedMovieMeta.ageRating" class="inline-flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[15px] text-primary">verified_user</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  {{ selectedMovieMeta.ageRating }}
+                </span>
+              </div>
+            </div>
+          </Transition>
         </div>
 
         <!-- Cơ sở → phòng -->
