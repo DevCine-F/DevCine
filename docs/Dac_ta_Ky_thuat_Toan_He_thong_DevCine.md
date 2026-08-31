@@ -267,7 +267,7 @@ Quan hệ: `@ManyToMany` với `Category` qua bảng nối **`movie_genre_mappin
 - **`PricingRule`** → `pricing_rules`: `id`, `name`, `rule_type` (BASE_PRICE), `day_type` (WEEKDAY/WEEKEND/ALL), `room_type` (STANDARD/SUPERPLEX/CINE_COMFORT/ALL), `time_slot` (@Deprecated — luôn ALL), `audience_type` (ADULT/U22/CHILD/SENIOR/ALL), `value` (Decimal), `priority`, `active`, `start_date`/`end_date`.
 - **`Holiday`** → `holidays`: `id`, `holiday_date` (UNIQUE), `name`. Ngày lễ → áp `day_type=WEEKEND`.
 - **`ApprovalRequest`** → `approval_requests`: yêu cầu sửa sai do Quản lý/Quản trị viên duyệt (`type` **FNB_VOID** — hủy hóa đơn F&B, `ref_id`, `status` PENDING/APPROVED/REJECTED…). *Đổi ghế (SEAT_MOVE) đã gỡ.*
-- **`SystemSetting`** → cấu hình key-value (SEAT_HOLD_MINUTES, MAX_TICKETS, BOOKING_LATE_MINUTES, LOYALTY_POINT_RATE, cờ seed…).
+- **`SystemSetting`** → cấu hình key-value (`SEAT_HOLD_MINUTES`, `POS_ORDER_HOLD_MINUTES`, `MAX_TICKETS_PER_BOOKING`, `BOOKING_LATE_MINUTES`, `LOYALTY_POINT_RATE`, `PAYMENT_BANK_...`, cờ seed…).
 - Các entity phụ trợ: `Notification`, `Review`, `AuditLog`, `SupportTicket`, `Banner`, `PromoArticle`, `Faq`, `AgeRating`, `PromoEmailLog` (dedup email chiến dịch).
 - **`ConcessionSale`** → `concession_sales`: `id`, `sale_code` (UNIQUE), `customer_id` (nullable), `sold_by` (FK → Staff), `cinema_id` (FK → Cinema — neo cơ sở bán), `total_price`, `payment_method`, `status` (CONFIRMED/VOIDED), `created_at`. Kèm `ConcessionSaleItem` (bán F&B thuần tại quầy).
 
@@ -395,7 +395,9 @@ Quan hệ: `@ManyToMany` với `Category` qua bảng nối **`movie_genre_mappin
 - **Giữ ghế 2 pha:** ghế đang HOLD **quá hạn** (`createdAt < now - SEAT_HOLD_MINUTES`) mới được nhả (`status=EXPIRED`); HOLD còn sống của **bất kỳ** đơn nào (kể cả cùng tài khoản) đều bị chặn.
 - **Anti-fraud theo kênh:** vé **CHILD/SENIOR** cần xác minh giấy tờ ⇒ **cấm bán ONLINE** (chặn ở service dù UI đã ẩn); ONLINE chỉ ADULT/U22.
 - **Chống phe vé & Khung giờ bán vé muộn (Late Booking):** `selectedSeatIds.size() > MAX_TICKETS` (SystemSetting) → từ chối. Khung giờ khởi tạo phiên mở bán đối chiếu với `sessionStartedAt` (mốc thời gian khi nhân viên/khách hàng bấm chọn suất chiếu) $\le$ `startTime + bookingLateMinutes`.
-- **Bảo vệ phiên & Vòng đời giữ đơn (Session Protection & Hold Order Lifetime):** Mọi giao dịch được bắt đầu trong khung giờ mở bán đều được bảo vệ toàn bộ các bước chọn ghế, chọn bắp nước, áp voucher và thanh toán trong suốt thời hạn giữ đơn (`expiresAt = effectiveStartTime + SEAT_HOLD_MINUTES`) mà không bị ép rút ngắn theo mốc giờ đóng bán. Tích hợp **Idle Guard**: nếu phiên treo máy quá `SEAT_HOLD_MINUTES` so với hiện tại, hệ thống tự động từ chối.
+- **Bảo vệ phiên & Tách biệt 2 cấu hình giữ đơn (Dual Hold Timers):**
+  - *(1) Thời gian giữ chỗ phiên đặt vé (`SEAT_HOLD_MINUTES` — 3–30 phút, mặc định 10)*: Áp dụng khi khách đặt Online hoặc thu ngân đang chọn ghế trên POS; bảo vệ toàn bộ phiên giao dịch từ `sessionStartedAt` đến thanh toán; tích hợp **Idle Guard** tự động hủy nếu treo máy quá hạn.
+  - *(2) Thời gian lưu đơn chờ tại quầy POS (`POS_ORDER_HOLD_MINUTES` — 3–60 phút, mặc định 15)*: Áp dụng khi thu ngân bấm **"Giữ đơn"** tại POS để phục vụ khách tiếp theo; tự động kẹp tối đa bằng `startTime` suất chiếu; quá hạn tự hủy đơn, nhả ghế và phạt 5 phút ghế bị bỏ rơi trên POS đó.
 - **Giữ chỗ trước tại POS (QR Payment Hold):** Tại quầy POS, mở modal Chuyển khoản QR sẽ lập tức gọi `holdSeats` để khóa ghế và chốt mốc thời gian tạo đơn; khi khách quét xong chỉ cần gọi hoàn tất, nếu hủy modal thì tự động nhả ghế qua `releaseHold`.
 - **Chốt giá server-side:** `PricingService.buildContext(showtime)` nạp ngữ cảnh **một lần**, mỗi ghế `priceFor(ctx, ticketType)` → lưu vào `price_snapshot` (bất biến).
 - **Voucher tại đặt vé:** gọi `VoucherService.evaluate(...)` (nguồn sự thật duy nhất) → `finalPrice = totalPrice − discount` (kẹp ≥ 0). Tách `finalPrice` khỏi `totalPrice` để **sửa bug giảm giá 2 lần** ở VNPAY.

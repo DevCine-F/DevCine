@@ -7,7 +7,7 @@
 
 ## 1. NGUYÊN TẮC NGHIỆP VỤ CỐT LÕI (Core Business Rules)
 
-Hệ thống phân tách rạch ròi giữa 2 khái niệm thời gian:
+Hệ thống phân tách rạch ròi giữa 3 khái niệm thời gian:
 
 1. **Khung giờ Mở Bán / Khởi tạo phiên (Booking Window & Session Start):**
    * Mốc bắt đầu giao dịch (`sessionStartedAt`) được xác lập **ngay khi nhân viên/khách hàng bấm chọn suất chiếu** ở Bước 1.
@@ -15,10 +15,16 @@ Hệ thống phân tách rạch ròi giữa 2 khái niệm thời gian:
    * **Bảo vệ phiên:** Khi người dùng đã bắt đầu chọn suất chiếu trong khung giờ hợp lệ, toàn bộ quá trình chọn ghế, chọn bắp nước, áp voucher và quét mã QR đều được bảo vệ trong suốt thời hạn giữ đơn (`SEAT_HOLD_MINUTES`).
    * **Chống treo máy (Idle Guard):** Nếu khoảng cách từ `sessionStartedAt` đến thời điểm hiện tại vượt quá `SEAT_HOLD_MINUTES` (cấu hình động), hệ thống coi phiên đã hết hạn và từ chối tạo đơn.
 
-2. **Vòng đời Giữ đơn / Chờ thanh toán (Hold Order Lifetime):**
+2. **Thời gian Giữ chỗ Phiên đặt vé trực tiếp (`SEAT_HOLD_MINUTES` — 3–30 phút, mặc định 10):**
+   * Áp dụng khi khách đặt Online (`BookingView.vue`) hoặc thu ngân đang chọn ghế trên màn hình POS (`TicketingPOS.vue`).
    * Đơn hàng được cấp **trọn vẹn thời gian chờ thanh toán** (`expiresAt = now + SEAT_HOLD_MINUTES`, cấu hình động từ Admin).
    * **Quy tắc bất biến:** Thời hạn `expiresAt` tuyệt đối **không bị cắt cụt** theo mốc đóng bán `startTime + BOOKING_LATE_MINUTES`.
    * Khách hàng / Thu ngân có toàn bộ khoảng thời gian chờ để hoàn tất thanh toán (quét QR, chuyển tiền, thanh toán tiền mặt) ngay cả khi thời điểm thanh toán thực tế đã vượt qua mốc kết thúc bán vé trễ.
+
+3. **Thời gian Lưu đơn chờ tại quầy POS (`POS_ORDER_HOLD_MINUTES` — 3–60 phút, mặc định 15):**
+   * Áp dụng khi thu ngân tại quầy bấm nút **"Giữ đơn"** để tạm treo hóa đơn và phục vụ khách hàng tiếp theo.
+   * Thời hạn lưu giữ `expiresAt = now + POS_ORDER_HOLD_MINUTES` (tự động kẹp tối đa bằng giờ suất chiếu bắt đầu `startTime`).
+   * Quá hạn, đơn chuyển sang `EXPIRED`, hệ thống tự động giải phóng ghế trên Redis/DB, gửi WebSocket thông báo và áp dụng phạt 5 phút với ghế bị bỏ rơi trên máy POS đó.
 
 ---
 

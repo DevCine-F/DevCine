@@ -235,27 +235,27 @@ onMounted(() => {
           <span class="material-symbols-outlined text-primary">timer</span>
           Cấu hình thời gian giữ ghế &amp; giữ đơn
         </h3>
-        <p class="text-xs text-on-surface-variant mb-8">Thiết lập thời gian hết hạn cho thao tác chọn ghế trực tiếp và lưu đơn chờ tại quầy POS. Quá hạn, hệ thống sẽ tự động giải phóng ghế.</p>
+        <p class="text-xs text-on-surface-variant mb-8">Quy định thời hạn khóa ghế trong phiên giao dịch và thời gian lưu trữ hóa đơn chờ tại quầy. Quá hạn, hệ thống sẽ tự động hủy đơn và giải phóng ghế.</p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian giữ ghế khi chọn</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian giữ chỗ phiên đặt vé</label>
             <div class="relative">
               <input v-model.number="settings.seatHoldMinutes" :disabled="isLoading" type="number" min="3" max="30"
                      class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
               <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
             </div>
-            <p class="text-[10px] text-on-surface-variant/70">Áp dụng khi khách đặt Online hoặc thu ngân đang chọn ghế trên POS (3–30 phút, mặc định 10).</p>
+            <p class="text-[10px] text-on-surface-variant/70">Thời gian khóa ghế tạm thời cho mỗi phiên đặt vé (Online/POS).<br>Khoảng từ 3–30 phút.</p>
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian lưu đơn chờ (POS)</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian lưu đơn chờ tại quầy (POS)</label>
             <div class="relative">
               <input v-model.number="settings.posOrderHoldMinutes" :disabled="isLoading" type="number" min="3" max="60"
                      class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
               <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
             </div>
-            <p class="text-[10px] text-on-surface-variant/70">Áp dụng cho các đơn được bấm "Giữ đơn" tại quầy POS để thanh toán sau (3–60 phút, mặc định 15).</p>
+            <p class="text-[10px] text-on-surface-variant/70">Thời gian duy trì đơn khi thu ngân bấm "Giữ đơn" để phục vụ khách tiếp theo.<br>Khoảng từ 3–60 phút.</p>
           </div>
         </div>
       </section>

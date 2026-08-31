@@ -4,6 +4,18 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.6] — 2026-09-01
+
+### Enhanced — Tách biệt & Đồng bộ Cấu hình Thời gian Giữ chỗ Phiên đặt vé & Lưu đơn chờ POS (Dual Hold Timers)
+- **Tách biệt 2 cấu hình thời hạn:**
+  - **`SEAT_HOLD_MINUTES` (3–30 phút, mặc định 10):** Thời gian giữ chỗ trực tiếp trong phiên giao dịch (khách đặt Online hoặc thu ngân đang chọn ghế trên POS).
+  - **`POS_ORDER_HOLD_MINUTES` (3–60 phút, mặc định 15):** Thời gian duy trì đơn hàng chờ khi thu ngân bấm "Giữ đơn" tại quầy POS để phục vụ khách khác trước.
+- **Backend (`SystemSettingService.java` & `PendingOrderService.java`):** Quản lý tập trung các key setting, kẹp cận an toàn, tính `expiresAt` tự động kẹp theo giờ suất chiếu và đồng bộ TTL Redis cho các đơn giữ POS.
+- **Admin Settings (`AdminSettings.vue`):** Loại bỏ khối Cấu hình chung không cần thiết; nâng cấp khối *Cấu hình thời gian giữ ghế & giữ đơn* thành bố cục 2 cột cân xứng, hỗ trợ tải và lưu đồng bộ cả 2 giá trị.
+- **Màn hình Bán vé POS (`TicketingPOS.vue` & `usePosStore.js`):** Nạp động cấu hình, đếm lùi timer chọn ghế trực tiếp theo `seatHoldMinutes` và quản lý hạn từng đơn chờ theo `posOrderHoldMinutes` hoặc `expiresAt` từ Backend; cập nhật bộ kiểm thử `usePosStore.spec.js` đạt 100% pass.
+
+---
+
 ## [1.6.5] — 2026-08-31
 
 ### Enhanced & Fixed — Chuẩn hóa số lượng vé & bộ đếm ghế đôi Sweetbox tại Quầy vé (Ticketing POS)
