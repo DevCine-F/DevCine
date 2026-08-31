@@ -22,6 +22,12 @@ public class SystemSettingService {
     public static final int SEAT_HOLD_MAX = 30;
     public static final int SEAT_HOLD_DEFAULT = 10;
 
+    /** Key cấu hình thời gian lưu đơn chờ tại quầy POS (phút). */
+    public static final String KEY_POS_ORDER_HOLD_MINUTES = "POS_ORDER_HOLD_MINUTES";
+    public static final int POS_ORDER_HOLD_MIN = 3;
+    public static final int POS_ORDER_HOLD_MAX = 60;
+    public static final int POS_ORDER_HOLD_DEFAULT = 15;
+
     /** Số vé tối đa cho một lần đặt (chống phe vé). */
     public static final String KEY_MAX_TICKETS = "MAX_TICKETS_PER_BOOKING";
     public static final int MAX_TICKETS_MIN = 1;
@@ -64,6 +70,13 @@ public class SystemSettingService {
      */
     public int getSeatHoldMinutes() {
         return getIntSetting(KEY_SEAT_HOLD_MINUTES, SEAT_HOLD_MIN, SEAT_HOLD_MAX, SEAT_HOLD_DEFAULT);
+    }
+
+    /**
+     * Thời gian lưu đơn chờ tại quầy POS (phút) admin cấu hình, đã kẹp trong [3, 60]; thiếu/sai → mặc định 15.
+     */
+    public int getPosOrderHoldMinutes() {
+        return getIntSetting(KEY_POS_ORDER_HOLD_MINUTES, POS_ORDER_HOLD_MIN, POS_ORDER_HOLD_MAX, POS_ORDER_HOLD_DEFAULT);
     }
 
     public List<SystemSettingResponseDTO> getAllSettings() {

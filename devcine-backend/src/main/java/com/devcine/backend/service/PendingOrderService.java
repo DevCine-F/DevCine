@@ -24,6 +24,7 @@ public class PendingOrderService {
     private final BookingSeatRepository bookingSeatRepository;
     private final BookingService bookingService;
     private final PosHoldService posHoldService;
+    private final SystemSettingService systemSettingService;
     private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
@@ -87,7 +88,8 @@ public class PendingOrderService {
         // Tạo đơn giữ
         Booking booking = bookingService.holdSeatsForStaff(req, soldBy);
         
-        LocalDateTime expiresAt = now.plusMinutes(10);
+        int holdMinutes = systemSettingService.getPosOrderHoldMinutes();
+        LocalDateTime expiresAt = now.plusMinutes(holdMinutes);
         LocalDateTime showtimeStart = booking.getShowtime().getStartTime();
         if (showtimeStart.isBefore(expiresAt)) {
             expiresAt = showtimeStart; // Giới hạn tối đa bằng đúng giờ khởi chiếu

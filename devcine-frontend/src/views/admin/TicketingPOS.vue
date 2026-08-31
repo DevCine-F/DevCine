@@ -252,7 +252,8 @@ const formatTone = (name) => {
 }
 
 // ===== Giữ ghế tạm thời (Seat Holding Timer) + đồng bộ trạng thái ghế real-time =====
-const HOLD_SECONDS = 5 * 60       // 5 phút giữ ghế
+const seatHoldMinutes = ref(10)   // cấu hình thời gian giữ ghế khi chọn (SEAT_HOLD_MINUTES)
+const posOrderHoldMinutes = ref(15) // cấu hình thời gian lưu đơn chờ POS (POS_ORDER_HOLD_MINUTES)
 const holdRemaining = ref(0)      // giây còn lại
 let holdTimer = null
 const holdActive = computed(() => holdRemaining.value > 0 && selectedSeats.value.length > 0)
@@ -263,7 +264,7 @@ const holdMmSs = computed(() => {
 const holdUrgent = computed(() => holdRemaining.value > 0 && holdRemaining.value <= 60)
 
 const startHoldTimer = () => {
-  holdRemaining.value = HOLD_SECONDS
+  holdRemaining.value = (seatHoldMinutes.value || 10) * 60
   if (holdTimer) clearInterval(holdTimer)
   holdTimer = setInterval(() => {
     holdRemaining.value--
@@ -528,6 +529,7 @@ const holdCurrentOrder = async () => {
     bookingId,
     code: bookingCode,
     expiresAt,
+    holdMinutes: posOrderHoldMinutes.value,
     step: saleMode.value === 'FNB' ? fnbStep.value : currentStep.value,
     showtime: selectedShowtime.value ? JSON.parse(JSON.stringify(selectedShowtime.value)) : null,
     seats: JSON.parse(JSON.stringify(selectedSeats.value)),
@@ -1420,7 +1422,10 @@ const loadBankInfo = async () => {
   try {
     const { data } = await settingsApi.getAll()
     const map = {}
-    data.forEach(s => { map[s.settingKey] = s.settingValue })
+    const list = data?.data || data || []
+    if (Array.isArray(list)) {
+      list.forEach(s => { map[s.settingKey] = s.settingValue })
+    }
     bankInfo.value = {
       code: map.PAYMENT_BANK_CODE || '',
       name: map.PAYMENT_BANK_NAME || '',
@@ -1429,6 +1434,12 @@ const loadBankInfo = async () => {
     }
     const mt = parseInt(map.MAX_TICKETS_PER_BOOKING)
     if (!isNaN(mt)) maxTicketsPerBooking.value = Math.min(20, Math.max(1, mt))
+    const late = parseInt(map.BOOKING_LATE_MINUTES)
+    if (!isNaN(late)) lateBookingMinutes.value = late
+    const hold = parseInt(map.SEAT_HOLD_MINUTES)
+    if (!isNaN(hold)) seatHoldMinutes.value = Math.min(30, Math.max(3, hold))
+    const posHold = parseInt(map.POS_ORDER_HOLD_MINUTES)
+    if (!isNaN(posHold)) posOrderHoldMinutes.value = Math.min(60, Math.max(3, posHold))
   } catch (err) {
     // Không chặn POS nếu lỗi — modal QR sẽ báo "chưa cấu hình"
   }
@@ -2053,16 +2064,7 @@ const handleGlobalKeydown = (e) => {
 }
 
 const loadSettings = async () => {
-  try {
-    const { data } = await settingsApi.getAll()
-    const list = data?.data || data || []
-    const lateSetting = list.find(s => s.settingKey === 'BOOKING_LATE_MINUTES')
-    if (lateSetting && !isNaN(Number(lateSetting.settingValue))) {
-      lateBookingMinutes.value = Number(lateSetting.settingValue)
-    }
-  } catch (e) {
-    // fallback 10 minutes
-  }
+  await loadBankInfo()
 }
 
 watch(currentStep, async (step) => {

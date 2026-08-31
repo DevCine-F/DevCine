@@ -22,6 +22,11 @@ vi.mock('@/api/admin/index', () => ({
   ticketingApi: {
     releaseHold: vi.fn().mockResolvedValue({}),
   },
+  posPendingOrderApi: {
+    cancel: vi.fn().mockResolvedValue({}),
+    hold: vi.fn().mockResolvedValue({}),
+    resume: vi.fn().mockResolvedValue({}),
+  },
 }))
 
 vi.mock('@/stores/toast', () => ({
@@ -87,14 +92,12 @@ describe('usePosStore', () => {
     // Let's spy on global clearInterval
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval')
 
-    // Fast forward to expire the ticket (300 seconds)
-    vi.advanceTimersByTime(301 * 1000)
+    // Fast forward to expire the ticket (15 minutes default = 900 seconds)
+    vi.advanceTimersByTime(901 * 1000)
     
     // After expiration, updateTimers should remove the expired TICKET order
     // and since array becomes empty, it should clear the interval
     expect(store.heldOrders.length).toBe(0)
-    
-    expect(clearIntervalSpy).toHaveBeenCalled()
     
     expect(clearIntervalSpy).toHaveBeenCalled()
   })

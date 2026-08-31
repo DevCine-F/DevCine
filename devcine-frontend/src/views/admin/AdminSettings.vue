@@ -34,13 +34,11 @@ const BANKS = [
 ]
 
 const settings = ref({
-  siteName: 'DevCine Editorial Cinema',
-  contactEmail: 'contact@devcine.com',
   pointConversionRate: 1000,
   seatHoldMinutes: 10,
+  posOrderHoldMinutes: 15,
   maxTicketsPerBooking: 8,
   bookingLateMinutes: 15,
-  maintenanceMode: false,
   bankCode: '',
   bankName: '',
   accountNo: '',
@@ -66,13 +64,11 @@ const loadSettings = async () => {
   try {
     const { data } = await settingsApi.getAll()
     data.forEach(item => {
-      if (item.settingKey === 'SITE_NAME') settings.value.siteName = item.settingValue
-      else if (item.settingKey === 'CONTACT_EMAIL') settings.value.contactEmail = item.settingValue
-      else if (item.settingKey === 'LOYALTY_POINT_RATE') settings.value.pointConversionRate = parseInt(item.settingValue) || 1000
+      if (item.settingKey === 'LOYALTY_POINT_RATE') settings.value.pointConversionRate = parseInt(item.settingValue) || 1000
       else if (item.settingKey === 'SEAT_HOLD_MINUTES') settings.value.seatHoldMinutes = parseInt(item.settingValue) || 10
+      else if (item.settingKey === 'POS_ORDER_HOLD_MINUTES') settings.value.posOrderHoldMinutes = parseInt(item.settingValue) || 15
       else if (item.settingKey === 'MAX_TICKETS_PER_BOOKING') settings.value.maxTicketsPerBooking = parseInt(item.settingValue) || 8
       else if (item.settingKey === 'BOOKING_LATE_MINUTES') settings.value.bookingLateMinutes = parseInt(item.settingValue) || 15
-      else if (item.settingKey === 'MAINTENANCE_MODE') settings.value.maintenanceMode = item.settingValue === 'true'
       else if (item.settingKey === 'PAYMENT_BANK_CODE') settings.value.bankCode = item.settingValue || ''
       else if (item.settingKey === 'PAYMENT_BANK_NAME') settings.value.bankName = item.settingValue || ''
       else if (item.settingKey === 'PAYMENT_ACCOUNT_NO') settings.value.accountNo = item.settingValue || ''
@@ -88,18 +84,17 @@ const loadSettings = async () => {
 const saveSettings = async () => {
   // Kẹp các tham số nghiệp vụ về khoảng cho phép trước khi lưu
   settings.value.seatHoldMinutes = Math.min(30, Math.max(3, parseInt(settings.value.seatHoldMinutes) || 10))
+  settings.value.posOrderHoldMinutes = Math.min(60, Math.max(3, parseInt(settings.value.posOrderHoldMinutes) || 15))
   settings.value.maxTicketsPerBooking = Math.min(20, Math.max(1, parseInt(settings.value.maxTicketsPerBooking) || 8))
   settings.value.bookingLateMinutes = Math.min(60, Math.max(0, parseInt(settings.value.bookingLateMinutes) || 15))
   isLoading.value = true
   try {
     await Promise.all([
-      settingsApi.save({ settingKey: 'SITE_NAME', settingValue: settings.value.siteName }),
-      settingsApi.save({ settingKey: 'CONTACT_EMAIL', settingValue: settings.value.contactEmail }),
       settingsApi.save({ settingKey: 'LOYALTY_POINT_RATE', settingValue: settings.value.pointConversionRate.toString() }),
       settingsApi.save({ settingKey: 'SEAT_HOLD_MINUTES', settingValue: settings.value.seatHoldMinutes.toString() }),
+      settingsApi.save({ settingKey: 'POS_ORDER_HOLD_MINUTES', settingValue: settings.value.posOrderHoldMinutes.toString() }),
       settingsApi.save({ settingKey: 'MAX_TICKETS_PER_BOOKING', settingValue: settings.value.maxTicketsPerBooking.toString() }),
       settingsApi.save({ settingKey: 'BOOKING_LATE_MINUTES', settingValue: settings.value.bookingLateMinutes.toString() }),
-      settingsApi.save({ settingKey: 'MAINTENANCE_MODE', settingValue: settings.value.maintenanceMode.toString() }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_CODE', settingValue: settings.value.bankCode }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_NAME', settingValue: settings.value.bankName }),
       settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NO', settingValue: settings.value.accountNo }),
@@ -156,34 +151,6 @@ onMounted(() => {
     </header>
 
     <div class="max-w-4xl space-y-8">
-      <!-- General Settings -->
-      <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8">
-        <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-8 flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary">settings_applications</span>
-          Cấu hình chung
-        </h3>
-        <div class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tên Website</label>
-              <input v-model="settings.siteName" :disabled="isLoading" type="text" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
-            </div>
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Email liên hệ</label>
-              <input v-model="settings.contactEmail" :disabled="isLoading" type="email" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
-            </div>
-          </div>
-          <div class="flex items-center justify-between p-4 bg-surface-container-high rounded-lg">
-            <div>
-              <p class="text-sm font-bold text-on-surface">Chế độ bảo trì</p>
-              <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Tạm dừng truy cập phía người dùng</p>
-            </div>
-            <button @click="settings.maintenanceMode = !settings.maintenanceMode" :disabled="isLoading || !can('settings', 'edit')" :class="settings.maintenanceMode ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'" class="px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              {{ settings.maintenanceMode ? 'BẬT' : 'TẮT' }}
-            </button>
-          </div>
-        </div>
-      </section>
 
       <!-- Business Settings -->
       <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8">
@@ -262,20 +229,33 @@ onMounted(() => {
         </div>
       </section>
 
-      <!-- Seat Hold Time Settings -->
+      <!-- Seat & POS Order Hold Time Settings -->
       <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8">
         <h3 class="font-headline font-bold uppercase tracking-tight text-on-surface mb-2 flex items-center gap-2">
           <span class="material-symbols-outlined text-primary">timer</span>
-          Cấu hình thời gian giữ ghế
+          Cấu hình thời gian giữ ghế &amp; giữ đơn
         </h3>
-        <p class="text-xs text-on-surface-variant mb-8">Khi khách chọn ghế và sang bước thanh toán, ghế sẽ được giữ trong khoảng thời gian này. Quá hạn, hệ thống tự động nhả ghế để khách khác đặt.</p>
+        <p class="text-xs text-on-surface-variant mb-8">Thiết lập thời gian hết hạn cho thao tác chọn ghế trực tiếp và lưu đơn chờ tại quầy POS. Quá hạn, hệ thống sẽ tự động giải phóng ghế.</p>
 
-        <div class="space-y-2 w-full md:w-auto">
-          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian giữ ghế</label>
-          <div class="relative w-full md:w-56">
-            <input v-model.number="settings.seatHoldMinutes" :disabled="isLoading" type="number" min="3" max="30"
-                   class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
-            <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian giữ ghế khi chọn</label>
+            <div class="relative">
+              <input v-model.number="settings.seatHoldMinutes" :disabled="isLoading" type="number" min="3" max="30"
+                     class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
+              <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
+            </div>
+            <p class="text-[10px] text-on-surface-variant/70">Áp dụng khi khách đặt Online hoặc thu ngân đang chọn ghế trên POS (3–30 phút, mặc định 10).</p>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian lưu đơn chờ (POS)</label>
+            <div class="relative">
+              <input v-model.number="settings.posOrderHoldMinutes" :disabled="isLoading" type="number" min="3" max="60"
+                     class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
+              <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
+            </div>
+            <p class="text-[10px] text-on-surface-variant/70">Áp dụng cho các đơn được bấm "Giữ đơn" tại quầy POS để thanh toán sau (3–60 phút, mặc định 15).</p>
           </div>
         </div>
       </section>

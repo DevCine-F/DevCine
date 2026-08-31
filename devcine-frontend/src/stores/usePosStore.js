@@ -14,7 +14,7 @@ const generateUUID = () => {
 const HELD_KEY = 'devcine_pos_held_orders'
 const HELD_SEQ_KEY = 'devcine_pos_hold_seq'
 const HELD_MAX = 10
-const HOLD_SECONDS = 5 * 60
+const DEFAULT_POS_HOLD_SECONDS = 15 * 60
 
 export const usePosStore = defineStore('posStore', () => {
   const heldOrders = ref([])
@@ -71,8 +71,9 @@ export const usePosStore = defineStore('posStore', () => {
       if (order.expiresAt) {
         remaining = Math.max(0, Math.floor((order.expiresAt - now) / 1000))
       } else {
+        const holdSec = order.holdMinutes ? order.holdMinutes * 60 : DEFAULT_POS_HOLD_SECONDS
         const elapsed = Math.floor((now - order.createdAt) / 1000)
-        remaining = Math.max(0, HOLD_SECONDS - elapsed)
+        remaining = Math.max(0, holdSec - elapsed)
       }
       order.holdRemaining = remaining
 
@@ -119,11 +120,12 @@ export const usePosStore = defineStore('posStore', () => {
       return false
     }
 
+    const holdSec = orderData.holdMinutes ? orderData.holdMinutes * 60 : DEFAULT_POS_HOLD_SECONDS
     const newOrder = {
       ...orderData,
       code: orderData.code || nextHoldCode(),
       createdAt: orderData.createdAt || Date.now(),
-      expiresAt: orderData.expiresAt || (Date.now() + HOLD_SECONDS * 1000),
+      expiresAt: orderData.expiresAt || (Date.now() + holdSec * 1000),
       holdRemaining: 0 // calculated in updateTimers
     }
 
