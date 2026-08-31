@@ -46,13 +46,10 @@ const fnbBasePrice = (f) => {
   return unit > sur ? unit - sur : unit
 }
 const fnbLineTotal = (f) => {
-  if (f?.lineTotal != null && Number(f.lineTotal) > 0) {
-    const sur = fnbTotalSurcharge(f)
-    const base = fnbBasePrice(f)
-    const expected = (base + sur) * Number(f?.quantity || 1)
-    return Math.max(Number(f.lineTotal), expected)
-  }
+  if (f?.lineTotal != null && Number(f.lineTotal) > 0) return Number(f.lineTotal)
   const qty = Number(f?.quantity || 1)
+  const unit = Number(f?.unitPrice || f?.price || 0)
+  if (unit > 0) return unit * qty
   const base = fnbBasePrice(f)
   const sur = fnbTotalSurcharge(f)
   return (base + sur) * qty
@@ -166,6 +163,9 @@ const detailDiscount = computed(() => {
 })
 const detailFinalPrice = computed(() => {
   if (!detail.value) return 0
+  if (detail.value.finalPrice != null && Number(detail.value.finalPrice) >= 0) {
+    return Number(detail.value.finalPrice)
+  }
   if (detail.value.isConcession) {
     return Math.max(0, detailComboTotal.value - detailDiscount.value)
   }

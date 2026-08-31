@@ -224,22 +224,9 @@ public class AdminBookingController {
                             : java.math.BigDecimal.ZERO)
                     .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
-            java.math.BigDecimal catalogPrice = (bf.getFnbItem() != null && bf.getFnbItem().getPrice() != null)
-                    ? bf.getFnbItem().getPrice() : null;
-
-            java.math.BigDecimal basePrice;
-            java.math.BigDecimal finalUnitPrice;
-
-            if (catalogPrice != null && snapshot.compareTo(catalogPrice) == 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                basePrice = catalogPrice;
-                finalUnitPrice = basePrice.add(totalSurcharge);
-            } else if (snapshot.compareTo(totalSurcharge) >= 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                basePrice = snapshot.subtract(totalSurcharge);
-                finalUnitPrice = snapshot;
-            } else {
-                basePrice = catalogPrice != null ? catalogPrice : snapshot;
-                finalUnitPrice = basePrice.add(totalSurcharge);
-            }
+            // Tôn trọng tuyệt đối snapshot tại thời điểm giao dịch (bảo toàn lịch sử hoá đơn)
+            java.math.BigDecimal finalUnitPrice = snapshot;
+            java.math.BigDecimal basePrice = snapshot.subtract(totalSurcharge).max(java.math.BigDecimal.ZERO);
 
             f.put("basePrice", basePrice);
             f.put("totalSurcharge", totalSurcharge);
@@ -338,22 +325,9 @@ public class AdminBookingController {
                             : java.math.BigDecimal.ZERO)
                     .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
-            java.math.BigDecimal catalogPrice = (ci.getFnbItem() != null && ci.getFnbItem().getPrice() != null)
-                    ? ci.getFnbItem().getPrice() : null;
-
-            java.math.BigDecimal basePrice;
-            java.math.BigDecimal finalUnitPrice;
-
-            if (catalogPrice != null && snapshot.compareTo(catalogPrice) == 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                basePrice = catalogPrice;
-                finalUnitPrice = basePrice.add(totalSurcharge);
-            } else if (snapshot.compareTo(totalSurcharge) >= 0 && totalSurcharge.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                basePrice = snapshot.subtract(totalSurcharge);
-                finalUnitPrice = snapshot;
-            } else {
-                basePrice = catalogPrice != null ? catalogPrice : snapshot;
-                finalUnitPrice = basePrice.add(totalSurcharge);
-            }
+            // Tôn trọng tuyệt đối snapshot tại thời điểm giao dịch (bảo toàn lịch sử hoá đơn)
+            java.math.BigDecimal finalUnitPrice = snapshot;
+            java.math.BigDecimal basePrice = snapshot.subtract(totalSurcharge).max(java.math.BigDecimal.ZERO);
 
             f.put("basePrice", basePrice);
             f.put("totalSurcharge", totalSurcharge);

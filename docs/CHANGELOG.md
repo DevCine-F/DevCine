@@ -4,6 +4,18 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.8] — 2026-09-01
+
+### Fixed & Standardized — Bảo toàn Snapshot Đơn giá F&B & Khóa Cứng Số tiền Hoá đơn (Invoice Snapshot Preservation)
+- **Backend (`AdminBookingController.java`):**
+  - Loại bỏ hoàn toàn việc đọc `catalogPrice` từ entity live `fnbItem.getPrice()` khi xem chi tiết hoá đơn.
+  - Thiết lập `finalUnitPrice = snapshot` và `basePrice = snapshot - totalSurcharge` cho cả đơn vé (`detail`) và đơn F&B lẻ (`getConcessionDetail`), bảo toàn 100% snapshot giá đã chốt tại thời điểm giao dịch.
+- **Frontend (`AdminBookings.vue`):**
+  - Tối ưu `fnbLineTotal` để ưu tiên lấy trực tiếp `lineTotal` từ snapshot Backend.
+  - Cập nhật computed `detailFinalPrice` ưu tiên lấy trực tiếp `finalPrice` từ snapshot DB thay vì tự tính toán lại theo giá client.
+
+---
+
 ## [1.6.7] — 2026-09-01
 
 ### Enhanced & Standardized — Đồng bộ Kích thước Giao diện & Cơ chế Validate Inline Tài khoản nhận tiền VietQR (Admin Settings)
