@@ -933,6 +933,7 @@ const processConcessionPayment = async (method) => {
     showCashModal.value = false
     showQrModal.value = false
     fnbStep.value = 3
+    printConcessionInvoice()
   } catch (err) {
     const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || ''
     if (errMsg.includes('ngưng bán') || errMsg.includes('không tồn tại')) {
@@ -1518,6 +1519,7 @@ const processPayment = async (method) => {
     showCashModal.value = false
     showQrModal.value = false
     currentStep.value = 6
+    printInvoice()
   } catch (err) {
     const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || ''
     if (errMsg.includes('ngưng bán') || errMsg.includes('không tồn tại')) {
@@ -2298,11 +2300,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="flex gap-4">
-            <AppButton variant="primary" size="lg" class="flex items-center gap-3" @click="printInvoice">
-              <span class="material-symbols-outlined">print</span> In hoá đơn
-            </AppButton>
-            <AppButton variant="outline" size="lg" class="flex items-center gap-3" @click="resetPOS">
+          <div class="flex justify-center w-full max-w-md">
+            <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base" @click="resetPOS">
               <span class="material-symbols-outlined">add_circle</span> Giao dịch mới
             </AppButton>
           </div>
@@ -2486,11 +2485,8 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
-            <div class="flex gap-4">
-              <AppButton variant="primary" size="lg" class="flex items-center gap-3" @click="printConcessionInvoice">
-                <span class="material-symbols-outlined">print</span> In hoá đơn
-              </AppButton>
-              <AppButton variant="outline" size="lg" class="flex items-center gap-3" @click="newConcessionSale">
+            <div class="flex justify-center w-full max-w-md">
+              <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base" @click="newConcessionSale">
                 <span class="material-symbols-outlined">add_circle</span> Giao dịch mới
               </AppButton>
             </div>
