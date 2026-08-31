@@ -107,6 +107,7 @@ const qrPreviewUrl = computed(() => {
   return `https://img.vietqr.io/image/${bankCode}-${accountNo.trim()}-compact2.png?accountName=${encodeURIComponent(accountName?.trim() || '')}`
 })
 
+const isInitialLoading = ref(true)
 const isLoading = ref(false)
 
 const loadSettings = async () => {
@@ -129,6 +130,7 @@ const loadSettings = async () => {
     toast.error(friendlyError(err, 'Không tải được cài đặt hệ thống.'))
   } finally {
     isLoading.value = false
+    isInitialLoading.value = false
   }
 }
 
@@ -225,7 +227,82 @@ onMounted(() => {
       <p class="text-on-surface-variant text-sm mt-1">Cấu hình các tham số vận hành của toàn bộ nền tảng DevCine</p>
     </header>
 
-    <div class="max-w-4xl space-y-8">
+    <!-- Skeleton Loading State (Tránh nhảy số mặc định khi đang tải từ DB) -->
+    <div v-if="isInitialLoading" class="max-w-4xl space-y-8 animate-pulse">
+      <!-- Skeleton 1: Cấu hình nghiệp vụ -->
+      <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8 space-y-6">
+        <div class="h-6 w-48 bg-surface-container-high rounded-md"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <div class="h-3 w-32 bg-surface-container-high rounded"></div>
+            <div class="h-14 bg-surface-container-high rounded-xl"></div>
+            <div class="h-3 w-40 bg-surface-container-high/60 rounded"></div>
+          </div>
+          <div class="space-y-2">
+            <div class="h-3 w-44 bg-surface-container-high rounded"></div>
+            <div class="h-14 bg-surface-container-high rounded-xl"></div>
+            <div class="h-3 w-48 bg-surface-container-high/60 rounded"></div>
+          </div>
+        </div>
+        <div class="p-6 rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 space-y-4">
+          <div class="h-4 w-52 bg-surface-container-high rounded"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="h-14 bg-surface-container-high rounded-xl"></div>
+            <div class="h-14 bg-surface-container-high rounded-xl"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Skeleton 2: Cấu hình thời gian giữ ghế & giữ đơn -->
+      <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8 space-y-6">
+        <div class="space-y-2">
+          <div class="h-6 w-64 bg-surface-container-high rounded-md"></div>
+          <div class="h-3 w-96 bg-surface-container-high/60 rounded"></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <div class="h-3 w-36 bg-surface-container-high rounded"></div>
+            <div class="h-14 bg-surface-container-high rounded-xl"></div>
+            <div class="h-3 w-44 bg-surface-container-high/60 rounded"></div>
+          </div>
+          <div class="space-y-2">
+            <div class="h-3 w-40 bg-surface-container-high rounded"></div>
+            <div class="h-14 bg-surface-container-high rounded-xl"></div>
+            <div class="h-3 w-48 bg-surface-container-high/60 rounded"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Skeleton 3: Tài khoản nhận tiền VietQR -->
+      <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8 space-y-6">
+        <div class="space-y-2">
+          <div class="h-6 w-60 bg-surface-container-high rounded-md"></div>
+          <div class="h-3 w-80 bg-surface-container-high/60 rounded"></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="space-y-2">
+              <div class="h-3 w-20 bg-surface-container-high rounded"></div>
+              <div class="h-14 bg-surface-container-high rounded-xl"></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="space-y-2">
+                <div class="h-3 w-28 bg-surface-container-high rounded"></div>
+                <div class="h-14 bg-surface-container-high rounded-xl"></div>
+              </div>
+              <div class="space-y-2">
+                <div class="h-3 w-24 bg-surface-container-high rounded"></div>
+                <div class="h-14 bg-surface-container-high rounded-xl"></div>
+              </div>
+            </div>
+          </div>
+          <div class="h-64 bg-surface-container-high rounded-2xl"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Actual Settings Form -->
+    <div v-else class="max-w-4xl space-y-8">
 
       <!-- Business Settings -->
       <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8">

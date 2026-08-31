@@ -16,6 +16,7 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
   - Kiểm tra và hiển thị viền đỏ sáng kèm thông báo lỗi và biểu tượng cảnh báo trực tiếp dưới từng ô nhập liệu (`text-red-500`, `border-red-500`) theo thời gian thực ngay khi người dùng thao tác.
   - Áp dụng nguyên tắc *All-or-Nothing*: Bắt buộc hoàn tất hợp lệ cả 3 trường (Ngân hàng, STK, Tên chủ TK) khi có cấu hình, hoặc cho phép để trống cả 3 nếu chưa áp dụng.
   - Loại bỏ hoàn toàn toast popup khi validate dữ liệu form, giữ giao diện sạch sẽ và trực quan.
+- **Tối ưu Trải nghiệm Tải trang (Skeleton Loading State):** Bổ sung hiệu ứng skeleton animation (`isInitialLoading`) khi vừa vào trang Cài đặt, loại bỏ triệt để hiện tượng nhấp nháy/nhảy số mặc định trong thời gian chờ dữ liệu từ Database.
 
 ---
 
