@@ -96,42 +96,42 @@ const fnbLines = computed(() => (store.selectedFnbs || []).filter(f => f && f.fn
 </script>
 
 <template>
-  <main class="min-h-screen flex flex-col items-center pt-24 pb-12 relative px-4 overflow-y-auto">
+  <main class="min-h-screen flex flex-col items-center pt-24 sm:pt-28 pb-12 relative px-4 overflow-y-auto">
     <!-- Global background from App.vue will show here -->
 
     <!-- Success Header -->
     <div class="relative z-10 text-center mb-6" v-if="!isLoading && paymentStatus === 'success'">
-      <div class="inline-flex items-center justify-center w-12 h-12 rounded-full border border-primary-container bg-transparent mb-3">
-        <span class="material-symbols-outlined text-primary-container text-2xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+      <div class="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-primary-container bg-transparent mb-3">
+        <span class="material-symbols-outlined text-primary-container text-xl sm:text-2xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
       </div>
-      <h1 class="font-headline font-extrabold text-2xl md:text-3xl tracking-tighter text-on-surface uppercase mb-4">ĐẶT VÉ THÀNH CÔNG</h1>
+      <h1 class="font-headline font-extrabold text-xl sm:text-2xl md:text-3xl tracking-tighter text-on-surface uppercase mb-2 sm:mb-4">ĐẶT VÉ THÀNH CÔNG</h1>
     </div>
 
-    <div class="relative z-10 text-center mb-12" v-else-if="isLoading">
-      <div class="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6">
-        <span class="material-symbols-outlined text-primary text-6xl animate-spin">sync</span>
+    <div class="relative z-10 text-center mb-8 sm:mb-12" v-else-if="isLoading">
+      <div class="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full mb-4 sm:mb-6">
+        <span class="material-symbols-outlined text-primary text-4xl sm:text-6xl animate-spin">sync</span>
       </div>
-      <h1 class="font-headline font-extrabold text-4xl md:text-5xl tracking-tighter text-on-surface uppercase mb-2">ĐANG XỬ LÝ...</h1>
-      <p class="font-label text-sm uppercase tracking-[0.2em] text-on-surface-variant">VUI LÒNG ĐỢI XÁC NHẬN TỪ CỔNG THANH TOÁN</p>
+      <h1 class="font-headline font-extrabold text-2xl sm:text-4xl md:text-5xl tracking-tighter text-on-surface uppercase mb-2">ĐANG XỬ LÝ...</h1>
+      <p class="font-label text-xs sm:text-sm uppercase tracking-[0.2em] text-on-surface-variant">VUI LÒNG ĐỢI XÁC NHẬN TỪ CỔNG THANH TOÁN</p>
     </div>
     
-    <div class="relative z-10 text-center mb-12" v-else>
-      <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-error-container mb-6 shadow-[0_0_40px_rgba(255,0,0,0.3)]">
-        <span class="material-symbols-outlined text-on-error-container text-4xl" style="font-variation-settings: 'FILL' 1;">error</span>
+    <div class="relative z-10 text-center mb-8 sm:mb-12" v-else>
+      <div class="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-error-container mb-4 sm:mb-6 shadow-[0_0_40px_rgba(255,0,0,0.3)]">
+        <span class="material-symbols-outlined text-on-error-container text-3xl sm:text-4xl" style="font-variation-settings: 'FILL' 1;">error</span>
       </div>
-      <h1 class="font-headline font-extrabold text-4xl md:text-5xl tracking-tighter text-on-surface uppercase mb-2">GIAO DỊCH THẤT BẠI</h1>
-      <p class="font-label text-sm uppercase tracking-[0.2em] text-on-surface-variant">CÓ LỖI XẢY RA TRONG QUÁ TRÌNH THANH TOÁN</p>
+      <h1 class="font-headline font-extrabold text-2xl sm:text-4xl md:text-5xl tracking-tighter text-on-surface uppercase mb-2">GIAO DỊCH THẤT BẠI</h1>
+      <p class="font-label text-xs sm:text-sm uppercase tracking-[0.2em] text-on-surface-variant">CÓ LỖI XẢY RA TRONG QUÁ TRÌNH THANH TOÁN</p>
     </div>
 
     <!-- Thông tin đơn hàng vừa đặt (dữ liệu thật) -->
     <div class="relative z-10 w-full max-w-md bg-[#1c1c1c] rounded-2xl overflow-hidden shadow-2xl border border-white/5" v-if="!isLoading && paymentStatus === 'success'">
 
       <!-- Movie & Cinema -->
-      <div class="px-6 pt-7 pb-5 text-center flex flex-col items-center border-b border-[#333]">
-        <h2 class="font-headline font-bold text-2xl text-white mb-2 uppercase leading-snug">{{ store.selectedMovie?.title || store.selectedShowtime?.movieTitle || '—' }}</h2>
-        <span v-if="store.selectedShowtime?.formatName" class="inline-block px-2.5 py-0.5 border border-primary-container text-primary-container text-[10px] font-bold rounded-sm mb-3 uppercase">{{ store.selectedShowtime.formatName }}</span>
-        <p class="font-headline font-bold text-lg text-[#00bcd4] mb-1">{{ store.selectedShowtime?.cinema?.cinemaName || store.selectedShowtime?.cinema?.name || '—' }}</p>
-        <p v-if="store.selectedShowtime?.cinema?.address" class="text-on-surface-variant font-label text-[11px] leading-relaxed max-w-[90%]">{{ store.selectedShowtime.cinema.address }}</p>
+      <div class="px-4 sm:px-6 pt-5 sm:pt-7 pb-4 sm:pb-5 text-center flex flex-col items-center border-b border-[#333]">
+        <h2 class="font-headline font-bold text-lg sm:text-2xl text-white mb-2 uppercase leading-snug">{{ store.selectedMovie?.title || store.selectedShowtime?.movieTitle || '—' }}</h2>
+        <span v-if="store.selectedShowtime?.formatName" class="inline-block px-2.5 py-0.5 border border-primary-container text-primary-container text-[10px] font-bold rounded-sm mb-2 sm:mb-3 uppercase">{{ store.selectedShowtime.formatName }}</span>
+        <p class="font-headline font-bold text-base sm:text-lg text-[#00bcd4] mb-1">{{ store.selectedShowtime?.cinema?.cinemaName || store.selectedShowtime?.cinema?.name || '—' }}</p>
+        <p v-if="store.selectedShowtime?.cinema?.address" class="text-on-surface-variant font-label text-[10px] sm:text-[11px] leading-relaxed max-w-[90%]">{{ store.selectedShowtime.cinema.address }}</p>
       </div>
 
       <!-- Chi tiết đơn -->

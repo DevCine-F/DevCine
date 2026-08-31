@@ -1256,30 +1256,30 @@ const proceedToPayment = async () => {
 </script>
 
 <template>
-  <main class="pt-32 pb-20 max-w-[1440px] mx-auto px-10">
+  <main class="pt-28 sm:pt-32 pb-16 sm:pb-20 max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10">
     <!-- Stepper / Thanh tiến trình các bước -->
-    <div class="mb-12">
+    <div class="mb-8 sm:mb-12">
       <div class="flex items-center justify-between max-w-3xl mx-auto">
         <template v-for="(s, idx) in steps" :key="s.id">
           <button
             type="button"
             @click="goToStep(s.id)"
-            class="flex flex-col items-center gap-2 group flex-shrink-0"
+            class="flex flex-col items-center gap-1.5 sm:gap-2 group flex-shrink-0"
           >
             <div
               :class="currentStep === s.id
-                ? 'bg-primary text-on-primary border-primary shadow-[0_0_20px_rgba(245,197,24,0.4)] scale-110'
+                ? 'bg-primary text-on-primary border-primary shadow-[0_0_20px_rgba(245,197,24,0.4)] scale-105 sm:scale-110'
                 : currentStep > s.id
                   ? 'bg-primary/20 text-primary border-primary/40'
                   : 'bg-surface-container-high text-on-surface-variant border-outline-variant/20'"
-              class="w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all duration-300"
+              class="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center transition-all duration-300"
             >
-              <span v-if="currentStep > s.id" class="material-symbols-outlined">check</span>
-              <span v-else class="material-symbols-outlined">{{ s.icon }}</span>
+              <span v-if="currentStep > s.id" class="material-symbols-outlined text-base sm:text-2xl">check</span>
+              <span v-else class="material-symbols-outlined text-base sm:text-2xl">{{ s.icon }}</span>
             </div>
             <span
               :class="currentStep === s.id ? 'text-primary' : 'text-on-surface-variant'"
-              class="text-[10px] font-bold uppercase tracking-widest transition-colors"
+              class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-colors hidden xs:inline sm:inline"
             >
               {{ s.id }}. {{ s.label }}
             </span>
@@ -1287,36 +1287,36 @@ const proceedToPayment = async () => {
           <div
             v-if="idx < steps.length - 1"
             :class="currentStep > s.id ? 'bg-primary/50' : 'bg-outline-variant/20'"
-            class="flex-grow h-0.5 mx-2 -mt-6 transition-colors duration-300"
+            class="flex-grow h-0.5 mx-1.5 sm:mx-2 -mt-4 sm:-mt-6 transition-colors duration-300"
           ></div>
         </template>
       </div>
     </div>
 
-    <!-- Banner đếm ngược thời gian giữ ghế (hiện khi đã giữ ghế) -->
+    <!-- Banner đếm ngược thời gian giữ ghế -->
     <transition name="fade">
       <div v-if="isCountingDown"
            :class="secondsLeft <= 60 ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-primary/10 border-primary/30 text-primary'"
-           class="mb-8 flex items-center justify-center gap-3 px-6 py-3.5 rounded-2xl border backdrop-blur-sm">
-        <span class="material-symbols-outlined text-xl" :class="{ 'animate-pulse': secondsLeft <= 60 }">timer</span>
-        <span class="text-sm font-bold">Vui lòng hoàn tất đặt vé trong</span>
-        <span class="font-mono font-black text-xl tabular-nums tracking-wider">{{ countdownLabel }}</span>
+           class="mb-6 sm:mb-8 flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl border backdrop-blur-sm text-xs sm:text-sm">
+        <span class="material-symbols-outlined text-lg sm:text-xl" :class="{ 'animate-pulse': secondsLeft <= 60 }">timer</span>
+        <span class="font-bold">Vui lòng hoàn tất trong</span>
+        <span class="font-mono font-black text-lg sm:text-xl tabular-nums tracking-wider">{{ countdownLabel }}</span>
       </div>
     </transition>
 
-    <!-- Modal nhắc đăng nhập trước khi rời bước chọn ghế -->
+    <!-- Modal nhắc đăng nhập -->
     <transition name="fade">
       <div v-if="showLoginPrompt" class="fixed inset-0 z-[300] flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="showLoginPrompt = false"></div>
-        <div class="relative w-full max-w-md bg-surface-container-low border border-outline-variant/15 rounded-3xl p-8 shadow-2xl text-center">
-          <div class="w-16 h-16 mx-auto mb-5 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
-            <span class="material-symbols-outlined text-primary text-3xl">lock</span>
+        <div class="relative w-full max-w-md bg-surface-container-low border border-outline-variant/15 rounded-3xl p-6 sm:p-8 shadow-2xl text-center">
+          <div class="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-5 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary text-2xl sm:text-3xl">lock</span>
           </div>
-          <h3 class="font-headline text-2xl font-bold text-on-surface mb-2">Bạn chưa đăng nhập</h3>
-          <p class="text-sm text-on-surface-variant mb-7">Hãy đăng nhập để tiếp tục đặt vé nhé! Ghế bạn đang chọn sẽ được giữ lại khi quay lại.</p>
+          <h3 class="font-headline text-xl sm:text-2xl font-bold text-on-surface mb-2">Bạn chưa đăng nhập</h3>
+          <p class="text-xs sm:text-sm text-on-surface-variant mb-6 sm:mb-7">Hãy đăng nhập để tiếp tục đặt vé nhé! Ghế bạn đang chọn sẽ được giữ lại khi quay lại.</p>
           <div class="flex gap-3">
-            <button @click="showLoginPrompt = false" class="flex-1 py-3.5 rounded-xl border border-outline-variant/25 text-on-surface-variant font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-colors">Để sau</button>
-            <button @click="goToLogin" class="flex-1 py-3.5 rounded-xl bg-primary text-on-primary font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <button @click="showLoginPrompt = false" class="flex-1 py-3 sm:py-3.5 rounded-xl border border-outline-variant/25 text-on-surface-variant font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-colors">Để sau</button>
+            <button @click="goToLogin" class="flex-1 py-3 sm:py-3.5 rounded-xl bg-primary text-on-primary font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2">
               <span class="material-symbols-outlined text-base">login</span> Đăng nhập
             </button>
           </div>
@@ -1324,82 +1324,82 @@ const proceedToPayment = async () => {
       </div>
     </transition>
 
-    <div class="flex flex-col lg:flex-row gap-12">
+    <div class="flex flex-col lg:flex-row gap-8 lg:gap-12">
     <!-- Main Content Area -->
     <div class="flex-grow min-w-0">
-      <!-- Header chung của bước hiện tại (trong cột trái để card tóm tắt căn ngang title/mô tả) -->
-      <div class="mb-10 flex items-start justify-between gap-4">
+      <!-- Header chung của bước hiện tại -->
+      <div class="mb-6 sm:mb-10 flex items-start justify-between gap-4">
         <div>
-          <h1 class="font-headline text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">{{ stepMeta.title }}</h1>
-          <div v-if="currentStep === 1 && store.selectedShowtime" class="mt-4 mb-2 bg-primary-container/10 border border-primary-container/30 rounded-xl p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-            <div class="flex flex-wrap items-center gap-3 text-on-surface font-bold text-sm md:text-base">
-              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container">location_on</span> Rạp: {{ store.selectedShowtime.cinema?.cinemaName }}</span>
+          <h1 class="font-headline text-2xl sm:text-3xl font-bold tracking-tight mb-2 uppercase italic text-primary-container">{{ stepMeta.title }}</h1>
+          <div v-if="currentStep === 1 && store.selectedShowtime" class="mt-3 sm:mt-4 mb-2 bg-primary-container/10 border border-primary-container/30 rounded-xl p-3.5 sm:p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-on-surface font-bold text-xs sm:text-sm md:text-base">
+              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container text-base sm:text-lg">location_on</span> Rạp: {{ store.selectedShowtime.cinema?.cinemaName }}</span>
               <span class="hidden md:inline w-1.5 h-1.5 rounded-full bg-primary/40"></span>
-              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container">meeting_room</span> {{ store.selectedShowtime.roomName || 'Phòng chiếu' }}</span>
+              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container text-base sm:text-lg">meeting_room</span> {{ store.selectedShowtime.roomName || 'Phòng chiếu' }}</span>
               <span class="hidden md:inline w-1.5 h-1.5 rounded-full bg-primary/40"></span>
-              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container">schedule</span> Suất: {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }} - {{ new Date(store.selectedShowtime.startTime).toLocaleDateString() }}</span>
+              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary-container text-base sm:text-lg">schedule</span> Suất: {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }} - {{ new Date(store.selectedShowtime.startTime).toLocaleDateString() }}</span>
             </div>
-            <button @click="goBack" class="flex-shrink-0 px-4 py-2 bg-surface-container-highest border border-outline-variant/30 text-primary-container font-bold text-[10px] uppercase tracking-widest rounded-lg hover:bg-white/5 transition-all flex items-center gap-1.5 w-fit">
-              <span class="material-symbols-outlined text-sm">sync</span> Đổi suất khác
+            <button @click="goBack" class="flex-shrink-0 px-3.5 sm:px-4 py-1.5 sm:py-2 bg-surface-container-highest border border-outline-variant/30 text-primary-container font-bold text-[9px] sm:text-[10px] uppercase tracking-widest rounded-lg hover:bg-white/5 transition-all flex items-center gap-1.5 w-fit">
+              <span class="material-symbols-outlined text-xs sm:text-sm">sync</span> Đổi suất khác
             </button>
           </div>
-          <p v-else class="text-sm text-on-surface-variant">{{ stepMeta.desc }}</p>
+          <p v-else class="text-xs sm:text-sm text-on-surface-variant">{{ stepMeta.desc }}</p>
         </div>
-        <!-- Nút Quay lại: bước >1 lùi 1 bước; bước 1 quay về trang trước (chọn suất/lịch chiếu) -->
+        <!-- Nút Quay lại -->
         <button
           @click="goBack"
-          class="flex-shrink-0 px-5 py-2.5 rounded-xl border border-outline-variant/30 text-on-surface-variant font-bold text-xs uppercase tracking-widest hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2"
+          class="flex-shrink-0 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl border border-outline-variant/30 text-on-surface-variant font-bold text-[10px] sm:text-xs uppercase tracking-widest hover:border-primary/40 hover:text-primary transition-all flex items-center gap-1.5 sm:gap-2"
         >
-          <span class="material-symbols-outlined text-lg">arrow_back</span> Quay lại
+          <span class="material-symbols-outlined text-base sm:text-lg">arrow_back</span> Quay lại
         </button>
       </div>
 
       <!-- Section 1: Seat Selection -->
       <section v-show="currentStep === 1" class="space-y-6">
-        <!-- Bước 1a: Chọn SỐ LƯỢNG vé theo đối tượng (bắt buộc trước khi chọn ghế) -->
-        <div class="glass-card glass-shine-edge p-6 md:p-8 rounded-3xl">
-          <h3 class="font-headline font-bold uppercase tracking-tight text-sm mb-1 flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary-container text-lg">confirmation_number</span>
+        <!-- Bước 1a: Chọn SỐ LƯỢNG vé theo đối tượng -->
+        <div class="glass-card glass-shine-edge p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl">
+          <h3 class="font-headline font-bold uppercase tracking-tight text-xs sm:text-sm mb-1 flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary-container text-base sm:text-lg">confirmation_number</span>
             Loại vé
           </h3>
-          <p class="text-xs text-on-surface-variant mb-5">Chọn số lượng vé theo đối tượng, sau đó chọn đúng số ghế tương ứng.</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <p class="text-xs text-on-surface-variant mb-4 sm:mb-5">Chọn số lượng vé theo đối tượng, sau đó chọn đúng số ghế tương ứng.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
             <div v-for="(label, code) in store.audienceLabels" :key="code"
-                 class="flex items-center justify-between bg-surface-container-high/40 border border-outline-variant/20 rounded-xl px-4 py-3">
-              <span class="font-bold text-sm">{{ label }}</span>
-              <div class="flex items-center gap-3">
+                 class="flex items-center justify-between bg-surface-container-high/40 border border-outline-variant/20 rounded-xl px-3.5 sm:px-4 py-2.5 sm:py-3">
+              <span class="font-bold text-xs sm:text-sm">{{ label }}</span>
+              <div class="flex items-center gap-2.5 sm:gap-3">
                 <button @click="setQty(code, -1)" :disabled="(store.ticketQuantities[code] || 0) <= 0"
-                        class="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-high disabled:opacity-30 hover:text-primary-container transition-colors">
-                  <span class="material-symbols-outlined text-base">remove</span>
+                        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full bg-surface-container-high disabled:opacity-30 hover:text-primary-container transition-colors">
+                  <span class="material-symbols-outlined text-sm sm:text-base">remove</span>
                 </button>
-                <span class="w-6 text-center font-bold tabular-nums">{{ store.ticketQuantities[code] || 0 }}</span>
+                <span class="w-5 sm:w-6 text-center font-bold tabular-nums text-xs sm:text-sm">{{ store.ticketQuantities[code] || 0 }}</span>
                 <button @click="setQty(code, 1)" :disabled="store.totalTickets >= store.maxTicketsPerBooking"
-                        class="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-high disabled:opacity-30 hover:text-primary-container transition-colors">
-                  <span class="material-symbols-outlined text-base">add</span>
+                        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full bg-surface-container-high disabled:opacity-30 hover:text-primary-container transition-colors">
+                  <span class="material-symbols-outlined text-sm sm:text-base">add</span>
                 </button>
               </div>
             </div>
           </div>
-          <div class="mt-4 flex items-center justify-between text-sm">
+          <div class="mt-3.5 sm:mt-4 flex flex-col sm:flex-row sm:items-center justify-between text-xs sm:text-sm gap-1">
             <span class="text-on-surface-variant">Tổng số vé <span class="text-on-surface-variant/60">(tối đa {{ store.maxTicketsPerBooking }} vé/lần)</span></span>
             <span class="font-bold text-primary-container">{{ store.totalTickets }} vé · đã chọn {{ store.selectedSeats.length }} ghế</span>
           </div>
         </div>
 
-        <div class="relative glass-card glass-shine-edge p-12 overflow-hidden rounded-3xl">
+        <div class="relative glass-card glass-shine-edge p-4 sm:p-8 md:p-12 overflow-hidden rounded-2xl sm:rounded-3xl">
           <!-- Nhắc chọn số lượng vé trước -->
-          <div v-if="store.totalTickets === 0" class="mb-8 text-center bg-primary-container/10 border border-primary-container/30 rounded-2xl py-4 px-6 text-sm text-on-surface-variant">
+          <div v-if="store.totalTickets === 0" class="mb-6 sm:mb-8 text-center bg-primary-container/10 border border-primary-container/30 rounded-2xl py-3.5 sm:py-4 px-4 sm:px-6 text-xs sm:text-sm text-on-surface-variant">
             Vui lòng chọn số lượng vé ở trên trước khi chọn ghế.
           </div>
 
-          <!-- Block Selector: chọn kích thước khối ghế liền nhau (chống ghế mồ côi kiểu Lotte) -->
-          <div v-else class="mb-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
-            <span class="text-sm font-bold text-on-surface-variant flex items-center gap-1.5">
+          <!-- Block Selector -->
+          <div v-else class="mb-6 sm:mb-8 flex flex-wrap items-center justify-center gap-x-4 sm:gap-x-6 gap-y-2.5 sm:gap-y-3">
+            <span class="text-xs sm:text-sm font-bold text-on-surface-variant flex items-center gap-1.5">
               <span class="material-symbols-outlined text-base text-primary">chair</span> Chọn ghế liền nhau
               <span class="material-symbols-outlined text-sm text-on-surface-variant/50 cursor-help"
                     title="Chọn kích thước khối, rồi rê chuột lên sơ đồ để đặt các ghế ngồi cạnh nhau. Hệ thống tự khoá các lựa chọn làm dư 1 ghế lẻ.">info</span>
             </span>
-            <div class="flex items-center gap-2.5">
+            <div class="flex items-center gap-2 sm:gap-2.5">
               <button v-for="b in [1, 2, 3, 4]" :key="b"
                       type="button"
                       :disabled="!store.validBlockSizes.includes(b)"
@@ -1408,11 +1408,11 @@ const proceedToPayment = async () => {
                       :class="store.currentBlockSize === b
                         ? 'border-primary bg-primary/10 shadow-[0_0_15px_rgba(245,197,24,0.25)]'
                         : 'border-outline-variant/20 hover:border-outline-variant/40'"
-                      class="flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
-                <span class="w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-colors"
+                      class="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border-2 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
+                <span class="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border-2 flex-shrink-0 transition-colors"
                       :class="store.currentBlockSize === b ? 'border-primary bg-primary' : 'border-outline-variant/50'"></span>
-                <span class="flex gap-1">
-                  <span v-for="k in b" :key="k" class="w-4 h-4 rounded-sm transition-colors"
+                <span class="flex gap-0.5 sm:gap-1">
+                  <span v-for="k in b" :key="k" class="w-3 h-3 sm:w-4 sm:h-4 rounded-sm transition-colors"
                         :class="store.validBlockSizes.includes(b) ? 'bg-on-surface' : 'bg-on-surface/25'"></span>
                 </span>
               </button>
@@ -1423,16 +1423,16 @@ const proceedToPayment = async () => {
             <span v-else class="text-xs text-on-surface-variant">Còn <b class="text-primary">{{ store.remainingCapacity }}</b> ghế cần chọn</span>
           </div>
           <!-- Screen -->
-          <div class="w-full flex flex-col items-center flex-shrink-0 relative py-8 mb-12">
-            <div class="absolute top-0 w-full h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
-            <div class="w-2/3 h-1.5 bg-primary/70 rounded-full shadow-[0_2px_15px_rgba(245,197,24,0.2)] mb-4 border border-primary/20"></div>
-            <p class="text-[9px] font-bold uppercase tracking-[0.6em] text-primary/50 relative z-10">MÀN HÌNH / SCREEN</p>
+          <div class="w-full flex flex-col items-center flex-shrink-0 relative py-6 sm:py-8 mb-8 sm:mb-12">
+            <div class="absolute top-0 w-full h-[80px] sm:h-[100px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
+            <div class="w-4/5 sm:w-2/3 h-1.5 bg-primary/70 rounded-full shadow-[0_2px_15px_rgba(245,197,24,0.2)] mb-3 sm:mb-4 border border-primary/20"></div>
+            <p class="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.6em] text-primary/50 relative z-10">MÀN HÌNH / SCREEN</p>
           </div>
           
           <!-- Seats Grid -->
-          <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-16 relative transition-opacity" :class="{ 'opacity-40 pointer-events-none': store.totalTickets === 0 }" v-if="store.availableSeats.length">
+          <div class="seat-grid w-full overflow-x-auto flex flex-col gap-3 mb-10 sm:mb-16 relative transition-opacity touch-pan-x" :class="{ 'opacity-40 pointer-events-none': store.totalTickets === 0 }" v-if="store.availableSeats.length">
             <div class="absolute inset-0 opacity-[0.15] pointer-events-none" style="background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px); background-size: 24px 24px;"></div>
-            <div class="relative z-10 flex flex-col gap-3 mx-auto min-w-max pb-4 bg-black/40 backdrop-blur-sm p-8 rounded-3xl border border-white/5 shadow-2xl">
+            <div class="relative z-10 flex flex-col gap-3 mx-auto min-w-max pb-4 bg-black/40 backdrop-blur-sm p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/5 shadow-2xl">
               <SeatGridRenderer
                 :seats="store.availableSeats"
                 :matrix-row="store.matrixRow"
@@ -1450,25 +1450,25 @@ const proceedToPayment = async () => {
             </div>
           </div>
           
-          <!-- Legend: gom 2 nhóm "Loại ghế" | "Trạng thái" trong 1 panel bo góc -->
-          <div class="mt-10 rounded-2xl border border-white/5 bg-black/20 px-5 py-5 sm:px-6">
-            <div class="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:gap-8">
+          <!-- Legend -->
+          <div class="mt-6 sm:mt-10 rounded-2xl border border-white/5 bg-black/20 px-4 py-4 sm:px-6 sm:py-5">
+            <div class="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-stretch lg:gap-8">
 
               <!-- Nhóm 1: LOẠI GHẾ -->
-              <div class="flex flex-col gap-3">
+              <div class="flex flex-col gap-2.5 sm:gap-3">
                 <span class="text-[10px] font-bold uppercase tracking-[0.12em] text-on-surface-variant/60">Loại ghế</span>
-                <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
-                  <div class="flex items-center gap-2.5">
-                    <div class="w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Standard</span>
+                <div class="flex flex-wrap items-center gap-x-4 sm:gap-x-5 gap-y-2 sm:gap-y-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-800/80 border border-slate-600/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]"></div>
+                    <span class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-300">Standard</span>
                   </div>
-                  <div class="flex items-center gap-2.5">
-                    <div class="w-7 h-7 rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(220,38,38,0.2)]"></div>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-red-400">VIP</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-b from-red-700/90 to-red-900/90 border border-red-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(220,38,38,0.2)]"></div>
+                    <span class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-red-400">VIP</span>
                   </div>
-                  <div class="flex items-center gap-2.5">
-                    <div class="w-11 h-7 rounded-t-xl rounded-b-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(147,51,234,0.2)]"></div>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-purple-400">Sweetbox</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-10 h-6 sm:w-11 sm:h-7 rounded-t-xl rounded-b-md bg-gradient-to-b from-purple-600/90 to-purple-900/90 border border-purple-500/50 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(147,51,234,0.2)]"></div>
+                    <span class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-purple-400">Sweetbox</span>
                   </div>
                 </div>
               </div>
@@ -1478,26 +1478,26 @@ const proceedToPayment = async () => {
               <div class="lg:hidden h-px w-full bg-white/10"></div>
 
               <!-- Nhóm 2: TRẠNG THÁI -->
-              <div class="flex flex-col gap-3 lg:flex-1">
+              <div class="flex flex-col gap-2.5 sm:gap-3 lg:flex-1">
                 <span class="text-[10px] font-bold uppercase tracking-[0.12em] text-on-surface-variant/60">Trạng thái</span>
-                <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
-                  <div class="flex items-center gap-2.5">
-                    <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-amber-600 shadow-[0_0_20px_rgba(245,197,24,0.3)]"></div>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-primary">Đang chọn</span>
+                <div class="flex flex-wrap items-center gap-x-4 sm:gap-x-5 gap-y-2 sm:gap-y-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-br from-primary to-amber-600 shadow-[0_0_20px_rgba(245,197,24,0.3)]"></div>
+                    <span class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-primary">Đang chọn</span>
                   </div>
-                  <div class="flex items-center gap-2.5">
-                    <div class="w-7 h-7 rounded-lg bg-surface-container-high border border-white/5 opacity-50"></div>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Đã đặt</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-surface-container-high border border-white/5 opacity-50"></div>
+                    <span class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Đã đặt</span>
                   </div>
-                  <div class="flex items-center gap-2.5">
-                    <div class="w-7 h-7 rounded-lg bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500 opacity-60">
-                      <span class="material-symbols-outlined text-sm">build</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-surface-container-highest border border-white/10 flex items-center justify-center text-red-500 opacity-60">
+                      <span class="material-symbols-outlined text-xs sm:text-sm">build</span>
                     </div>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Bảo trì</span>
+                    <span class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Bảo trì</span>
                   </div>
-                  <div class="flex items-center gap-2.5">
-                    <div class="legend-unselectable relative w-7 h-7 rounded-lg border border-white/5"></div>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Không thể chọn</span>
+                  <div class="flex items-center gap-2">
+                    <div class="legend-unselectable relative w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-white/5"></div>
+                    <span class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Không thể chọn</span>
                   </div>
                 </div>
               </div>
@@ -1511,45 +1511,45 @@ const proceedToPayment = async () => {
       <!-- Section 2: Combo / F&B Selection -->
       <section v-show="currentStep === 2">
         <!-- Empty state khi rạp chưa có combo -->
-        <div v-if="store.availableFnbs.length === 0" class="glass-card p-10 rounded-2xl text-center">
+        <div v-if="store.availableFnbs.length === 0" class="glass-card p-8 sm:p-10 rounded-2xl text-center">
           <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">fastfood</span>
           <p class="text-sm text-on-surface-variant">Hiện chưa có combo nào. Bạn có thể tiếp tục đặt vé.</p>
         </div>
 
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="glass-card p-6 flex gap-6 hover:border-primary-container/30 transition-all group rounded-2xl" v-for="fnb in pagedFnbs" :key="fnb.id">
-            <div class="w-28 h-28 flex-shrink-0 bg-black overflow-hidden relative rounded-xl">
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div class="glass-card p-4 sm:p-6 flex flex-row gap-4 sm:gap-6 hover:border-primary-container/30 transition-all group rounded-2xl" v-for="fnb in pagedFnbs" :key="fnb.id">
+            <div class="w-20 h-20 sm:w-28 sm:h-28 flex-shrink-0 bg-black overflow-hidden relative rounded-xl">
               <img :src="fnb.imageUrl || '/images/Hopper.webp'" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-500"/>
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
             </div>
-            <div class="flex flex-col justify-between flex-grow">
+            <div class="flex flex-col justify-between flex-grow min-w-0">
               <div>
-                <h3 class="font-headline font-bold text-lg mb-1">{{ fnb.name }}</h3>
+                <h3 class="font-headline font-bold text-base sm:text-lg mb-1 truncate">{{ fnb.name }}</h3>
                 <p class="text-xs text-on-surface-variant line-clamp-2">{{ fnb.description }}</p>
               </div>
-              <div class="flex items-center justify-between mt-2">
-                <span class="font-headline font-bold text-primary-container">{{ fnb.price?.toLocaleString('vi-VN') }} VNĐ</span>
+              <div class="flex items-center justify-between mt-2 flex-wrap gap-2">
+                <span class="font-headline font-bold text-xs sm:text-base text-primary-container">{{ fnb.price?.toLocaleString('vi-VN') }} VNĐ</span>
                 <!-- Chưa có trong giỏ → nút Chọn; đã có → stepper +/- điều khiển tổng số lượng -->
                 <button
                   v-if="fnbQtyOf(fnb) === 0"
                   @click="openFnbModal(fnb)"
-                  class="bg-surface-container-high hover:bg-primary-container/20 hover:text-primary-container text-on-surface rounded-full px-4 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
+                  class="bg-surface-container-high hover:bg-primary-container/20 hover:text-primary-container text-on-surface rounded-full px-3.5 sm:px-4 py-1 sm:py-1.5 text-xs font-bold transition-colors flex items-center gap-1 shrink-0"
                 >
                   <span class="material-symbols-outlined text-sm">add</span> Chọn
                 </button>
-                <div v-else class="flex items-center gap-1 bg-surface-container-high rounded-full p-1 border border-outline-variant/10">
-                  <button @click="decrementFnb(fnb)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-primary-container/20 hover:text-primary-container transition-colors" title="Bớt 1">
-                    <span class="material-symbols-outlined text-sm">remove</span>
+                <div v-else class="flex items-center gap-1 bg-surface-container-high rounded-full p-1 border border-outline-variant/10 shrink-0">
+                  <button @click="decrementFnb(fnb)" class="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center hover:bg-primary-container/20 hover:text-primary-container transition-colors" title="Bớt 1">
+                    <span class="material-symbols-outlined text-xs sm:text-sm">remove</span>
                   </button>
-                  <span class="min-w-[1.75rem] text-center text-sm font-bold">{{ fnbQtyOf(fnb) }}</span>
+                  <span class="min-w-[1.5rem] sm:min-w-[1.75rem] text-center text-xs sm:text-sm font-bold">{{ fnbQtyOf(fnb) }}</span>
                   <button
                     @click="openFnbModal(fnb)"
                     :disabled="fnbQtyOf(fnb) >= MAX_FNB_QTY"
                     :class="fnbQtyOf(fnb) >= MAX_FNB_QTY ? 'opacity-30 cursor-not-allowed' : 'hover:bg-primary-container/20 hover:text-primary-container'"
-                    class="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                    class="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-colors"
                     title="Thêm 1"
                   >
-                    <span class="material-symbols-outlined text-sm">add</span>
+                    <span class="material-symbols-outlined text-xs sm:text-sm">add</span>
                   </button>
                 </div>
               </div>
@@ -1562,56 +1562,56 @@ const proceedToPayment = async () => {
           <button
             @click="fnbPage > 1 && (fnbPage--)"
             :disabled="fnbPage === 1"
-            class="w-10 h-10 flex items-center justify-center rounded-xl border border-outline-variant/20 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border border-outline-variant/20 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <span class="material-symbols-outlined text-lg">chevron_left</span>
+            <span class="material-symbols-outlined text-base sm:text-lg">chevron_left</span>
           </button>
           <button
             v-for="p in fnbTotalPages"
             :key="p"
             @click="fnbPage = p"
             :class="fnbPage === p ? 'bg-primary text-on-primary border-primary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/40'"
-            class="w-10 h-10 flex items-center justify-center rounded-xl border text-sm font-bold transition-all"
+            class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border text-xs sm:text-sm font-bold transition-all"
           >
             {{ p }}
           </button>
           <button
             @click="fnbPage < fnbTotalPages && (fnbPage++)"
             :disabled="fnbPage === fnbTotalPages"
-            class="w-10 h-10 flex items-center justify-center rounded-xl border border-outline-variant/20 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border border-outline-variant/20 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <span class="material-symbols-outlined text-lg">chevron_right</span>
+            <span class="material-symbols-outlined text-base sm:text-lg">chevron_right</span>
           </button>
         </div>
       </section>
 
       <!-- Section 3: Voucher / Khuyến mãi -->
       <section v-show="currentStep === 3">
-        <div class="glass-card p-6 rounded-2xl space-y-6">
+        <div class="glass-card p-4 sm:p-6 rounded-2xl space-y-6">
           <!-- Code input -->
-          <div class="flex flex-col sm:flex-row gap-4">
+          <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <input 
               v-model="voucherCode" 
               type="text" 
               placeholder="Nhập mã giảm giá..."
               @keyup.enter="applyVoucherCode"
-              class="flex-grow bg-surface-container-high border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-3 text-sm text-on-surface font-mono uppercase tracking-wider"
+              class="flex-grow bg-surface-container-high border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-3 text-xs sm:text-sm text-on-surface font-mono uppercase tracking-wider"
             >
-            <button @click="applyVoucherCode" :disabled="isApplyingVoucher" class="bg-primary text-on-primary font-bold px-6 py-3 rounded-xl hover:brightness-115 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60 shrink-0">
+            <button @click="applyVoucherCode" :disabled="isApplyingVoucher" class="bg-primary text-on-primary font-bold px-6 py-3 rounded-xl hover:brightness-115 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60 shrink-0 text-xs sm:text-sm">
               {{ isApplyingVoucher ? 'Đang kiểm tra...' : 'Áp dụng' }}
             </button>
           </div>
 
-          <!-- Thông báo lỗi: đỏ/cam -->
+          <!-- Thông báo lỗi -->
           <div v-if="voucherError" class="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
-            <span class="material-symbols-outlined text-red-400 text-lg shrink-0">error</span>
+            <span class="material-symbols-outlined text-red-400 text-base sm:text-lg shrink-0">error</span>
             <p class="text-xs text-red-400 font-bold leading-relaxed">{{ voucherError }}</p>
           </div>
 
-          <!-- Thông báo thành công: xanh -->
+          <!-- Thông báo thành công -->
           <div v-if="voucherSuccess" class="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-green-500/10 border border-green-500/30">
             <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-green-400 text-lg shrink-0">check_circle</span>
+              <span class="material-symbols-outlined text-green-400 text-base sm:text-lg shrink-0">check_circle</span>
               <p class="text-xs text-green-400 font-bold">{{ voucherSuccess }}</p>
             </div>
             <button v-if="store.selectedVoucher" @click="removeVoucher" class="shrink-0 text-xs text-on-surface-variant hover:text-red-400 font-bold flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
@@ -1619,7 +1619,7 @@ const proceedToPayment = async () => {
             </button>
           </div>
 
-          <!-- Skeleton loading khi đang nạp evals -->
+          <!-- Skeleton loading -->
           <div v-if="!isVoucherEvalsReady && vouchers.length > 0" class="space-y-4 pt-2 border-t border-outline-variant/10">
             <div class="h-4 w-36 bg-white/10 rounded animate-pulse"></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1635,10 +1635,10 @@ const proceedToPayment = async () => {
             </div>
           </div>
 
-          <!-- Danh sách Voucher phân chia 2 khu vực rõ ràng chuẩn Lotte / CGV -->
+          <!-- Danh sách Voucher -->
           <div v-else-if="isVoucherEvalsReady" class="space-y-6 pt-2 border-t border-outline-variant/10">
             
-            <!-- KHU VỰC 1: Voucher khả dụng (dùng được ngay) -->
+            <!-- KHU VỰC 1: Voucher khả dụng -->
             <div class="space-y-3">
               <div class="flex items-center justify-between">
                 <p class="text-xs font-bold text-primary uppercase tracking-wider">
@@ -1658,14 +1658,14 @@ const proceedToPayment = async () => {
                       ? 'border-primary bg-primary/10 shadow-lg shadow-primary/5 ring-1 ring-primary' 
                       : 'border-outline-variant/25 bg-surface-container-high/40 hover:border-primary/50 hover:bg-surface-container-high/70'
                   ]"
-                  class="border p-4 rounded-xl flex items-center justify-between cursor-pointer transition-all duration-200 group relative overflow-hidden"
+                  class="border p-3.5 sm:p-4 rounded-xl flex items-center justify-between cursor-pointer transition-all duration-200 group relative overflow-hidden"
                 >
                   <!-- Accent bar for selected -->
                   <div v-if="store.selectedVoucher?.id === v.id" class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
                   
-                  <div class="space-y-1 pl-1">
-                    <div class="flex items-center gap-2">
-                      <span class="font-mono font-black text-sm text-primary uppercase tracking-wide">{{ v.promotion?.code || voucherEvals[v.id]?.code }}</span>
+                  <div class="space-y-1 pl-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-mono font-black text-xs sm:text-sm text-primary uppercase tracking-wide">{{ v.promotion?.code || voucherEvals[v.id]?.code }}</span>
                       <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-primary/20 text-primary">
                         Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue) + '%' : Number(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue).toLocaleString('vi-VN') + 'đ' }}
                       </span>
@@ -1673,7 +1673,7 @@ const proceedToPayment = async () => {
                     <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface font-semibold line-clamp-1">
                       {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
                     </p>
-                    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80">
+                    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80 flex-wrap">
                       <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                         Đơn từ {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
                       </span>
@@ -1684,11 +1684,11 @@ const proceedToPayment = async () => {
                     </p>
                   </div>
 
-                  <div class="shrink-0 ml-3">
-                    <div v-if="store.selectedVoucher?.id === v.id" class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
-                      <span class="material-symbols-outlined text-sm font-bold">check</span>
+                  <div class="shrink-0 ml-2 sm:ml-3">
+                    <div v-if="store.selectedVoucher?.id === v.id" class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+                      <span class="material-symbols-outlined text-xs sm:text-sm font-bold">check</span>
                     </div>
-                    <div v-else class="w-6 h-6 rounded-full border border-outline-variant/40 group-hover:border-primary/60 transition-colors"></div>
+                    <div v-else class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-outline-variant/40 group-hover:border-primary/60 transition-colors"></div>
                   </div>
                 </div>
               </div>
@@ -1712,11 +1712,11 @@ const proceedToPayment = async () => {
                 <div
                   v-for="v in ineligibleVouchers"
                   :key="v.id"
-                  class="border border-dashed border-outline-variant/25 bg-surface-container-high/20 p-4 rounded-xl opacity-75 relative overflow-hidden"
+                  class="border border-dashed border-outline-variant/25 bg-surface-container-high/20 p-3.5 sm:p-4 rounded-xl opacity-75 relative overflow-hidden"
                 >
                   <div class="space-y-1.5">
-                    <div class="flex items-center gap-2">
-                      <span class="font-mono font-bold text-sm text-on-surface-variant uppercase">{{ v.promotion?.code || voucherEvals[v.id]?.code }}</span>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-mono font-bold text-xs sm:text-sm text-on-surface-variant uppercase">{{ v.promotion?.code || voucherEvals[v.id]?.code }}</span>
                       <span class="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-white/5 text-on-surface-variant">
                         Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue) + '%' : Number(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue).toLocaleString('vi-VN') + 'đ' }}
                       </span>
@@ -1728,17 +1728,15 @@ const proceedToPayment = async () => {
 
                     <!-- Smart Hint & Reason -->
                     <div class="pt-1">
-                      <!-- Nếu là lỗi chưa đủ đơn tối thiểu -> Gợi ý CTA mua thêm màu hổ phách -->
                       <p v-if="isMissingOrderTotal(v)" class="text-[11px] text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20">
                         Mua thêm {{ getMissingAmount(v) }} để được giảm {{ Number(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue).toLocaleString('vi-VN') }}{{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType) === 'PERCENTAGE' ? '%' : 'đ' }}
                       </p>
-                      <!-- Nếu là lỗi khác (hết lượt, sai phim, sai đối tượng, hết hạn) -->
                       <p v-else class="text-[11px] text-red-400/90 font-medium bg-red-500/10 px-2.5 py-1.5 rounded-lg border border-red-500/20">
                         {{ voucherEvals[v.id]?.reason || 'Không đủ điều kiện áp dụng' }}
                       </p>
                     </div>
 
-                    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/60 pt-0.5">
+                    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/60 pt-0.5 flex-wrap">
                       <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                         Đơn tối thiểu {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
                       </span>
@@ -1756,48 +1754,48 @@ const proceedToPayment = async () => {
 
       <!-- Section 4: Payment -->
       <section v-show="currentStep === 4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'VNPAY'}">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
+            <label class="glass-card p-3.5 sm:p-4 rounded-xl flex items-center gap-3 sm:gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'VNPAY'}">
                 <input type="radio" value="VNPAY" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
-                <span class="material-symbols-outlined text-primary-container">credit_card</span>
-                <span class="font-bold">Thanh toán qua VNPAY</span>
+                <span class="material-symbols-outlined text-primary-container text-xl sm:text-2xl">credit_card</span>
+                <span class="font-bold text-xs sm:text-sm">Thanh toán qua VNPAY</span>
             </label>
-            <label class="glass-card p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'TRANSFER'}">
+            <label class="glass-card p-3.5 sm:p-4 rounded-xl flex items-center gap-3 sm:gap-4 cursor-pointer hover:border-primary-container transition-colors" :class="{'border-primary-container': paymentMethod === 'TRANSFER'}">
                 <input type="radio" value="TRANSFER" v-model="paymentMethod" class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline-variant/30 bg-transparent">
-                <span class="material-symbols-outlined text-primary-container">qr_code_2</span>
-                <span class="font-bold">Thanh toán bằng chuyển khoản</span>
+                <span class="material-symbols-outlined text-primary-container text-xl sm:text-2xl">qr_code_2</span>
+                <span class="font-bold text-xs sm:text-sm">Thanh toán bằng chuyển khoản</span>
             </label>
         </div>
 
-        <!-- Khối QR chuyển khoản (VietQR tự sinh, giống POS) -->
-        <div v-if="paymentMethod === 'TRANSFER'" class="glass-card p-8 rounded-2xl">
-          <div v-if="transferQrUrl" class="flex flex-col md:flex-row gap-8 items-center">
-            <div class="w-56 h-56 bg-white rounded-2xl p-3 flex-shrink-0">
+        <!-- Khối QR chuyển khoản -->
+        <div v-if="paymentMethod === 'TRANSFER'" class="glass-card p-5 sm:p-8 rounded-2xl">
+          <div v-if="transferQrUrl" class="flex flex-col md:flex-row gap-6 sm:gap-8 items-center">
+            <div class="w-48 h-48 sm:w-56 sm:h-56 bg-white rounded-2xl p-3 flex-shrink-0">
               <img :src="transferQrUrl" alt="VietQR chuyển khoản" class="w-full h-full object-contain" />
             </div>
             <div class="flex-grow space-y-3 w-full">
-              <h3 class="font-headline font-bold text-lg uppercase tracking-tight text-primary-container">Quét mã để chuyển khoản</h3>
+              <h3 class="font-headline font-bold text-base sm:text-lg uppercase tracking-tight text-primary-container">Quét mã để chuyển khoản</h3>
               <div class="space-y-2 pt-2 border-t border-outline-variant/10">
-                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Số tiền</span><span class="font-bold text-primary-container">{{ finalPaymentPrice.toLocaleString('vi-VN') }} VNĐ</span></div>
-                <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Nội dung</span><span class="font-bold font-mono text-xs">{{ transferContent }}</span></div>
+                <div class="flex justify-between text-xs sm:text-sm"><span class="text-on-surface-variant">Số tiền</span><span class="font-bold text-primary-container">{{ finalPaymentPrice.toLocaleString('vi-VN') }} VNĐ</span></div>
+                <div class="flex justify-between text-xs sm:text-sm"><span class="text-on-surface-variant">Nội dung</span><span class="font-bold font-mono text-[11px] sm:text-xs">{{ transferContent }}</span></div>
               </div>
             </div>
           </div>
           <div v-else class="text-center py-8">
             <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">account_balance</span>
-            <p class="text-sm text-on-surface-variant">Rạp chưa cấu hình tài khoản nhận chuyển khoản. Vui lòng chọn VNPAY.</p>
+            <p class="text-xs sm:text-sm text-on-surface-variant">Rạp chưa cấu hình tài khoản nhận chuyển khoản. Vui lòng chọn VNPAY.</p>
           </div>
         </div>
       </section>
     </div>
 
     <!-- Persistent Sidebar Summary -->
-    <aside class="w-full lg:w-[340px] flex-shrink-0 self-start sticky top-24 z-10">
-      <div class="glass-card glass-shine-edge shadow-2xl rounded-3xl">
+    <aside class="w-full lg:w-[340px] flex-shrink-0 self-start lg:sticky lg:top-24 z-10">
+      <div class="glass-card glass-shine-edge shadow-2xl rounded-2xl sm:rounded-3xl">
         <!-- Movie Header -->
-        <div class="p-6 pb-5 border-b border-outline-variant/10">
-          <div class="flex gap-6">
-            <div class="w-16 h-24 flex-shrink-0 shadow-lg">
+        <div class="p-4 sm:p-6 pb-4 sm:pb-5 border-b border-outline-variant/10">
+          <div class="flex gap-4 sm:gap-6">
+            <div class="w-14 h-20 sm:w-16 sm:h-24 flex-shrink-0 shadow-lg">
               <img :src="store.selectedMovie?.posterUrl || '/images/Hopper.webp'" class="w-full h-full object-cover rounded-lg"/>
             </div>
             <div class="flex flex-col justify-center min-w-0">
@@ -1809,55 +1807,55 @@ const proceedToPayment = async () => {
                   {{ store.selectedShowtime.formatName }}
                 </span>
               </div>
-              <h2 class="font-headline text-base font-bold leading-tight uppercase tracking-tight mb-1 line-clamp-2">
+              <h2 class="font-headline text-sm sm:text-base font-bold leading-tight uppercase tracking-tight mb-1 line-clamp-2">
                 {{ store.selectedMovie?.title || 'Phim đã chọn' }}
               </h2>
-              <p class="text-[11px] text-on-surface-variant font-label truncate">
+              <p class="text-[10px] sm:text-[11px] text-on-surface-variant font-label truncate">
                 {{ store.selectedShowtime?.cinema?.cinemaName }} • {{ store.selectedShowtime?.roomName }}
               </p>
-              <p v-if="store.selectedShowtime?.startTime" class="text-[11px] text-primary-container/90 font-label mt-0.5">
+              <p v-if="store.selectedShowtime?.startTime" class="text-[10px] sm:text-[11px] text-primary-container/90 font-label mt-0.5">
                 {{ new Date(store.selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) }} · {{ new Date(store.selectedShowtime.startTime).toLocaleDateString('vi-VN') }}
               </p>
             </div>
           </div>
         </div>
         <!-- Detailed Selections -->
-        <div class="p-8 space-y-6">
+        <div class="p-5 sm:p-8 space-y-4 sm:space-y-6">
           <div>
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex justify-between items-center mb-2.5 sm:mb-3">
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ghế đã chọn</span>
               <span class="text-xs font-bold text-primary-container">{{ store.selectedSeats.map(s => s.rowChar + s.colNum).join(', ') }}</span>
             </div>
-            <div v-for="t in ticketBreakdown" :key="t.label + t.price" class="flex justify-between text-sm">
+            <div v-for="t in ticketBreakdown" :key="t.label + t.price" class="flex justify-between text-xs sm:text-sm">
               <span class="text-on-surface/60">{{ t.qty }} x {{ t.label }} - {{ (t.price).toLocaleString('vi-VN') }}đ</span>
             </div>
-            <div class="flex justify-between text-sm pt-1">
+            <div class="flex justify-between text-xs sm:text-sm pt-1">
               <span class="text-on-surface/60">{{ formattedSeatSummary }}</span>
               <span class="font-semibold">{{ seatsSubtotal.toLocaleString('vi-VN') }}đ</span>
             </div>
           </div>
-          <div class="pt-6 border-t border-outline-variant/10" v-if="store.selectedFnbs.length > 0">
-            <div class="flex justify-between items-center mb-3">
+          <div class="pt-4 sm:pt-6 border-t border-outline-variant/10" v-if="store.selectedFnbs.length > 0">
+            <div class="flex justify-between items-center mb-2.5 sm:mb-3">
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bắp nước</span>
               <span class="text-xs font-bold text-primary-container">{{ store.selectedFnbs.reduce((acc, f) => acc + f.quantity, 0) }} sản phẩm</span>
             </div>
-            <!-- Danh sách F&B: giới hạn chiều cao + cuộn để tổng tiền/nút Tiếp tục luôn thấy -->
+            <!-- Danh sách F&B -->
             <div class="max-h-[13rem] overflow-y-auto pr-1 -mr-1 fnb-scroll">
               <div class="flex justify-between items-start gap-2 mt-3 first:mt-0" v-for="(fnb, idx) in store.selectedFnbs" :key="idx">
                 <div class="flex-grow min-w-0">
                   <div class="flex items-center gap-2">
                      <span class="shrink-0 min-w-[1.5rem] text-center bg-surface-container-high rounded-md px-1.5 py-0.5 text-[10px] font-bold border border-outline-variant/10">×{{ fnb.quantity }}</span>
-                     <div class="font-medium text-sm text-on-surface/90 truncate">{{ formatComboTitle(fnb.fnbItem.name).title }}</div>
+                     <div class="font-medium text-xs sm:text-sm text-on-surface/90 truncate">{{ formatComboTitle(fnb.fnbItem.name).title }}</div>
                   </div>
-                  <div v-if="fnb.options && fnb.options.length > 0" class="text-xs text-on-surface-variant/70 mt-1 pl-8 flex flex-wrap gap-1">
+                  <div v-if="fnb.options && fnb.options.length > 0" class="text-[11px] text-on-surface-variant/70 mt-1 pl-8 flex flex-wrap gap-1">
                      <span v-for="opt in fnb.options" :key="opt.optionItemId" class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px]">
                         {{ opt.optionName }}<span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium ml-0.5">(+{{ Number(opt.surchargePrice).toLocaleString('vi-VN') }}đ)</span>
                      </span>
                   </div>
-                  <div v-else-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-xs text-on-surface-variant/70 mt-1 pl-8">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
+                  <div v-else-if="formatComboTitle(fnb.fnbItem.name).desc" class="text-[11px] text-on-surface-variant/70 mt-1 pl-8">{{ formatComboTitle(fnb.fnbItem.name).desc }}</div>
                 </div>
                 <div class="flex flex-col items-end gap-1 shrink-0">
-                  <span class="font-semibold whitespace-nowrap">{{ (((fnb.snapshotPrice ?? fnb.fnbItem.price) + (fnb.options || []).reduce((sum, o) => sum + (o.surchargePrice || 0), 0)) * fnb.quantity).toLocaleString('vi-VN') }}đ</span>
+                  <span class="font-semibold text-xs sm:text-sm whitespace-nowrap">{{ (((fnb.snapshotPrice ?? fnb.fnbItem.price) + (fnb.options || []).reduce((sum, o) => sum + (o.surchargePrice || 0), 0)) * fnb.quantity).toLocaleString('vi-VN') }}đ</span>
                   <button @click="store.updateFnb(fnb.fnbItem, 0, fnb.options)" class="text-on-surface-variant/40 hover:text-error-container transition-colors flex items-center" title="Bỏ khỏi đơn">
                     <span class="material-symbols-outlined text-base">delete</span>
                   </button>
@@ -1866,8 +1864,8 @@ const proceedToPayment = async () => {
             </div>
           </div>
           <!-- Total Calculation -->
-          <div class="pt-6 border-t border-outline-variant/10">
-            <div class="bg-black/40 border border-white/5 p-5 rounded-xl space-y-2">
+          <div class="pt-4 sm:pt-6 border-t border-outline-variant/10">
+            <div class="bg-black/40 border border-white/5 p-4 sm:p-5 rounded-xl space-y-2">
               <div class="flex justify-between items-center text-xs text-on-surface-variant">
                 <span>Tạm tính</span>
                 <span>{{ store.totalPrice.toLocaleString('vi-VN') }}đ</span>
@@ -1876,33 +1874,33 @@ const proceedToPayment = async () => {
                 <span>Khuyến mãi (voucher):</span>
                 <span>-{{ discountAmount.toLocaleString('vi-VN') }}đ</span>
               </div>
-              <div class="flex flex-col gap-1 border-t border-outline-variant/10 pt-3 mb-2 mt-1">
+              <div class="flex flex-col gap-1 border-t border-outline-variant/10 pt-2.5 sm:pt-3 mb-1 sm:mb-2 mt-1">
                 <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tổng tiền</span>
-                <span class="text-3xl font-headline font-extrabold text-primary-container text-right leading-none">{{ finalPaymentPrice.toLocaleString('vi-VN') }}<span class="text-sm ml-1 text-primary-container/70">đ</span></span>
+                <span class="text-2xl sm:text-3xl font-headline font-extrabold text-primary-container text-right leading-none">{{ finalPaymentPrice.toLocaleString('vi-VN') }}<span class="text-xs sm:text-sm ml-1 text-primary-container/70">đ</span></span>
               </div>
-              <p class="text-[10px] text-outline-variant text-right italic">(VAT & Phí dịch vụ đã bao gồm)</p>
+              <p class="text-[9px] sm:text-[10px] text-outline-variant text-right italic">(VAT & Phí dịch vụ đã bao gồm)</p>
             </div>
           </div>
-          <!-- Action Button (theo bước hiện tại) -->
+          <!-- Action Button -->
           <button
             v-if="currentStep < steps.length"
             @click="goNext"
-            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-4 rounded-2xl font-headline font-extrabold text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-3.5 sm:py-4 rounded-2xl font-headline font-extrabold text-xs sm:text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer"
           >
             Tiếp tục
-            <span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
+            <span class="material-symbols-outlined text-lg sm:text-xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
           </button>
           <button
             v-else
             @click="proceedToPayment"
             :disabled="store.selectedSeats.length === 0 || isPaying"
-            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-4 rounded-2xl font-headline font-extrabold text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 disabled:grayscale disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
+            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-3.5 sm:py-4 rounded-2xl font-headline font-extrabold text-xs sm:text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 disabled:grayscale disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
           >
             <svg v-if="isPaying" class="animate-spin -ml-1 mr-2 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span v-else class="material-symbols-outlined text-xl">lock</span>
+            <span v-else class="material-symbols-outlined text-lg sm:text-xl">lock</span>
             {{ isPaying ? 'Đang xử lý...' : 'Xác nhận thanh toán' }}
           </button>
         </div>

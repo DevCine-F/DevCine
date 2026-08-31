@@ -11,7 +11,7 @@ const route = useRoute()
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col text-on-surface bg-transparent relative z-0">
+  <div class="min-h-screen flex flex-col text-on-surface bg-transparent relative z-0 overflow-x-hidden">
     <StarryBackground />
     <Navbar />
     

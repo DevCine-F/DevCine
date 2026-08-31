@@ -215,30 +215,30 @@ onUnmounted(() => {
 
 <template>
   <section class="w-full">
-    <div class="flex flex-col md:flex-row justify-between items-baseline mb-8 gap-4">
-      <div class="flex items-baseline gap-4 flex-wrap">
-        <h2 class="text-2xl font-bold tracking-tight font-headline">Ưu đãi của tôi</h2>
-        <span class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-primary-container/15 text-primary-container border border-primary-container/30">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-baseline mb-6 sm:mb-8 gap-4">
+      <div class="flex items-center gap-3 sm:gap-4 flex-wrap">
+        <h2 class="text-xl sm:text-2xl font-bold tracking-tight font-headline">Ưu đãi của tôi</h2>
+        <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-primary-container/15 text-primary-container border border-primary-container/30">
           <span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">stars</span>
           {{ loyaltyPoints.toLocaleString('vi-VN') }} điểm
         </span>
       </div>
-      <div class="flex gap-4">
+      <div class="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0 touch-pan-x">
         <button
           @click="activeTab = 'active'"
-          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeTab === 'active' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
+          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors shrink-0', activeTab === 'active' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
         >
           Voucher của tôi
         </button>
         <button
           @click="activeTab = 'redeem'"
-          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeTab === 'redeem' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
+          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors shrink-0', activeTab === 'redeem' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
         >
           Đổi điểm lấy ưu đãi
         </button>
         <button
           @click="activeTab = 'history'"
-          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeTab === 'history' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
+          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors shrink-0', activeTab === 'history' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
         >
           Lịch sử voucher
         </button>
@@ -246,42 +246,42 @@ onUnmounted(() => {
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading && activeTab !== 'redeem'" class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div v-if="isLoading && activeTab !== 'redeem'" class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
       <div v-for="i in 2" :key="i" class="h-36 bg-surface-container-low rounded-xl animate-pulse border border-white/5"></div>
     </div>
 
     <!-- Error -->
-    <div v-else-if="error && activeTab !== 'redeem'" class="p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">{{ error }}</div>
+    <div v-else-if="error && activeTab !== 'redeem'" class="p-4 sm:p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs sm:text-sm">{{ error }}</div>
 
     <!-- Tab 1: Active Vouchers -->
-    <div v-else-if="activeTab === 'active'" class="space-y-6">
+    <div v-else-if="activeTab === 'active'" class="space-y-4 sm:space-y-6">
       <!-- Tìm / nhập mã -->
       <div>
         <div class="relative">
-          <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/70 text-xl pointer-events-none" :class="{ 'animate-spin': isLookingUp }">{{ isLookingUp ? 'progress_activity' : 'search' }}</span>
+          <span class="material-symbols-outlined absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/70 text-lg sm:text-xl pointer-events-none" :class="{ 'animate-spin': isLookingUp }">{{ isLookingUp ? 'progress_activity' : 'search' }}</span>
           <input
             v-model="voucherSearch"
             @input="handleVoucherSearchInput"
             type="text"
             placeholder="Tìm voucher đang có hoặc nhập mã mới để lưu..."
-            class="w-full bg-black/30 border border-outline-variant/25 text-sm text-white pl-12 pr-4 py-4 rounded-xl outline-none transition-all hover:border-outline-variant/40 focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 placeholder:text-on-surface-variant/40 shadow-lg"
+            class="w-full bg-black/30 border border-outline-variant/25 text-xs sm:text-sm text-white pl-10 sm:pl-12 pr-4 py-3 sm:py-4 rounded-xl outline-none transition-all hover:border-outline-variant/40 focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 placeholder:text-on-surface-variant/40 shadow-lg"
           />
         </div>
 
         <!-- Voucher mới tìm thấy theo mã -> cho phép lưu -->
         <div v-if="lookupResult" class="mt-4 relative bg-primary-container/5 rounded-xl flex overflow-hidden border border-primary-container/30 shadow-xl">
-          <div class="w-24 md:w-32 bg-primary-container/15 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-4 shrink-0">
-            <span class="material-symbols-outlined text-4xl text-primary-container mb-2" style="font-variation-settings: 'FILL' 1;">redeem</span>
-            <span class="text-[9px] font-bold uppercase tracking-widest text-primary-container text-center">Mã mới</span>
+          <div class="w-20 sm:w-24 md:w-32 bg-primary-container/15 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-3 sm:p-4 shrink-0">
+            <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-1 sm:mb-2" style="font-variation-settings: 'FILL' 1;">redeem</span>
+            <span class="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-primary-container text-center">Mã mới</span>
           </div>
-          <div class="p-6 flex-grow flex flex-col">
-            <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-2 gap-2">
-              <h3 class="text-lg md:text-xl font-bold font-headline text-white">{{ formatDiscount(lookupResult) }}</h3>
-              <span class="bg-surface-container-high text-[10px] font-bold px-2 py-1 rounded border border-white/10 tracking-widest w-fit">{{ lookupResult.code }}</span>
+          <div class="p-4 sm:p-6 flex-grow flex flex-col min-w-0">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
+              <h3 class="text-base sm:text-xl font-bold font-headline text-white truncate">{{ formatDiscount(lookupResult) }}</h3>
+              <span class="bg-surface-container-high text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded border border-white/10 tracking-widest w-fit">{{ lookupResult.code }}</span>
             </div>
-            <p class="text-sm text-on-surface-variant mb-6 flex-grow">Mã hợp lệ! Lưu vào ví để dùng cho đơn đặt vé. Hạn dùng đến {{ formatDate(lookupResult.endDate) }}.</p>
-            <div class="flex justify-end items-center mt-auto pt-4 border-t border-white/5">
-              <button @click="handleClaim" :disabled="isClaiming" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-5 py-2.5 hover:bg-primary-fixed-dim transition-colors rounded-sm disabled:opacity-60 flex items-center gap-1.5">
+            <p class="text-xs sm:text-sm text-on-surface-variant mb-4 sm:mb-6 flex-grow">Mã hợp lệ! Lưu vào ví để dùng cho đơn đặt vé. Hạn dùng đến {{ formatDate(lookupResult.endDate) }}.</p>
+            <div class="flex justify-end items-center mt-auto pt-3 sm:pt-4 border-t border-white/5">
+              <button @click="handleClaim" :disabled="isClaiming" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 sm:px-5 py-2 sm:py-2.5 hover:bg-primary-fixed-dim transition-colors rounded-sm disabled:opacity-60 flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-sm">bookmark_add</span>
                 {{ isClaiming ? 'Đang lưu...' : 'Lưu mã này' }}
               </button>
@@ -290,39 +290,39 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Danh sách voucher (đã lọc theo từ khoá) -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <!-- Danh sách voucher -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
       <div v-for="voucher in filteredActiveVouchers" :key="voucher.id" class="relative bg-surface-container-low rounded-xl flex overflow-hidden border border-white/5 hover:border-primary-container/30 transition-all shadow-xl">
-        <div class="w-24 md:w-32 bg-primary-container/10 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-4 shrink-0">
-          <span class="material-symbols-outlined text-4xl text-primary-container mb-2">loyalty</span>
-          <span class="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-primary-container text-center">{{ voucher.type }}</span>
+        <div class="w-20 sm:w-24 md:w-32 bg-primary-container/10 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-3 sm:p-4 shrink-0">
+          <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-1 sm:mb-2">loyalty</span>
+          <span class="text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-primary-container text-center">{{ voucher.type }}</span>
         </div>
-        <div class="p-6 flex-grow flex flex-col">
-          <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-2 gap-2">
-            <h3 class="text-lg md:text-xl font-bold font-headline text-white">{{ voucher.title }}</h3>
-            <span class="bg-surface-container-high text-[10px] font-bold px-2 py-1 rounded border border-white/10 tracking-widest w-fit">{{ voucher.id }}</span>
+        <div class="p-4 sm:p-6 flex-grow flex flex-col min-w-0">
+          <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
+            <h3 class="text-base sm:text-xl font-bold font-headline text-white truncate">{{ voucher.title }}</h3>
+            <span class="bg-surface-container-high text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded border border-white/10 tracking-widest w-fit">{{ voucher.id }}</span>
           </div>
-          <p class="text-sm text-on-surface-variant mb-6 flex-grow">{{ voucher.description }}</p>
-          <div class="flex justify-between items-center mt-auto pt-4 border-t border-white/5">
+          <p class="text-xs sm:text-sm text-on-surface-variant mb-4 sm:mb-6 flex-grow">{{ voucher.description }}</p>
+          <div class="flex justify-between items-center mt-auto pt-3 sm:pt-4 border-t border-white/5 gap-2">
             <div>
-              <p class="text-[9px] uppercase tracking-widest text-neutral-500 mb-0.5">Ngày hết hạn</p>
+              <p class="text-[8px] sm:text-[9px] uppercase tracking-widest text-neutral-500 mb-0.5">Ngày hết hạn</p>
               <p class="text-xs font-bold text-error">{{ voucher.expiry }}</p>
             </div>
-            <button @click="handleUseVoucher(voucher.id)" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm">
+            <button @click="handleUseVoucher(voucher.id)" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm shrink-0">
               Dùng ngay
             </button>
           </div>
         </div>
       </div>
 
-      <div v-if="filteredActiveVouchers.length === 0 && voucherSearch.trim()" class="col-span-full py-16 text-center border border-dashed border-white/10 rounded-xl">
-        <span class="material-symbols-outlined text-4xl text-neutral-600 mb-3">search_off</span>
-        <p class="text-neutral-400">Không có voucher nào trong ví khớp "{{ voucherSearch }}".</p>
-        <p class="text-xs text-neutral-500 mt-1">Nếu đây là mã mới, hệ thống sẽ gợi ý nút "Lưu mã" ở trên.</p>
+      <div v-if="filteredActiveVouchers.length === 0 && voucherSearch.trim()" class="col-span-full py-12 sm:py-16 text-center border border-dashed border-white/10 rounded-xl px-4">
+        <span class="material-symbols-outlined text-3xl sm:text-4xl text-neutral-600 mb-3">search_off</span>
+        <p class="text-xs sm:text-sm text-neutral-400">Không có voucher nào trong ví khớp "{{ voucherSearch }}".</p>
+        <p class="text-[11px] sm:text-xs text-neutral-500 mt-1">Nếu đây là mã mới, hệ thống sẽ gợi ý nút "Lưu mã" ở trên.</p>
       </div>
-      <div v-else-if="activeVouchers.length === 0" class="col-span-full py-20 text-center border border-dashed border-white/10 rounded-xl">
-        <span class="material-symbols-outlined text-4xl text-neutral-600 mb-4">sentiment_dissatisfied</span>
-        <p class="text-neutral-400">Bạn chưa có voucher nào trong ví.</p>
+      <div v-else-if="activeVouchers.length === 0" class="col-span-full py-16 sm:py-20 text-center border border-dashed border-white/10 rounded-xl px-4">
+        <span class="material-symbols-outlined text-3xl sm:text-4xl text-neutral-600 mb-4">sentiment_dissatisfied</span>
+        <p class="text-xs sm:text-sm text-neutral-400">Bạn chưa có voucher nào trong ví.</p>
         <button @click="activeTab = 'redeem'" class="mt-4 text-xs font-bold uppercase tracking-widest text-primary-container hover:underline">Đổi điểm lấy ưu đãi ngay →</button>
       </div>
       </div>
@@ -331,34 +331,34 @@ onUnmounted(() => {
     <!-- Tab 2: Redeem with points -->
     <div v-else-if="activeTab === 'redeem'">
       <!-- Loading -->
-      <div v-if="isLoadingRedeem" class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div v-if="isLoadingRedeem" class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         <div v-for="i in 2" :key="i" class="h-36 bg-surface-container-low rounded-xl animate-pulse border border-white/5"></div>
       </div>
 
       <!-- Empty -->
-      <div v-else-if="redeemable.length === 0" class="py-20 text-center border border-dashed border-white/10 rounded-xl">
-        <span class="material-symbols-outlined text-4xl text-neutral-600 mb-4">redeem</span>
-        <p class="text-neutral-400">Hiện chưa có ưu đãi nào để đổi bằng điểm.</p>
+      <div v-else-if="redeemable.length === 0" class="py-16 sm:py-20 text-center border border-dashed border-white/10 rounded-xl px-4">
+        <span class="material-symbols-outlined text-3xl sm:text-4xl text-neutral-600 mb-4">redeem</span>
+        <p class="text-xs sm:text-sm text-neutral-400">Hiện chưa có ưu đãi nào để đổi bằng điểm.</p>
       </div>
 
       <!-- List -->
-      <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         <div v-for="promo in redeemable" :key="promo.id" class="relative bg-surface-container-low rounded-xl flex overflow-hidden border border-white/5 hover:border-primary-container/30 transition-all shadow-xl">
-          <div class="w-24 md:w-32 bg-amber-500/10 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-4 shrink-0">
-            <span class="material-symbols-outlined text-4xl text-amber-400 mb-2" style="font-variation-settings: 'FILL' 1;">stars</span>
-            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400 text-center">{{ promo.pointsRequired.toLocaleString('vi-VN') }} điểm</span>
+          <div class="w-20 sm:w-24 md:w-32 bg-amber-500/10 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-3 sm:p-4 shrink-0">
+            <span class="material-symbols-outlined text-3xl sm:text-4xl text-amber-400 mb-1 sm:mb-2" style="font-variation-settings: 'FILL' 1;">stars</span>
+            <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-amber-400 text-center">{{ promo.pointsRequired.toLocaleString('vi-VN') }} điểm</span>
           </div>
-          <div class="p-6 flex-grow flex flex-col">
-            <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-2 gap-2">
-              <h3 class="text-lg md:text-xl font-bold font-headline text-white">{{ formatDiscount(promo) }}</h3>
-              <span class="bg-surface-container-high text-[10px] font-bold px-2 py-1 rounded border border-white/10 tracking-widest w-fit">{{ promo.code }}</span>
+          <div class="p-4 sm:p-6 flex-grow flex flex-col min-w-0">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
+              <h3 class="text-base sm:text-xl font-bold font-headline text-white truncate">{{ formatDiscount(promo) }}</h3>
+              <span class="bg-surface-container-high text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded border border-white/10 tracking-widest w-fit">{{ promo.code }}</span>
             </div>
-            <p class="text-sm text-on-surface-variant mb-6 flex-grow">Đổi <span class="text-amber-400 font-bold">{{ promo.pointsRequired.toLocaleString('vi-VN') }} điểm</span> lấy mã ưu đãi này. Hạn dùng đến {{ formatDate(promo.endDate) }}.</p>
-            <div class="flex justify-end items-center mt-auto pt-4 border-t border-white/5">
+            <p class="text-xs sm:text-sm text-on-surface-variant mb-4 sm:mb-6 flex-grow">Đổi <span class="text-amber-400 font-bold">{{ promo.pointsRequired.toLocaleString('vi-VN') }} điểm</span> lấy mã ưu đãi này. Hạn dùng đến {{ formatDate(promo.endDate) }}.</p>
+            <div class="flex justify-end items-center mt-auto pt-3 sm:pt-4 border-t border-white/5">
               <button
                 @click="askRedeem(promo)"
                 :disabled="promo.redeemed || loyaltyPoints < promo.pointsRequired"
-                class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {{ promo.redeemed ? 'Đã đổi' : loyaltyPoints < promo.pointsRequired ? 'Chưa đủ điểm' : 'Đổi ngay' }}
               </button>

@@ -61,42 +61,42 @@ onMounted(fetchCinemas)
 </script>
 
 <template>
-  <main class="min-h-screen pt-32 pb-24 text-on-surface">
+  <main class="min-h-screen pt-28 sm:pt-32 pb-16 sm:pb-24 text-on-surface">
     <!-- Hero -->
-    <section class="max-w-[1440px] mx-auto px-6 md:px-10 mb-16 relative overflow-hidden">
-      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 blur-[120px] -z-10 rounded-full"></div>
-      <div class="border-b border-outline-variant/30 pb-12">
-        <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+    <section class="max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10 mb-10 sm:mb-16 relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-primary/10 blur-[120px] -z-10 rounded-full"></div>
+      <div class="border-b border-outline-variant/30 pb-8 sm:pb-12">
+        <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-8 lg:gap-10">
           <div class="max-w-2xl">
-            <span class="text-primary font-bold tracking-[0.3em] uppercase text-xs mb-4 block">Hệ thống rạp DevCine</span>
-            <h1 class="text-5xl md:text-7xl font-bold font-headline tracking-tight mb-7 leading-[1.18] md:leading-[1.15]">
+            <span class="text-primary font-bold tracking-[0.3em] uppercase text-xs mb-3 sm:mb-4 block">Hệ thống rạp DevCine</span>
+            <h1 class="text-3xl sm:text-5xl md:text-7xl font-bold font-headline tracking-tight mb-4 sm:mb-7 leading-[1.18] md:leading-[1.15]">
               Trải nghiệm<br/><span class="text-primary italic">Điện ảnh</span> Đẳng cấp
             </h1>
-            <p class="text-on-surface-variant text-base md:text-lg leading-loose mb-8">
+            <p class="text-on-surface-variant text-sm sm:text-base md:text-lg leading-relaxed sm:leading-loose mb-6 sm:mb-8">
               DevCine hiện vận hành <span class="text-on-surface font-bold">{{ activeCinemas.length }} cụm rạp</span> {{ operatingLocationsText ? operatingLocationsText + ', ' : '' }}với phòng chiếu <span class="text-on-surface font-bold">Superplex &amp; 3D</span>, ghế <span class="text-on-surface font-bold">VIP</span> và <span class="text-on-surface font-bold">Sweetbox</span> ghế đôi. Đặt vé, chọn ghế và thanh toán trực tuyến chỉ trong vài bước.
             </p>
             <!-- Chip tính năng thực tế của hệ thống -->
-            <div class="flex flex-wrap gap-2.5">
+            <div class="flex flex-wrap gap-2 sm:gap-2.5">
               <span v-for="f in ['Phòng Superplex', 'Định dạng 3D', 'Ghế VIP', 'Sweetbox (ghế đôi)', 'Đặt vé online']" :key="f"
-                    class="px-3.5 py-1.5 rounded-full bg-surface-container-high/60 border border-outline-variant/20 text-xs font-bold text-on-surface-variant">
+                    class="px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-surface-container-high/60 border border-outline-variant/20 text-[11px] sm:text-xs font-bold text-on-surface-variant">
                 {{ f }}
               </span>
             </div>
           </div>
 
-          <!-- Thống kê (kích thước đồng nhất) -->
-          <div class="grid grid-cols-3 gap-3 shrink-0">
-            <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
-              <div class="text-3xl font-bold text-primary">{{ activeCinemas.length }}</div>
-              <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Cụm rạp</div>
+          <!-- Thống kê -->
+          <div class="grid grid-cols-3 gap-2 sm:gap-3 w-full lg:w-auto shrink-0">
+            <div class="p-2.5 sm:p-4 border border-outline-variant/50 rounded-xl sm:rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
+              <div class="text-2xl sm:text-3xl font-bold text-primary">{{ activeCinemas.length }}</div>
+              <div class="text-[9px] sm:text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Cụm rạp</div>
             </div>
-            <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
-              <div class="text-3xl font-bold text-primary">{{ Math.max(0, cities.length - 1) }}</div>
-              <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Tỉnh / Thành</div>
+            <div class="p-2.5 sm:p-4 border border-outline-variant/50 rounded-xl sm:rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
+              <div class="text-2xl sm:text-3xl font-bold text-primary">{{ Math.max(0, cities.length - 1) }}</div>
+              <div class="text-[9px] sm:text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Tỉnh / Thành</div>
             </div>
-            <div class="w-28 p-4 border border-outline-variant/50 rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
-              <div class="text-3xl font-bold text-primary">{{ totalRooms }}</div>
-              <div class="text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Phòng chiếu</div>
+            <div class="p-2.5 sm:p-4 border border-outline-variant/50 rounded-xl sm:rounded-2xl bg-surface-container-low/50 backdrop-blur-md text-center">
+              <div class="text-2xl sm:text-3xl font-bold text-primary">{{ totalRooms }}</div>
+              <div class="text-[9px] sm:text-[0.6rem] uppercase tracking-widest text-on-surface-variant mt-1">Phòng chiếu</div>
             </div>
           </div>
         </div>
@@ -104,34 +104,34 @@ onMounted(fetchCinemas)
     </section>
 
     <!-- Chọn rạp theo khu vực -->
-    <section class="max-w-[1440px] mx-auto px-6 md:px-10">
-      <div class="flex flex-col md:flex-row gap-12">
+    <section class="max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10">
+      <div class="flex flex-col md:flex-row gap-8 md:gap-12">
         <!-- Sidebar: khu vực + tìm theo tên -->
-        <aside class="md:w-64 shrink-0">
-          <div class="sticky top-32">
-            <div class="mb-8 p-5 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
-              <h4 class="font-bold text-sm mb-3">Tìm theo tên rạp</h4>
+        <aside class="w-full md:w-64 shrink-0">
+          <div class="md:sticky md:top-32">
+            <div class="mb-6 md:mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
+              <h4 class="font-bold text-xs sm:text-sm mb-2.5 sm:mb-3">Tìm theo tên rạp</h4>
               <div class="relative">
                 <input
                   v-model="searchQuery"
                   type="text"
                   placeholder="Nhập tên hoặc địa chỉ..."
-                  class="w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg pl-4 pr-9 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                  class="w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg pl-3.5 sm:pl-4 pr-9 py-2 sm:py-2.5 text-xs sm:text-sm focus:outline-none focus:border-primary/50 transition-colors"
                 />
                 <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-base opacity-50">search</span>
               </div>
             </div>
 
-            <h2 class="text-xl font-bold font-headline mb-5 uppercase tracking-widest text-on-surface-variant">Khu vực</h2>
-            <div class="flex flex-col gap-2">
+            <h2 class="text-sm sm:text-base font-bold font-headline mb-3 sm:mb-5 uppercase tracking-widest text-on-surface-variant">Khu vực</h2>
+            <div class="flex flex-row md:flex-col gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0 touch-pan-x">
               <button
                 v-for="city in cities" :key="city"
                 @click="selectedCity = city"
-                class="text-left px-4 py-3 rounded-xl transition-all duration-300 flex items-center justify-between"
-                :class="selectedCity === city ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'hover:bg-surface-container-high'"
+                class="text-left px-3.5 sm:px-4 py-2 sm:py-3 rounded-xl transition-all duration-300 flex items-center justify-between gap-3 shrink-0 md:shrink"
+                :class="selectedCity === city ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'hover:bg-surface-container-high bg-surface-container-low md:bg-transparent'"
               >
-                <span class="font-bold text-sm">{{ city }}</span>
-                <span class="text-xs opacity-60 font-mono">{{ city === 'Tất cả' ? activeCinemas.length : activeCinemas.filter(c => c.city === city).length }}</span>
+                <span class="font-bold text-xs sm:text-sm whitespace-nowrap">{{ city }}</span>
+                <span class="text-[10px] sm:text-xs opacity-60 font-mono">{{ city === 'Tất cả' ? activeCinemas.length : activeCinemas.filter(c => c.city === city).length }}</span>
               </button>
             </div>
           </div>
@@ -139,50 +139,50 @@ onMounted(fetchCinemas)
 
         <!-- Danh sách rạp -->
         <div class="flex-grow">
-          <div class="mb-8 flex justify-between items-end">
+          <div class="mb-6 sm:mb-8 flex justify-between items-end">
             <div>
-              <h3 class="text-2xl md:text-3xl font-bold font-headline mb-2">{{ selectedCity }}</h3>
-              <p class="text-on-surface-variant text-sm">Hiển thị {{ filteredCinemas.length }} rạp chiếu</p>
+              <h3 class="text-xl sm:text-2xl md:text-3xl font-bold font-headline mb-1 sm:mb-2">{{ selectedCity }}</h3>
+              <p class="text-on-surface-variant text-xs sm:text-sm">Hiển thị {{ filteredCinemas.length }} rạp chiếu</p>
             </div>
           </div>
 
           <!-- Loading -->
-          <div v-if="loading" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div v-for="i in 4" :key="i" class="h-44 bg-surface-container animate-pulse rounded-3xl"></div>
+          <div v-if="loading" class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <div v-for="i in 4" :key="i" class="h-44 bg-surface-container animate-pulse rounded-2xl sm:rounded-3xl"></div>
           </div>
 
           <!-- Empty -->
-          <div v-else-if="filteredCinemas.length === 0" class="py-20 text-center border-2 border-dashed border-outline-variant/30 rounded-3xl">
-            <span class="material-symbols-outlined text-5xl opacity-20 mb-4 block">location_off</span>
-            <p class="text-on-surface-variant italic">Không tìm thấy rạp nào phù hợp.</p>
+          <div v-else-if="filteredCinemas.length === 0" class="py-16 sm:py-20 text-center border-2 border-dashed border-outline-variant/30 rounded-2xl sm:rounded-3xl">
+            <span class="material-symbols-outlined text-4xl sm:text-5xl opacity-20 mb-3 sm:mb-4 block">location_off</span>
+            <p class="text-on-surface-variant text-sm italic">Không tìm thấy rạp nào phù hợp.</p>
           </div>
 
           <!-- List -->
-          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <RouterLink
               v-for="cinema in filteredCinemas" :key="cinema.id"
               :to="`/he-thong-rap/${cinema.id}`"
-              class="flex gap-5 p-7 rounded-3xl bg-surface-container-low border border-outline-variant/10 hover:border-primary/40 transition-all duration-300 group"
+              class="flex gap-4 sm:gap-5 p-4 sm:p-7 rounded-2xl sm:rounded-3xl bg-surface-container-low border border-outline-variant/10 hover:border-primary/40 transition-all duration-300 group"
             >
               <div class="flex flex-col justify-between min-w-0 flex-grow">
                 <div>
-                  <div class="flex items-start justify-between gap-4 mb-2.5">
-                    <h4 class="font-bold text-lg group-hover:text-primary transition-colors truncate">{{ cinema.name }}</h4>
-                    <span class="shrink-0 px-2.5 py-1 bg-primary/10 border border-primary/30 text-[0.6rem] font-bold uppercase tracking-widest rounded-full text-primary">{{ cinema.type }}</span>
+                  <div class="flex items-start justify-between gap-3 sm:gap-4 mb-2">
+                    <h4 class="font-bold text-base sm:text-lg group-hover:text-primary transition-colors truncate">{{ cinema.name }}</h4>
+                    <span class="shrink-0 px-2 sm:px-2.5 py-0.5 sm:py-1 bg-primary/10 border border-primary/30 text-[9px] sm:text-[0.6rem] font-bold uppercase tracking-widest rounded-full text-primary">{{ cinema.type }}</span>
                   </div>
-                  <p class="text-[0.8rem] text-on-surface-variant line-clamp-2 leading-relaxed opacity-70">{{ cinema.address }}</p>
+                  <p class="text-xs sm:text-[0.8rem] text-on-surface-variant line-clamp-2 leading-relaxed opacity-70">{{ cinema.address }}</p>
                 </div>
-                <div class="flex items-center gap-6 mt-6 pt-5 border-t border-outline-variant/10 flex-wrap">
-                  <div class="flex items-center gap-1.5 opacity-70">
-                    <span class="material-symbols-outlined text-sm">meeting_room</span>
-                    <span class="text-[0.7rem] font-bold uppercase tracking-widest">{{ cinema.rooms }} Phòng</span>
+                <div class="flex items-center gap-4 sm:gap-6 mt-4 sm:mt-6 pt-3.5 sm:pt-5 border-t border-outline-variant/10 flex-wrap">
+                  <div class="flex items-center gap-1 sm:gap-1.5 opacity-70">
+                    <span class="material-symbols-outlined text-xs sm:text-sm">meeting_room</span>
+                    <span class="text-[10px] sm:text-[0.7rem] font-bold uppercase tracking-widest">{{ cinema.rooms }} Phòng</span>
                   </div>
-                  <div class="flex items-center gap-1.5 opacity-70">
-                    <span class="material-symbols-outlined text-sm">phone</span>
-                    <span class="text-[0.7rem] font-mono">{{ cinema.hotline }}</span>
+                  <div class="flex items-center gap-1 sm:gap-1.5 opacity-70">
+                    <span class="material-symbols-outlined text-xs sm:text-sm">phone</span>
+                    <span class="text-[10px] sm:text-[0.7rem] font-mono">{{ cinema.hotline }}</span>
                   </div>
-                  <span class="ml-auto text-[0.65rem] font-bold uppercase tracking-widest text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
-                    Xem lịch chiếu <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                  <span class="ml-auto text-[10px] sm:text-[0.65rem] font-bold uppercase tracking-widest text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
+                    Xem lịch chiếu <span class="material-symbols-outlined text-xs sm:text-sm">arrow_forward</span>
                   </span>
                 </div>
               </div>

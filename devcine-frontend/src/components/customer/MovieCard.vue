@@ -74,16 +74,16 @@ const formatMeta = computed(() => {
     </div>
     
     <!-- Info -->
-    <div class="flex justify-between items-center mb-1">
-      <span class="text-[#f5c518] text-[11px] font-bold uppercase tracking-wider truncate mr-2">{{ getGenreNames(movie) }}</span>
-      <span class="text-[#f5c518] text-[11px] font-bold tracking-widest whitespace-nowrap">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
+    <div class="flex justify-between items-center mb-1 gap-1">
+      <span class="text-[#f5c518] text-[9px] sm:text-[11px] font-bold uppercase tracking-wider truncate mr-1 sm:mr-2">{{ getGenreNames(movie) }}</span>
+      <span class="text-[#f5c518] text-[9px] sm:text-[11px] font-bold tracking-widest whitespace-nowrap shrink-0">{{ movie.releaseDate ? formatDateDot(movie.releaseDate) : 'Sắp chiếu' }}</span>
     </div>
-    <div class="font-headline text-lg font-bold text-white mb-2 uppercase tracking-tight line-clamp-1 transition-colors"
+    <div class="font-headline text-sm sm:text-base md:text-lg font-bold text-white mb-1 sm:mb-2 uppercase tracking-tight line-clamp-1 transition-colors"
          :class="!isExpired ? 'group-hover:text-primary-container' : ''">
       {{ movie.title }}
     </div>
-    <div class="flex justify-between items-center text-[11px] text-on-surface-variant/80 font-normal">
-      <span>{{ formatMeta }}</span>
+    <div class="flex justify-between items-center text-[9px] sm:text-[11px] text-on-surface-variant/80 font-normal">
+      <span class="truncate">{{ formatMeta }}</span>
     </div>
   </component>
 </template>

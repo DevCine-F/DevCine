@@ -172,32 +172,33 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="pt-32 pb-20 max-w-[1440px] mx-auto px-6 md:px-10">
-    <!-- Hero Section / Header -->
-    <header class="mb-16">
-      <div class="inline-block bg-primary-container/10 px-4 py-1 border-l-2 border-primary-container mb-4">
-        <span class="text-primary-container text-xs font-bold tracking-widest uppercase font-label">Đặc quyền hội viên</span>
+  <main class="pt-28 sm:pt-32 pb-16 sm:pb-20 max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10">
+    
+    <!-- Hero Header -->
+    <header class="mb-12 sm:mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant/30 text-primary-container text-xs font-bold uppercase tracking-widest mb-4 sm:mb-6">
+        <span class="material-symbols-outlined text-sm">local_activity</span> Special Offers
       </div>
-      <h1 class="text-5xl md:text-7xl font-headline font-extrabold tracking-tighter mb-6 text-on-surface leading-none">
+      <h1 class="text-3xl sm:text-5xl md:text-7xl font-headline font-extrabold tracking-tighter mb-4 sm:mb-6 text-on-surface leading-none">
         KHUYẾN MÃI <br/><span class="text-primary-container">& ƯU ĐÃI.</span>
       </h1>
-      <p class="max-w-2xl text-on-surface-variant text-lg leading-relaxed">
+      <p class="max-w-2xl text-on-surface-variant text-sm sm:text-lg leading-relaxed">
         Nâng tầm trải nghiệm điện ảnh của bạn với những gói ưu đãi độc quyền. Từ những combo bắp nước chủ đề đến các chương trình dành riêng cho thành viên DevCine.
       </p>
     </header>
 
     <!-- ===== Tin khuyến mãi (nội dung biên tập) ===== -->
-    <section v-if="isLoadingArticles" class="mb-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <section v-if="isLoadingArticles" class="mb-12 sm:mb-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
       <div v-for="i in 3" :key="'a' + i" class="h-80 bg-surface-container-low rounded-2xl animate-pulse border border-outline-variant/10"></div>
     </section>
 
-    <section v-else-if="articles.length > 0" class="mb-20">
-      <div class="flex items-end justify-between mb-8">
-        <h2 class="text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface">Tin khuyến mãi</h2>
-        <span class="text-on-surface-variant text-sm font-bold uppercase tracking-widest">{{ articles.length }} chương trình</span>
+    <section v-else-if="articles.length > 0" class="mb-12 sm:mb-20">
+      <div class="flex items-end justify-between mb-6 sm:mb-8">
+        <h2 class="text-2xl sm:text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface">Tin khuyến mãi</h2>
+        <span class="text-on-surface-variant text-xs sm:text-sm font-bold uppercase tracking-widest">{{ articles.length }} chương trình</span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
         <article v-for="article in pagedArticles" :key="article.id"
                  class="group bg-surface-container-low rounded-2xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/40 transition-all duration-300">
           <!-- Ảnh -->
@@ -205,23 +206,23 @@ onMounted(async () => {
             <img v-if="article.imageUrl" :src="article.imageUrl" :alt="article.title"
                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
             <div v-else class="w-full h-full flex items-center justify-center">
-              <span class="material-symbols-outlined text-5xl text-outline-variant">image</span>
+              <span class="material-symbols-outlined text-4xl sm:text-5xl text-outline-variant">image</span>
             </div>
             <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
-            <div class="absolute top-3 left-3 bg-primary-container text-on-primary px-3 py-1 font-bold text-[10px] uppercase tracking-widest rounded-sm">Ưu đãi</div>
+            <div class="absolute top-3 left-3 bg-primary-container text-on-primary px-2.5 sm:px-3 py-1 font-bold text-[9px] sm:text-[10px] uppercase tracking-widest rounded-sm">Ưu đãi</div>
           </div>
 
           <!-- Nội dung -->
-          <div class="p-6 flex flex-col flex-grow">
-            <h3 class="text-lg font-headline font-bold text-on-surface uppercase italic leading-snug mb-2 line-clamp-2">{{ article.title }}</h3>
-            <p class="text-on-surface-variant text-sm leading-relaxed mb-4 flex-grow line-clamp-3">{{ article.description }}</p>
-            <div class="flex items-center justify-between gap-3">
-              <span v-if="article.endDate" class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div class="p-4 sm:p-6 flex flex-col flex-grow">
+            <h3 class="text-base sm:text-lg font-headline font-bold text-on-surface uppercase italic leading-snug mb-2 line-clamp-2">{{ article.title }}</h3>
+            <p class="text-on-surface-variant text-xs sm:text-sm leading-relaxed mb-4 flex-grow line-clamp-3">{{ article.description }}</p>
+            <div class="flex items-center justify-between gap-3 pt-2 border-t border-outline-variant/10">
+              <span v-if="article.endDate" class="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
                 Đến {{ formatArticleDate(article.endDate) }}
               </span>
               <span v-else></span>
               <RouterLink :to="`/khuyen-mai/${article.id}`"
-                      class="shrink-0 flex items-center gap-1.5 bg-primary-container/10 border border-primary-container/30 text-primary-container font-bold text-xs uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-primary-container/20 transition-all">
+                      class="shrink-0 flex items-center gap-1.5 bg-primary-container/10 border border-primary-container/30 text-primary-container font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-primary-container/20 transition-all">
                 Xem chi tiết
                 <span class="material-symbols-outlined text-sm">arrow_forward</span>
               </RouterLink>
@@ -231,79 +232,77 @@ onMounted(async () => {
       </div>
 
       <!-- Phân trang khu Tin khuyến mãi -->
-      <nav v-if="articleTotalPages > 1" class="flex justify-center items-center gap-2 mt-10">
+      <nav v-if="articleTotalPages > 1" class="flex justify-center items-center gap-1.5 sm:gap-2 mt-8 sm:mt-10">
         <button @click="goArticlePage(articlePage - 1, $event)" :disabled="articlePage === 1"
-                class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-          <span class="material-symbols-outlined text-lg">chevron_left</span>
+                class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-base sm:text-lg">chevron_left</span>
         </button>
         <button v-for="n in articleTotalPages" :key="'ap' + n" @click="goArticlePage(n, $event)"
                 :class="n === articlePage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary-container'"
-                class="min-w-10 h-10 px-3 flex items-center justify-center rounded-lg border font-bold text-sm transition-colors">
+                class="min-w-9 h-9 sm:min-w-10 sm:h-10 px-2.5 sm:px-3 flex items-center justify-center rounded-lg border font-bold text-xs sm:text-sm transition-colors">
           {{ n }}
         </button>
         <button @click="goArticlePage(articlePage + 1, $event)" :disabled="articlePage === articleTotalPages"
-                class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-          <span class="material-symbols-outlined text-lg">chevron_right</span>
+                class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-base sm:text-lg">chevron_right</span>
         </button>
       </nav>
     </section>
 
-    <!-- Tiêu đề khu voucher (chỉ hiện khi đã có mục Tin ở trên để phân tách) -->
-    <h2 v-if="articles.length > 0" class="text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-8">Mã ưu đãi & Voucher</h2>
+    <!-- Tiêu đề khu voucher -->
+    <h2 v-if="articles.length > 0" class="text-2xl sm:text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-6 sm:mb-8">Mã ưu đãi & Voucher</h2>
 
     <!-- Promotions Grid -->
     <!-- Loading -->
-    <section v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <section v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
       <div v-for="i in 3" :key="i" class="h-52 bg-surface-container-low rounded-xl animate-pulse border border-outline-variant/10"></div>
     </section>
 
     <!-- Empty -->
-    <section v-else-if="promotions.length === 0" class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low rounded-xl border border-outline-variant/10">
-      <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">local_activity</span>
-      <p class="text-on-surface-variant font-semibold">Hiện chưa có chương trình khuyến mãi nào đang diễn ra</p>
-      <p class="text-sm text-outline-variant mt-1">Vui lòng quay lại sau để không bỏ lỡ ưu đãi mới.</p>
+    <section v-else-if="promotions.length === 0" class="flex flex-col items-center justify-center py-16 sm:py-24 text-center bg-surface-container-low rounded-xl border border-outline-variant/10 px-4">
+      <span class="material-symbols-outlined text-4xl sm:text-5xl text-outline-variant mb-4">local_activity</span>
+      <p class="text-on-surface-variant font-semibold text-sm sm:text-base">Hiện chưa có chương trình khuyến mãi nào đang diễn ra</p>
+      <p class="text-xs sm:text-sm text-outline-variant mt-1">Vui lòng quay lại sau để không bỏ lỡ ưu đãi mới.</p>
     </section>
 
     <!-- Danh sách khuyến mãi đang chạy -->
-    <section v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <section v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
       <div v-for="promo in pagedPromotions" :key="promo.id"
            class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300">
-        <div class="h-40 relative bg-gradient-to-br from-primary-container/20 to-surface-container-high flex items-center justify-center">
-          <span class="text-4xl font-headline font-extrabold text-primary-container">{{ formatValue(promo) }}</span>
-          <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-3 py-1 font-bold text-[10px] uppercase tracking-widest">Đang áp dụng</div>
+        <div class="h-32 sm:h-40 relative bg-gradient-to-br from-primary-container/20 to-surface-container-high flex items-center justify-center">
+          <span class="text-2xl sm:text-4xl font-headline font-extrabold text-primary-container">{{ formatValue(promo) }}</span>
+          <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-2.5 sm:px-3 py-1 font-bold text-[9px] sm:text-[10px] uppercase tracking-widest">Đang áp dụng</div>
         </div>
-        <div class="p-8 flex flex-col flex-grow">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-lg font-headline font-bold text-on-surface">{{ promo.name || 'Ưu đãi đặc biệt' }}</h3>
-            <span v-if="promo.pointsRequired > 0" class="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-1 rounded">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
+        <div class="p-4 sm:p-6 md:p-8 flex flex-col flex-grow">
+          <div class="flex items-center justify-between mb-3 gap-2">
+            <h3 class="text-base sm:text-lg font-headline font-bold text-on-surface truncate">{{ promo.name || 'Ưu đãi đặc biệt' }}</h3>
+            <span v-if="promo.pointsRequired > 0" class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 sm:py-1 rounded shrink-0">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
           </div>
-          <p class="text-on-surface-variant text-sm leading-relaxed mb-6 flex-grow">
+          <p class="text-on-surface-variant text-xs sm:text-sm leading-relaxed mb-4 sm:mb-6 flex-grow">
             {{ formatValue(promo) }} khi đặt vé tại DevCine.
             {{ isPointPromo(promo) ? 'Đổi bằng điểm tích luỹ.' : 'Lưu mã để dùng khi thanh toán.' }}
             {{ formatEnd(promo.endDate) }}.
           </p>
 
-          <!-- Đã sở hữu: nút trạng thái (vô hiệu hoá) + link sang Ưu đãi của tôi.
-               Mã đổi-điểm hiện "Đã đổi" (mỗi mã chỉ đổi 1 lần/khách), mã thường hiện "Đã lưu". -->
           <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between gap-3">
             <button type="button" disabled
-                    class="self-start flex items-center gap-2 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-lg cursor-default">
+                    class="self-start flex items-center gap-1.5 sm:gap-2 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg cursor-default">
               <span class="material-symbols-outlined text-sm">{{ isPointPromo(promo) ? 'redeem' : 'check_circle' }}</span>
               {{ isPointPromo(promo) ? 'Đã đổi' : 'Đã lưu' }}
             </button>
-            <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-xs uppercase tracking-widest hover:opacity-80 shrink-0">Ưu đãi của tôi →</RouterLink>
+            <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-[10px] sm:text-xs uppercase tracking-widest hover:opacity-80 shrink-0">Ưu đãi của tôi →</RouterLink>
           </div>
 
-          <!-- Nút đổi điểm (mã point) -->
+          <!-- Nút đổi điểm -->
           <button v-else-if="isPointPromo(promo)" @click="redeemPoints(promo)" :disabled="savingId === promo.id"
-                  class="self-start flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-amber-500/20 transition-all disabled:opacity-60">
+                  class="self-start flex items-center gap-1.5 sm:gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg hover:bg-amber-500/20 transition-all disabled:opacity-60">
             <span class="material-symbols-outlined text-sm">redeem</span>
             {{ savingId === promo.id ? 'Đang đổi...' : `Đổi ${Number(promo.pointsRequired).toLocaleString('vi-VN')} điểm` }}
           </button>
 
-          <!-- Nút lưu mã (mã free) -->
+          <!-- Nút lưu mã -->
           <button v-else @click="claimCode(promo)" :disabled="savingId === promo.id"
-                  class="self-start flex items-center gap-2 bg-primary-container text-on-primary font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-lg hover:brightness-110 transition-all disabled:opacity-60">
+                  class="self-start flex items-center gap-1.5 sm:gap-2 bg-primary-container text-on-primary font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg hover:brightness-110 transition-all disabled:opacity-60">
             <span class="material-symbols-outlined text-sm">bookmark_add</span>
             {{ savingId === promo.id ? 'Đang lưu...' : 'Lưu mã' }}
           </button>
@@ -312,19 +311,19 @@ onMounted(async () => {
     </section>
 
     <!-- Phân trang khu Voucher -->
-    <nav v-if="!isLoading && promoTotalPages > 1" class="flex justify-center items-center gap-2 mt-10">
+    <nav v-if="!isLoading && promoTotalPages > 1" class="flex justify-center items-center gap-1.5 sm:gap-2 mt-8 sm:mt-10">
       <button @click="goPromoPage(promoPage - 1, $event)" :disabled="promoPage === 1"
-              class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-        <span class="material-symbols-outlined text-lg">chevron_left</span>
+              class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+        <span class="material-symbols-outlined text-base sm:text-lg">chevron_left</span>
       </button>
       <button v-for="n in promoTotalPages" :key="'pp' + n" @click="goPromoPage(n, $event)"
               :class="n === promoPage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary-container'"
-              class="min-w-10 h-10 px-3 flex items-center justify-center rounded-lg border font-bold text-sm transition-colors">
+              class="min-w-9 h-9 sm:min-w-10 sm:h-10 px-2.5 sm:px-3 flex items-center justify-center rounded-lg border font-bold text-xs sm:text-sm transition-colors">
         {{ n }}
       </button>
       <button @click="goPromoPage(promoPage + 1, $event)" :disabled="promoPage === promoTotalPages"
-              class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-        <span class="material-symbols-outlined text-lg">chevron_right</span>
+              class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+        <span class="material-symbols-outlined text-base sm:text-lg">chevron_right</span>
       </button>
     </nav>
 

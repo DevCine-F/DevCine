@@ -10,93 +10,93 @@ const handleScrollToForm = () => {
 <template>
   <main>
     <!-- Hero Header -->
-    <section class="relative min-h-[540px] pt-32 flex items-end px-6 md:px-10 pb-16 overflow-hidden">
+    <section class="relative min-h-[380px] sm:min-h-[460px] md:min-h-[540px] pt-28 sm:pt-32 flex items-end px-4 sm:px-6 md:px-10 pb-10 sm:pb-16 overflow-hidden">
       <div class="absolute inset-0 z-0">
         <img src="/images/Hopper.webp" class="w-full h-full object-cover opacity-40"/>
         <div class="absolute inset-0 hero-gradient"></div>
       </div>
       <div class="relative z-10 max-w-[1440px] mx-auto w-full">
-        <h1 class="text-5xl md:text-7xl font-headline font-extrabold tracking-tighter text-on-background mb-4 uppercase">
+        <h1 class="text-3xl sm:text-5xl md:text-7xl font-headline font-extrabold tracking-tighter text-on-background mb-3 sm:mb-4 uppercase">
           Liên hệ & <span class="text-primary-container">Hỗ trợ</span>
         </h1>
-        <p class="max-w-2xl text-lg text-on-surface-variant font-body leading-relaxed">
+        <p class="max-w-2xl text-sm sm:text-lg text-on-surface-variant font-body leading-relaxed">
           Tại DevCine, sự hài lòng của quý khách là ưu tiên hàng đầu. Chúng tôi luôn sẵn sàng lắng nghe và hỗ trợ mọi thắc mắc để mang lại trải nghiệm điện ảnh hoàn hảo nhất.
         </p>
       </div>
     </section>
 
-    <div class="max-w-[1440px] mx-auto px-6 md:px-10">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10">
       <!-- Support Categories -->
-      <section class="py-20">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <router-link to="/faq" class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
-            <span class="material-symbols-outlined text-4xl text-primary-container mb-6 block">help_outline</span>
-            <h3 class="text-xl font-headline font-bold text-on-background mb-2">Câu hỏi thường gặp</h3>
-            <p class="text-on-surface-variant text-sm font-body mb-4">Tìm câu trả lời nhanh nhất cho các thắc mắc về quy trình đặt vé và rạp.</p>
+      <section class="py-12 sm:py-16 md:py-20">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <router-link to="/faq" class="glass-card glass-shine-edge p-6 sm:p-8 rounded-2xl sm:rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
+            <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-4 sm:mb-6 block">help_outline</span>
+            <h3 class="text-lg sm:text-xl font-headline font-bold text-on-background mb-2">Câu hỏi thường gặp</h3>
+            <p class="text-on-surface-variant text-xs sm:text-sm font-body mb-4">Tìm câu trả lời nhanh nhất cho các thắc mắc về quy trình đặt vé và rạp.</p>
             <span class="text-primary-container font-label text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all">Xem thêm <span class="material-symbols-outlined text-sm">arrow_forward</span></span>
           </router-link>
-          <router-link to="/faq" class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
-            <span class="material-symbols-outlined text-4xl text-primary-container mb-6 block">confirmation_number</span>
-            <h3 class="text-xl font-headline font-bold text-on-background mb-2">Chính sách vé</h3>
-            <p class="text-on-surface-variant text-sm font-body mb-4">Thông tin chi tiết về dịch vụ vé và các quy định về độ tuổi xem phim.</p>
+          <router-link to="/faq" class="glass-card glass-shine-edge p-6 sm:p-8 rounded-2xl sm:rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
+            <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-4 sm:mb-6 block">confirmation_number</span>
+            <h3 class="text-lg sm:text-xl font-headline font-bold text-on-background mb-2">Chính sách vé</h3>
+            <p class="text-on-surface-variant text-xs sm:text-sm font-body mb-4">Thông tin chi tiết về dịch vụ vé và các quy định về độ tuổi xem phim.</p>
             <span class="text-primary-container font-label text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all">Xem thêm <span class="material-symbols-outlined text-sm">arrow_forward</span></span>
           </router-link>
-          <router-link to="/khuyen-mai" class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
-            <span class="material-symbols-outlined text-4xl text-primary-container mb-6 block">loyalty</span>
-            <h3 class="text-xl font-headline font-bold text-on-background mb-2">Thành viên & Ưu đãi</h3>
-            <p class="text-on-surface-variant text-sm font-body mb-4">Quản lý tài khoản DevCine và khám phá các đặc quyền dành riêng cho bạn.</p>
+          <router-link to="/khuyen-mai" class="glass-card glass-shine-edge p-6 sm:p-8 rounded-2xl sm:rounded-3xl hover:border-primary-container/30 transition-all duration-300 group">
+            <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-4 sm:mb-6 block">loyalty</span>
+            <h3 class="text-lg sm:text-xl font-headline font-bold text-on-background mb-2">Thành viên & Ưu đãi</h3>
+            <p class="text-on-surface-variant text-xs sm:text-sm font-body mb-4">Quản lý tài khoản DevCine và khám phá các đặc quyền dành riêng cho bạn.</p>
             <span class="text-primary-container font-label text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all">Xem thêm <span class="material-symbols-outlined text-sm">arrow_forward</span></span>
           </router-link>
-          <button type="button" @click="handleScrollToForm" class="glass-card glass-shine-edge p-8 rounded-3xl hover:border-primary-container/30 transition-all duration-300 group text-left">
-            <span class="material-symbols-outlined text-4xl text-primary-container mb-6 block">rate_review</span>
-            <h3 class="text-xl font-headline font-bold text-on-background mb-2">Phản hồi dịch vụ</h3>
-            <p class="text-on-surface-variant text-sm font-body mb-4">Góp ý về chất lượng phục vụ tại các cụm rạp để chúng tôi ngày càng hoàn thiện.</p>
+          <button type="button" @click="handleScrollToForm" class="glass-card glass-shine-edge p-6 sm:p-8 rounded-2xl sm:rounded-3xl hover:border-primary-container/30 transition-all duration-300 group text-left">
+            <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-4 sm:mb-6 block">rate_review</span>
+            <h3 class="text-lg sm:text-xl font-headline font-bold text-on-background mb-2">Phản hồi dịch vụ</h3>
+            <p class="text-on-surface-variant text-xs sm:text-sm font-body mb-4">Góp ý về chất lượng phục vụ tại các cụm rạp để chúng tôi ngày càng hoàn thiện.</p>
             <span class="text-primary-container font-label text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all">Gửi góp ý <span class="material-symbols-outlined text-sm">arrow_forward</span></span>
           </button>
         </div>
       </section>
 
       <!-- Main Support Section -->
-      <section class="grid grid-cols-1 lg:grid-cols-12 gap-16 pb-20">
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 pb-16 sm:pb-20">
         <!-- Contact Form -->
         <div id="contact-form" class="lg:col-span-7 scroll-mt-32">
-          <h2 class="text-3xl font-headline font-bold text-on-background mb-8 uppercase tracking-tight">Gửi lời nhắn cho chúng tôi</h2>
+          <h2 class="text-2xl sm:text-3xl font-headline font-bold text-on-background mb-6 sm:mb-8 uppercase tracking-tight">Gửi lời nhắn cho chúng tôi</h2>
           <SupportRequestForm />
         </div>
 
         <!-- Theater Contact Info -->
         <div class="lg:col-span-5">
-          <h2 class="text-3xl font-headline font-bold text-on-background mb-8 uppercase tracking-tight">Hệ thống rạp</h2>
-          <div class="space-y-8">
-            <div class="flex gap-6 items-start">
-              <div class="w-12 h-12 glass-card flex items-center justify-center rounded-xl flex-shrink-0">
-                <span class="material-symbols-outlined text-primary-container">location_on</span>
+          <h2 class="text-2xl sm:text-3xl font-headline font-bold text-on-background mb-6 sm:mb-8 uppercase tracking-tight">Hệ thống rạp</h2>
+          <div class="space-y-6 sm:space-y-8">
+            <div class="flex gap-4 sm:gap-6 items-start">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 glass-card flex items-center justify-center rounded-xl flex-shrink-0">
+                <span class="material-symbols-outlined text-primary-container text-lg sm:text-xl">location_on</span>
               </div>
               <div>
-                <h4 class="text-lg font-headline font-bold text-primary-container mb-1 uppercase tracking-tighter">DEVCINE Landmark 81</h4>
-                <p class="text-on-surface-variant font-body text-sm mb-2">Tầng B1, Vincom Center Landmark 81, 720A Điện Biên Phủ, P. 22, Q. Bình Thạnh, TP. HCM</p>
-                <p class="text-on-background font-bold text-sm tracking-widest">HOTLINE: 1900 1234</p>
+                <h4 class="text-base sm:text-lg font-headline font-bold text-primary-container mb-1 uppercase tracking-tighter">DEVCINE Landmark 81</h4>
+                <p class="text-on-surface-variant font-body text-xs sm:text-sm mb-2">Tầng B1, Vincom Center Landmark 81, 720A Điện Biên Phủ, P. 22, Q. Bình Thạnh, TP. HCM</p>
+                <p class="text-on-background font-bold text-xs sm:text-sm tracking-widest">HOTLINE: 1900 1234</p>
               </div>
             </div>
-            <div class="flex gap-6 items-start">
-              <div class="w-12 h-12 glass-card flex items-center justify-center rounded-xl flex-shrink-0">
-                <span class="material-symbols-outlined text-primary-container">location_on</span>
+            <div class="flex gap-4 sm:gap-6 items-start">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 glass-card flex items-center justify-center rounded-xl flex-shrink-0">
+                <span class="material-symbols-outlined text-primary-container text-lg sm:text-xl">location_on</span>
               </div>
               <div>
-                <h4 class="text-lg font-headline font-bold text-primary-container mb-1 uppercase tracking-tighter">DEVCINE Bitexco</h4>
-                <p class="text-on-surface-variant font-body text-sm mb-2">Tầng 3-4, Bitexco Financial Tower, 02 Hải Triều, Q. 1, TP. HCM</p>
-                <p class="text-on-background font-bold text-sm tracking-widest">HOTLINE: 1900 5678</p>
+                <h4 class="text-base sm:text-lg font-headline font-bold text-primary-container mb-1 uppercase tracking-tighter">DEVCINE Bitexco</h4>
+                <p class="text-on-surface-variant font-body text-xs sm:text-sm mb-2">Tầng 3-4, Bitexco Financial Tower, 02 Hải Triều, Q. 1, TP. HCM</p>
+                <p class="text-on-background font-bold text-xs sm:text-sm tracking-widest">HOTLINE: 1900 5678</p>
               </div>
             </div>
           </div>
 
           <!-- FAQ Quick Links -->
-          <div class="mt-16 glass-card glass-shine-edge p-8 rounded-3xl">
-            <h4 class="text-xs font-label uppercase tracking-[0.2em] text-on-surface-variant mb-6 border-b border-outline-variant/20 pb-4">Liên kết nhanh</h4>
-            <ul class="space-y-4">
-              <li><router-link to="/faq" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold">Làm thế nào để đặt vé trực tuyến? <span class="material-symbols-outlined text-lg">chevron_right</span></router-link></li>
-              <li><router-link to="/faq" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold">Quy định về thẻ thành viên DevCine <span class="material-symbols-outlined text-lg">chevron_right</span></router-link></li>
-              <li><router-link to="/lich-chieu" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold">Lịch chiếu phim tuần này <span class="material-symbols-outlined text-lg">chevron_right</span></router-link></li>
+          <div class="mt-10 sm:mt-16 glass-card glass-shine-edge p-6 sm:p-8 rounded-2xl sm:rounded-3xl">
+            <h4 class="text-xs font-label uppercase tracking-[0.2em] text-on-surface-variant mb-4 sm:mb-6 border-b border-outline-variant/20 pb-4">Liên kết nhanh</h4>
+            <ul class="space-y-3 sm:space-y-4">
+              <li><router-link to="/faq" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold text-xs sm:text-sm">Làm thế nào để đặt vé trực tuyến? <span class="material-symbols-outlined text-base sm:text-lg">chevron_right</span></router-link></li>
+              <li><router-link to="/faq" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold text-xs sm:text-sm">Quy định về thẻ thành viên DevCine <span class="material-symbols-outlined text-base sm:text-lg">chevron_right</span></router-link></li>
+              <li><router-link to="/lich-chieu" class="flex items-center justify-between text-on-background hover:text-primary-container transition-colors font-body font-semibold text-xs sm:text-sm">Lịch chiếu phim tuần này <span class="material-symbols-outlined text-base sm:text-lg">chevron_right</span></router-link></li>
             </ul>
           </div>
         </div>

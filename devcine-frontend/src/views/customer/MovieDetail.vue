@@ -449,59 +449,59 @@ const groupShowtimesByFormat = (showtimes) => {
 
   <main v-else class="min-h-screen bg-[#111111] text-white">
     <!-- Top Section with Blurred Background -->
-    <section class="relative pt-32 pb-16 min-h-[600px] flex items-center">
+    <section class="relative pt-24 sm:pt-32 pb-12 sm:pb-16 min-h-[480px] sm:min-h-[600px] flex items-center">
       <div class="absolute inset-0 z-0 overflow-hidden">
         <img class="w-full h-full object-cover opacity-30 scale-110 blur-xl" :src="movie.posterUrl || '/images/Hopper.webp'"/>
         <div class="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/80 to-black/30"></div>
         <div class="absolute inset-0 bg-gradient-to-r from-[#111111]/90 via-[#111111]/50 to-transparent"></div>
       </div>
       
-      <div class="relative z-10 max-w-[1200px] mx-auto px-6 w-full flex flex-col md:flex-row gap-12 items-start">
+      <div class="relative z-10 max-w-[1200px] mx-auto px-4 sm:px-6 w-full flex flex-col md:flex-row gap-6 sm:gap-12 items-center md:items-start">
         <!-- Poster -->
-        <div class="w-full md:w-[320px] flex-shrink-0">
-          <div class="rounded-xl overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.8)] border border-white/10">
-            <img class="w-full h-auto object-cover" :src="movie.posterUrl || '/images/Hopper.webp'"/>
+        <div class="w-44 sm:w-64 md:w-[320px] flex-shrink-0">
+          <div class="rounded-xl overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.8)] border border-white/10 aspect-[2/3]">
+            <img class="w-full h-full object-cover" :src="movie.posterUrl || '/images/Hopper.webp'"/>
           </div>
         </div>
         
         <!-- Info -->
-        <div class="flex-1 mt-6">
-          <div class="flex flex-wrap items-center gap-4 mb-4">
-            <h1 class="text-4xl md:text-[40px] font-bold uppercase tracking-tight text-white leading-tight">
+        <div class="flex-1 mt-2 sm:mt-6 w-full">
+          <div class="flex flex-wrap items-center gap-2.5 sm:gap-4 mb-3 sm:mb-4">
+            <h1 class="text-2xl sm:text-3xl md:text-[40px] font-bold uppercase tracking-tight text-white leading-tight">
               {{ movie.title }}
             </h1>
-            <span class="border border-white/50 text-white/90 px-2 py-0.5 rounded text-sm font-bold backdrop-blur-sm">{{ movie.format || '2D' }}</span>
+            <span class="border border-white/50 text-white/90 px-2 py-0.5 rounded text-xs sm:text-sm font-bold backdrop-blur-sm">{{ movie.format || '2D' }}</span>
           </div>
           
-          <div class="text-[15px] text-gray-300 space-y-1.5 mb-6 leading-relaxed">
+          <div class="text-xs sm:text-[15px] text-gray-300 space-y-1 sm:space-y-1.5 mb-4 sm:mb-6 leading-relaxed">
             <p><span class="font-bold text-white">{{ movie.durationMins || 120 }} phút</span> &nbsp;|&nbsp; Đạo diễn: <span class="text-gray-400">{{ movie.director || 'Đang cập nhật' }}</span></p>
             <p>Diễn viên: <span class="text-gray-400">{{ movie.castMembers || 'Đang cập nhật' }}</span></p>
             <p>Khởi chiếu: <span class="text-gray-400">{{ movie.startDate ? new Date(movie.startDate).toLocaleDateString('vi-VN') : 'Đang cập nhật' }}</span></p>
           </div>
           
-          <p class="text-[15px] text-gray-300 leading-relaxed mb-4" :class="{ 'line-clamp-4': !descExpanded }">
+          <p class="text-xs sm:text-[15px] text-gray-300 leading-relaxed mb-3 sm:mb-4" :class="{ 'line-clamp-4': !descExpanded }">
             {{ movie.description || 'Chưa có thông tin nội dung phim.' }}
           </p>
 
           <!-- Khối thông tin mở rộng khi bấm "Chi tiết nội dung" -->
-          <div v-if="descExpanded" class="text-[15px] text-gray-300 space-y-1.5 mb-6 leading-relaxed border-l-2 border-[#f5c518]/40 pl-4">
+          <div v-if="descExpanded" class="text-xs sm:text-[15px] text-gray-300 space-y-1 sm:space-y-1.5 mb-4 sm:mb-6 leading-relaxed border-l-2 border-[#f5c518]/40 pl-3 sm:pl-4">
             <p v-if="genreText">Thể loại: <span class="text-gray-400">{{ genreText }}</span></p>
             <p>Quốc gia: <span class="text-gray-400">{{ movie.country || 'Đang cập nhật' }}</span></p>
             <p>Ngôn ngữ: <span class="text-gray-400">{{ movie.language || movie.originalLanguage || 'Đang cập nhật' }}</span></p>
             <p v-if="movie.productionYear">Năm sản xuất: <span class="text-gray-400">{{ movie.productionYear }}</span></p>
           </div>
 
-          <p class="text-[#ff3b30] text-sm font-medium mb-8">
+          <p class="text-[#ff3b30] text-xs sm:text-sm font-medium mb-6 sm:mb-8">
             Kiểm duyệt: {{ movie.ageRating || 'P' }} - {{ ageRatingDesc }}
           </p>
 
-          <div class="flex items-center gap-8">
-            <button @click="descExpanded = !descExpanded" class="text-white hover:text-gray-300 transition-colors text-sm font-semibold flex items-center gap-1">
+          <div class="flex items-center gap-4 sm:gap-8 flex-wrap">
+            <button @click="descExpanded = !descExpanded" class="text-white hover:text-gray-300 transition-colors text-xs sm:text-sm font-semibold flex items-center gap-1">
               {{ descExpanded ? 'Thu gọn' : 'Chi tiết nội dung' }}
               <span class="material-symbols-outlined text-sm ml-1 transition-transform" :class="{ 'rotate-90': descExpanded }">arrow_forward</span>
             </button>
-            <button v-if="movie.trailerUrl" @click="openTrailer" class="border-2 border-[#f5c518] text-[#f5c518] px-6 py-2.5 rounded-full flex items-center gap-2 hover:bg-[#f5c518] hover:text-black transition-colors font-bold text-sm">
-              <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+            <button v-if="movie.trailerUrl" @click="openTrailer" class="border-2 border-[#f5c518] text-[#f5c518] px-4 sm:px-6 py-2 sm:py-2.5 rounded-full flex items-center gap-2 hover:bg-[#f5c518] hover:text-black transition-colors font-bold text-xs sm:text-sm">
+              <span class="material-symbols-outlined text-base sm:text-lg" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
               Xem trailer
             </button>
           </div>
@@ -511,71 +511,71 @@ const groupShowtimesByFormat = (showtimes) => {
 
     <!-- Date & Showtimes Section -->
     <section id="showtimes-section" class="bg-[#111111] min-h-[500px] text-gray-200 font-sans border-t border-white/5">
-      <div class="max-w-[1200px] mx-auto px-6 py-10">
+      <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 sm:py-10">
         
         <!-- Top Control Bar: Dates & Filters -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-0 mb-8 gap-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-0 mb-6 sm:mb-8 gap-4">
           <!-- Date Picker -->
-          <div class="flex overflow-x-auto no-scrollbar gap-2 pb-0">
+          <div class="flex overflow-x-auto no-scrollbar gap-2 pb-0 w-full md:w-auto touch-pan-x">
             <button 
               v-for="date in uniqueDates" 
               :key="date"
               @click="activeDateStr = date"
               :class="[
-                'flex flex-col items-center justify-center min-w-[100px] py-3 px-4 rounded-t-md transition-colors cursor-pointer border-b-2',
+                'flex flex-col items-center justify-center min-w-[80px] sm:min-w-[100px] py-2 sm:py-3 px-3 sm:px-4 rounded-t-md transition-colors cursor-pointer border-b-2 shrink-0',
                 activeDateStr === date ? 'bg-transparent text-[#ff3b30] border-[#ff3b30]' : 'bg-transparent text-gray-400 border-transparent hover:text-white hover:border-white/30'
               ]"
             >
-              <span class="text-[14px] font-medium mb-1">{{ formatDateForUI(date).weekday }}</span>
-              <span class="text-[14px] font-bold">{{ formatDateForUI(date).dateStr }}</span>
+              <span class="text-xs sm:text-[14px] font-medium mb-0.5 sm:mb-1">{{ formatDateForUI(date).weekday }}</span>
+              <span class="text-xs sm:text-[14px] font-bold">{{ formatDateForUI(date).dateStr }}</span>
             </button>
           </div>
           
           <!-- Filters -->
-          <div class="flex gap-4 w-full md:w-auto pb-3">
-             <select v-model="store.selectedCity" @change="onCityChange" class="w-full md:w-[150px] py-2 px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-[14px] transition-colors">
+          <div class="flex gap-2 sm:gap-4 w-full md:w-auto pb-3">
+             <select v-model="store.selectedCity" @change="onCityChange" class="w-1/2 md:w-[150px] py-2 px-2.5 sm:px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-xs sm:text-[14px] transition-colors">
               <option value="">Toàn quốc</option>
               <option v-for="city in store.cities" :key="city" :value="city">{{ city }}</option>
             </select>
-             <select v-model="selectedCinemaId" class="w-full md:w-[150px] py-2 px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-[14px] transition-colors">
+             <select v-model="selectedCinemaId" class="w-1/2 md:w-[150px] py-2 px-2.5 sm:px-3 bg-[#1a1a1a] border border-white/10 text-gray-300 rounded outline-none focus:border-[#ff3b30] text-xs sm:text-[14px] transition-colors">
               <option value="">Tất cả rạp</option>
               <option v-for="c in cinemaOptions" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
           </div>
         </div>
 
-        <div v-if="visibleCinemas.length === 0" class="text-center text-gray-500 py-10">
+        <div v-if="visibleCinemas.length === 0" class="text-center text-gray-500 py-10 text-sm">
           <template v-if="selectedCinemaId">Chưa có lịch chiếu của phim tại rạp này.</template>
           <template v-else-if="store.cinemaShowtimes.length === 0">Chưa có lịch chiếu cho phim này.</template>
           <template v-else>Không có suất chiếu phù hợp với lựa chọn của bạn.</template>
         </div>
 
-        <div class="space-y-8" v-else>
+        <div class="space-y-6 sm:space-y-8" v-else>
           <div
             v-for="(cinema, index) in visibleCinemas"
             :key="cinema.cinemaId"
-            :class="['py-8 px-6 -mx-6 border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#161616]' : 'bg-transparent']"
+            :class="['py-6 sm:py-8 px-4 sm:px-6 -mx-4 sm:-mx-6 rounded-xl border-b border-white/10 last:border-b-0', index % 2 === 1 ? 'bg-[#161616]' : 'bg-transparent']"
           >
             <!-- Tên rạp -->
-            <h3 class="font-bold text-[18px] text-white mb-5 flex items-center gap-2">
-              <span class="material-symbols-outlined text-[20px] text-[#f5c518]">location_on</span>
+            <h3 class="font-bold text-base sm:text-[18px] text-white mb-4 sm:mb-5 flex items-center gap-2">
+              <span class="material-symbols-outlined text-lg sm:text-[20px] text-[#f5c518]">location_on</span>
               {{ cinema.cinemaName }}
             </h3>
 
-            <!-- Danh sách từng định dạng (2D Phụ Đề, 2D Lồng Tiếng,...) -->
+            <!-- Danh sách từng định dạng -->
             <div 
               v-for="(sts, format) in groupShowtimesByFormat(cinema.showtimesByDate[activeDateStr])" 
               :key="format" 
-              class="mb-6 last:mb-0"
+              class="mb-4 sm:mb-6 last:mb-0"
             >
               <!-- Định dạng hiển thị ở TRÊN -->
-              <div class="flex items-center gap-3 mb-3">
-                <span class="text-[13px] font-bold text-gray-300 uppercase tracking-wider">{{ format }}</span>
+              <div class="flex items-center gap-3 mb-2.5 sm:mb-3">
+                <span class="text-xs sm:text-[13px] font-bold text-gray-300 uppercase tracking-wider">{{ format }}</span>
                 <div class="flex-1 h-px bg-white/[0.08]"></div>
               </div>
 
-              <!-- Xuống dòng: Danh sách suất chiếu dàn đều toàn chiều rộng -->
-              <div class="flex flex-wrap items-center gap-3">
+              <!-- Danh sách suất chiếu -->
+              <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
                 <button
                   v-for="st in sts"
                   :key="st.id"
@@ -583,7 +583,7 @@ const groupShowtimesByFormat = (showtimes) => {
                   :disabled="isSoldOut(st)"
                   :title="isSoldOut(st) ? 'Suất chiếu đã hết ghế' : st.roomName"
                   :class="[
-                    'group flex flex-col items-center justify-center gap-1 border rounded-lg min-w-[160px] w-auto min-h-[82px] px-3.5 py-2.5 flex-shrink-0 transition-all duration-200',
+                    'group flex flex-col items-center justify-center gap-1 border rounded-lg min-w-[130px] sm:min-w-[160px] flex-1 sm:flex-none min-h-[72px] sm:min-h-[82px] px-2.5 sm:px-3.5 py-2 sm:py-2.5 flex-shrink-0 transition-all duration-200',
                     isSoldOut(st)
                       ? 'border-[#2a2a2a] bg-[#161616] opacity-40 cursor-not-allowed'
                       : isLowSeats(st)
@@ -592,22 +592,20 @@ const groupShowtimesByFormat = (showtimes) => {
                   ]"
                 >
                   <!-- Dòng 1: Tên phòng -->
-                  <span class="block w-full text-center text-[11.5px] text-gray-400 font-medium leading-tight whitespace-nowrap" :title="st.roomName">
+                  <span class="block w-full text-center text-[10.5px] sm:text-[11.5px] text-gray-400 font-medium leading-tight whitespace-nowrap" :title="st.roomName">
                     {{ st.roomName }}
                   </span>
 
-                  <!-- Dòng 2: Giờ chiếu (Mặc định: 10:30, Hover: 10:30 ~ 12:47) -->
-                  <div class="relative flex items-center justify-center w-full h-[26px]">
-                    <!-- Trạng thái mặc định -->
+                  <!-- Dòng 2: Giờ chiếu -->
+                  <div class="relative flex items-center justify-center w-full h-[22px] sm:h-[26px]">
                     <span
-                      class="text-xl font-bold leading-none tracking-tight tabular-nums transition-all duration-200 group-hover:opacity-0 group-hover:scale-90 absolute"
+                      class="text-lg sm:text-xl font-bold leading-none tracking-tight tabular-nums transition-all duration-200 group-hover:opacity-0 group-hover:scale-90 absolute"
                       :class="isSoldOut(st) ? 'text-gray-500' : 'text-[#f5c518]'"
                     >
                       {{ fmtTime(st.startTime) }}
                     </span>
-                    <!-- Trạng thái hover: Giờ bắt đầu ~ Giờ kết thúc -->
                     <span
-                      class="text-sm font-bold leading-none tracking-tight tabular-nums transition-all duration-200 opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 text-[#f5c518]"
+                      class="text-xs sm:text-sm font-bold leading-none tracking-tight tabular-nums transition-all duration-200 opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 text-[#f5c518]"
                       :class="isSoldOut(st) ? 'text-gray-500' : ''"
                     >
                       {{ fmtTime(st.startTime) }}<span class="text-gray-400 font-normal mx-0.5">~</span>{{ fmtEndTime(st) }}
@@ -617,10 +615,10 @@ const groupShowtimesByFormat = (showtimes) => {
                   <!-- Dòng 3: Tình trạng ghế -->
                   <span
                     v-if="st.totalSeats > 0"
-                    class="text-[11px] font-medium leading-tight whitespace-nowrap"
+                    class="text-[10px] sm:text-[11px] font-medium leading-tight whitespace-nowrap"
                     :class="isSoldOut(st) ? 'text-gray-500' : (isLowSeats(st) ? 'text-[#f5c518]/80' : 'text-gray-400')"
                   >
-                    {{ isSoldOut(st) ? 'Hết ghế' : `${st.availableSeats} / ${st.totalSeats} Ghế ngồi` }}
+                    {{ isSoldOut(st) ? 'Hết ghế' : `${st.availableSeats} / ${st.totalSeats} Ghế` }}
                   </span>
                 </button>
               </div>
@@ -632,38 +630,38 @@ const groupShowtimesByFormat = (showtimes) => {
 
     <!-- ĐÁNH GIÁ & BÌNH LUẬN -->
     <section id="review-section" class="bg-[#111111] border-t border-white/5">
-      <div class="max-w-[1200px] mx-auto px-6 py-14">
-        <div class="flex items-center justify-between mb-8">
-          <h2 class="text-2xl font-bold text-white uppercase tracking-tight">Đánh giá phim</h2>
+      <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 sm:py-14">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 sm:mb-8">
+          <h2 class="text-xl sm:text-2xl font-bold text-white uppercase tracking-tight">Đánh giá phim</h2>
           <div v-if="reviewsData.totalReviews > 0" class="flex items-center gap-3">
-            <span class="text-4xl font-extrabold text-[#f5c518]">{{ reviewsData.averageRating }}</span>
+            <span class="text-3xl sm:text-4xl font-extrabold text-[#f5c518]">{{ reviewsData.averageRating }}</span>
             <div class="flex flex-col">
               <div class="flex">
-                <span v-for="i in 5" :key="i" class="material-symbols-outlined text-[18px]"
+                <span v-for="i in 5" :key="i" class="material-symbols-outlined text-[16px] sm:text-[18px]"
                       :class="i <= Math.round(reviewsData.averageRating) ? 'text-[#f5c518]' : 'text-white/20'"
                       style="font-variation-settings: 'FILL' 1;">star</span>
               </div>
-              <span class="text-[11px] text-gray-400">{{ reviewsData.totalReviews }} lượt đánh giá</span>
+              <span class="text-[10px] sm:text-[11px] text-gray-400">{{ reviewsData.totalReviews }} lượt đánh giá</span>
             </div>
           </div>
         </div>
 
         <!-- Phân phối sao -->
-        <div v-if="reviewsData.totalReviews > 0" class="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 mb-6">
-          <p class="text-sm font-bold text-white mb-4 uppercase tracking-wider">Phân phối đánh giá</p>
+        <div v-if="reviewsData.totalReviews > 0" class="bg-[#1a1a1a] border border-white/5 rounded-xl p-4 sm:p-6 mb-6">
+          <p class="text-xs sm:text-sm font-bold text-white mb-3 sm:mb-4 uppercase tracking-wider">Phân phối đánh giá</p>
           <div class="space-y-2">
             <button v-for="d in ratingDistribution" :key="d.star"
                     @click="reviewFilter = reviewFilter === d.star ? 0 : d.star"
-                    class="w-full flex items-center gap-3 group"
+                    class="w-full flex items-center gap-2.5 sm:gap-3 group"
                     :class="reviewFilter === d.star ? 'opacity-100' : 'opacity-90 hover:opacity-100'">
-              <span class="flex items-center gap-1 w-12 shrink-0 text-xs font-bold"
+              <span class="flex items-center gap-1 w-11 sm:w-12 shrink-0 text-xs font-bold"
                     :class="reviewFilter === d.star ? 'text-[#f5c518]' : 'text-gray-400'">
-                {{ d.star }} <span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+                {{ d.star }} <span class="material-symbols-outlined text-[13px] sm:text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
               </span>
-              <div class="flex-1 h-2.5 rounded-full bg-white/10 overflow-hidden">
+              <div class="flex-1 h-2 sm:h-2.5 rounded-full bg-white/10 overflow-hidden">
                 <div class="h-full rounded-full bg-[#f5c518] transition-all duration-300" :style="{ width: d.percent + '%' }"></div>
               </div>
-              <span class="w-10 shrink-0 text-right text-xs text-gray-400">{{ d.count }}</span>
+              <span class="w-8 sm:w-10 shrink-0 text-right text-xs text-gray-400">{{ d.count }}</span>
             </button>
           </div>
           <p v-if="reviewFilter" class="text-[11px] text-gray-400 mt-3">
@@ -675,9 +673,9 @@ const groupShowtimesByFormat = (showtimes) => {
         <!-- Trạng thái 1: Chưa đăng nhập → khung mời đăng nhập -->
         <button v-if="!isLoggedIn"
                 @click="showLoginModal = true"
-                class="w-full text-left bg-[#1a1a1a] border border-dashed border-white/15 rounded-xl p-6 mb-10 hover:border-[#f5c518]/50 transition-colors group">
-          <p class="text-sm font-bold text-white mb-2 uppercase tracking-wider">Chia sẻ cảm nhận của bạn</p>
-          <p class="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
+                class="w-full text-left bg-[#1a1a1a] border border-dashed border-white/15 rounded-xl p-4 sm:p-6 mb-8 sm:mb-10 hover:border-[#f5c518]/50 transition-colors group">
+          <p class="text-xs sm:text-sm font-bold text-white mb-2 uppercase tracking-wider">Chia sẻ cảm nhận của bạn</p>
+          <p class="text-xs sm:text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
             Vui lòng <span class="text-[#f5c518] font-semibold">đăng nhập</span> để chia sẻ cảm nhận của bạn về bộ phim.
           </p>
         </button>

@@ -162,9 +162,9 @@ onMounted(fetchHistory)
 
 <template>
   <section class="max-w-6xl mx-auto">
-    <div class="flex flex-col md:flex-row justify-between items-baseline mb-8 gap-4 print:hidden">
-      <h2 class="text-2xl font-bold tracking-tight font-headline">Lịch sử đặt vé</h2>
-      <div v-if="!preview" class="flex gap-4">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-baseline mb-6 sm:mb-8 gap-4 print:hidden">
+      <h2 class="text-xl sm:text-2xl font-bold tracking-tight font-headline">Lịch sử đặt vé</h2>
+      <div v-if="!preview" class="flex flex-wrap gap-3 sm:gap-4">
         <button @click="activeFilter = 'all'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'all' ? 'border-[#EAB308] text-[#EAB308]' : 'text-neutral-500 hover:text-white border-transparent']">Tất cả</button>
         <button @click="activeFilter = 'upcoming'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'upcoming' ? 'border-[#EAB308] text-[#EAB308]' : 'text-neutral-500 hover:text-white border-transparent']">Sắp diễn ra</button>
         <button @click="activeFilter = 'past'" :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors', activeFilter === 'past' ? 'border-[#EAB308] text-[#EAB308]' : 'text-neutral-500 hover:text-white border-transparent']">Đã xem</button>
@@ -176,27 +176,27 @@ onMounted(fetchHistory)
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="flex flex-col gap-6 print:hidden">
-      <div v-for="i in 3" :key="i" class="bg-[#18181B] border border-white/5 animate-pulse h-40 rounded-xl"></div>
+    <div v-if="isLoading" class="flex flex-col gap-4 sm:gap-6 print:hidden">
+      <div v-for="i in 3" :key="i" class="bg-[#18181B] border border-white/5 animate-pulse h-36 sm:h-40 rounded-xl"></div>
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm print:hidden">{{ error }}</div>
+    <div v-else-if="error" class="p-4 sm:p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs sm:text-sm print:hidden">{{ error }}</div>
 
     <!-- Empty -->
-    <div v-else-if="displayBookings.length === 0" class="flex flex-col items-center justify-center py-24 text-center print:hidden">
-      <span class="material-symbols-outlined text-5xl text-outline-variant mb-4">confirmation_number</span>
-      <p class="text-on-surface-variant font-semibold">Chưa có lịch sử đặt vé</p>
-      <p class="text-sm text-outline-variant mt-1">Các vé bạn đã đặt sẽ xuất hiện ở đây</p>
+    <div v-else-if="displayBookings.length === 0" class="flex flex-col items-center justify-center py-16 sm:py-24 text-center print:hidden">
+      <span class="material-symbols-outlined text-4xl sm:text-5xl text-outline-variant mb-4">confirmation_number</span>
+      <p class="text-on-surface-variant font-semibold text-sm sm:text-base">Chưa có lịch sử đặt vé</p>
+      <p class="text-xs sm:text-sm text-outline-variant mt-1">Các vé bạn đã đặt sẽ xuất hiện ở đây</p>
     </div>
 
     <!-- List -->
-    <div v-else class="grid grid-cols-1 gap-6 print:hidden">
+    <div v-else class="grid grid-cols-1 gap-4 sm:gap-6 print:hidden">
       <div v-for="b in displayBookings" :key="b.bookingId" @click="openTicketDetail(b)"
-           class="group relative bg-[#18181B] hover:bg-[#27272A] border border-white/5 cursor-pointer transition-all duration-300 rounded-xl p-3 flex flex-col md:flex-row gap-6 items-stretch shadow-lg">
+           class="group relative bg-[#18181B] hover:bg-[#27272A] border border-white/5 cursor-pointer transition-all duration-300 rounded-xl p-3 sm:p-4 flex flex-col md:flex-row gap-4 sm:gap-6 items-stretch shadow-lg">
         
         <!-- Khối 1: Poster -->
-        <div class="w-full md:w-32 aspect-[2/3] md:h-auto overflow-hidden shrink-0 rounded-lg shadow-md bg-[#27272A]">
+        <div class="w-full sm:w-28 md:w-32 aspect-[2/3] md:h-auto overflow-hidden shrink-0 rounded-lg shadow-md bg-[#27272A] mx-auto md:mx-0 max-w-[180px] sm:max-w-none">
           <img v-if="b.showtime?.moviePosterUrl"
                :src="b.showtime.moviePosterUrl"
                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
@@ -205,52 +205,52 @@ onMounted(fetchHistory)
           </div>
         </div>
         
-        <div class="flex-grow flex flex-col justify-center py-2">
-          <div class="flex flex-col md:flex-row gap-6 items-stretch h-full">
+        <div class="flex-grow flex flex-col justify-center py-1 sm:py-2 min-w-0">
+          <div class="flex flex-col md:flex-row gap-4 sm:gap-6 items-stretch h-full">
             
             <!-- Khối 2: Thông tin chính -->
-            <div class="flex-[1.5] flex flex-col justify-center py-2">
-              <div class="flex items-center gap-3 mb-2">
-                <span class="text-sm font-bold font-mono text-[#EAB308]">#{{ b.bookingCode }}</span>
-                <span :class="['text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider flex items-center gap-1', statusClass(b.status)]">
+            <div class="flex-[1.5] flex flex-col justify-center py-1 sm:py-2 min-w-0">
+              <div class="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
+                <span class="text-xs sm:text-sm font-bold font-mono text-[#EAB308]">#{{ b.bookingCode }}</span>
+                <span :class="['text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider flex items-center gap-1', statusClass(b.status)]">
                   <span v-if="b.status === 'CONFIRMED'" class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
                   {{ statusLabel(b.status) }}
                 </span>
               </div>
-              <div class="flex items-center gap-2 mb-3">
-                 <h3 class="text-xl md:text-2xl font-bold group-hover:text-[#EAB308] transition-colors uppercase font-headline">
+              <div class="flex items-center gap-2 mb-2 sm:mb-3">
+                 <h3 class="text-lg sm:text-xl md:text-2xl font-bold group-hover:text-[#EAB308] transition-colors uppercase font-headline truncate">
                    {{ b.showtime?.movieTitle }}
                  </h3>
-                 <span v-if="b.showtime?.ageRating" :class="['px-1.5 py-0.5 text-[10px] rounded font-bold uppercase shrink-0', ageRatingColor(b.showtime.ageRating)]">
+                 <span v-if="b.showtime?.ageRating" :class="['px-1.5 py-0.5 text-[9px] sm:text-[10px] rounded font-bold uppercase shrink-0', ageRatingColor(b.showtime.ageRating)]">
                    {{ b.showtime.ageRating }}
                  </span>
               </div>
-              <div class="flex flex-col gap-1 text-sm text-on-surface-variant">
-                <p class="flex items-center gap-2"><span class="material-symbols-outlined text-base opacity-70">schedule</span> {{ formatDateTimeFormat(b.showtime?.startTime, '') }}</p>
-                <p class="flex items-center gap-2"><span class="material-symbols-outlined text-base opacity-70">movie</span> {{ b.showtime?.format || '2D' }}</p>
+              <div class="flex flex-col gap-1 text-xs sm:text-sm text-on-surface-variant">
+                <p class="flex items-center gap-2"><span class="material-symbols-outlined text-sm sm:text-base opacity-70">schedule</span> {{ formatDateTimeFormat(b.showtime?.startTime, '') }}</p>
+                <p class="flex items-center gap-2"><span class="material-symbols-outlined text-sm sm:text-base opacity-70">movie</span> {{ b.showtime?.format || '2D' }}</p>
               </div>
             </div>
 
             <!-- Khối 3: Địa điểm & Ghế -->
-            <div class="flex-1 flex flex-col justify-center md:border-l border-white/10 md:pl-6 py-2">
-               <div class="mb-3">
-                 <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Rạp chiếu</p>
-                 <p class="text-sm font-semibold truncate">{{ b.showtime?.cinemaName }}</p>
-                 <p class="text-sm opacity-80">{{ b.showtime?.roomName }}</p>
+            <div class="flex-1 flex flex-col justify-center md:border-l border-white/10 md:pl-6 py-1 sm:py-2 min-w-0">
+               <div class="mb-2 sm:mb-3">
+                 <p class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5 sm:mb-1">Rạp chiếu</p>
+                 <p class="text-xs sm:text-sm font-semibold truncate">{{ b.showtime?.cinemaName }}</p>
+                 <p class="text-xs sm:text-sm opacity-80">{{ b.showtime?.roomName }}</p>
                </div>
                <div>
-                 <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Ghế ngồi</p>
-                 <p class="text-sm font-bold text-[#EAB308] truncate">{{ b.seats || '—' }}</p>
+                 <p class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5 sm:mb-1">Ghế ngồi</p>
+                 <p class="text-xs sm:text-sm font-bold text-[#EAB308] truncate">{{ b.seats || '—' }}</p>
                </div>
             </div>
 
             <!-- Khối 4: Giá tiền -->
-            <div class="flex-1 flex flex-row items-center justify-between md:border-l border-white/10 md:pl-6 pr-4 py-2 w-full h-full mt-3 md:mt-0 pt-3 md:pt-0 border-t md:border-t-0">
-              <div class="flex flex-col items-start gap-1.5">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant m-0 leading-none">Tổng tiền</p>
-                <p class="text-2xl font-bold text-white leading-none">{{ formatPrice(b.finalPrice) }}</p>
+            <div class="flex-1 flex flex-row items-center justify-between md:border-l border-white/10 md:pl-6 pr-2 sm:pr-4 py-2 w-full h-full mt-2 sm:mt-3 md:mt-0 pt-2 sm:pt-3 md:pt-0 border-t md:border-t-0">
+              <div class="flex flex-col items-start gap-1 sm:gap-1.5">
+                <p class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-on-surface-variant m-0 leading-none">Tổng tiền</p>
+                <p class="text-lg sm:text-2xl font-bold text-white leading-none">{{ formatPrice(b.finalPrice) }}</p>
               </div>
-              <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#EAB308] group-hover:text-black transition-colors hidden md:flex shrink-0">
+              <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#EAB308] group-hover:text-black transition-colors shrink-0">
                 <span class="material-symbols-outlined text-sm">arrow_forward</span>
               </div>
             </div>

@@ -267,35 +267,35 @@ const submitNewPassword = async () => {
 </script>
 
 <template>
-  <main class="flex-grow flex items-stretch h-screen overflow-hidden">
+  <main class="flex-grow flex items-stretch min-h-screen md:h-screen overflow-y-auto md:overflow-hidden">
     <!-- Left Side: Cinematic Imagery -->
     <div class="hidden md:flex md:w-1/2 relative overflow-hidden bg-surface-container-lowest">
       <div class="absolute inset-0 bg-gradient-to-r from-transparent to-surface z-10"></div>
       <div class="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent z-10"></div>
       <img class="absolute inset-0 w-full h-full object-cover brightness-50" src="/images/Hopper.webp"/>
-      <div class="relative z-20 flex flex-col justify-end p-20 max-w-xl">
+      <div class="relative z-20 flex flex-col justify-end p-12 lg:p-20 max-w-xl">
         <span class="text-[#f5c518] font-bold text-xs uppercase tracking-[0.3em] mb-4">Trải nghiệm đáng nhớ cùng</span>
-        <h1 class="text-5xl lg:text-7xl font-extrabold tracking-tighter text-on-surface mb-6 leading-[0.9]">DEVCINE CINEMA.</h1>
-        <p class="text-on-surface-variant text-lg leading-relaxed max-w-md">
+        <h1 class="text-4xl lg:text-7xl font-extrabold tracking-tighter text-on-surface mb-6 leading-[0.9]">DEVCINE CINEMA.</h1>
+        <p class="text-on-surface-variant text-base lg:text-lg leading-relaxed max-w-md">
           Đăng nhập ngay để đặt vé, nhận ưu đãi độc quyền và tận hưởng không gian điện ảnh đỉnh cao.
         </p>
       </div>
     </div>
     
     <!-- Right Side: Auth Card -->
-    <div class="w-full md:w-1/2 flex items-center justify-center p-6 md:p-10 bg-surface">
-      <div class="w-full max-w-md">
+    <div class="w-full md:w-1/2 flex items-center justify-center p-4 sm:p-6 md:p-10 bg-surface py-12 md:py-0 overflow-y-auto">
+      <div class="w-full max-w-md my-auto">
         <div class="mb-6">
-          <h2 class="text-3xl font-bold tracking-tight text-on-surface mb-2">Chào mừng trở lại</h2>
-          <p class="text-on-surface-variant">Hãy nhập thông tin để truy cập tài khoản DevCine của bạn.</p>
+          <h2 class="text-2xl sm:text-3xl font-bold tracking-tight text-on-surface mb-2">Chào mừng trở lại</h2>
+          <p class="text-xs sm:text-sm text-on-surface-variant">Hãy nhập thông tin để truy cập tài khoản DevCine của bạn.</p>
         </div>
         
         <!-- ===== Đăng nhập / Đăng ký (ẩn khi đang quên mật khẩu) ===== -->
         <template v-if="!forgotMode">
         <!-- Tabs -->
-        <div class="flex gap-8 border-b border-outline-variant/20 mb-6">
-          <button @click="activeTab = 'login'" :class="['pb-4 font-bold text-sm uppercase tracking-widest transition-all', activeTab === 'login' ? 'text-[#f5c518] border-b-2 border-[#f5c518]' : 'text-neutral-500 hover:text-[#f5c518] border-b-2 border-transparent']">Đăng nhập</button>
-          <button @click="activeTab = 'register'" :class="['pb-4 font-bold text-sm uppercase tracking-widest transition-all', activeTab === 'register' ? 'text-[#f5c518] border-b-2 border-[#f5c518]' : 'text-neutral-500 hover:text-[#f5c518] border-b-2 border-transparent']">Đăng ký</button>
+        <div class="flex gap-6 sm:gap-8 border-b border-outline-variant/20 mb-6">
+          <button @click="activeTab = 'login'" :class="['pb-3 sm:pb-4 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all', activeTab === 'login' ? 'text-[#f5c518] border-b-2 border-[#f5c518]' : 'text-neutral-500 hover:text-[#f5c518] border-b-2 border-transparent']">Đăng nhập</button>
+          <button @click="activeTab = 'register'" :class="['pb-3 sm:pb-4 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all', activeTab === 'register' ? 'text-[#f5c518] border-b-2 border-[#f5c518]' : 'text-neutral-500 hover:text-[#f5c518] border-b-2 border-transparent']">Đăng ký</button>
         </div>
         
         <!-- Form -->

@@ -185,56 +185,56 @@ const tierInfo = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-10">
+  <div class="space-y-6 sm:space-y-10">
     <!-- Loading State -->
-    <div v-if="isLoading" class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-6 animate-pulse items-start">
-      <div class="lg:col-span-7 h-[240px] bg-surface-container-low rounded-3xl border border-white/5"></div>
-      <div class="lg:col-span-5 h-[460px] bg-surface-container-low rounded-3xl border border-white/5"></div>
+    <div v-if="isLoading" class="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 mb-6 animate-pulse items-start">
+      <div class="lg:col-span-7 h-[240px] bg-surface-container-low rounded-2xl sm:rounded-3xl border border-white/5"></div>
+      <div class="lg:col-span-5 h-[460px] bg-surface-container-low rounded-2xl sm:rounded-3xl border border-white/5"></div>
     </div>
 
     <!-- Loaded State -->
-    <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
       <!-- Profile Details Card -->
-      <div class="lg:col-span-7 bg-surface-container-low border border-outline-variant/10 rounded-3xl p-8 relative overflow-hidden flex flex-col transition-all duration-300">
+      <div class="lg:col-span-7 bg-surface-container-low border border-outline-variant/10 rounded-2xl sm:rounded-3xl p-4 sm:p-8 relative overflow-hidden flex flex-col transition-all duration-300">
         <!-- Decoration background glow -->
         <div class="absolute -top-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
         
-        <div class="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+        <div class="relative z-10 flex flex-col sm:flex-row gap-4 sm:gap-8 items-start sm:items-center">
           <!-- User Avatar -->
-          <div class="relative w-28 h-28 md:w-32 md:h-32 shrink-0 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+          <div class="relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 shrink-0 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
             <img class="w-full h-full object-cover" src="/images/Hopper.webp" alt="Avatar"/>
             <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
           </div>
           
           <!-- Basic Info -->
-          <div class="flex-grow space-y-4">
-            <div class="flex items-center gap-3">
-              <span :class="tierInfo.badgeBg" class="text-[9px] font-bold tracking-[0.15em] uppercase px-2.5 py-1 rounded-md">
+          <div class="flex-grow space-y-2.5 sm:space-y-4 min-w-0 w-full">
+            <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span :class="tierInfo.badgeBg" class="text-[8px] sm:text-[9px] font-bold tracking-[0.15em] uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md">
                 THÀNH VIÊN {{ tierInfo.name }}
               </span>
-              <span class="text-on-surface-variant/70 text-xs font-mono">ID: #DC-{{ customer?.userId }}</span>
+              <span class="text-on-surface-variant/70 text-[11px] sm:text-xs font-mono">ID: #DC-{{ customer?.userId }}</span>
             </div>
             
-            <h2 class="text-3xl font-extrabold tracking-tight font-headline text-white">
+            <h2 class="text-xl sm:text-3xl font-extrabold tracking-tight font-headline text-white truncate">
               {{ customer?.fullName || 'Khách hàng' }}
             </h2>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 pt-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 sm:gap-y-3 pt-1 sm:pt-2">
               <div>
                 <p class="text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-0.5">Email</p>
-                <p class="text-sm font-semibold text-white/90 truncate">{{ customer?.email }}</p>
+                <p class="text-xs sm:text-sm font-semibold text-white/90 truncate">{{ customer?.email }}</p>
               </div>
               <div>
                 <p class="text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-0.5">Số điện thoại</p>
-                <p class="text-sm font-semibold text-white/90">{{ customer?.phone || 'Chưa cập nhật' }}</p>
+                <p class="text-xs sm:text-sm font-semibold text-white/90">{{ customer?.phone || 'Chưa cập nhật' }}</p>
               </div>
               <div>
                 <p class="text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-0.5">Ngày sinh</p>
-                <p class="text-sm font-semibold text-white/90">{{ formattedDob }}</p>
+                <p class="text-xs sm:text-sm font-semibold text-white/90">{{ formattedDob }}</p>
               </div>
               <div>
                 <p class="text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-0.5">Thành viên từ</p>
-                <p class="text-sm font-semibold text-white/90">{{ formattedMemberSince }}</p>
+                <p class="text-xs sm:text-sm font-semibold text-white/90">{{ formattedMemberSince }}</p>
               </div>
             </div>
           </div>
@@ -246,36 +246,36 @@ const tierInfo = computed(() => {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Họ và tên</label>
-                <input v-model="editForm.fullName" type="text" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="Họ và tên" />
+                <input v-model="editForm.fullName" type="text" class="w-full bg-surface-container-highest border-none text-xs sm:text-sm text-white px-3 py-2 sm:py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="Họ và tên" />
               </div>
               <div>
                 <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Email</label>
-                <input v-model="editForm.email" type="email" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="email@devcine.com" />
+                <input v-model="editForm.email" type="email" class="w-full bg-surface-container-highest border-none text-xs sm:text-sm text-white px-3 py-2 sm:py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="email@devcine.com" />
               </div>
               <div>
                 <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Số điện thoại</label>
-                <input v-model="editForm.phone" type="tel" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="0912345678" />
+                <input v-model="editForm.phone" type="tel" class="w-full bg-surface-container-highest border-none text-xs sm:text-sm text-white px-3 py-2 sm:py-2.5 rounded focus:ring-1 focus:ring-primary-container" placeholder="0912345678" />
               </div>
               <div>
                 <label class="block text-[9px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">Ngày sinh</label>
-                <input v-model="editForm.dob" type="date" class="w-full bg-surface-container-highest border-none text-sm text-white px-3 py-2.5 rounded focus:ring-1 focus:ring-primary-container" />
+                <input v-model="editForm.dob" type="date" class="w-full bg-surface-container-highest border-none text-xs sm:text-sm text-white px-3 py-2 sm:py-2.5 rounded focus:ring-1 focus:ring-primary-container" />
               </div>
             </div>
           </div>
         </Transition>
 
-        <div class="mt-6 pt-4 border-t border-outline-variant/10 flex justify-between items-center">
+        <div class="mt-5 sm:mt-6 pt-4 border-t border-outline-variant/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div class="flex items-center gap-2 text-xs text-on-surface-variant">
-            <span class="material-symbols-outlined text-green-400 text-lg">verified_user</span>
+            <span class="material-symbols-outlined text-green-400 text-base sm:text-lg">verified_user</span>
             <p>Tài khoản cá nhân được liên kết an toàn</p>
           </div>
-          <div class="flex gap-2">
-            <button v-if="!isEditing" @click="isEditing = true" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-white cursor-pointer">
+          <div class="flex gap-2 self-end sm:self-auto">
+            <button v-if="!isEditing" @click="isEditing = true" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3.5 sm:px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-white cursor-pointer">
               <span class="material-symbols-outlined text-sm">edit</span> Chỉnh sửa
             </button>
             <template v-else>
-              <button @click="isEditing = false" class="text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant cursor-pointer">Huỷ</button>
-              <button @click="handleSaveProfile" :disabled="isSaving" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 bg-primary-container text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60 cursor-pointer">
+              <button @click="isEditing = false" class="text-xs font-bold uppercase tracking-wider px-3.5 sm:px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant cursor-pointer">Huỷ</button>
+              <button @click="handleSaveProfile" :disabled="isSaving" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3.5 sm:px-4 py-2 bg-primary-container text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60 cursor-pointer">
                 <span v-if="isSaving" class="material-symbols-outlined text-sm animate-spin">autorenew</span>
                 <span v-else class="material-symbols-outlined text-sm">save</span>
                 {{ isSaving ? 'Đang lưu...' : 'Lưu' }}
@@ -286,9 +286,9 @@ const tierInfo = computed(() => {
       </div>
 
       <!-- Virtual Membership Card & Progress -->
-      <div class="lg:col-span-5 flex flex-col gap-6">
+      <div class="lg:col-span-5 flex flex-col gap-6 w-full">
         <!-- Virtual Membership Card -->
-        <div :class="['relative aspect-[1.586/1] w-full rounded-3xl p-6 overflow-hidden flex flex-col justify-between border bg-gradient-to-br transition-all duration-700 shadow-2xl', tierInfo.bgGradient, tierInfo.glow]">
+        <div :class="['relative aspect-[1.586/1] w-full rounded-2xl sm:rounded-3xl p-4 sm:p-6 overflow-hidden flex flex-col justify-between border bg-gradient-to-br transition-all duration-700 shadow-2xl', tierInfo.bgGradient, tierInfo.glow]">
           <!-- Decorative card patterns -->
           <div class="absolute inset-0 opacity-100 pointer-events-none" :style="{ backgroundImage: tierInfo.cardPattern }"></div>
           <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.05)_0%,transparent_50%)]"></div>
@@ -296,11 +296,11 @@ const tierInfo = computed(() => {
           <!-- Card Header -->
           <div class="flex items-start justify-between relative z-10">
             <div>
-              <p class="text-[9px] font-black tracking-[0.25em] text-white/60 uppercase">DevCine Cinema</p>
-              <h4 class="text-sm font-bold tracking-[0.1em] text-white">MEMBER CARD</h4>
+              <p class="text-[8px] sm:text-[9px] font-black tracking-[0.25em] text-white/60 uppercase">DevCine Cinema</p>
+              <h4 class="text-xs sm:text-sm font-bold tracking-[0.1em] text-white">MEMBER CARD</h4>
             </div>
             <div class="flex items-center gap-1.5 opacity-95">
-              <span class="material-symbols-outlined text-3xl text-white/90" style="font-variation-settings: 'FILL' 1;">
+              <span class="material-symbols-outlined text-2xl sm:text-3xl text-white/90" style="font-variation-settings: 'FILL' 1;">
                 {{ tierInfo.cardIcon }}
               </span>
             </div>
@@ -308,7 +308,7 @@ const tierInfo = computed(() => {
 
           <!-- Card Body: Large Tier Name -->
           <div class="relative z-10 my-1">
-            <h3 :class="['text-4xl font-extrabold italic tracking-tight font-headline uppercase filter drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]', tierInfo.colorClass]">
+            <h3 :class="['text-2xl sm:text-4xl font-extrabold italic tracking-tight font-headline uppercase filter drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]', tierInfo.colorClass]">
               {{ tierInfo.name }}
             </h3>
           </div>
@@ -316,31 +316,31 @@ const tierInfo = computed(() => {
           <!-- Card Footer -->
           <div class="flex items-end justify-between relative z-10 pt-2 border-t border-white/10">
             <div>
-              <p class="text-[8px] uppercase tracking-widest text-white/50 mb-0.5">Tên chủ thẻ</p>
-              <p class="text-xs font-bold tracking-wide uppercase text-white truncate max-w-[180px]">{{ customer?.fullName }}</p>
+              <p class="text-[7px] sm:text-[8px] uppercase tracking-widest text-white/50 mb-0.5">Tên chủ thẻ</p>
+              <p class="text-[11px] sm:text-xs font-bold tracking-wide uppercase text-white truncate max-w-[140px] sm:max-w-[180px]">{{ customer?.fullName }}</p>
             </div>
             <div class="text-right">
-              <p class="text-[8px] uppercase tracking-widest text-white/50 mb-0.5">Điểm khả dụng</p>
-              <p class="text-sm font-mono font-bold text-white">{{ customer?.loyaltyPoints?.toLocaleString() || 0 }} pts</p>
+              <p class="text-[7px] sm:text-[8px] uppercase tracking-widest text-white/50 mb-0.5">Điểm khả dụng</p>
+              <p class="text-xs sm:text-sm font-mono font-bold text-white">{{ customer?.loyaltyPoints?.toLocaleString() || 0 }} pts</p>
             </div>
           </div>
         </div>
 
         <!-- Progress Card -->
-        <div class="bg-surface-container-low border border-outline-variant/10 rounded-3xl p-6 flex flex-col justify-between flex-grow">
-          <div class="space-y-4">
+        <div class="bg-surface-container-low border border-outline-variant/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex flex-col justify-between flex-grow">
+          <div class="space-y-3 sm:space-y-4">
             <div class="flex justify-between items-center text-xs">
               <span class="font-bold text-on-surface-variant uppercase tracking-wider">Tích lũy trọn đời</span>
               <span class="font-mono font-bold text-white">{{ (customer?.lifetimePoints ?? customer?.loyaltyPoints ?? 0).toLocaleString() }} điểm</span>
             </div>
 
             <!-- Progress Bar -->
-            <div class="relative h-3 w-full bg-surface-container-highest rounded-full overflow-hidden border border-white/5 shadow-inner">
+            <div class="relative h-2.5 sm:h-3 w-full bg-surface-container-highest rounded-full overflow-hidden border border-white/5 shadow-inner">
               <div :class="['h-full bg-gradient-to-r from-primary to-amber-500 rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(245,197,24,0.3)]']" :style="{ width: `${tierInfo.percent}%` }"></div>
             </div>
 
             <!-- Progress status text -->
-            <div class="flex justify-between text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">
+            <div class="flex justify-between text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">
               <span>Hạng hiện tại: {{ tierInfo.name }}</span>
               <span v-if="tierInfo.pointsNeeded > 0">Mục tiêu: {{ tierInfo.nextTier }}</span>
               <span v-else>Hạng cao nhất</span>
@@ -348,12 +348,12 @@ const tierInfo = computed(() => {
           </div>
 
           <!-- Alert / Info Banner -->
-          <div class="mt-4 p-4 rounded-xl bg-surface-container-high/60 border border-white/5 flex gap-3 items-center">
-            <span class="material-symbols-outlined text-primary-container text-xl" style="font-variation-settings: 'FILL' 1;">stars</span>
-            <p v-if="tierInfo.pointsNeeded > 0" class="text-xs text-on-surface-variant leading-relaxed">
+          <div class="mt-3.5 sm:mt-4 p-3 sm:p-4 rounded-xl bg-surface-container-high/60 border border-white/5 flex gap-2.5 sm:gap-3 items-center">
+            <span class="material-symbols-outlined text-primary-container text-lg sm:text-xl shrink-0" style="font-variation-settings: 'FILL' 1;">stars</span>
+            <p v-if="tierInfo.pointsNeeded > 0" class="text-[11px] sm:text-xs text-on-surface-variant leading-relaxed">
               Bạn cần tích lũy thêm <span class="text-white font-bold">{{ tierInfo.pointsNeeded?.toLocaleString() }} điểm</span> để đạt được thứ hạng kế tiếp <span class="text-primary-container font-bold">{{ tierInfo.nextTier }}</span>.
             </p>
-            <p v-else class="text-xs text-on-surface-variant leading-relaxed">
+            <p v-else class="text-[11px] sm:text-xs text-on-surface-variant leading-relaxed">
               Tuyệt vời! Bạn đang ở hạng thành viên cao nhất <span class="text-primary-container font-bold">Platinum</span> với những ưu đãi đặc quyền tối đa.
             </p>
           </div>
@@ -362,12 +362,12 @@ const tierInfo = computed(() => {
     </div>
 
     <!-- Lịch sử điểm thưởng -->
-    <div class="bg-surface-container-low border border-outline-variant/10 rounded-3xl p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-black uppercase tracking-wider text-on-surface flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary text-lg">history</span> Lịch sử điểm
+    <div class="bg-surface-container-low border border-outline-variant/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-on-surface flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary text-base sm:text-lg">history</span> Lịch sử điểm
         </h3>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Khả dụng: {{ (customer?.loyaltyPoints || 0).toLocaleString() }} điểm</span>
+        <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Khả dụng: {{ (customer?.loyaltyPoints || 0).toLocaleString() }} điểm</span>
       </div>
 
       <div v-if="isLoadingHistory" class="space-y-2">
@@ -377,41 +377,41 @@ const tierInfo = computed(() => {
         Chưa có biến động điểm nào. Điểm sẽ được cộng khi bạn mua vé hoặc bắp nước.
       </div>
       <div v-else class="divide-y divide-outline-variant/10">
-        <div v-for="tx in pagedPointHistory" :key="tx.id" class="flex items-center justify-between py-3">
+        <div v-for="tx in pagedPointHistory" :key="tx.id" class="flex items-center justify-between py-2.5 sm:py-3 gap-2">
           <div class="min-w-0">
-            <p class="text-sm font-bold text-on-surface">{{ pointSourceLabel(tx) }}</p>
-            <p class="text-[11px] text-on-surface-variant">{{ pointDateLabel(tx.createdAt) }}<span v-if="tx.refCode"> · {{ tx.refCode }}</span></p>
+            <p class="text-xs sm:text-sm font-bold text-on-surface truncate">{{ pointSourceLabel(tx) }}</p>
+            <p class="text-[10px] sm:text-[11px] text-on-surface-variant">{{ pointDateLabel(tx.createdAt) }}<span v-if="tx.refCode"> · {{ tx.refCode }}</span></p>
           </div>
           <div class="text-right shrink-0">
-            <p class="text-sm font-black" :class="tx.points >= 0 ? 'text-green-400' : 'text-red-300'">
+            <p class="text-xs sm:text-sm font-black" :class="tx.points >= 0 ? 'text-green-400' : 'text-red-300'">
               {{ tx.points >= 0 ? '+' : '' }}{{ tx.points?.toLocaleString() }} điểm
             </p>
-            <p class="text-[10px] text-on-surface-variant">Số dư: {{ tx.balanceAfter?.toLocaleString() }}</p>
+            <p class="text-[9px] sm:text-[10px] text-on-surface-variant">Số dư: {{ tx.balanceAfter?.toLocaleString() }}</p>
           </div>
         </div>
       </div>
 
       <!-- Phân trang -->
-      <div v-if="!isLoadingHistory && pointTotalPages > 1" class="mt-6 flex items-center justify-center gap-2">
+      <div v-if="!isLoadingHistory && pointTotalPages > 1" class="mt-4 sm:mt-6 flex items-center justify-center gap-1.5 sm:gap-2">
         <button @click="goToPointPage(pointPage - 1)" :disabled="pointPage === 1"
-                class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
-          <span class="material-symbols-outlined text-lg">chevron_left</span>
+                class="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+          <span class="material-symbols-outlined text-base sm:text-lg">chevron_left</span>
         </button>
         <template v-for="(p, i) in pointPageNumbers" :key="i">
-          <span v-if="p === '...'" class="w-9 h-9 flex items-center justify-center text-on-surface-variant">…</span>
+          <span v-if="p === '...'" class="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-on-surface-variant text-xs">…</span>
           <button v-else @click="goToPointPage(p)"
-                  :class="['w-9 h-9 flex items-center justify-center rounded text-sm font-bold transition-colors border', p === pointPage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white']">
+                  :class="['w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded text-xs sm:text-sm font-bold transition-colors border', p === pointPage ? 'bg-primary-container text-on-primary border-primary-container' : 'border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white']">
             {{ p }}
           </button>
         </template>
         <button @click="goToPointPage(pointPage + 1)" :disabled="pointPage === pointTotalPages"
-                class="w-9 h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
-          <span class="material-symbols-outlined text-lg">chevron_right</span>
+                class="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded border border-white/10 text-on-surface-variant hover:bg-surface-container-highest hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+          <span class="material-symbols-outlined text-base sm:text-lg">chevron_right</span>
         </button>
       </div>
     </div>
 
-    <!-- Booking History (preview: 3 lượt gần nhất + CTA xem tất cả) -->
+    <!-- Booking History -->
     <BookingHistoryView preview />
   </div>
 </template>

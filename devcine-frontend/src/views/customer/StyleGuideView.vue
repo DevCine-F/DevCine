@@ -3,11 +3,11 @@ import { RouterLink } from 'vue-router'
 </script>
 
 <template>
-  <main class="pt-32 pb-20 max-w-[1440px] mx-auto px-10">
+  <main class="pt-28 sm:pt-32 pb-16 sm:pb-20 max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10">
     <!-- Hero Title -->
-    <header class="mb-24">
-      <p class="text-primary-container font-label text-sm uppercase tracking-widest mb-4">Hệ thống Thiết kế</p>
-      <h1 class="font-headline font-extrabold text-[3.5rem] leading-[1.1] tracking-tighter max-w-4xl">DevCine<br>
+    <header class="mb-12 sm:mb-24">
+      <p class="text-primary-container font-label text-xs sm:text-sm uppercase tracking-widest mb-3 sm:mb-4">Hệ thống Thiết kế</p>
+      <h1 class="font-headline font-extrabold text-3xl sm:text-5xl md:text-[3.5rem] leading-[1.1] tracking-tighter max-w-4xl">DevCine<br>
         <span class="text-neutral-600">EDITORIAL UI KIT</span>
       </h1>
     </header>
