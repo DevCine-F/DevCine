@@ -149,6 +149,14 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "WHERE b.customer.userId = :customerId ORDER BY b.createdAt DESC")
     List<Booking> findByCustomerIdWithDetails(@Param("customerId") Integer customerId);
 
+    @Query("SELECT b FROM Booking b " +
+           "JOIN FETCH b.showtime s JOIN FETCH s.movie m " +
+           "LEFT JOIN FETCH s.room r LEFT JOIN FETCH r.cinema c " +
+           "LEFT JOIN FETCH s.format f " +
+           "WHERE b.customer.userId = :customerId AND b.status IN ('CONFIRMED', 'COMPLETED') " +
+           "ORDER BY b.createdAt DESC")
+    List<Booking> findConfirmedByCustomerIdWithDetails(@Param("customerId") Integer customerId);
+
     @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.seat s LEFT JOIN FETCH s.seatType WHERE bs.booking.id IN :bookingIds")
     List<BookingSeat> findAllSeatsByBookingIds(@Param("bookingIds") List<Integer> bookingIds);
 

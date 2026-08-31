@@ -7,9 +7,10 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 ## [1.6.8] — 2026-09-01
 
 ### Fixed & Standardized — Bảo toàn Snapshot Đơn giá F&B & Đồng bộ Chi tiết Vé Khách hàng (Invoice Snapshot & Ticket Details Synchronization)
-- **Backend (`AdminBookingController.java` & `BookingController.java`):**
+- **Backend (`AdminBookingController.java`, `BookingController.java`, `BookingRepository.java`):**
   - Loại bỏ việc đọc `catalogPrice` từ entity live `fnbItem.getPrice()` khi xem chi tiết hoá đơn Admin; tính `finalUnitPrice = snapshot` và `basePrice = snapshot - totalSurcharge` cho cả đơn vé (`detail`) và đơn F&B lẻ (`getConcessionDetail`).
   - `BookingController.java`: Bổ sung tính toán `seatTotal` (`SUM(BookingSeat.priceSnapshot)`) trả về cho API lịch sử đặt vé khách hàng.
+  - `BookingRepository.java`: Bổ sung `findConfirmedByCustomerIdWithDetails` chỉ trả về đơn `CONFIRMED`/`COMPLETED` cho lịch sử khách hàng, dọn sạch các đơn rác `HOLD`/`CANCELLED`/`EXPIRED` khỏi màn hình người dùng.
 - **Frontend (`AdminBookings.vue` & `BookingHistoryView.vue`):**
   - `AdminBookings.vue`: Tối ưu `fnbLineTotal` và ưu tiên lấy trực tiếp `finalPrice` từ snapshot DB.
   - `BookingHistoryView.vue`: Gán đúng `selectedBooking.seatTotal` cho dòng *"Tiền vé & Ghế"*; chuẩn hóa nhãn loại ghế dạng `VIP - Người lớn x1`; định dạng danh sách tùy chọn F&B dạng bullet point sạch sẽ (`• Option (+phụ thu)`), loại bỏ tiền tố `Ô chọn...` đồng bộ 100% với Admin.

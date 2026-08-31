@@ -71,7 +71,7 @@ public class BookingController {
                 return ResponseEntity.status(401).body(ApiResponse.fail("Unauthorized"));
             }
 
-            List<Booking> bookings = bookingRepository.findByCustomerIdWithDetails(customerId);
+            List<Booking> bookings = bookingRepository.findConfirmedByCustomerIdWithDetails(customerId);
             if (bookings.isEmpty()) {
                 return ResponseEntity.ok(ApiResponse.ok(List.of()));
             }

@@ -14,6 +14,7 @@
 > - **Chuẩn hóa số lượng vé & bộ đếm ghế đôi Sweetbox tại Quầy POS** (31/08): Ghế đôi Sweetbox tự động yêu cầu đúng 2 vé (2 người xem, `seatCapacity = 2`); tự động gán `NGƯỜI LỚN = totalRequiredTickets` ở Bước 3; vô hiệu hóa nút `[-]` khi số vé đạt trần yêu cầu (ngăn rơi vào trạng thái thiếu vé); cơ chế 1-click transfer tự động cân bằng vé khi bấm `[+]`/`[-]`; tính đúng tổng tiền 2 vé và sinh đủ 2 phần tử `seatSelections` gửi Backend (`BookingService.java`).
 > - **Tách biệt cấu hình thời gian giữ ghế & giữ đơn chờ POS** (01/09): Tách 2 cấu hình độc lập `SEAT_HOLD_MINUTES` (3–30 phút) và `POS_ORDER_HOLD_MINUTES` (3–60 phút) qua `SystemSettingService.java` và `AdminSettings.vue`.
 > - **Bảo toàn Snapshot Hóa đơn & Đồng bộ Chi tiết Vé** (01/09): Loại bỏ đọc giá catalog live trong `AdminBookingController.java`, bảo toàn 100% snapshot giá F&B; bổ sung `seatTotal` trong `BookingController.java` và hiển thị đồng bộ tiền vé (75k), nhãn loại ghế (`VIP - Người lớn x1`), và danh sách tùy chọn F&B dạng bullet point trên `BookingHistoryView.vue` khớp 100% với Admin.
+> - **Tối ưu Lịch sử Đặt vé Khách hàng** (01/09): API `GET /api/customer/bookings/history` (`BookingController.java`) chỉ lấy đơn `CONFIRMED`/`COMPLETED` (`findConfirmedByCustomerIdWithDetails`), loại bỏ đơn rác `HOLD`/`CANCELLED`/`EXPIRED` khỏi màn hình khách nhưng bảo toàn 100% trên Database và Admin.
 
 ---
 

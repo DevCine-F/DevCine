@@ -325,3 +325,8 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 - **Chuẩn hóa Hiển thị Loại ghế & Tùy chọn F&B (`BookingHistoryView.vue`):**
   - Chuẩn hóa nhãn loại ghế dạng `VIP - Người lớn x1` (`seatTypeLabel` + `ticketTypeLabel` + số lượng màu vàng).
   - Danh sách tùy chọn vị/nước F&B hiển thị dạng bullet point gọn gàng (`• Option (+phụ thu)`), loại bỏ tiền tố `Ô chọn...` đồng bộ 100% với giao diện Admin.
+
+### 22. Tối Ưu Lịch Sử Đặt Vé Khách Hàng (Confirmed Bookings Filter)
+- **Chỉ hiển thị đơn thành công cho khách hàng:** API `GET /api/customer/bookings/history` (`BookingController.java`) sử dụng `findConfirmedByCustomerIdWithDetails` chỉ lấy các đơn có trạng thái `CONFIRMED` hoặc `COMPLETED`. Loại bỏ hoàn toàn các đơn rác `HOLD`, `CANCELLED`, `EXPIRED` khỏi màn hình của khách (`BookingHistoryView.vue`).
+- **Bảo toàn 100% dữ liệu đối soát:** Toàn bộ trạng thái đơn vẫn được lưu trữ đầy đủ trong Cơ sở dữ liệu và hiển thị trên màn hình Quản trị Admin (`AdminBookings.vue`) phục vụ đối soát tài chính, kế toán và xử lý sự cố.
+
