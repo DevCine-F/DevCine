@@ -56,7 +56,7 @@ const failureTitle = computed(() => {
   if (msg.includes('\n')) {
     return msg.split('\n')[0]
   }
-  return 'In Vé Thất Bại'
+  return 'Kiểm Soát Vé Thất Bại'
 })
 
 const failureSubtitle = computed(() => {
@@ -132,7 +132,20 @@ const startCamera = async () => {
     html5QrCode = new window.Html5Qrcode('qr-reader')
     isScannerActive.value = true
     
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } }
+    const config = {
+      fps: 20,
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
+        return {
+          width: Math.floor(minEdge * 0.85),
+          height: Math.floor(minEdge * 0.85)
+        }
+      },
+      aspectRatio: 1.0,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true
+      }
+    }
     
     await html5QrCode.start(
       { facingMode: 'environment' },
@@ -351,8 +364,8 @@ onUnmounted(() => {
           <span class="material-symbols-outlined text-3xl">qr_code_scanner</span>
         </div>
         <div>
-          <h1 class="text-2xl font-black tracking-tighter uppercase italic text-on-surface">Quét & In vé</h1>
-          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Quét mã đơn → in toàn bộ vé giấy</p>
+          <h1 class="text-2xl font-black tracking-tighter uppercase italic text-on-surface">Kiểm soát vé</h1>
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Quét mã QR hoặc nhập mã để check-in & xác thực vào rạp</p>
         </div>
       </div>
       
@@ -385,7 +398,7 @@ onUnmounted(() => {
       <!-- LOADING STATE -->
       <div v-if="isLoading" class="text-center py-12 space-y-4">
         <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang xử lý & in vé...</p>
+        <p class="text-sm font-bold text-on-surface-variant animate-pulse uppercase tracking-wider">Đang kiểm tra & xác thực vé...</p>
       </div>
 
       <!-- RESULT STATE -->

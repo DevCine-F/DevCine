@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { bookingApi } from '@/api/customer/index'
@@ -159,6 +159,18 @@ const printTicket = () => {
   window.print()
 }
 
+watch(showTicketModal, (isOpen) => {
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = isOpen ? 'hidden' : ''
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = ''
+  }
+})
+
 onMounted(fetchHistory)
 </script>
 
@@ -213,7 +225,7 @@ onMounted(fetchHistory)
             <!-- Khối 2: Thông tin chính -->
             <div class="flex-[1.5] flex flex-col justify-center py-1 sm:py-2 min-w-0">
               <div class="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
-                <span class="text-xs sm:text-sm font-bold font-mono text-[#EAB308]">#{{ b.bookingCode }}</span>
+                <span class="text-xs sm:text-sm font-bold font-mono text-[#EAB308]">{{ b.bookingCode }}</span>
                 <span :class="['text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider flex items-center gap-1', statusClass(b.status)]">
                   <span v-if="b.status === 'CONFIRMED'" class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
                   {{ statusLabel(b.status) }}
@@ -403,7 +415,7 @@ onMounted(fetchHistory)
 
           <div class="flex justify-between items-center mb-5">
             <span class="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Mã đặt vé / Bắp nước</span>
-            <span class="text-lg font-mono font-bold text-[#EAB308] print:text-black tracking-[0.2em]">#{{ selectedBooking.bookingCode }}</span>
+            <span class="text-lg font-mono font-bold text-[#EAB308] print:text-black tracking-[0.2em]">{{ selectedBooking.bookingCode }}</span>
           </div>
 
           <!-- QR with scanner corner brackets -->
