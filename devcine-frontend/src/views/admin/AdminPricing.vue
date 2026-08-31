@@ -432,21 +432,16 @@ const TABS = [
 
       <!-- TAB: Giá nền (loại phòng × loại ngày × đối tượng) -->
       <section v-if="activeTab === 'base'" class="space-y-6">
-        <div v-for="rt in roomTypes" :key="rt.code" class="space-y-3 bg-surface-container-low border border-outline-variant/10 p-5 md:p-6 shadow-sm">
-          <div class="flex items-center justify-between">
-            <h3 class="font-bold text-on-surface uppercase tracking-wider text-sm flex items-center gap-2.5">
-              <span class="p-1.5 bg-primary/10 text-primary flex items-center justify-center">
-                <span class="material-symbols-outlined text-lg">meeting_room</span>
-              </span>
-              <span>{{ rt.label }}</span>
-            </h3>
-            <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant bg-white/5 px-2.5 py-1 border border-outline-variant/10">Mã: {{ rt.code }}</span>
-          </div>
+        <div v-for="rt in roomTypes" :key="rt.code" class="space-y-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-5 md:p-6 shadow-sm">
+          <h3 class="font-bold text-on-surface uppercase tracking-wider text-sm flex items-center gap-2">
+            <span class="material-symbols-outlined text-base text-primary">meeting_room</span>
+            <span>{{ rt.label }}</span>
+          </h3>
 
-          <div class="overflow-x-auto border border-outline-variant/10">
+          <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl">
             <table class="w-full text-sm">
               <thead>
-                <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-surface-container-high/60 border-b border-outline-variant/10">
+                <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5 border-b border-outline-variant/10">
                   <th class="py-3.5 px-4 text-left">Loại ngày \ Đối tượng</th>
                   <th v-for="[code, label] in audienceEntries" :key="code" class="py-3.5 px-4 text-center">{{ label }}</th>
                 </tr>
@@ -454,11 +449,7 @@ const TABS = [
               <tbody class="divide-y divide-outline-variant/10">
                 <tr v-for="d in config.dayTypes" :key="d.code" class="hover:bg-white/[0.02] transition-colors">
                   <td class="py-3 px-4 font-bold text-on-surface">
-                    <div class="flex items-center gap-2">
-                      <span v-if="d.code === 'WEEKEND'" class="w-2 h-2 bg-amber-400"></span>
-                      <span v-else class="w-2 h-2 bg-primary"></span>
-                      <span>{{ d.label }}</span>
-                    </div>
+                    {{ d.label }}
                   </td>
                   <td v-for="[code] in audienceEntries" :key="code" class="py-3 px-4 text-center align-top">
                     <div class="inline-flex flex-col items-center">
@@ -468,7 +459,7 @@ const TABS = [
                           inputmode="numeric"
                           :value="fmtThousand(baseMatrix[`${rt.code}|${d.code}|${code}`])"
                           @input="onBaseMatrixInput($event, `${rt.code}|${d.code}|${code}`)"
-                          class="w-32 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm"
+                          class="w-32 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm rounded"
                           :class="baseErrors[`${rt.code}|${d.code}|${code}`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
                         />
                         <span class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="baseErrors[`${rt.code}|${d.code}|${code}`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
@@ -493,7 +484,7 @@ const TABS = [
           </p>
         </div>
         <div>
-          <button v-if="can('pricing', 'edit')" @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none">
+          <button v-if="can('pricing', 'edit')" @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none rounded-lg">
             <span class="material-symbols-outlined text-base">{{ saving ? 'sync' : 'save' }}</span>
             {{ saving ? 'Đang lưu...' : 'Lưu giá nền' }}
           </button>
@@ -503,10 +494,10 @@ const TABS = [
       <!-- TAB: Định dạng (phụ thu công nghệ 2D/3D) -->
       <section v-else-if="activeTab === 'format'" class="space-y-4">
         <p class="text-sm text-on-surface-variant">Phụ thu công nghệ định dạng, cộng vào giá nền. Giá theo hạng phòng đã cấu hình ở tab "Giá nền".</p>
-        <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 shadow-sm">
+        <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl shadow-sm">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-surface-container-high/60 border-b border-outline-variant/10">
+              <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5 border-b border-outline-variant/10">
                 <th class="py-4 px-5 text-left">Định dạng</th>
                 <th class="py-4 px-5 text-center">Phụ thu ngày thường (T2–T5)</th>
                 <th class="py-4 px-5 text-center">Phụ thu cuối tuần & lễ</th>
@@ -528,7 +519,7 @@ const TABS = [
                         inputmode="numeric"
                         :value="fmtThousand(f.surcharge)"
                         @input="onFormatSurchargeInput($event, f, 'surcharge')"
-                        class="w-36 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm"
+                        class="w-36 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm rounded"
                         :class="formatErrors[`${f.id}_surcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
                       />
                       <span class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="formatErrors[`${f.id}_surcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
@@ -547,7 +538,7 @@ const TABS = [
                         :value="f.weekendSurcharge != null ? fmtThousand(f.weekendSurcharge) : ''"
                         @input="onFormatSurchargeInput($event, f, 'weekendSurcharge')"
                         placeholder="= ngày thường"
-                        class="w-40 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm placeholder:text-on-surface-variant/40 placeholder:text-xs placeholder:font-normal shadow-sm"
+                        class="w-40 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm placeholder:text-on-surface-variant/40 placeholder:text-xs placeholder:font-normal shadow-sm rounded"
                         :class="formatErrors[`${f.id}_weekendSurcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
                       />
                       <span v-if="f.weekendSurcharge != null && f.weekendSurcharge !== ''" class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="formatErrors[`${f.id}_weekendSurcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
@@ -571,7 +562,7 @@ const TABS = [
           </p>
         </div>
         <div>
-          <button v-if="can('pricing', 'edit')" @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none">
+          <button v-if="can('pricing', 'edit')" @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none rounded-lg">
             <span class="material-symbols-outlined text-base">{{ saving ? 'sync' : 'save' }}</span>
             {{ saving ? 'Đang lưu...' : 'Lưu định dạng' }}
           </button>
@@ -581,20 +572,20 @@ const TABS = [
       <!-- TAB: Ngày lễ -->
       <section v-else-if="activeTab === 'holiday'" class="space-y-4 max-w-xl">
         <p class="text-sm text-on-surface-variant">Suất rơi vào ngày lễ áp bậc giá "Cao điểm" + phụ thu định dạng cuối tuần/lễ.</p>
-        <div class="flex flex-wrap items-end gap-3 bg-surface-container-low border border-outline-variant/10 p-4">
+        <div class="flex flex-wrap items-end gap-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-4">
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Ngày</label>
-            <input type="date" v-model="newHoliday.holidayDate" class="bg-surface-container-high border border-outline-variant/20 p-2 text-on-surface outline-none" />
+            <input type="date" v-model="newHoliday.holidayDate" class="bg-surface-container-high border border-outline-variant/20 p-2 rounded text-on-surface outline-none" />
           </div>
           <div class="flex-1 min-w-[160px]">
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Tên</label>
-            <input type="text" v-model="newHoliday.name" placeholder="Vd: Tết Dương lịch" class="w-full bg-surface-container-high border border-outline-variant/20 p-2 text-on-surface outline-none" />
+            <input type="text" v-model="newHoliday.name" placeholder="Vd: Tết Dương lịch" class="w-full bg-surface-container-high border border-outline-variant/20 p-2 rounded text-on-surface outline-none" />
           </div>
-          <button v-if="can('pricing', 'edit')" @click="addHoliday" class="px-5 py-2 bg-primary text-on-primary font-bold">Thêm</button>
+          <button v-if="can('pricing', 'edit')" @click="addHoliday" class="px-5 py-2 bg-primary text-on-primary rounded-lg font-bold">Thêm</button>
         </div>
 
         <div v-if="!holidays.length" class="text-center text-on-surface-variant py-8">Chưa có ngày lễ nào.</div>
-        <div v-for="h in holidays" :key="h.id" class="flex items-center justify-between bg-surface-container-low border border-outline-variant/10 px-4 py-3">
+        <div v-for="h in holidays" :key="h.id" class="flex items-center justify-between bg-surface-container-low border border-outline-variant/10 rounded-xl px-4 py-3">
           <div><span class="font-bold text-on-surface">{{ h.holidayDate }}</span> — <span class="text-on-surface-variant">{{ h.name }}</span></div>
           <button v-if="can('pricing', 'edit')" @click="removeHoliday(h)" class="p-2 text-on-surface-variant hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-lg">delete</span></button>
         </div>
@@ -602,37 +593,37 @@ const TABS = [
 
       <!-- TAB: Tính thử -->
       <section v-else-if="activeTab === 'sim'" class="grid md:grid-cols-2 gap-6 max-w-3xl">
-        <div class="space-y-3 bg-surface-container-low border border-outline-variant/10 p-6">
+        <div class="space-y-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-6">
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại ngày</label>
-            <select v-model="sim.dayType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 text-on-surface outline-none">
+            <select v-model="sim.dayType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
               <option v-for="d in config.dayTypes" :key="d.code" :value="d.code">{{ d.label }}</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Đối tượng</label>
-            <select v-model="sim.audienceType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 text-on-surface outline-none">
+            <select v-model="sim.audienceType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
               <option v-for="[code, label] in audienceEntries" :key="code" :value="code">{{ label }}</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại phòng</label>
-            <select v-model="sim.roomType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 text-on-surface outline-none">
+            <select v-model="sim.roomType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
               <option v-for="rt in roomTypes" :key="rt.code" :value="rt.code">{{ rt.label }}</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Định dạng</label>
-            <select v-model="sim.formatId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 text-on-surface outline-none">
+            <select v-model="sim.formatId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
               <option v-for="f in formats" :key="f.id" :value="f.id">{{ f.name }}</option>
             </select>
           </div>
-          <button @click="runSimulate" :disabled="simulating" class="w-full px-6 py-3 bg-primary text-on-primary font-bold disabled:opacity-60">
+          <button @click="runSimulate" :disabled="simulating" class="w-full px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
             {{ simulating ? 'Đang tính...' : 'Tính thử giá' }}
           </button>
         </div>
 
-        <div class="bg-primary/10 border border-primary/20 p-6 flex flex-col justify-center relative overflow-hidden">
+        <div class="bg-primary/10 border border-primary/20 rounded-xl p-6 flex flex-col justify-center relative overflow-hidden">
           <template v-if="simResult">
             <span class="text-[10px] font-bold uppercase tracking-widest text-primary">Giá vé tính được</span>
             <div class="text-4xl font-black font-headline text-primary my-3">{{ fmt(simResult.total) }} <span class="text-2xl font-bold">đ</span></div>
