@@ -1,73 +1,8 @@
-# DevCine — Hướng dẫn cho Codex
-
-## Đọc ngay khi bắt đầu phiên mới
-
-```
-project_context.md   — mục tiêu, kiến trúc, toàn bộ ngữ cảnh
-RULES.md             — quy ước bắt buộc (vi phạm = phá hoại dự án)
-```
-
-## Project
-
-Website quản lý rạp chiếu phim & đặt vé online (đồ án tốt nghiệp).
-
-- **Backend:** Java 21 + Spring Boot 4.0.6 + Spring Data JPA + Hibernate 7 · cổng `:8080`
-- **Frontend:** Vue 3.5 `<script setup>` + Pinia + Vue Router + Vite + TailwindCSS 4 · cổng `:5173`
-- **DB:** PostgreSQL (Supabase) · **Auth:** JWT (JJWT 0.12.6) · **Ảnh:** Cloudinary · **Thanh toán:** VNPAY (khách) / CASH,CARD,TRANSFER (POS)
-- **Ví điện tử đã bị gỡ hoàn toàn** — không còn Wallet/WalletTransaction/WalletService/WalletController
-
-## Cấu trúc thư mục chính
-
-```
-devcine-backend/src/main/java/com/devcine/
-  controller/     entity/     repository/
-  service/        dto/        config/
-devcine-frontend/src/
-  views/admin/    views/customer/
-  stores/         api/        routers/
-```
-
-## Quy tắc bắt buộc (tóm tắt — đọc RULES.md đầy đủ)
-
-- **N+1:** tất cả quan hệ `LAZY`, dùng `@EntityGraph`/JOIN FETCH, cấm query trong vòng lặp
-- **Layer:** Controller điều phối, business logic 100% ở Service, dùng DTO, không expose entity/password
-- **Transaction:** ghi → `@Transactional`, đọc → `@Transactional(readOnly=true)`
-- **Exception:** log.error + @ControllerAdvice, cấm catch rỗng / printStackTrace
-- **Bảo mật:** cấm hardcode secret, dùng application.properties/env; validate @Valid
-- **Frontend:** chỉ `<script setup>`; state chia sẻ → Pinia; 4 trạng thái Loading/Empty/Error/Success; xóa/hủy phải Confirm; debounce search 300–500ms
-- **Naming:** Entity PascalCase số ít · bảng/cột snake_case · Component PascalCase.vue · camelCase · UPPER_SNAKE_CASE · handler bắt đầu handle/on
-
-## File bất khả xâm phạm (báo cáo trước khi sửa)
-
-`SecurityConfig.java`, `JwtUtil.java`, `BookingService.java`, `PricingService.java`, `pom.xml`, `package.json`, `entity/*.java`
-
-## Jackson / Spring Boot 4 gotcha
-
-Dùng `tools.jackson.*` — KHÔNG phải `com.fasterxml.jackson.*`
-
-## Gotchas thường gặp
-
-- 403 che 500: thiếu @ControllerAdvice → Spring Security trả 403 thay vì 500
-- Postgres null param: `lower(bytea)` lỗi khi truyền null vào `lower()` trong JPQL
-- `@MapsId`: dùng `persist` không phải `merge` khi lưu entity có @MapsId
-
-## Tiến độ hiện tại (~94%)
-
-Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
-
-**Đang dở (chưa commit, 24/06/2026):**
-- Rollout Toast/FriendlyError mới áp 5/43 view (cần toàn bộ view admin + khách còn lại)
-- Admin UI cho BOM (định mức) & Bàn giao ca (API đã có, chưa có route)
-- Chuẩn hóa ApiResponse<T> + @ControllerAdvice toàn BE
-
-## Commit convention
-
-Commit 2 phần EN/VI. **TUYỆT ĐỐI không thêm Co-Authored-By.**
-Remote: `DevCine-F` (frontend) / `DevCine` (backend).
-
-## L?ch s? Refactor (02/08/2026) - QUY CHU?N M�N H�NH POS B�N V�
-- **B? c?c Card Phim**: Tu�n th? "GOM NH�M 2 C?P". C?p 1: Phim. C?p 2: �?nh d?ng & Ph�ng chi?u (VD: 2D PH? �? � PH�NG 223). B?T BU?C t? d?ng chu?n h�a ti?n t? "PH�NG" n?u API tr? v? s?.
-- **X? l� D? li?u**: st.movie l� String, st.duration l� s? (g�n tr?c ti?p). KH�NG G?I API /api/admin/movies trong m�n POS tr�nh 404 l�m s?p trang. T? d?ng fallback d? li?u.
-- **M�i gi? & Chu?i Ng�y**: Lu�n d�ng helper parseToDate(st) (thay kho?ng tr?ng b?ng 'T'). So s�nh ng�y b?ng getLocalYmd() (chu?n m�i gi? d?a phuong), TUY?T �?I KH�NG d�ng .toISOString().
-- **UI/UX Dropdown**: Gi? n?n trong su?t g-transparent, hover d?i x�m nh? hover:bg-white/10, ch? 	ext-amber-400. Kh�ng d�ng g-amber-500/10. N�t gi? chi?u d?ng Pill, tang d?n.
-- **Strict Isolation**: Ch? s?a d�ng file ch? d?nh, kh�ng t? � s?a helper/API chung. �?m b?o ite build xanh 100%.
+- **UI Rule:** Tuyệt đối KHÔNG sử dụng các Emoji/Icon trên text (VD: 🔒, ⚠️) trong các thông báo hoặc nhãn giao diện. Thay vào đó, hãy sử dụng các Material Symbols (nếu cần) hoặc chỉ dùng text thuần túy để giữ thiết kế sạch sẽ.
+- **Showtime Management Rule:** Suất chiếu trong quá khứ/đang diễn ra (`startTime < now`) hoặc đã phát sinh vé đặt (`reserved > 0`) phải bị khóa toàn bộ thao tác Sửa & Xóa ở cả Backend (`ShowtimeService.java`) và Frontend (`ShowtimeDetailsDrawer.vue`, `ShowtimeDrawer.vue`). Không cho phép đổi Phòng, Phim, Định dạng và Giờ chiếu khi đã có vé. Chỉ cho phép cập nhật toàn diện khi chưa có vé bán và suất còn ở tương lai.
+- **POS Ticket & Sweetbox Capacity Rule:** Ghế đôi Sweetbox có sức chứa = 2 vé (2 người xem), ghế đơn = 1 vé. Tại Bước 3 POS (`TicketingPOS.vue`), tổng số vé yêu cầu luôn bằng tổng sức chứa các ghế đã chọn; tự động gán `NGƯỜI LỚN = totalRequiredTickets`; vô hiệu hóa nút `[-]` khi số lượng vé đang bằng đúng `totalRequiredTickets`; cơ chế 1-click transfer tự động cân bằng vé; tính đúng tổng giá cho 2 vé Sweetbox và sinh đủ 2 phần tử `seatSelections` gửi Backend.
+- **Seat & Order Hold Rule:** Hệ thống tách biệt 2 cấu hình thời hạn: (1) `SEAT_HOLD_MINUTES` (3–30 phút, mặc định 10) áp dụng cho giữ ghế trong phiên đặt vé trực tiếp (Online `BookingView.vue` và timer chọn ghế trên màn hình POS `TicketingPOS.vue`); (2) `POS_ORDER_HOLD_MINUTES` (3–60 phút, mặc định 15) áp dụng khi thu ngân bấm "Giữ đơn" để lưu đơn chờ tại quầy POS (`PendingOrderService.java` và Pinia store `usePosStore.js`). Cả hai đều được quản lý tập trung qua `SystemSettingService.java` và cấu hình tại `AdminSettings.vue`.
+- **Bank Account & VietQR Settings Rule:** Tại `AdminSettings.vue`, khối Tài khoản nhận tiền (QR chuyển khoản) phục vụ sinh mã VietQR cho cả Online (`BookingView.vue`) và POS (`TicketingPOS.vue`). Áp dụng nguyên tắc All-or-Nothing (hợp lệ khi đủ cả 3 trường Ngân hàng/STK/Chủ TK hoặc để trống cả 3). STK chỉ nhận số `0–9`, độ dài 4–20 số; Tên chủ tài khoản tự động chuẩn hóa IN HOA KHÔNG DẤU (A-Z và khoảng trắng, tối thiểu 2 ký tự). Kiểm tra và hiển thị lỗi trực tiếp (Inline Error đỏ `text-red-500`/`border-red-500`) theo thời gian thực khi người dùng thao tác, không dùng toast popup cho validate form.
+- **Invoice Snapshot & Ticket Details Synchronization Rule:** Toàn bộ thông tin giá vé (`BookingSeat.priceSnapshot`), đơn giá F&B (`BookingFnb.priceSnapshot`), tên món (`itemNameSnapshot`), phụ thu (`surchargeSnapshot`), và tổng thanh toán (`totalPrice`, `finalPrice`) được đóng băng tuyệt đối theo Snapshot lúc mua; cấm đọc `fnbItem.getPrice()` live trong `AdminBookingController.java` làm sai lệch tiền hoá đơn khi Admin sửa giá. Màn hình Lịch sử đặt vé (`BookingHistoryView.vue`) và Quản lý Hoá đơn (`AdminBookings.vue`) phải đồng bộ 100%: hiển thị riêng `seatTotal` cho dòng "Tiền vé & Ghế" (không lấy nhầm `originalPrice`), chuẩn hóa nhãn loại ghế (`VIP - Người lớn x1`), và hiển thị tùy chọn vị/nước dạng danh sách bullet point sạch sẽ (`• Option (+phụ thu)`), không hiển thị tiền tố `Ô chọn...`.
+- **Customer Booking History Filter Rule:** Màn hình Lịch sử đặt vé khách hàng (`/profile/history` qua `BookingController.java`) CHỈ hiển thị các đơn có trạng thái thành công (`CONFIRMED`, `COMPLETED`), tuyệt đối không trả về các đơn rác `HOLD`, `CANCELLED`, `EXPIRED`. Toàn bộ các trạng thái đơn vẫn được bảo toàn 100% trong Database và trên giao diện Quản trị Admin (`/admin/bookings`) để phục vụ đối soát tài chính và theo dõi vận hành.
+- **Admin Booking Details & Status Deduplication Rule:** Modal Chi tiết hoá đơn (`AdminBookings.vue`) áp dụng Bố cục 2 Cột Cân Bằng (Cột Trái: Suất chiếu $\rightarrow$ Vé $\rightarrow$ Bắp nước $\rightarrow$ QR Check-in ngang; Cột Phải: Khách hàng & Thu ngân $\rightarrow$ Tổng kết thanh toán). Tuân thủ nguyên tắc "1 Nhiệm vụ - 1 Nhãn duy nhất": Thanh Header nắm giữ duy nhất nhãn trạng thái tổng thể đơn (`HOÀN TẤT`, `HẾT HẠN`, `ĐÃ HUỶ`, `ĐANG GIỮ`); Tiêu đề QR chỉ hiển thị badge soát vé (`ĐÃ CHECK-IN`, `QUÁ HẠN SUẤT CHIẾU`, `CHƯA CHECK-IN`) khi đơn là vé hợp lệ, đơn hết hạn/huỷ chỉ làm mờ QR kèm chú thích nhẹ; Khối Thanh toán chỉ hiển thị nhãn dòng tiền thuần túy (`ĐÃ THANH TOÁN`, `CHỜ THANH TOÁN`, `CHƯA THANH TOÁN`); Chuẩn hóa text `"Tiền vé"` và `"Phương thức:"`, nghiêm cấm viết tắt `"PT:"`.

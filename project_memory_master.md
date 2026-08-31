@@ -330,3 +330,22 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 - **Chỉ hiển thị đơn thành công cho khách hàng:** API `GET /api/customer/bookings/history` (`BookingController.java`) sử dụng `findConfirmedByCustomerIdWithDetails` chỉ lấy các đơn có trạng thái `CONFIRMED` hoặc `COMPLETED`. Loại bỏ hoàn toàn các đơn rác `HOLD`, `CANCELLED`, `EXPIRED` khỏi màn hình của khách (`BookingHistoryView.vue`).
 - **Bảo toàn 100% dữ liệu đối soát:** Toàn bộ trạng thái đơn vẫn được lưu trữ đầy đủ trong Cơ sở dữ liệu và hiển thị trên màn hình Quản trị Admin (`AdminBookings.vue`) phục vụ đối soát tài chính, kế toán và xử lý sự cố.
 
+### 23. Chuẩn Hóa & Nâng Cấp Giao Diện Chi Tiết Hóa Đơn Quản Trị (Admin Booking Modal Redesign & Status Decluttering)
+- **Bố Cục 2 Cột Cân Bằng Thị Giác (Balanced 2-Column Master-Detail Layout):**
+  - Tái cấu trúc Modal Chi tiết hoá đơn (`AdminBookings.vue`) thành 2 cột cân xứng 50/50:
+    - **Cột Trái (Dịch vụ & Soát vé):** Thẻ Suất chiếu / Loại đơn $\rightarrow$ Danh sách Vé $\rightarrow$ Danh sách Bắp nước & Combo $\rightarrow$ Khung Mã QR Check-in (thiết kế dạng thanh ngang gọn gàng ở cuối cột).
+    - **Cột Phải (Chủ thể & Tài chính):** Thẻ Khách hàng & Thu ngân / Cổng TT $\rightarrow$ Khối Tổng kết thanh toán (Tiền vé, Bắp nước, Giảm giá, **TỔNG TIỀN**, Phương thức, Trạng thái).
+- **Tinh Gọn & Loại Bỏ Trùng Lặp Nhãn Trạng Thái (Status Deduplication):**
+  - **Nguyên tắc "1 Nhiệm vụ - 1 Nhãn duy nhất":**
+    - **Thanh Header:** Duy nhất 1 badge đại diện cốt lõi cho toàn bộ đơn hàng (`HOÀN TẤT`, `HẾT HẠN`, `ĐÃ HUỶ`, `ĐANG GIỮ`).
+    - **Khung Mã QR:** Chỉ hiển thị badge soát vé (`ĐÃ CHECK-IN`, `QUÁ HẠN SUẤT CHIẾU`, `CHƯA CHECK-IN`) khi đơn là vé hợp lệ (`CONFIRMED`/`COMPLETED`). Đơn Hết hạn/Đã huỷ/Đang giữ không hiển thị thêm badge lặp lại trên tiêu đề QR, ảnh QR được làm mờ/grayscale đi kèm dòng chú thích tinh gọn (*"Mã QR vô hiệu hoá do đơn hàng đã hết hạn/bị huỷ"*).
+    - **Khối Tổng kết thanh toán:** Rút gọn về 3 nhãn dòng tiền thuần túy: `ĐÃ THANH TOÁN` (Xanh lá), `CHỜ THANH TOÁN` (Vàng), `CHƯA THANH TOÁN` (Cam). Loại bỏ các hậu tố thừa thãi `(HẾT HẠN)`, `(ĐÃ HUỶ GIAO DỊCH)`.
+- **Chuẩn Hóa Wording & Nhãn Giao Diện:**
+  - Chuẩn hóa `"Tiền vé xem phim"` $\rightarrow$ `"Tiền vé"` (ngắn gọn, đối xứng hoàn hảo với *"Bắp nước & Combo"*).
+  - Chuẩn hóa `"PT:"` $\rightarrow$ `"Phương thức:"` (viết đầy đủ, chuyên nghiệp, không viết tắt cụt lủn).
+- **Bảo Vệ Đơn Hàng & Suất Chiếu Quá Hạn:**
+  - Bổ sung tab lọc `Hết hạn` (`EXPIRED`) trên bảng quản trị hoá đơn.
+  - Tự động nhận diện `isShowtimePast` để khóa/làm mờ mã QR khi suất chiếu đã kết thúc mà vé chưa được check-in.
+  - Khóa nút In lại hoá đơn đối với các đơn chưa hoàn tất thanh toán (`status !== 'CONFIRMED' && status !== 'COMPLETED'`).
+  - Khóa tính điểm thành viên (`detailRewardPoints = 0`) đối với đơn không thành công.
+

@@ -4,6 +4,29 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.9] — 2026-09-01
+
+### Enhanced & Redesigned — Nâng cấp Giao diện Chi tiết Hoá đơn Quản trị & Tinh gọn Nhãn Trạng thái (Admin Booking Modal & Status Decluttering)
+- **Bố cục 2 Cột Cân Bằng (`AdminBookings.vue`):**
+  - Tái cấu trúc Modal Chi tiết hoá đơn thành bố cục 2 cột Master-Detail cân xứng 50/50:
+    - **Cột Trái (Dịch vụ & Soát vé):** Thẻ Suất chiếu / Loại đơn $\rightarrow$ Danh sách Vé $\rightarrow$ Danh sách Bắp nước & Combo $\rightarrow$ Khung Mã QR Check-in dạng thanh ngang gọn gàng.
+    - **Cột Phải (Chủ thể & Tài chính):** Thẻ Khách hàng & Thu ngân / Cổng TT $\rightarrow$ Khối Tổng kết thanh toán (Tiền vé, Bắp nước, Giảm giá, **TỔNG TIỀN**, Phương thức, Trạng thái).
+- **Tinh Gọn & Loại Bỏ Trùng Lặp Nhãn Trạng Thái (Status Deduplication):**
+  - Áp dụng nguyên tắc *"1 Nhiệm vụ - 1 Nhãn duy nhất"*:
+    - **Header:** Duy nhất 1 badge đại diện cốt lõi cho toàn bộ đơn hàng (`HOÀN TẤT`, `HẾT HẠN`, `ĐÃ HUỶ`, `ĐANG GIỮ`).
+    - **Tiêu đề QR:** Chỉ hiển thị badge soát vé (`ĐÃ CHECK-IN`, `QUÁ HẠN SUẤT CHIẾU`, `CHƯA CHECK-IN`) khi đơn là vé hợp lệ. Đơn hết hạn/huỷ chỉ làm mờ ảnh QR kèm chú thích nhẹ (*"Mã QR vô hiệu hoá do đơn hàng đã hết hạn/bị huỷ"*), loại bỏ badge lặp lại.
+    - **Khối Tổng kết thanh toán:** Rút gọn về 3 nhãn dòng tiền thuần túy: `ĐÃ THANH TOÁN` (Xanh lá), `CHỜ THANH TOÁN` (Vàng), `CHƯA THANH TOÁN` (Cam). Loại bỏ các hậu tố thừa thãi `(HẾT HẠN)`, `(ĐÃ HUỶ GIAO DỊCH)`.
+- **Chuẩn Hóa Nhãn Text:**
+  - Đổi `"Tiền vé xem phim"` $\rightarrow$ `"Tiền vé"` (ngắn gọn, đối xứng hoàn hảo với *"Bắp nước & Combo"*).
+  - Đổi `"PT:"` $\rightarrow$ `"Phương thức:"` (viết đầy đủ, chuyên nghiệp, không viết tắt cụt lủn).
+- **Bảo Vệ Đơn Hàng & Suất Chiếu Quá Hạn:**
+  - Bổ sung tab lọc `Hết hạn` (`EXPIRED`) trên bảng quản trị hoá đơn.
+  - Tự động nhận diện `isShowtimePast` để khóa/làm mờ mã QR khi suất chiếu đã kết thúc mà vé chưa check-in.
+  - Khóa nút In lại hoá đơn đối với các đơn chưa hoàn tất thanh toán (`status !== 'CONFIRMED' && status !== 'COMPLETED'`).
+  - Khóa tính điểm thành viên (`detailRewardPoints = 0`) đối với đơn không thành công.
+
+---
+
 ## [1.6.8] — 2026-09-01
 
 ### Fixed & Standardized — Bảo toàn Snapshot Đơn giá F&B & Đồng bộ Chi tiết Vé Khách hàng (Invoice Snapshot & Ticket Details Synchronization)

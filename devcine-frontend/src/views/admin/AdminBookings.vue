@@ -90,11 +90,9 @@ const paymentStatusBadge = (s) => {
     case 'PAYING':
       return { label: 'CHỜ THANH TOÁN', cls: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' }
     case 'CANCELLED':
-      return { label: 'ĐÃ HUỶ GIAO DỊCH', cls: 'text-red-400 bg-red-400/10 border-red-400/20' }
     case 'EXPIRED':
-      return { label: 'CHƯA THANH TOÁN (HẾT HẠN)', cls: 'text-amber-400 bg-amber-400/10 border-amber-400/30' }
     default:
-      return { label: 'CHƯA THANH TOÁN', cls: 'text-gray-400 bg-gray-400/10 border-gray-400/20' }
+      return { label: 'CHƯA THANH TOÁN', cls: 'text-amber-400/90 bg-amber-400/10 border-amber-400/20' }
   }
 }
 
@@ -528,335 +526,354 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
       </div>
     </div>
 
-    <!-- Detail modal -->
+    <!-- Detail modal (Bố cục 2 Cột Dashboard Master-Detail) -->
     <transition name="fade">
-      <div v-if="showDetail" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showDetail = false">
-        <div class="w-full max-w-2xl max-h-[90vh] bg-surface border border-outline-variant/15 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+      <div v-if="showDetail" class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 sm:p-6" @click.self="showDetail = false">
+        <div class="w-full max-w-4xl max-h-[90vh] bg-surface border border-outline-variant/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
           <!-- Header Modal -->
-          <div class="px-7 py-5 border-b border-outline-variant/10 flex items-center justify-between">
-            <div class="flex items-center gap-3">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0 bg-surface-container-high/50">
+            <div class="flex items-center gap-2.5">
               <span class="material-symbols-outlined text-primary text-2xl">receipt_long</span>
-              <h3 class="text-xl font-headline font-extrabold uppercase tracking-wide text-on-surface">Chi tiết hoá đơn</h3>
+              <h3 class="text-lg font-headline font-extrabold uppercase tracking-wide text-on-surface">Chi tiết hoá đơn</h3>
             </div>
-            <button @click="showDetail = false" class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-colors">
+            <button @click="showDetail = false" class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-white/10 transition-colors">
               <span class="material-symbols-outlined text-xl">close</span>
             </button>
           </div>
 
-          <div v-if="isLoadingDetail" class="p-16 flex items-center justify-center">
-            <span class="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
+          <!-- Loading State -->
+          <div v-if="isLoadingDetail" class="p-20 flex flex-col items-center justify-center gap-3">
+            <span class="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span>
+            <p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Đang tải thông tin...</p>
           </div>
 
-          <div v-else-if="detail" class="p-7 space-y-6 overflow-y-auto custom-scrollbar">
-            <!-- Header Info: Mã đơn & Trạng thái & Kênh -->
-            <div class="flex justify-between items-start gap-4">
-              <div>
-                <p class="text-[10px] font-black text-primary uppercase tracking-widest">Mã đơn</p>
-                <p class="text-2xl font-black text-on-surface font-mono tracking-tight">{{ detail.bookingCode }}</p>
-                <p class="text-xs text-on-surface-variant font-medium mt-1">
-                  {{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }} &bull; 
-                  <span class="font-bold uppercase">{{ isPosOrder ? (detail.isConcession ? 'Bán nhanh F&B tại quầy' : 'Bán tại quầy') : 'Đặt vé trực tuyến (Online)' }}</span>
-                </p>
-              </div>
-              <span :class="statusBadge(detail.status).cls" class="inline-flex px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm">
-                {{ statusBadge(detail.status).label }}
-              </span>
-            </div>
-
-            <!-- Two Cards: Suất chiếu & Thông tin thanh toán -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <!-- Cột trái: Suất chiếu (hoặc Loại đơn) -->
-              <div v-if="detail.isConcession" class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between">
-                <div>
-                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Loại đơn</p>
-                  <p class="text-base font-extrabold text-on-surface">Bán nhanh bắp nước (F&amp;B)</p>
-                  <p class="text-xs text-on-surface-variant mt-1">{{ detail.roomName || 'Quầy Concession' }}</p>
-                  <p class="text-xs text-on-surface-variant mt-0.5">{{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }}</p>
+          <!-- Detail Body -->
+          <div v-else-if="detail" class="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-grow">
+            <!-- Top Summary Bar: Mã đơn, Thời gian, Kênh, Trạng thái -->
+            <div class="p-4 rounded-2xl bg-surface-container-high/60 border border-outline-variant/10 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                  <span class="material-symbols-outlined text-xl">confirmation_number</span>
                 </div>
-                <p class="text-xs text-on-surface-variant mt-2 pt-2 border-t border-outline-variant/10 font-medium">
-                  Rạp: <span class="text-on-surface font-bold">{{ detail.cinemaName || 'DevCine Landmark 81' }}</span>
-                </p>
-              </div>
-              <div v-else class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between">
-                <div>
-                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">Suất chiếu</p>
-                  <p class="text-base font-extrabold text-on-surface">{{ detail.movieTitle }}</p>
-                  <p class="text-xs text-on-surface-variant mt-1">{{ detail.formatName || '2D Phụ Đề' }} &bull; {{ detail.roomName }}</p>
-                  <p class="text-xs text-on-surface-variant mt-0.5 font-medium">
-                    {{ fmtDateTime(detail.showtimeStart).date }} {{ fmtDateTime(detail.showtimeStart).time }}{{ detail.showtimeEnd ? ` ~ ${fmtDateTime(detail.showtimeEnd).time}` : '' }}
-                  </p>
-                </div>
-                <p class="text-xs text-on-surface-variant mt-2 pt-2 border-t border-outline-variant/10 font-medium">
-                  Rạp: <span class="text-on-surface font-bold">{{ detail.cinemaName || 'DevCine Landmark 81' }}</span>
-                </p>
-              </div>
-
-              <!-- Cột phải: Thông tin thanh toán / Khách hàng -->
-              <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between">
-                <div>
-                  <div class="flex items-center justify-between gap-2 mb-1.5">
-                    <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Khách hàng</p>
-                    <span
-                      v-if="detail.membershipTier"
-                      :class="tierStyle(detail.membershipTier)"
-                      class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block"
-                    >
-                      Hạng {{ detail.membershipTier }}
-                    </span>
-                    <span
-                      v-else-if="detail.customerName && detail.customerName !== 'Khách tại quầy'"
-                      class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 inline-block"
-                    >
-                      Thành viên
-                    </span>
-                    <span
-                      v-else
-                      class="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-on-surface-variant/80 border border-outline-variant/10 inline-block"
-                    >
-                      Khách vãng lai
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-base font-black text-on-surface font-mono tracking-tight">{{ detail.bookingCode }}</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-on-surface-variant border border-outline-variant/10">
+                      {{ isPosOrder ? (detail.isConcession ? 'Bán nhanh F&B' : 'Quầy (POS)') : 'Đặt Online' }}
                     </span>
                   </div>
-
-                  <p class="text-base font-extrabold text-on-surface truncate">
-                    {{ customerNameDisplay }}
-                  </p>
-
-                  <div class="flex items-center justify-between text-xs mt-1 gap-2">
-                    <p v-if="detail.customerPhone" class="text-on-surface font-semibold font-mono tracking-wide text-xs truncate">
-                      {{ fmtPhone(detail.customerPhone) }}
-                    </p>
-                    <p v-else class="text-xs text-on-surface-variant/60 italic">
-                      Chưa có SĐT
-                    </p>
-
-                    <span
-                      v-if="detailRewardPoints > 0 && detail.customerName && detail.customerName !== 'Khách tại quầy'"
-                      class="text-[10px] font-bold text-primary shrink-0 bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20"
-                    >
-                      +{{ detailRewardPoints }} điểm
-                    </span>
-                  </div>
-                </div>
-
-                <div class="pt-2 mt-2 border-t border-outline-variant/10 space-y-0.5">
-                  <p class="text-xs text-on-surface-variant">
-                    Kênh: <b class="text-on-surface font-semibold">{{ isPosOrder ? 'Quầy / POS' : 'Website / App' }}</b>
-                  </p>
-                  <p v-if="isPosOrder" class="text-xs text-on-surface-variant">
-                    Thu ngân: <b class="text-on-surface font-semibold">{{ detail.checkedInBy || 'Đỗ Hoàng Minh' }}</b>
-                  </p>
-                  <p v-else class="text-xs text-on-surface-variant truncate">
-                    Cổng TT: <b class="text-on-surface font-semibold">{{ paymentLabel(detail.paymentMethod) }}</b>
-                    <span v-if="detail.paymentRef" class="font-mono text-[11px] text-on-surface-variant/80 ml-1">(Mã GD: #{{ detail.paymentRef }})</span>
+                  <p class="text-xs text-on-surface-variant mt-0.5">
+                    Thời gian tạo: <span class="text-on-surface font-semibold">{{ fmtDateTime(detail.createdAt).date }} {{ fmtDateTime(detail.createdAt).time }}</span>
                   </p>
                 </div>
+              </div>
+
+              <div class="flex items-center gap-2 shrink-0">
+                <span :class="statusBadge(detail.status).cls" class="inline-flex px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm">
+                  {{ statusBadge(detail.status).label }}
+                </span>
               </div>
             </div>
 
-            <!-- VÉ XEM PHIM (Ẩn khi là đơn F&B lẻ không có ghế) -->
-            <div v-if="detail.seats && detail.seats.length">
-              <div class="flex items-center gap-2 mb-2">
-                <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
-                  Vé xem phim ({{ detail.seats.length }})
-                </p>
-              </div>
-              <div class="rounded-2xl bg-surface-container-high border border-outline-variant/10 divide-y divide-outline-variant/5 overflow-hidden">
-                <div v-for="(g, i) in detailSeatGroups" :key="i" class="flex items-center justify-between p-3.5 px-4 hover:bg-white/[0.02] transition-colors">
-                  <div class="min-w-0">
-                    <p class="text-sm font-bold text-on-surface">
-                      {{ g.typeLabel }}<span v-if="g.ticketLabel" class="text-on-surface-variant font-medium"> - {{ g.ticketLabel }}</span>
-                      <span class="text-primary font-black ml-1.5">x{{ g.count }}</span>
-                    </p>
-                    <p class="text-[11px] text-on-surface-variant/80 mt-0.5 font-mono">Ghế: {{ g.seats.join(', ') }}</p>
+            <!-- BỐ CỤC 2 CỘT CÂN BẰNG (Master-Detail Grid) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <!-- CỘT TRÁI: SUẤT CHIẾU, VÉ, BẮP NƯỚC & MÃ QR SOÁT VÉ (col-span-7) -->
+              <div class="lg:col-span-7 space-y-4">
+                <!-- 1. Thẻ Suất chiếu / Loại đơn -->
+                <div v-if="detail.isConcession" class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between shadow-sm">
+                  <div>
+                    <div class="flex items-center gap-2 mb-1.5">
+                      <span class="w-1 h-3 rounded-full bg-primary"></span>
+                      <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Loại dịch vụ</p>
+                    </div>
+                    <p class="text-base font-extrabold text-on-surface">Bán nhanh bắp nước (F&amp;B)</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">{{ detail.roomName || 'Quầy Concession' }}</p>
                   </div>
-                  <div class="text-right shrink-0">
-                    <p class="text-sm font-black text-on-surface tabular-nums">{{ fmt(g.subtotal) }} đ</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- MÃ QR ĐƠN HÀNG (Khung QR trung tâm duy nhất đại diện cho toàn bộ đơn hàng) -->
-            <div v-if="!detail.isConcession">
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                  <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Mã QR đơn hàng</p>
-                </div>
-                <span
-                  v-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isOrderCheckedIn"
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-green-400 bg-green-400/10 border-green-400/20"
-                >
-                  ĐÃ CHECK-IN
-                </span>
-                <span
-                  v-else-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isShowtimePast"
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/30"
-                >
-                  QUÁ HẠN SUẤT CHIẾU
-                </span>
-                <span
-                  v-else-if="(detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED'"
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/20"
-                >
-                  CHƯA CHECK-IN
-                </span>
-                <span
-                  v-else-if="(detail.status || '').toUpperCase() === 'EXPIRED'"
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/30"
-                >
-                  ĐÃ HẾT HẠN
-                </span>
-                <span
-                  v-else-if="(detail.status || '').toUpperCase() === 'CANCELLED'"
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-red-400 bg-red-400/10 border-red-400/20"
-                >
-                  VÉ ĐÃ HUỶ
-                </span>
-                <span
-                  v-else
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-yellow-400 bg-yellow-400/10 border-yellow-400/20"
-                >
-                  ĐANG GIỮ CHỖ
-                </span>
-              </div>
-
-              <div class="p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden">
-                <div
-                  class="p-2 bg-white rounded-xl shadow-lg border border-black/10 inline-block transition-all"
-                  :class="{ 'opacity-25 grayscale blur-[0.5px]': isQrDisabled }"
-                >
-                  <img
-                    :src="`https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=0&data=${encodeURIComponent(detail.bookingCode)}`"
-                    alt="QR"
-                    class="w-28 h-28 block"
-                  />
-                </div>
-                <div>
-                  <p class="text-base font-black text-on-surface font-mono tracking-wider">{{ detail.bookingCode }}</p>
-                  <p v-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isOrderCheckedIn" class="text-[11px] text-green-400 font-medium mt-0.5">
-                    Mã QR đại diện cho toàn bộ đơn hàng (Đã check-in vào phòng)
-                  </p>
-                  <p v-else-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isShowtimePast" class="text-[11px] text-amber-400/90 font-semibold mt-0.5">
-                    Suất chiếu đã kết thúc &bull; Vé chưa được sử dụng / Mã QR không còn hiệu lực
-                  </p>
-                  <p v-else-if="(detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED'" class="text-[11px] text-on-surface-variant mt-0.5">
-                    Mã QR đại diện cho toàn bộ đơn hàng
-                  </p>
-                  <p v-else-if="(detail.status || '').toUpperCase() === 'EXPIRED'" class="text-[11px] text-amber-400 font-semibold mt-0.5">
-                    Đơn hàng đã hết hạn giữ chỗ/thanh toán &bull; Mã QR không còn hiệu lực
-                  </p>
-                  <p v-else-if="(detail.status || '').toUpperCase() === 'CANCELLED'" class="text-[11px] text-red-400 font-semibold mt-0.5">
-                    Đơn hàng đã bị huỷ &bull; Mã QR không còn hiệu lực
-                  </p>
-                  <p v-else class="text-[11px] text-yellow-400 font-semibold mt-0.5">
-                    Đơn hàng đang chờ thanh toán &bull; Chưa phát hành vé chính thức
+                  <p class="text-xs text-on-surface-variant mt-3 pt-2.5 border-t border-outline-variant/10 font-medium">
+                    Rạp: <span class="text-on-surface font-bold">{{ detail.cinemaName || 'DevCine Landmark 81' }}</span>
                   </p>
                 </div>
-              </div>
-            </div>
-
-            <!-- BẮP NƯỚC & COMBO -->
-            <div v-if="detail.fnbs && detail.fnbs.length">
-              <div class="flex items-center gap-2 mb-2">
-                <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Bắp nước &amp; Combo</p>
-              </div>
-              <div class="space-y-2.5">
-                <div
-                  v-for="(f, i) in detail.fnbs"
-                  :key="i"
-                  class="p-3.5 px-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 hover:bg-white/[0.02] transition-colors"
-                >
-                  <div class="flex justify-between items-start gap-3">
-                    <div class="min-w-0">
-                      <div class="flex items-baseline gap-1.5 flex-wrap">
-                        <span class="text-sm font-bold text-on-surface">{{ f.name }}</span>
-                        <span v-if="fnbTotalSurcharge(f) > 0" class="text-xs text-on-surface-variant font-normal">
-                          (Gốc: {{ fmt(fnbBasePrice(f)) }}đ)
-                        </span>
-                        <span class="text-xs font-black text-primary ml-1">x{{ f.quantity }}</span>
+                <div v-else class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between shadow-sm">
+                  <div>
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                      <div class="flex items-center gap-2">
+                        <span class="w-1 h-3 rounded-full bg-primary"></span>
+                        <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Suất chiếu</p>
                       </div>
-                      <!-- Danh sách vị/option kèm phụ thu -->
-                      <div v-if="f.options && f.options.length" class="mt-1.5 space-y-0.5">
-                        <p v-for="(o, oi) in f.options" :key="oi" class="text-xs text-on-surface-variant flex items-center gap-1.5 pl-1">
-                          <span class="text-on-surface-variant/60">&bull;</span>
-                          <span>{{ o.optionName }}</span>
-                          <span v-if="Number(o.surcharge) > 0" class="text-amber-400 font-semibold">(+{{ fmt(o.surcharge) }}đ)</span>
+                      <span v-if="detail.formatName" class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        {{ detail.formatName }}
+                      </span>
+                    </div>
+                    <p class="text-base font-extrabold text-on-surface" :title="detail.movieTitle">{{ detail.movieTitle }}</p>
+                    <p class="text-xs text-on-surface-variant mt-1 font-medium">
+                      {{ detail.roomName }} &bull; <span class="text-on-surface font-semibold">{{ fmtDateTime(detail.showtimeStart).date }} {{ fmtDateTime(detail.showtimeStart).time }}{{ detail.showtimeEnd ? ` ~ ${fmtDateTime(detail.showtimeEnd).time}` : '' }}</span>
+                    </p>
+                  </div>
+                  <p class="text-xs text-on-surface-variant mt-3 pt-2.5 border-t border-outline-variant/10 font-medium">
+                    Rạp: <span class="text-on-surface font-bold">{{ detail.cinemaName || 'DevCine Landmark 81' }}</span>
+                  </p>
+                </div>
+
+                <!-- 2. Danh sách Vé xem phim -->
+                <div v-if="detail.seats && detail.seats.length">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="w-1 h-3 rounded-full bg-primary"></span>
+                    <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
+                      Vé xem phim ({{ detail.seats.length }})
+                    </p>
+                  </div>
+                  <div class="rounded-2xl bg-surface-container-high border border-outline-variant/10 divide-y divide-outline-variant/5 overflow-hidden shadow-sm">
+                    <div v-for="(g, i) in detailSeatGroups" :key="i" class="flex items-center justify-between p-3.5 px-4 hover:bg-white/[0.02] transition-colors">
+                      <div class="min-w-0">
+                        <p class="text-xs font-bold text-on-surface">
+                          {{ g.typeLabel }}<span v-if="g.ticketLabel" class="text-on-surface-variant font-medium"> - {{ g.ticketLabel }}</span>
+                          <span class="text-primary font-black ml-1.5">x{{ g.count }}</span>
                         </p>
+                        <p class="text-[11px] text-on-surface-variant/80 mt-0.5 font-mono">Ghế: {{ g.seats.join(', ') }}</p>
+                      </div>
+                      <div class="text-right shrink-0">
+                        <p class="text-xs font-black text-on-surface tabular-nums font-mono">{{ fmt(g.subtotal) }} đ</p>
                       </div>
                     </div>
-                    <span class="text-sm font-black text-on-surface tabular-nums shrink-0">{{ fmt(fnbLineTotal(f)) }} đ</span>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <!-- CHI TIẾT THANH TOÁN (CARD SANG TRỌNG, RÕ RÀNG & THOÁNG MẮT) -->
-            <div>
-              <div class="flex items-center gap-2 mb-2.5">
-                <span class="w-1 h-3.5 rounded-full bg-primary"></span>
-                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
-                  Chi tiết thanh toán
-                </p>
-              </div>
-
-              <div class="p-4 sm:p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10 shadow-sm space-y-3.5">
-                <!-- Danh sách các khoản tiền -->
-                <div class="space-y-2.5 text-xs">
-                  <div v-if="!detail.isConcession && detailSeatTotal > 0" class="flex justify-between items-center text-on-surface-variant">
-                    <span class="font-medium">Tiền vé xem phim</span>
-                    <span class="tabular-nums font-semibold font-mono text-on-surface text-sm">{{ fmt(detailSeatTotal) }} đ</span>
+                <!-- 3. Danh sách Bắp nước & Combo -->
+                <div v-if="detail.fnbs && detail.fnbs.length">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="w-1 h-3 rounded-full bg-primary"></span>
+                    <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Bắp nước &amp; Combo</p>
                   </div>
-
-                  <div v-if="detailComboTotal > 0" class="flex justify-between items-center text-on-surface-variant">
-                    <span class="font-medium">Bắp nước &amp; Combo</span>
-                    <span class="tabular-nums font-semibold font-mono text-on-surface text-sm">{{ fmt(detailComboTotal) }} đ</span>
-                  </div>
-
-                  <div class="flex justify-between items-center text-on-surface-variant">
-                    <span class="font-medium">Khuyến mãi / Giảm giá</span>
-                    <span
-                      class="tabular-nums font-semibold font-mono text-sm"
-                      :class="detailDiscount > 0 ? 'text-green-400 font-bold' : 'text-on-surface-variant'"
+                  <div class="space-y-2">
+                    <div
+                      v-for="(f, i) in detail.fnbs"
+                      :key="i"
+                      class="p-3.5 px-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 hover:bg-white/[0.02] transition-colors shadow-sm"
                     >
-                      {{ detailDiscount > 0 ? `−${fmt(detailDiscount)} đ` : '0 đ' }}
-                    </span>
+                      <div class="flex justify-between items-start gap-3">
+                        <div class="min-w-0">
+                          <div class="flex items-baseline gap-1.5 flex-wrap">
+                            <span class="text-xs font-bold text-on-surface">{{ f.name }}</span>
+                            <span v-if="fnbTotalSurcharge(f) > 0" class="text-[11px] text-on-surface-variant font-normal">
+                              (Gốc: {{ fmt(fnbBasePrice(f)) }}đ)
+                            </span>
+                            <span class="text-xs font-black text-primary ml-1">x{{ f.quantity }}</span>
+                          </div>
+                          <!-- Danh sách vị/option kèm phụ thu -->
+                          <div v-if="f.options && f.options.length" class="mt-1 space-y-0.5">
+                            <p v-for="(o, oi) in f.options" :key="oi" class="text-[11px] text-on-surface-variant flex items-center gap-1.5 pl-1">
+                              <span class="text-on-surface-variant/60">&bull;</span>
+                              <span>{{ o.optionName }}</span>
+                              <span v-if="Number(o.surcharge) > 0" class="text-amber-400 font-semibold">(+{{ fmt(o.surcharge) }}đ)</span>
+                            </p>
+                          </div>
+                        </div>
+                        <span class="text-xs font-black text-on-surface tabular-nums font-mono shrink-0">{{ fmt(fnbLineTotal(f)) }} đ</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Divider nét đứt phân tách -->
-                <div class="border-t border-dashed border-outline-variant/20 pt-3">
-                  <div class="flex justify-between items-baseline">
-                    <span class="text-xs font-headline font-extrabold text-on-surface uppercase tracking-widest">
-                      TỔNG THANH TOÁN:
+                <!-- 4. Mã QR Check-in (Thanh ngang gọn gàng ở cuối cột trái) -->
+                <div v-if="!detail.isConcession">
+                  <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                      <span class="w-1 h-3 rounded-full bg-primary"></span>
+                      <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Mã QR Check-in</p>
+                    </div>
+                    <!-- Chỉ hiển thị badge soát vé khi đơn thành công (CONFIRMED / COMPLETED) -->
+                    <span
+                      v-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isOrderCheckedIn"
+                      class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border text-green-400 bg-green-400/10 border-green-400/20"
+                    >
+                      ĐÃ CHECK-IN
                     </span>
-                    <span class="text-2xl font-headline font-black text-primary tabular-nums tracking-tight">
-                      {{ fmt(detailFinalPrice) }} đ
+                    <span
+                      v-else-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isShowtimePast"
+                      class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/30"
+                    >
+                      QUÁ HẠN SUẤT CHIẾU
                     </span>
+                    <span
+                      v-else-if="(detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED'"
+                      class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/20"
+                    >
+                      CHƯA CHECK-IN
+                    </span>
+                  </div>
+
+                  <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex items-center gap-4 shadow-sm relative overflow-hidden">
+                    <div
+                      class="p-2 bg-white rounded-xl shadow-md border border-black/10 shrink-0 transition-all"
+                      :class="{ 'opacity-25 grayscale blur-[0.5px]': isQrDisabled }"
+                    >
+                      <img
+                        :src="`https://api.qrserver.com/v1/create-qr-code/?size=95x95&margin=0&data=${encodeURIComponent(detail.bookingCode)}`"
+                        alt="QR"
+                        class="w-20 h-20 block"
+                      />
+                    </div>
+                    <div class="min-w-0 space-y-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-on-surface-variant font-mono">Mã soát vé:</span>
+                        <span class="text-sm font-black text-on-surface font-mono tracking-wider">{{ detail.bookingCode }}</span>
+                      </div>
+                      <p v-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isOrderCheckedIn" class="text-xs text-green-400 font-medium leading-relaxed">
+                        Mã QR đã check-in vào phòng chiếu thành công.
+                      </p>
+                      <p v-else-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isShowtimePast" class="text-xs text-amber-400/90 font-semibold leading-relaxed">
+                        Suất chiếu đã kết thúc &bull; Vé không còn hiệu lực sử dụng.
+                      </p>
+                      <p v-else-if="(detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED'" class="text-xs text-on-surface-variant leading-relaxed">
+                        Quét mã QR tại cổng soát vé để vào phòng chiếu.
+                      </p>
+                      <p v-else-if="(detail.status || '').toUpperCase() === 'EXPIRED'" class="text-xs text-amber-400/90 font-medium leading-relaxed">
+                        Mã QR vô hiệu hoá do đơn hàng đã hết hạn.
+                      </p>
+                      <p v-else-if="(detail.status || '').toUpperCase() === 'CANCELLED'" class="text-xs text-red-400/90 font-medium leading-relaxed">
+                        Mã QR vô hiệu hoá do đơn hàng đã bị huỷ.
+                      </p>
+                      <p v-else class="text-xs text-yellow-400/90 font-medium leading-relaxed">
+                        Đơn chờ thanh toán &bull; Chưa phát hành vé.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CỘT PHẢI: KHÁCH HÀNG & TỔNG KẾT THANH TOÁN (col-span-5) -->
+              <div class="lg:col-span-5 space-y-4">
+                <!-- 1. Card Khách hàng & Người phục vụ -->
+                <div>
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="w-1 h-3 rounded-full bg-primary"></span>
+                    <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
+                      Thông tin khách hàng
+                    </p>
+                  </div>
+                  <div class="p-4 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col justify-between shadow-sm space-y-3">
+                    <div>
+                      <div class="flex items-center justify-between gap-1 mb-1.5">
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Khách hàng</span>
+                        <span
+                          v-if="detail.membershipTier"
+                          :class="tierStyle(detail.membershipTier)"
+                          class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block"
+                        >
+                          Hạng {{ detail.membershipTier }}
+                        </span>
+                        <span
+                          v-else-if="detail.customerName && detail.customerName !== 'Khách tại quầy'"
+                          class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 inline-block"
+                        >
+                          Thành viên
+                        </span>
+                        <span
+                          v-else
+                          class="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-on-surface-variant/80 border border-outline-variant/10 inline-block"
+                        >
+                          Khách vãng lai
+                        </span>
+                      </div>
+
+                      <p class="text-base font-extrabold text-on-surface truncate">
+                        {{ customerNameDisplay }}
+                      </p>
+
+                      <div class="flex items-center justify-between text-xs mt-1 gap-1">
+                        <p v-if="detail.customerPhone" class="text-on-surface font-semibold font-mono text-xs truncate">
+                          {{ fmtPhone(detail.customerPhone) }}
+                        </p>
+                        <p v-else class="text-xs text-on-surface-variant/60 italic">
+                          Chưa có SĐT
+                        </p>
+                        <span
+                          v-if="detailRewardPoints > 0 && detail.customerName && detail.customerName !== 'Khách tại quầy'"
+                          class="text-[10px] font-bold text-primary shrink-0 bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20"
+                        >
+                          +{{ detailRewardPoints }} điểm
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="pt-2.5 border-t border-outline-variant/10 text-xs text-on-surface-variant space-y-1">
+                      <p v-if="isPosOrder">
+                        Thu ngân: <b class="text-on-surface font-semibold">{{ detail.checkedInBy || 'Đỗ Hoàng Minh' }}</b>
+                      </p>
+                      <p v-else class="truncate">
+                        Cổng TT: <b class="text-on-surface font-semibold">{{ paymentLabel(detail.paymentMethod) }}</b>
+                        <span v-if="detail.paymentRef" class="font-mono text-[10px] text-on-surface-variant/70 ml-1">(#{{ detail.paymentRef }})</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Phương thức thanh toán & Trạng thái -->
-                <div class="pt-3 border-t border-outline-variant/10 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div class="flex items-center gap-1.5 text-on-surface-variant">
-                    <span>Phương thức:</span>
-                    <b class="text-on-surface font-bold">{{ paymentLabelFull(detail.paymentMethod) }}</b>
+                <!-- 2. Khối Tổng kết thanh toán (Biên lai tóm tắt) -->
+                <div>
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="w-1 h-3 rounded-full bg-primary"></span>
+                    <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
+                      Tổng kết thanh toán
+                    </p>
                   </div>
-                  <span
-                    :class="paymentStatusBadge(detail.status).cls"
-                    class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm"
-                  >
-                    {{ paymentStatusBadge(detail.status).label }}
-                  </span>
+
+                  <div class="p-4 sm:p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10 shadow-sm space-y-3.5">
+                    <!-- Danh sách các khoản tiền -->
+                    <div class="space-y-2.5 text-xs">
+                      <div v-if="!detail.isConcession && detailSeatTotal > 0" class="flex justify-between items-center text-on-surface-variant">
+                        <span class="font-medium">Tiền vé</span>
+                        <span class="tabular-nums font-semibold font-mono text-on-surface">{{ fmt(detailSeatTotal) }} đ</span>
+                      </div>
+
+                      <div v-if="detailComboTotal > 0" class="flex justify-between items-center text-on-surface-variant">
+                        <span class="font-medium">Bắp nước &amp; Combo</span>
+                        <span class="tabular-nums font-semibold font-mono text-on-surface">{{ fmt(detailComboTotal) }} đ</span>
+                      </div>
+
+                      <div class="flex justify-between items-center text-on-surface-variant">
+                        <span class="font-medium">Khuyến mãi / Giảm giá</span>
+                        <span
+                          class="tabular-nums font-semibold font-mono"
+                          :class="detailDiscount > 0 ? 'text-green-400 font-bold' : 'text-on-surface-variant'"
+                        >
+                          {{ detailDiscount > 0 ? `−${fmt(detailDiscount)} đ` : '0 đ' }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Divider nét đứt phân tách -->
+                    <div class="border-t border-dashed border-outline-variant/20 pt-3">
+                      <div class="flex justify-between items-baseline">
+                        <span class="text-xs font-headline font-extrabold text-on-surface uppercase tracking-widest">
+                          TỔNG TIỀN:
+                        </span>
+                        <span class="text-2xl font-headline font-black text-primary tabular-nums tracking-tight">
+                          {{ fmt(detailFinalPrice) }} đ
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Phương thức thanh toán & Trạng thái -->
+                    <div class="pt-3 border-t border-outline-variant/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div class="flex items-center gap-1.5 text-on-surface-variant min-w-0">
+                        <span>Phương thức:</span>
+                        <b class="text-on-surface font-bold truncate text-xs">{{ paymentLabelFull(detail.paymentMethod) }}</b>
+                      </div>
+                      <span
+                        :class="paymentStatusBadge(detail.status).cls"
+                        class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm shrink-0"
+                      >
+                        {{ paymentStatusBadge(detail.status).label }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Footer Buttons -->
-          <div class="px-7 py-4 border-t border-outline-variant/10 flex justify-end gap-3 flex-shrink-0">
+          <div class="px-6 py-4 border-t border-outline-variant/10 flex justify-end gap-3 flex-shrink-0 bg-surface-container-high/30">
             <button @click="showDetail = false" class="px-6 py-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-white/5 font-bold text-xs uppercase tracking-widest transition-colors">
               Đóng
             </button>
