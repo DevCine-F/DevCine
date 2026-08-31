@@ -141,7 +141,20 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
     + Nạp đồng bộ toàn bộ danh mục (`movies`, `formats`, `rooms`) trước khi bind dữ liệu vào form.
     + Giữ lại đầy đủ các khung giờ trong `hourOptions` và `minuteOptions` để dropdown luôn hiển thị chính xác giờ đã có của suất chiếu, đánh dấu `disabled` thay vì lọc bỏ khỏi mảng.
     + Sửa lỗi chuỗi ngày tháng bị trùng lặp năm (`selectedDateDisplay`).
-  - **Tuân thủ quy chuẩn UI:** Loại bỏ hoàn toàn emoji `🔒` trên nhãn giao diện, chuyển sang Material Symbols `<span class="material-symbols-outlined">lock</span>`.
+  - **Tuân thủ quy chuẩn UI:** Loại bỏ hoàn toàn emoji trên nhãn giao diện, chuyển sang Material Symbols `<span class="material-symbols-outlined">lock</span>`.
 
-
-
+### 19. Chuẩn Hóa Số Lượng Vé & Bộ Đếm Cho Ghế Đôi Sweetbox Tại Quầy POS (Sweetbox Capacity & Stepper Guard)
+- **Sức chứa & Tự động gán 2 vé cho Sweetbox (`TicketingPOS.vue`):**
+  - Đồng bộ logic sức chứa (`seatCapacity`): Ghế đơn (NORMAL, VIP) = 1 vé, Ghế đôi (SWEETBOX) = 2 vé.
+  - Tổng số vé yêu cầu (`totalRequiredTickets`) tính theo tổng sức chứa của các ghế đã chọn.
+  - Khi vào Bước 3 (Xác nhận vé & loại ghế), hệ thống tự động gán `NGƯỜI LỚN = totalRequiredTickets` (ví dụ chọn 1 ghế Sweetbox tự động là 2 vé Người lớn, trạng thái hiển thị: `Đã gán: 2/2 vé`).
+- **Khóa nút `[-]` khi số vé đạt trần yêu cầu (Stepper Guard):**
+  - Vô hiệu hóa nút `[-]` (`disabled = true`) khi số lượng vé của loại đối tượng đó $\le 0$ HOẶC đang bằng đúng `totalRequiredTickets` (ví dụ `NGƯỜI LỚN = 2` trên tổng 2 vé của Sweetbox hoặc `NGƯỜI LỚN = 1` trên 1 vé của ghế đơn).
+  - Ngăn chặn triệt để tình trạng nhân viên bấm giảm làm rơi vào trạng thái thiếu vé ($1/2$ vé hoặc $0/1$ vé).
+- **Cơ chế chuyển đổi thông minh (Auto Balance / 1-Click Transfer):**
+  - Chuyển đổi đối tượng bằng cách bấm `[+]` ở loại mong muốn (ví dụ `U22 / HSSV`), hệ thống tự động bớt 1 vé Người lớn và cộng 1 vé sang HSSV.
+  - Khi đã phân bổ (`1 Người lớn + 1 HSSV`), bấm `[-]` ở HSSV sẽ tự động hoàn vé về lại cho Người lớn, bảo toàn tổng số vé luôn luôn bằng 100% số vé yêu cầu.
+- **Tính đúng tổng tiền ghế & Đồng bộ Backend Payload:**
+  - `priceOf(seat)` tính tổng giá cho cả 2 vé của ghế Sweetbox ($2 \times 105.000đ = 210.000đ$).
+  - `buildSeatSelections()` sinh đủ 2 phần tử vé cho mỗi ghế Sweetbox trong payload gửi lên Backend (`BookingService.java`), giải quyết dứt điểm lỗi ngoại lệ thiếu vé khi tạo đơn và thanh toán.
+  - Hóa đơn in nhiệt K80 (`printInvoice`) và Biên lai tạm tính hiển thị đầy đủ số ghế và số vé.

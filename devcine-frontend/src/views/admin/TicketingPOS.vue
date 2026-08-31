@@ -88,6 +88,8 @@ const auth = useAuthStore()
 const canOverrideOrphan = computed(() => auth.isAdmin || auth.isManager)
 
 const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
+// Sức chứa theo loại ghế: Ghế đơn (NORMAL, VIP) = 1 vé; Ghế đôi (SWEETBOX) = 2 vé
+const seatCapacity = (seat) => (seat && seat.seatType === 'SWEETBOX' ? 2 : 1)
 
 const DEFAULT_AUDIENCE_LABELS = { ADULT: 'Người lớn', U22: 'U22 / HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }
 // Lưu bảng giá + nhãn đối tượng từ response ghế để đổi loại vé không cần gọi lại server
@@ -96,56 +98,89 @@ const captureSeatMeta = (data) => {
   if (data && data.audienceLabels && Object.keys(data.audienceLabels).length) audienceLabels.value = data.audienceLabels
   if (!Object.keys(audienceLabels.value).length) audienceLabels.value = DEFAULT_AUDIENCE_LABELS
 }
-// Giá 1 ghế theo loại vé đang chọn (fallback về giá ADULT sẵn có nếu thiếu bảng giá)
+// Giá 1 ghế theo loại vé đang chọn (với SWEETBOX tính tổng 2 vé, fallback về giá ADULT sẵn có nếu thiếu bảng giá)
 const priceOf = (seat) => {
-  const t = seat.ticketType || 'ADULT'
+  if (!seat) return 0
+  const cap = seatCapacity(seat)
+  const types = (seat.ticketTypes && seat.ticketTypes.length > 0)
+    ? seat.ticketTypes
+    : [seat.ticketType || 'ADULT']
+  
   const byType = priceTable.value[seat.seatType]
-  const p = byType ? byType[t] : null
-  return Number(p != null ? p : (seat.price || 0))
+  let total = 0
+  for (let i = 0; i < cap; i++) {
+    const t = types[i] || types[0] || 'ADULT'
+    const p = byType ? byType[t] : null
+    total += Number(p != null ? p : (seat.price || 0))
+  }
+  return total
 }
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 
 // ===== Loại vé theo SỐ LƯỢNG (counter) thay cho dropdown từng ghế =====
-// Nguồn sự thật hiển thị là số lượng theo đối tượng; khi khớp đủ số ghế sẽ gán
-// ticketType cho từng ghế (theo thứ tự) để giữ nguyên cách tính giá + payload.
+// Nguồn sự thật hiển thị là số lượng theo đối tượng; khi khớp đủ số vé yêu cầu (capacity) sẽ gán
+// ticketTypes cho từng ghế (theo thứ tự) để giữ nguyên cách tính giá + payload.
+const totalRequiredTickets = computed(() =>
+  selectedSeats.value.reduce((sum, s) => sum + seatCapacity(s), 0)
+)
 const ticketCounts = ref({}) // mã đối tượng -> số vé
 const totalTicketCount = computed(() =>
   Object.values(ticketCounts.value).reduce((a, b) => a + (Number(b) || 0), 0))
 const ticketsMatchSeats = computed(() =>
-  selectedSeats.value.length > 0 && totalTicketCount.value === selectedSeats.value.length)
+  selectedSeats.value.length > 0 && totalTicketCount.value === totalRequiredTickets.value)
 
-// Dựng lại counts: mặc định toàn bộ ghế chuyển thành ADULT khi vào bước xác nhận
+// Dựng lại counts: mặc định toàn bộ vé chuyển thành ADULT khi vào bước xác nhận (Sweetbox = 2 vé)
 const syncTicketCountsFromSeats = () => {
   const counts = {}
   Object.keys(audienceLabels.value).forEach(k => { counts[k] = 0 })
-  counts.ADULT = selectedSeats.value.length
+  counts.ADULT = totalRequiredTickets.value
   ticketCounts.value = counts
   assignTicketCountsToSeats()
 }
 
-// Gán loại vé cho từng ghế theo counts (thứ tự ghế) → priceOf/seatTypeBreakdown tự cập nhật
+// Gán loại vé cho từng ghế theo counts (thứ tự ghế, Sweetbox nhận đủ 2 vé) → priceOf/seatTypeBreakdown tự cập nhật
 const assignTicketCountsToSeats = () => {
   const order = []
   for (const [code, qty] of Object.entries(ticketCounts.value)) {
     for (let i = 0; i < (Number(qty) || 0); i++) order.push(code)
   }
-  selectedSeats.value.forEach((s, i) => { s.ticketType = order[i] || 'ADULT' })
+  let orderIdx = 0
+  selectedSeats.value.forEach((s) => {
+    const cap = seatCapacity(s)
+    const types = []
+    for (let j = 0; j < cap; j++) {
+      types.push(order[orderIdx] || 'ADULT')
+      orderIdx++
+    }
+    s.ticketTypes = types
+    s.ticketType = types[0] || 'ADULT'
+  })
 }
 
 const setTicketCount = (code, delta) => {
-  const maxSeats = selectedSeats.value.length
+  const maxTickets = totalRequiredTickets.value
   const cur = Number(ticketCounts.value[code] || 0)
 
   if (delta < 0) {
-    const next = Math.max(0, cur + delta)
-    ticketCounts.value = { ...ticketCounts.value, [code]: next }
+    if (cur <= 0 || cur === maxTickets) return
+    // Trả vé về cho ADULT (hoặc loại khác) để tổng số vé luôn bảo toàn bằng totalRequiredTickets
+    const next = Math.max(0, cur - 1)
+    if (code !== 'ADULT') {
+      ticketCounts.value = {
+        ...ticketCounts.value,
+        [code]: next,
+        ADULT: Number(ticketCounts.value.ADULT || 0) + 1
+      }
+    } else {
+      ticketCounts.value = { ...ticketCounts.value, [code]: next }
+    }
   } else if (delta > 0) {
     const totalAssigned = totalTicketCount.value
 
-    if (totalAssigned < maxSeats) {
+    if (totalAssigned < maxTickets) {
       ticketCounts.value = { ...ticketCounts.value, [code]: cur + delta }
-    } else if (totalAssigned === maxSeats && cur < maxSeats) {
+    } else if (totalAssigned === maxTickets && cur < maxTickets) {
       // 1-click transfer: bớt 1 vé từ loại khác (ưu tiên ADULT) sang loại được bấm
       let sourceType = 'ADULT'
       if (sourceType === code || !ticketCounts.value[sourceType]) {
@@ -529,7 +564,11 @@ const performRestore = async (o) => {
     for (const s of (o.seats || [])) {
       const cur = byId.get(s.seatId)
       // Check if it's still HOLD by us, or AVAILABLE
-      if (cur && (cur.status === 'AVAILABLE' || cur.status === 'HOLD')) { cur.ticketType = s.ticketType || 'ADULT'; restored.push(cur) } else lost.push(s)
+      if (cur && (cur.status === 'AVAILABLE' || cur.status === 'HOLD')) {
+        cur.ticketType = s.ticketType || 'ADULT'
+        cur.ticketTypes = s.ticketTypes || Array.from({ length: seatCapacity(cur) }, () => s.ticketType || 'ADULT')
+        restored.push(cur)
+      } else lost.push(s)
     }
     selectedSeats.value = restored
     if (lost.length) {
@@ -1058,12 +1097,14 @@ const toggleSeat = (seat) => {
       showToast(`Ghế ${seatLabel(seat)} vừa được chọn hoặc đã được bán ở quầy khác. Vui lòng chọn vị trí ghế khác!`, 'error')
       return
     }
-    // Chặn sớm khi vượt giới hạn số vé/lần đặt (chống phe vé) — khớp với ràng buộc backend
-    if (selectedSeats.value.length >= maxTicketsPerBooking.value) {
+    // Chặn sớm khi vượt giới hạn số vé/lần đặt (chống phe vé) — tính theo sức chứa thực tế
+    const nextCap = seatCapacity(seat)
+    if (totalRequiredTickets.value + nextCap > maxTicketsPerBooking.value) {
       showToast(`Mỗi lần đặt tối đa ${maxTicketsPerBooking.value} vé.`, 'error')
       return
     }
     seat.ticketType = seat.ticketType || 'ADULT'
+    seat.ticketTypes = Array.from({ length: nextCap }, () => 'ADULT')
     selectedSeats.value.push(seat)
     seatRealtime.select(seat.seatId) // giữ ghế trên server (ai click trước thắng)
   }
@@ -1321,7 +1362,7 @@ const openQrModal = async () => {
     const payload = {
       showtimeId: selectedShowtime.value.id,
       seatIds: selectedSeats.value.map(s => s.seatId),
-      seatSelections: selectedSeats.value.map(s => ({ seatId: s.seatId, ticketType: s.ticketType || 'ADULT' })),
+      seatSelections: buildSeatSelections(),
       fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
@@ -1420,6 +1461,18 @@ const selectedOwnedVoucher = computed(() =>
   ownedVouchers.value.find(v => v.code === voucherCodeInput.value) || null)
 const selectVoucher = (v) => { voucherCodeInput.value = v.code; showVoucherDropdown.value = false }
 
+// Tạo danh sách gán vé chuẩn hóa gửi backend (ghế Sweetbox sinh đủ 2 phần tử ticketType)
+const buildSeatSelections = () => {
+  return selectedSeats.value.flatMap(s => {
+    const cap = seatCapacity(s)
+    const types = (s.ticketTypes && s.ticketTypes.length > 0) ? s.ticketTypes : [s.ticketType || 'ADULT']
+    return Array.from({ length: cap }, (_, i) => ({
+      seatId: s.seatId,
+      ticketType: types[i] || types[0] || 'ADULT'
+    }))
+  })
+}
+
 const processPayment = async (method) => {
   if (isHolding.value || isPaying.value || qrHoldLoading.value) return
   if (saleMode.value === 'FNB') return processConcessionPayment(method)
@@ -1433,7 +1486,7 @@ const processPayment = async (method) => {
     const payload = {
       showtimeId: selectedShowtime.value.id,
       seatIds: selectedSeats.value.map(s => s.seatId),
-      seatSelections: selectedSeats.value.map(s => ({ seatId: s.seatId, ticketType: s.ticketType || 'ADULT' })),
+      seatSelections: buildSeatSelections(),
       fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
@@ -1513,11 +1566,21 @@ const printInvoice = () => {
     cinemaAddress: auth.user?.cinema?.address || 'Tầng 3, TTTM DevCine Plaza, Hà Nội',
     printedAt: new Date(),
     paymentMethod: paymentMethod.value,
-    seats: selectedSeats.value.map(s => ({
-      seatLabel: seatLabel(s),
-      ticketType: s.ticketType || 'ADULT',
-      price: s.price || 0
-    })),
+    seats: selectedSeats.value.flatMap(s => {
+      const cap = seatCapacity(s)
+      const types = (s.ticketTypes && s.ticketTypes.length > 0) ? s.ticketTypes : [s.ticketType || 'ADULT']
+      const byType = priceTable.value[s.seatType]
+      return Array.from({ length: cap }, (_, i) => {
+        const t = types[i] || types[0] || 'ADULT'
+        const p = byType ? byType[t] : null
+        const price = Number(p != null ? p : (s.price || 0))
+        return {
+          seatLabel: seatLabel(s),
+          ticketType: t,
+          price: price
+        }
+      })
+    }),
     fnbs: selectedCombos.value.map(c => ({
       name: c.name,
       quantity: c.quantity,
@@ -1930,7 +1993,7 @@ onUnmounted(() => {
 
           <div class="flex-grow overflow-y-auto custom-scrollbar space-y-4 pr-2">
             <p class="px-1 text-xs text-on-surface-variant">
-              Chọn số lượng vé theo đối tượng — tổng phải bằng số ghế đã chọn ({{ selectedSeats.length }} ghế).
+              Chọn số lượng vé theo đối tượng — tổng phải bằng số vé yêu cầu ({{ totalRequiredTickets }} vé / {{ selectedSeats.length }} ghế đã chọn).
             </p>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1938,12 +2001,12 @@ onUnmounted(() => {
                    class="p-5 bg-surface-container-high rounded-[24px] border border-outline-variant/10 flex items-center justify-between gap-4">
                 <span class="text-sm font-black text-on-surface uppercase">{{ label }}</span>
                 <div class="flex items-center gap-3 shrink-0">
-                  <button @click="setTicketCount(code, -1)" :disabled="(ticketCounts[code] || 0) <= 0"
+                  <button @click="setTicketCount(code, -1)" :disabled="(ticketCounts[code] || 0) <= 0 || (ticketCounts[code] || 0) === totalRequiredTickets"
                           class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-base">remove</span>
                   </button>
                   <span class="w-7 text-center text-lg font-black tabular-nums text-on-surface">{{ ticketCounts[code] || 0 }}</span>
-                  <button @click="setTicketCount(code, 1)" :disabled="(ticketCounts[code] || 0) >= selectedSeats.length"
+                  <button @click="setTicketCount(code, 1)" :disabled="(ticketCounts[code] || 0) >= totalRequiredTickets"
                           class="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container border border-outline-variant/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-base">add</span>
                   </button>
@@ -1954,7 +2017,7 @@ onUnmounted(() => {
             <div class="flex items-center justify-between px-2 pt-2 text-sm">
               <span class="text-on-surface-variant">Đã gán</span>
               <span class="font-black tabular-nums" :class="ticketsMatchSeats ? 'text-green-400' : 'text-primary'">
-                {{ totalTicketCount }} / {{ selectedSeats.length }} vé
+                {{ totalTicketCount }} / {{ totalRequiredTickets }} vé
               </span>
             </div>
             <div class="px-2 text-xs font-bold text-on-surface-variant">
@@ -1963,7 +2026,7 @@ onUnmounted(() => {
           </div>
 
           <div class="mt-6 flex items-center justify-end gap-4">
-            <span v-if="!ticketsMatchSeats" class="text-xs font-bold text-amber-400">Cần gán đủ {{ selectedSeats.length }} vé</span>
+            <span v-if="!ticketsMatchSeats" class="text-xs font-bold text-amber-400">Cần gán đủ {{ totalRequiredTickets }} vé</span>
             <AppButton @click="currentStep = 4" :disabled="!ticketsMatchSeats">4. Combo / Đồ ăn</AppButton>
           </div>
         </div>
@@ -2072,7 +2135,7 @@ onUnmounted(() => {
               <p class="text-[10px] font-black text-primary uppercase tracking-widest">Chi tiết hóa đơn</p>
               <h3 class="text-xl font-black italic uppercase text-on-surface">{{ selectedShowtime?.movieTitle }}</h3>
               <div class="flex justify-between text-xs font-bold text-on-surface-variant uppercase border-b border-outline-variant/10 pb-3">
-                <span>Vé (x{{ selectedSeats.length }})</span>
+                <span>Vé (x{{ totalRequiredTickets }})</span>
                 <span class="text-on-surface">{{ fmt(seatTotal) }}đ</span>
               </div>
               <div v-if="comboTotal > 0" class="flex justify-between text-xs font-bold text-on-surface-variant uppercase border-b border-outline-variant/10 pb-3">
@@ -2217,7 +2280,7 @@ onUnmounted(() => {
             </div>
             <div class="border-t border-dashed border-outline-variant/20 pt-6 space-y-2">
               <div class="flex justify-between text-sm font-bold text-on-surface">
-                <span>{{ selectedSeats.length }} ghế: {{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</span>
+                <span>{{ selectedSeats.length }} ghế ({{ totalRequiredTickets }} vé): {{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</span>
                 <span>{{ fmt(seatTotal) }}đ</span>
               </div>
               <div v-if="selectedCombos.length" class="flex justify-between text-xs text-on-surface-variant font-medium">
@@ -2475,7 +2538,7 @@ onUnmounted(() => {
             <p class="text-xs text-on-surface-variant">{{ new Date(selectedShowtime.startTime).toLocaleString('vi-VN', { weekday: 'short', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) }}</p>
           </div>
           <div v-if="selectedSeats.length" class="pb-4 border-b border-outline-variant/10">
-            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Ghế ({{ selectedSeats.length }})</p>
+            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Ghế ({{ selectedSeats.length }} ghế / {{ totalRequiredTickets }} vé)</p>
             <p class="text-sm text-primary font-black mb-2.5">{{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</p>
             <div v-for="b in seatTypeBreakdown" :key="b.type" class="flex justify-between text-xs font-semibold text-on-surface-variant mb-1">
               <span>Ghế {{ seatTypeLabel(b.type) }} <span class="text-on-surface-variant/60">x{{ b.count }}</span></span>
@@ -2574,7 +2637,7 @@ onUnmounted(() => {
               <p class="text-xs text-on-surface-variant">{{ new Date(selectedShowtime.startTime).toLocaleString('vi-VN', { weekday: 'short', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) }}</p>
             </div>
             <div v-if="selectedSeats.length" class="pb-4 border-b border-outline-variant/10">
-              <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Ghế ({{ selectedSeats.length }})</p>
+              <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Ghế ({{ selectedSeats.length }} ghế / {{ totalRequiredTickets }} vé)</p>
               <p class="text-sm text-primary font-black mb-2">{{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</p>
               <div v-for="b in seatTypeBreakdown" :key="b.type" class="flex justify-between text-xs font-semibold text-on-surface-variant mb-1">
                 <span>Ghế {{ seatTypeLabel(b.type) }} <span class="text-on-surface-variant/60">x{{ b.count }}</span></span>

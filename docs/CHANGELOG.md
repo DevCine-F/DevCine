@@ -4,6 +4,17 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.5] — 2026-08-31
+
+### Enhanced & Fixed — Chuẩn hóa số lượng vé & bộ đếm ghế đôi Sweetbox tại Quầy vé (Ticketing POS)
+- **Chuẩn hóa sức chứa Sweetbox (`seatCapacity = 2`):** Chọn 1 ghế Sweetbox tự động yêu cầu đủ 2 vé (2 người xem), khởi tạo `NGƯỜI LỚN = totalRequiredTickets` ở Bước 3 và tính đúng tổng tiền 2 vé ($2 \times 105.000đ = 210.000đ$).
+- **Khóa nút `[-]` chống thiếu vé (Stepper Guard):** Vô hiệu hóa nút `[-]` khi số lượng vé đang bằng đúng `totalRequiredTickets` (ví dụ `NGƯỜI LỚN = 2` cho 1 ghế Sweetbox hoặc `1` cho ghế đơn), ngăn chặn việc bấm giảm làm hỏng tỷ lệ vé yêu cầu ($1/2$ hoặc $0/1$).
+- **Cơ chế 1-click transfer & Auto Balance:** Bấm `[+]` ở loại vé mong muốn sẽ tự động bớt 1 vé Người lớn và cộng sang loại đó; bấm `[-]` ở loại vé phụ (HSSV, Trẻ em) sẽ tự động hoàn vé về cho Người lớn, đảm bảo tổng vé luôn bằng 100% sức chứa ghế.
+- **Đồng bộ Payload Backend (`BookingService.java`):** `buildSeatSelections()` sinh đủ 2 phần tử vé cho mỗi ghế Sweetbox, giải quyết triệt để lỗi ngoại lệ thiếu vé khi tạo đơn và thanh toán.
+- **Hóa đơn in nhiệt K80 (`printInvoice`) & Biên lai:** Cập nhật hiển thị chi tiết số ghế và số vé tương ứng.
+
+---
+
 ## [1.6.4] — 2026-08-31
 
 ### Enhanced & Fixed — Bảo vệ phiên giao dịch từ khi chọn suất chiếu (Session-Based Late Booking Protection)
