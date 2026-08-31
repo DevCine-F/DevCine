@@ -396,11 +396,6 @@ const seatRealtime = useSeatRealtime({
   // Ghế vừa được nhả (hết hạn giữ chỗ / huỷ đơn) → cập nhật AVAILABLE ngay lập tức
   onReleased: (seatIds) => {
     applySeatStatusUpdate(seatIds, 'AVAILABLE')
-    // Gỡ khỏi danh sách bị chặn (nếu có)
-    const recovered = seatIds.filter(id => selectedSeats.value.some(s => s.seatId === id))
-    if (recovered.length > 0) {
-      showToast(`${recovered.length} ghế vừa được nhả lại — có thể chọn thêm.`, 'info')
-    }
   },
   // Ghế vừa bị giữ bởi quầy/khách khác → cập nhật HOLD ngay lập tức
   onHeld: (seatIds) => {
@@ -2633,48 +2628,48 @@ onUnmounted(() => {
         </div>
 
         <!-- Step 6: Done -->
-        <div v-if="currentStep === 6" class="p-6 sm:p-8 flex flex-col items-center justify-center text-center h-full space-y-6 overflow-y-auto custom-scrollbar">
-          <div class="w-20 h-20 bg-green-500/15 text-green-400 border border-green-500/30 rounded-full flex items-center justify-center shadow-xl shadow-green-500/10">
-            <span class="material-symbols-outlined text-5xl">check_circle</span>
+        <div v-if="currentStep === 6" class="p-4 sm:p-6 flex flex-col items-center justify-start text-center h-full space-y-4 sm:space-y-5 overflow-y-auto custom-scrollbar">
+          <div class="w-14 h-14 sm:w-16 sm:h-16 bg-green-500/15 text-green-400 border border-green-500/30 rounded-full flex items-center justify-center shadow-lg shadow-green-500/10 shrink-0 mt-1">
+            <span class="material-symbols-outlined text-3xl sm:text-4xl">check_circle</span>
           </div>
-          <div>
-            <h2 class="text-3xl sm:text-4xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
-            <p class="text-on-surface-variant font-bold mt-1 uppercase tracking-widest text-xs">Xuất vé và bàn giao cho khách</p>
+          <div class="space-y-0.5">
+            <h2 class="text-2xl sm:text-3xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
+            <p class="text-on-surface-variant font-bold uppercase tracking-widest text-[11px]">Xuất vé và bàn giao cho khách</p>
           </div>
 
-          <div class="bg-surface-container-high/90 p-6 sm:p-8 rounded-3xl border border-outline-variant/15 shadow-2xl w-full max-w-2xl space-y-6 text-left">
+          <div class="bg-surface-container-high/90 p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-outline-variant/15 shadow-xl w-full max-w-2xl space-y-4 text-left">
             <!-- Header: Mã đơn + Phòng -->
-            <div class="flex justify-between items-start border-b border-outline-variant/10 pb-4">
+            <div class="flex justify-between items-start border-b border-outline-variant/10 pb-3">
               <div>
                 <p class="text-[10px] font-black text-primary uppercase tracking-wider">Mã đặt vé</p>
-                <p class="text-xl sm:text-2xl font-black font-mono text-primary tracking-wide">{{ completedBooking?.bookingCode }}</p>
+                <p class="text-lg sm:text-xl font-black font-mono text-primary tracking-wide">{{ completedBooking?.bookingCode }}</p>
               </div>
               <div class="text-right">
                 <p class="text-[10px] font-black text-primary uppercase tracking-wider">Phòng chiếu</p>
-                <p class="text-base sm:text-lg font-black text-on-surface">{{ selectedShowtime?.roomName }}</p>
+                <p class="text-sm sm:text-base font-black text-on-surface">{{ selectedShowtime?.roomName }}</p>
               </div>
             </div>
 
             <!-- Phim & Suất chiếu -->
-            <div v-if="selectedShowtime" class="space-y-1">
+            <div v-if="selectedShowtime" class="space-y-0.5">
               <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Phim & Suất chiếu</p>
-              <h3 class="text-base sm:text-lg font-black uppercase italic text-on-surface">{{ selectedShowtime.movieTitle }}</h3>
+              <h3 class="text-sm sm:text-base font-black uppercase italic text-on-surface">{{ selectedShowtime.movieTitle }}</h3>
               <p class="text-xs text-on-surface-variant font-medium">
                 {{ selectedShowtime.formatName }} · {{ new Date(selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }} - {{ new Date(selectedShowtime.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }} · {{ new Date(selectedShowtime.startTime).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }) }}
               </p>
             </div>
 
             <!-- Danh sách ghế -->
-            <div v-if="selectedSeats.length" class="space-y-2.5 border-t border-dashed border-outline-variant/20 pt-4">
+            <div v-if="selectedSeats.length" class="space-y-2 border-t border-dashed border-outline-variant/20 pt-3">
               <div class="flex justify-between items-center text-xs">
                 <span class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
                   Ghế đã chọn ({{ selectedSeats.length }} ghế / {{ totalRequiredTickets }} vé)
                 </span>
                 <span class="font-bold text-on-surface">{{ fmt(seatTotal) }}đ</span>
               </div>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-1.5">
                 <span v-for="s in selectedSeats" :key="s.seatId"
-                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/25 text-primary text-xs font-black uppercase">
+                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/25 text-primary text-xs font-black uppercase">
                   {{ seatLabel(s) }}
                   <span class="text-[10px] font-semibold text-on-surface-variant normal-case">· {{ seatTypeLabel(s.seatType) }}</span>
                 </span>
@@ -2682,7 +2677,7 @@ onUnmounted(() => {
             </div>
 
             <!-- F&B / Combo -->
-            <div v-if="selectedCombos.length" class="space-y-2 border-t border-dashed border-outline-variant/20 pt-4">
+            <div v-if="selectedCombos.length" class="space-y-1.5 border-t border-dashed border-outline-variant/20 pt-3">
               <div class="flex justify-between items-center text-xs">
                 <span class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
                   Bắp nước & Combo ({{ selectedCombos.reduce((a, c) => a + c.quantity, 0) }} phần)
@@ -2703,7 +2698,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Tóm tắt thanh toán -->
-            <div class="border-t border-dashed border-outline-variant/20 pt-4 space-y-2.5">
+            <div class="border-t border-dashed border-outline-variant/20 pt-3 space-y-2">
               <div class="flex justify-between items-center text-xs text-on-surface-variant">
                 <span>Hình thức thanh toán</span>
                 <span class="font-bold text-on-surface">
@@ -2722,16 +2717,16 @@ onUnmounted(() => {
                 <span>Giảm giá {{ appliedVoucher ? '(' + appliedVoucher.code + ')' : '' }}</span>
                 <span>-{{ fmt(completedBooking?.discountAmount ?? discountAmount) }}đ</span>
               </div>
-              <div class="flex justify-between items-center pt-3 border-t border-outline-variant/10">
+              <div class="flex justify-between items-center pt-2.5 border-t border-outline-variant/10">
                 <span class="text-xs font-black text-primary uppercase tracking-wider">Tổng thanh toán</span>
-                <span class="text-2xl sm:text-3xl font-black text-primary italic tracking-tight">{{ fmt(completedBooking?.finalPrice ?? payableTotal) }}đ</span>
+                <span class="text-xl sm:text-2xl font-black text-primary italic tracking-tight">{{ fmt(completedBooking?.finalPrice ?? payableTotal) }}đ</span>
               </div>
             </div>
           </div>
 
-          <div class="flex justify-center w-full max-w-2xl">
-            <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base font-black uppercase tracking-wider rounded-2xl shadow-xl shadow-primary/20 hover:brightness-110 active:scale-[0.99] transition-all cursor-pointer" @click="resetPOS">
-              <span class="material-symbols-outlined text-xl">add_circle</span> Giao dịch mới
+          <div class="flex justify-center w-full max-w-2xl pb-2">
+            <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-2.5 py-3.5 text-sm sm:text-base font-black uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.99] transition-all cursor-pointer" @click="resetPOS">
+              <span class="material-symbols-outlined text-lg">add_circle</span> Giao dịch mới
             </AppButton>
           </div>
         </div>
@@ -2894,34 +2889,34 @@ onUnmounted(() => {
           </div>
 
           <!-- FNB Step 3: Done -->
-          <div v-if="fnbStep === 3" class="p-6 sm:p-8 flex flex-col items-center justify-center text-center h-full space-y-6 overflow-y-auto custom-scrollbar">
-            <div class="w-20 h-20 bg-green-500/15 text-green-400 border border-green-500/30 rounded-full flex items-center justify-center shadow-xl shadow-green-500/10">
-              <span class="material-symbols-outlined text-5xl">check_circle</span>
+          <div v-if="fnbStep === 3" class="p-4 sm:p-6 flex flex-col items-center justify-start text-center h-full space-y-4 sm:space-y-5 overflow-y-auto custom-scrollbar">
+            <div class="w-14 h-14 sm:w-16 sm:h-16 bg-green-500/15 text-green-400 border border-green-500/30 rounded-full flex items-center justify-center shadow-lg shadow-green-500/10 shrink-0 mt-1">
+              <span class="material-symbols-outlined text-3xl sm:text-4xl">check_circle</span>
             </div>
-            <div>
-              <h2 class="text-3xl sm:text-4xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
-              <p class="text-on-surface-variant font-bold mt-1 uppercase tracking-widest text-xs">Giao bắp nước cho khách</p>
+            <div class="space-y-0.5">
+              <h2 class="text-2xl sm:text-3xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
+              <p class="text-on-surface-variant font-bold uppercase tracking-widest text-[11px]">Giao bắp nước cho khách</p>
             </div>
 
-            <div class="bg-surface-container-high/90 p-6 sm:p-8 rounded-3xl border border-outline-variant/15 shadow-2xl w-full max-w-2xl space-y-6 text-left">
+            <div class="bg-surface-container-high/90 p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-outline-variant/15 shadow-xl w-full max-w-2xl space-y-4 text-left">
               <!-- Header: Mã đơn + Loại đơn -->
-              <div class="flex justify-between items-start border-b border-outline-variant/10 pb-4">
+              <div class="flex justify-between items-start border-b border-outline-variant/10 pb-3">
                 <div>
                   <p class="text-[10px] font-black text-primary uppercase tracking-wider">Mã hoá đơn</p>
-                  <p class="text-xl sm:text-2xl font-black font-mono text-primary tracking-wide">{{ concessionSale?.saleCode }}</p>
+                  <p class="text-lg sm:text-xl font-black font-mono text-primary tracking-wide">{{ concessionSale?.saleCode }}</p>
                 </div>
                 <div class="text-right">
                   <p class="text-[10px] font-black text-primary uppercase tracking-wider">Hình thức</p>
-                  <p class="text-base sm:text-lg font-black text-on-surface">Bán nhanh F&B</p>
+                  <p class="text-sm sm:text-base font-black text-on-surface">Bán nhanh F&B</p>
                 </div>
               </div>
 
               <!-- Danh sách món F&B -->
-              <div v-if="selectedCombos.length" class="space-y-2">
+              <div v-if="selectedCombos.length" class="space-y-1.5">
                 <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
                   Chi tiết món đã chọn ({{ selectedCombos.reduce((a, c) => a + c.quantity, 0) }} phần)
                 </p>
-                <div v-for="(c, ci) in selectedCombos" :key="ci" class="text-xs text-on-surface flex justify-between items-start border-b border-outline-variant/5 pb-2">
+                <div v-for="(c, ci) in selectedCombos" :key="ci" class="text-xs text-on-surface flex justify-between items-start border-b border-outline-variant/5 pb-1.5">
                   <div>
                     <span class="font-bold">{{ c.name }}</span> <span class="text-on-surface-variant">x{{ c.quantity }}</span>
                     <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface-variant mt-0.5 ml-2">
@@ -2935,7 +2930,7 @@ onUnmounted(() => {
               </div>
 
               <!-- Tóm tắt thanh toán -->
-              <div class="border-t border-dashed border-outline-variant/20 pt-4 space-y-2.5">
+              <div class="border-t border-dashed border-outline-variant/20 pt-3 space-y-2">
                 <div class="flex justify-between items-center text-xs text-on-surface-variant">
                   <span>Hình thức thanh toán</span>
                   <span class="font-bold text-on-surface">
@@ -2950,16 +2945,16 @@ onUnmounted(() => {
                   <span>Thành viên tích điểm</span>
                   <span class="font-bold text-primary">{{ member.fullName }} ({{ member.membershipTier }})</span>
                 </div>
-                <div class="flex justify-between items-center pt-3 border-t border-outline-variant/10">
+                <div class="flex justify-between items-center pt-2.5 border-t border-outline-variant/10">
                   <span class="text-xs font-black text-primary uppercase tracking-wider">Tổng thanh toán</span>
-                  <span class="text-2xl sm:text-3xl font-black text-primary italic tracking-tight">{{ fmt(comboTotal) }}đ</span>
+                  <span class="text-xl sm:text-2xl font-black text-primary italic tracking-tight">{{ fmt(comboTotal) }}đ</span>
                 </div>
               </div>
             </div>
 
             <div class="flex justify-center w-full max-w-2xl">
-              <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base font-black uppercase tracking-wider rounded-2xl shadow-xl shadow-primary/20 hover:brightness-110 active:scale-[0.99] transition-all cursor-pointer" @click="newConcessionSale">
-                <span class="material-symbols-outlined text-xl">add_circle</span> Giao dịch mới
+              <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-2.5 py-3.5 text-sm sm:text-base font-black uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.99] transition-all cursor-pointer" @click="newConcessionSale">
+                <span class="material-symbols-outlined text-lg">add_circle</span> Giao dịch mới
               </AppButton>
             </div>
 
