@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,7 @@ public class VoucherController {
         LocalDateTime now = LocalDateTime.now();
         List<Map<String, Object>> result = voucherRepository.findAllByCustomerIdWithPromotion(customerId)
                 .stream().map(v -> {
+                    voucherService.ensureSnapshotPublic(v);
                     String status;
                     if (Boolean.TRUE.equals(v.getIsUsed())) {
                         status = "USED";
@@ -83,15 +85,29 @@ public class VoucherController {
                                 && promo.getUsedCount() >= promo.getUsageLimit();
                         status = exhausted ? "EXHAUSTED" : "ACTIVE";
                     }
-                    return Map.<String, Object>of(
-                            "id", v.getId(),
-                            "code", v.getPromotion().getCode() != null ? v.getPromotion().getCode() : "",
-                            "discountType", v.effectiveDiscountType() != null ? v.effectiveDiscountType() : "",
-                            "discountValue", v.effectiveDiscountValue() != null ? v.effectiveDiscountValue() : 0,
-                            "validUntil", v.getValidUntil() != null ? v.getValidUntil().toString() : "",
-                            "usedAt", v.getUsedAt() != null ? v.getUsedAt().toString() : "",
-                            "status", status
-                    );
+
+                    Integer applicableMovieId = v.effectiveApplicableMovieId();
+                    String movieTitle = v.effectiveApplicableMovieTitle();
+                    if (movieTitle == null && applicableMovieId != null) {
+                        movieTitle = voucherService.getMovieTitleById(applicableMovieId);
+                    }
+
+                    Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("id", v.getId());
+                    map.put("code", v.getPromotion() != null && v.getPromotion().getCode() != null ? v.getPromotion().getCode() : "");
+                    map.put("title", v.effectiveTitle() != null ? v.effectiveTitle() : "");
+                    map.put("description", v.effectiveDescription() != null ? v.effectiveDescription() : "");
+                    map.put("discountType", v.effectiveDiscountType() != null ? v.effectiveDiscountType() : "");
+                    map.put("discountValue", v.effectiveDiscountValue() != null ? v.effectiveDiscountValue() : 0);
+                    map.put("minOrderValue", v.effectiveMinOrderValue() != null ? v.effectiveMinOrderValue() : BigDecimal.ZERO);
+                    map.put("maxDiscountAmount", v.effectiveMaxDiscountAmount() != null ? v.effectiveMaxDiscountAmount() : BigDecimal.ZERO);
+                    map.put("maxTicketQuantity", v.effectiveMaxTicketQuantity() != null ? v.effectiveMaxTicketQuantity() : 0);
+                    map.put("applicableMovieId", applicableMovieId);
+                    map.put("applicableMovieTitle", movieTitle != null ? movieTitle : "");
+                    map.put("validUntil", v.getValidUntil() != null ? v.getValidUntil().toString() : "");
+                    map.put("usedAt", v.getUsedAt() != null ? v.getUsedAt().toString() : "");
+                    map.put("status", status);
+                    return map;
                 }).collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
@@ -105,13 +121,25 @@ public class VoucherController {
             return ResponseEntity.badRequest().body(ApiResponse.fail("Mã giảm giá không tồn tại, đã sử dụng hoặc hết hạn."));
         }
 
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-            "id", voucher.getId(),
-            "code", voucher.getPromotion().getCode(),
-            "discountType", voucher.effectiveDiscountType(),
-            "discountValue", voucher.effectiveDiscountValue(),
-            "validUntil", voucher.getValidUntil().toString()
-        )));
+        voucherService.ensureSnapshotPublic(voucher);
+        Integer applicableMovieId = voucher.effectiveApplicableMovieId();
+        String movieTitle = voucher.effectiveApplicableMovieTitle();
+        if (movieTitle == null && applicableMovieId != null) {
+            movieTitle = voucherService.getMovieTitleById(applicableMovieId);
+        }
+
+        Map<String, Object> map = new java.util.HashMap<>();
+        map.put("id", voucher.getId());
+        map.put("code", voucher.getPromotion().getCode());
+        map.put("title", voucher.effectiveTitle() != null ? voucher.effectiveTitle() : "");
+        map.put("discountType", voucher.effectiveDiscountType());
+        map.put("discountValue", voucher.effectiveDiscountValue());
+        map.put("minOrderValue", voucher.effectiveMinOrderValue());
+        map.put("applicableMovieId", applicableMovieId);
+        map.put("applicableMovieTitle", movieTitle != null ? movieTitle : "");
+        map.put("validUntil", voucher.getValidUntil().toString());
+
+        return ResponseEntity.ok(ApiResponse.ok(map));
     }
 
     /** Tra cứu một mã ưu đãi để xem có thể lưu vào ví hay không (phục vụ ô tìm/nhập mã ở "Ưu đãi của tôi"). */

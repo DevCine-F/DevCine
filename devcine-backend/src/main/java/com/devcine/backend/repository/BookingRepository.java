@@ -155,7 +155,7 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     @Query("SELECT t FROM Ticket t WHERE t.bookingSeat.booking.id IN :bookingIds")
     List<com.devcine.backend.entity.Ticket> findAllTicketsByBookingIds(@Param("bookingIds") List<Integer> bookingIds);
 
-    @Query("SELECT bf FROM BookingFnb bf JOIN FETCH bf.fnbItem WHERE bf.booking.id IN :bookingIds")
+    @Query("SELECT DISTINCT bf FROM BookingFnb bf JOIN FETCH bf.fnbItem LEFT JOIN FETCH bf.options WHERE bf.booking.id IN :bookingIds")
     List<com.devcine.backend.entity.BookingFnb> findAllFnbsByBookingIds(@Param("bookingIds") List<Integer> bookingIds);
 
     /** Số đơn đã CONFIRMED của khách — dùng xác định "khách mới" cho voucher giới hạn đối tượng. */

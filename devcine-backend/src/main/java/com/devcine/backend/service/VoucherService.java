@@ -101,6 +101,14 @@ public class VoucherService {
     }
 
 
+    /**
+     * Tra cứu tiêu đề phim an toàn theo ID (tránh NPE).
+     */
+    public String getMovieTitleById(Integer movieId) {
+        if (movieId == null) return null;
+        return movieRepository.findById(movieId).map(com.devcine.backend.entity.Movie::getTitle).orElse(null);
+    }
+
     /** Kết quả chấm một voucher theo giỏ hàng. reason = null khi đủ điều kiện. discountAmount = số giảm THÔ. */
     public record VoucherEval(boolean applicable, String reason, BigDecimal discountAmount) {}
 
@@ -108,8 +116,7 @@ public class VoucherService {
      * Lý do KHÔNG đủ điều kiện theo ĐỐI TƯỢNG áp dụng (null nếu đủ). Dùng chung cho apply/claim,
      * preview và (gián tiếp) đặt vé: NEW_CUSTOMER (chưa từng mua vé) & TIER_* (hạng tối thiểu).
      */
-    private String eligibilityReason(Integer customerId, Customer customer, Promotion promo) {
-        String elig = promo.getCustomerEligibility();
+    private String eligibilityReason(Integer customerId, Customer customer, String elig) {
         if (elig == null || elig.equalsIgnoreCase("ALL")) return null;
         if ("NEW_CUSTOMER".equalsIgnoreCase(elig)) {
             if (bookingRepository.countConfirmedByCustomer(customerId) > 0) {
@@ -123,6 +130,10 @@ public class VoucherService {
             }
         }
         return null;
+    }
+
+    private String eligibilityReason(Integer customerId, Customer customer, Promotion promo) {
+        return eligibilityReason(customerId, customer, promo != null ? promo.getCustomerEligibility() : "ALL");
     }
 
     /** Chặn sớm theo đối tượng áp dụng ngay ở bước áp/lưu mã (ném lỗi nếu không đủ). */
@@ -165,15 +176,18 @@ public class VoucherService {
             return new VoucherEval(false, "Mã ưu đãi đã hết hạn sử dụng.", BigDecimal.ZERO);
         }
 
-        // 3. Đối tượng áp dụng (Hard check)
-        String eligReason = eligibilityReason(customerId, customer, promo);
+        // 3. Đối tượng áp dụng (Hard check - đọc từ SNAPSHOT của voucher)
+        String eligReason = eligibilityReason(customerId, customer, voucher.effectiveCustomerEligibility());
         if (eligReason != null) return new VoucherEval(false, eligReason, BigDecimal.ZERO);
 
-        // 4. Phim áp dụng (Hard check)
-        if (promo.getApplicableMovieId() != null && movieId != null
-                && !promo.getApplicableMovieId().equals(movieId)) {
-            String movieTitle = movieRepository.findById(promo.getApplicableMovieId())
-                    .map(com.devcine.backend.entity.Movie::getTitle).orElse(null);
+        // 4. Phim áp dụng (Hard check - đọc từ SNAPSHOT của voucher)
+        Integer applicableMovieId = voucher.effectiveApplicableMovieId();
+        if (applicableMovieId != null && movieId != null
+                && !applicableMovieId.equals(movieId)) {
+            String movieTitle = voucher.effectiveApplicableMovieTitle();
+            if (movieTitle == null || movieTitle.isBlank()) {
+                movieTitle = getMovieTitleById(applicableMovieId);
+            }
             String reason = (movieTitle != null && !movieTitle.isBlank())
                     ? "Chỉ áp dụng cho phim: " + movieTitle
                     : "Mã chỉ áp dụng cho phim khác, không dùng được cho suất này.";
@@ -221,9 +235,13 @@ public class VoucherService {
      * Public để BookingService cũng có thể gọi trước evaluate().
      */
     public void ensureSnapshotPublic(Voucher v) {
-        if (v.getDiscountValueSnapshot() == null || v.getMinOrderValueSnapshot() == null) {
-            v.snapshotFrom(v.getPromotion());
-            voucherRepository.save(v);
+        if (v.getDiscountValueSnapshot() == null || v.getMinOrderValueSnapshot() == null || v.getTitleSnapshot() == null) {
+            Promotion promo = v.getPromotion();
+            if (promo != null) {
+                String movieTitle = getMovieTitleById(promo.getApplicableMovieId());
+                v.snapshotFrom(promo, movieTitle);
+                voucherRepository.save(v);
+            }
         }
     }
 
@@ -259,17 +277,17 @@ public class VoucherService {
             VoucherEval eval = evaluate(customerId, customer, v, orderTotal, req.getMovieId(), req.getSeatPrices());
             BigDecimal shown = eval.discountAmount().min(orderTotal); // số giảm thực (không vượt tổng đơn)
 
-            String movieTitle = null;
-            if (p.getApplicableMovieId() != null) {
-                movieTitle = movieRepository.findById(p.getApplicableMovieId())
-                        .map(com.devcine.backend.entity.Movie::getTitle).orElse(null);
+            Integer applicableMovieId = v.effectiveApplicableMovieId();
+            String movieTitle = v.effectiveApplicableMovieTitle();
+            if (movieTitle == null && applicableMovieId != null) {
+                movieTitle = getMovieTitleById(applicableMovieId);
             }
 
             Map<String, Object> m = new HashMap<>();
             m.put("voucherId", v.getId());
-            m.put("code", p.getCode() != null ? p.getCode() : "");
-            m.put("title", p.getName() != null ? p.getName() : "");
-            m.put("description", p.getDescription() != null ? p.getDescription() : "");
+            m.put("code", p != null && p.getCode() != null ? p.getCode() : "");
+            m.put("title", v.effectiveTitle() != null ? v.effectiveTitle() : "");
+            m.put("description", v.effectiveDescription() != null ? v.effectiveDescription() : "");
             m.put("applicable", eval.applicable());
             m.put("reason", eval.reason() != null ? eval.reason() : "");
             m.put("discountAmount", eval.applicable() ? shown : BigDecimal.ZERO);
@@ -279,7 +297,7 @@ public class VoucherService {
             m.put("maxDiscountAmount", v.effectiveMaxDiscountAmount() != null ? v.effectiveMaxDiscountAmount() : BigDecimal.ZERO);
             m.put("maxTicketQuantity", v.effectiveMaxTicketQuantity() != null ? v.effectiveMaxTicketQuantity() : 0);
             m.put("validUntil", v.getValidUntil() != null ? v.getValidUntil().toString() : "");
-            m.put("applicableMovieId", p.getApplicableMovieId());
+            m.put("applicableMovieId", applicableMovieId);
             m.put("applicableMovieTitle", movieTitle);
             m.put("hideFromUI", false);
             out.add(m);
@@ -345,13 +363,14 @@ public class VoucherService {
         // không tụt) và ghi sổ điểm.
         loyaltyService.redeem(customer, promo.getPointsRequired(), promo.getCode());
 
+        String movieTitle = getMovieTitleById(promo.getApplicableMovieId());
         Voucher voucher = Voucher.builder()
                 .promotion(promo)
                 .customer(customer)
                 .isUsed(false)
                 .validUntil(promo.getEndDate() != null ? promo.getEndDate() : now.plusMonths(1))
                 .build();
-        voucher.snapshotFrom(promo); // Đóng băng thông số giảm giá tại thời điểm đổi
+        voucher.snapshotFrom(promo, movieTitle); // Đóng băng thông số giảm giá tại thời điểm đổi
         voucherRepository.save(voucher);
 
         log.info("Khách #{} đổi {} điểm lấy voucher từ promotion #{}", customerId, promo.getPointsRequired(), promoId);
@@ -400,17 +419,34 @@ public class VoucherService {
             throw new RuntimeException("Bạn đã lưu mã này rồi.");
         }
 
+        String movieTitle = getMovieTitleById(promo.getApplicableMovieId());
         Voucher voucher = Voucher.builder()
                 .promotion(promo)
                 .customer(customer)
                 .isUsed(false)
                 .validUntil(promo.getEndDate() != null ? promo.getEndDate() : now.plusMonths(1))
                 .build();
-        voucher.snapshotFrom(promo); // Đóng băng thông số giảm giá tại thời điểm lưu mã
+        voucher.snapshotFrom(promo, movieTitle); // Đóng băng thông số giảm giá tại thời điểm lưu mã
         voucherRepository.save(voucher);
 
         log.info("Khách #{} lưu voucher bằng mã '{}' (promotion #{})", customerId, promo.getCode(), promo.getId());
         return voucher;
+    }
+
+    /**
+     * Admin phát voucher cho khách hàng.
+     */
+    @Transactional
+    public Voucher issueVoucher(Promotion promo, Customer customer, LocalDateTime validUntil) {
+        String movieTitle = getMovieTitleById(promo.getApplicableMovieId());
+        Voucher voucher = Voucher.builder()
+                .promotion(promo)
+                .customer(customer)
+                .isUsed(false)
+                .validUntil(validUntil != null ? validUntil : (promo.getEndDate() != null ? promo.getEndDate() : LocalDateTime.now().plusMonths(1)))
+                .build();
+        voucher.snapshotFrom(promo, movieTitle);
+        return voucherRepository.save(voucher);
     }
 
     /**

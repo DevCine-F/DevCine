@@ -83,12 +83,13 @@ const seatsText = computed(() =>
 
 const totalAmount = computed(() => store.finalPrice || store.totalPrice || 0)
 const discount = computed(() => {
+  if (!store.selectedVoucher) return 0
   const d = (store.totalPrice || 0) - (store.finalPrice || store.totalPrice || 0)
   return d > 0 ? d : 0
 })
 
-// Chỉ hiện thông tin giảm giá khi đơn THỰC SỰ được giảm (tránh hiện voucher tồn từ phiên cũ)
-const hasVoucher = computed(() => discount.value > 0)
+// Chỉ hiện thông tin giảm giá khi đơn THỰC SỰ có voucher và được giảm
+const hasVoucher = computed(() => !!store.selectedVoucher && discount.value > 0)
 
 // Lọc bỏ dòng F&B hỏng (thiếu fnbItem) — có thể tồn từ state phiên cũ / sessionStorage lỗi thời.
 // Một dòng hỏng KHÔNG được phép làm sập cả trang xác nhận đặt vé thành công.

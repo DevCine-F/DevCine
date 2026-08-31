@@ -43,13 +43,30 @@ const formatDate = (iso) => {
 // Voucher còn dùng được -> tab "Voucher của tôi"
 const activeVouchers = computed(() => vouchers.value
   .filter(v => v.status === 'ACTIVE')
-  .map(v => ({
-    id: v.code,
-    title: formatDiscount(v),
-    description: `Mã ưu đãi ${v.code}. Áp dụng khi đặt vé tại DevCine.`,
-    type: v.discountType === 'PERCENTAGE' ? 'Giảm %' : 'Giảm tiền',
-    expiry: formatDate(v.validUntil)
-  })))
+  .map(v => {
+    let desc = v.description
+    if (!desc || desc.trim() === '') {
+      if (v.applicableMovieTitle) {
+        desc = `Áp dụng riêng khi mua vé phim "${v.applicableMovieTitle}".`
+      } else {
+        desc = `Mã ưu đãi ${v.code}. Áp dụng khi đặt vé tại DevCine.`
+      }
+    }
+    return {
+      id: v.code,
+      rawId: v.id,
+      title: v.title && v.title.trim() ? v.title : formatDiscount(v),
+      discountBadge: formatDiscount(v),
+      description: desc,
+      type: v.discountType === 'PERCENTAGE' ? 'Giảm %' : 'Giảm tiền',
+      expiry: formatDate(v.validUntil),
+      applicableMovieId: v.applicableMovieId,
+      applicableMovieTitle: v.applicableMovieTitle,
+      minOrderValue: Number(v.minOrderValue || 0),
+      maxDiscountAmount: Number(v.maxDiscountAmount || 0),
+      maxTicketQuantity: Number(v.maxTicketQuantity || 0)
+    }
+  }))
 
 // Voucher đã dùng / hết hạn / hết lượt -> tab "Lịch sử"
 const historyVouchers = computed(() => vouchers.value
@@ -58,7 +75,8 @@ const historyVouchers = computed(() => vouchers.value
     usedAt: v.usedAt ? formatDate(v.usedAt) : '—', // '—' cho voucher hết hạn hoặc dữ liệu cũ chưa lưu mốc dùng
     date: formatDate(v.validUntil),
     code: v.code,
-    description: formatDiscount(v),
+    description: v.title && v.title.trim() ? v.title : formatDiscount(v),
+    applicableMovieTitle: v.applicableMovieTitle,
     status: v.status === 'USED' ? 'Đã sử dụng'
            : v.status === 'EXHAUSTED' ? 'Hết lượt dùng'
            : 'Đã hết hạn'
@@ -299,10 +317,30 @@ onUnmounted(() => {
         </div>
         <div class="p-4 sm:p-6 flex-grow flex flex-col min-w-0">
           <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
-            <h3 class="text-base sm:text-xl font-bold font-headline text-white truncate">{{ voucher.title }}</h3>
+            <div class="flex items-center gap-2 flex-wrap min-w-0">
+              <h3 class="text-base sm:text-xl font-bold font-headline text-white truncate">{{ voucher.title }}</h3>
+              <span v-if="voucher.title !== voucher.discountBadge" class="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded shrink-0">
+                {{ voucher.discountBadge }}
+              </span>
+            </div>
             <span class="bg-surface-container-high text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded border border-white/10 tracking-widest w-fit">{{ voucher.id }}</span>
           </div>
-          <p class="text-xs sm:text-sm text-on-surface-variant mb-4 sm:mb-6 flex-grow">{{ voucher.description }}</p>
+          <p class="text-xs sm:text-sm text-on-surface-variant mb-2.5 flex-grow">{{ voucher.description }}</p>
+
+          <!-- Badges điều kiện áp dụng (Snapshot) -->
+          <div v-if="voucher.applicableMovieTitle || voucher.minOrderValue > 0 || voucher.maxDiscountAmount > 0" class="flex flex-wrap gap-1.5 mb-3.5">
+            <span v-if="voucher.applicableMovieTitle" class="inline-flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded">
+              <span class="material-symbols-outlined text-xs">movie</span>
+              Chỉ áp dụng phim: {{ voucher.applicableMovieTitle }}
+            </span>
+            <span v-if="voucher.minOrderValue > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
+              Đơn tối thiểu: {{ voucher.minOrderValue.toLocaleString('vi-VN') }}đ
+            </span>
+            <span v-if="voucher.maxDiscountAmount > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
+              Giảm tối đa: {{ voucher.maxDiscountAmount.toLocaleString('vi-VN') }}đ
+            </span>
+          </div>
+
           <div class="flex justify-between items-center mt-auto pt-3 sm:pt-4 border-t border-white/5 gap-2">
             <div>
               <p class="text-[8px] sm:text-[9px] uppercase tracking-widest text-neutral-500 mb-0.5">Ngày hết hạn</p>

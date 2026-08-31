@@ -108,6 +108,16 @@ public class BookingController {
                             : (f.getFnbItem() != null ? f.getFnbItem().getName() : ""));
                     m.put("quantity", f.getQuantity());
                     m.put("priceSnapshot", f.getPriceSnapshot());
+
+                    List<Map<String, Object>> options = f.getOptions() != null ? f.getOptions().stream().map(o -> {
+                        Map<String, Object> om = new java.util.HashMap<>();
+                        om.put("slotLabel", o.getSlotLabelSnapshot());
+                        om.put("optionName", o.getOptionNameSnapshot());
+                        om.put("surcharge", o.getSurchargeSnapshot());
+                        return om;
+                    }).collect(Collectors.toList()) : List.of();
+                    m.put("options", options);
+
                     return m;
                 }).collect(Collectors.toList());
 

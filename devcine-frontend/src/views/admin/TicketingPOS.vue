@@ -55,6 +55,14 @@ const completedBooking = ref(null)
 // Bảng giá theo đối tượng của suất đang chọn (tên loại ghế -> { mã đối tượng -> giá }) + nhãn đối tượng
 const priceTable = ref({})
 const audienceLabels = ref({})
+// ── Snapshot bảng giá vé: được đóng băng khi Thu ngân vào Bước 3 (xác nhận loại vé) ──
+// Từ đó trở đi, onPricingUpdate WebSocket KHÔNG override giá đang trong phiên.
+// null = chưa lock (dùng priceTable live); non-null = đã lock (dùng giá tại Bước 3).
+const lockedPriceTable = ref(null)
+// ── Snapshot giá catalog F&B: được đóng băng khi Thu ngân vào Bước 4 (combo) hoặc chế độ Bán nhanh F&B ──
+// Ngăn onFnbUpdate WebSocket thay đổi giá hiển thị trên card catalog giữa phiên giao dịch.
+// null = chưa lock (dùng giá DB live); non-null = Map<id, snapshotPrice> đóng băng tại thời điểm bắt đầu chọn combo.
+const lockedCombosPrices = ref(null)
 
 // Voucher tại quầy — chỉ dùng sau khi tra cứu thành viên (voucher gắn với khách hàng)
 const voucherCodeInput = ref('')
@@ -99,6 +107,7 @@ const captureSeatMeta = (data) => {
   if (!Object.keys(audienceLabels.value).length) audienceLabels.value = DEFAULT_AUDIENCE_LABELS
 }
 // Giá 1 ghế theo loại vé đang chọn (với SWEETBOX tính tổng 2 vé, fallback về giá ADULT sẵn có nếu thiếu bảng giá)
+// ── Snapshot: dùng lockedPriceTable khi đã vào Bước 3 (giá đóng băng); dùng priceTable live khi chưa lock ──
 const priceOf = (seat) => {
   if (!seat) return 0
   const cap = seatCapacity(seat)
@@ -106,7 +115,9 @@ const priceOf = (seat) => {
     ? seat.ticketTypes
     : [seat.ticketType || 'ADULT']
   
-  const byType = priceTable.value[seat.seatType]
+  // Ưu tiên lockedPriceTable (snapshot tại Bước 3) để giá vé không thay đổi khi Admin cập nhật giữa phiên
+  const activePriceTable = lockedPriceTable.value ?? priceTable.value
+  const byType = activePriceTable[seat.seatType]
   let total = 0
   for (let i = 0; i < cap; i++) {
     const t = types[i] || types[0] || 'ADULT'
@@ -200,8 +211,26 @@ const setTicketCount = (code, delta) => {
   assignTicketCountsToSeats()
 }
 
-// Vào bước 3 (xác nhận vé) → đồng bộ counter với các ghế đang chọn
-watch(currentStep, (step) => { if (step === 3) syncTicketCountsFromSeats() })
+// Vào bước 3 (xác nhận vé) → đồng bộ counter + snapshot bảng giá vé
+watch(currentStep, (step) => {
+  if (step === 3) {
+    syncTicketCountsFromSeats()
+    // ── Snapshot giá vé tại thời điểm Thu ngân xác nhận loại vé ──
+    // Từ đây, mọi sự kiện onPricingUpdate từ Admin không ảnh hưởng đến tổng tiền đơn này.
+    if (!lockedPriceTable.value) {
+      lockedPriceTable.value = JSON.parse(JSON.stringify(priceTable.value))
+    }
+  }
+  if (step === 4) {
+    // ── Snapshot giá catalog F&B khi Thu ngân vào bước chọn combo ──
+    // Từ đây, mọi sự kiện onFnbUpdate không đổi giá hiển thị trên card catalog.
+    if (!lockedCombosPrices.value) {
+      const priceMap = {}
+      combos.value.forEach(c => { priceMap[c.id] = Number(c.price) })
+      lockedCombosPrices.value = priceMap
+    }
+  }
+})
 
 // ===== Định dạng & validate suất chiếu =====
 const isPastShowtime = (st) => !!(st?.startTime) && new Date(st.startTime).getTime() < (nowTs.value - lateBookingMinutes.value * 60 * 1000)
@@ -267,7 +296,20 @@ const applySeatStatusUpdate = (seatIds, newStatus) => {
 const reloadPosCombos = async () => {
   try {
     const cbRes = await ticketingApi.getCombos()
-    combos.value = unwrapData(cbRes)
+    const freshCombos = unwrapData(cbRes)
+    // ── Snapshot guard: nếu đang có lock, chỉ cập nhật trạng thái/metadata ──
+    // KHÔNG ghi đè `price` để giữ giá đã snapshot hiển thị trên card catalog.
+    // onFnbUpdate WebSocket sẽ thấy giá mới vào phiên kế tiếp, không ảnh hưởng phiên hiện tại.
+    if (lockedCombosPrices.value) {
+      combos.value = freshCombos.map(c => ({
+        ...c,
+        price: lockedCombosPrices.value[c.id] != null
+          ? lockedCombosPrices.value[c.id]
+          : Number(c.price)
+      }))
+    } else {
+      combos.value = freshCombos
+    }
   } catch (err) {
     console.error('Không tải được thực đơn F&B:', err)
   }
@@ -284,11 +326,15 @@ const reconcilePosCombos = () => {
     if (!currentItem || currentItem.isActive === false || currentItem.isDeleted) {
       removedNames.push(c.name || 'Món')
     } else {
-      // Cập nhật giá gốc mới nhất
+      // ── Snapshot guard: chỉ cập nhật metadata hiển thị (tên), KHÔNG ghi đè giá đã snapshot ──
+      // Thiết kế chuẩn CGV/Lotte Cinema: giá bị đóng băng tại thời điểm Thu ngân bấm chọn.
+      // Admin cập nhật giá trong khi Thu ngân đang bán → giá khách đã thỏa thuận KHÔNG thay đổi.
       c.name = currentItem.name
-      c.price = Number(currentItem.price || 0)
+      // KHÔNG ghi đè c.price — snapshotPrice là nguồn sự thật duy nhất cho tính tiền.
+      // Backfill snapshotPrice cho combo cũ (restore từ posStore chưa có field này)
+      if (c.snapshotPrice == null) c.snapshotPrice = c.price
 
-      // Đối soát lại vị con đã chọn
+      // Đối soát lại vị con đã chọn (nếu vị bị xóa khỏi kho)
       if (c.options && c.options.length > 0 && currentItem.slots) {
         const validOptions = []
         let newSurcharge = 0
@@ -374,13 +420,18 @@ const seatRealtime = useSeatRealtime({
       }
     }
   },
-  // Đồng bộ bảng giá vé nền
+  // Đồng bộ bảng giá vé nền (luôn cập nhật priceTable live để phiên kế tiếp dùng đúng giá)
+  // ── Snapshot guard: nếu Thu ngân đã lock giá (đang từ Bước 3 trở đi), KHÔNG override và KHÔNG toast ──
+  // lockedPriceTable GIỮ NGUYÊN — giá vé đã được đóng băng cho phiên hiện tại.
   onPricingUpdate: async () => {
     if (selectedShowtime.value) {
       try {
         const { data } = await ticketingApi.getSeats(selectedShowtime.value.id)
-        captureSeatMeta(data)
-        showToast('Bảng giá vé vừa được cập nhật.', 'info')
+        captureSeatMeta(data) // cập nhật priceTable nền (cho phiên tiếp theo)
+        // Chỉ báo cập nhật khi chưa lock (Thu ngân chưa vào bước xác nhận vé)
+        if (!lockedPriceTable.value) {
+          showToast('Bảng giá vé vừa được cập nhật.', 'info')
+        }
       } catch (_) {}
     }
   },
@@ -450,7 +501,17 @@ const holdCurrentOrder = async () => {
         showtimeId: selectedShowtime.value.id,
         seatIds: selectedSeats.value.map(s => s.seatId),
         customerId: member.value ? member.value.customerId : null,
-        fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] }))
+        fnbs: selectedCombos.value.map(c => ({
+          fnbItemId: c.id,
+          quantity: c.quantity,
+          clientPrice: c.snapshotPrice ?? c.price, // ── Gửi giá đã lock để Backend verify ──
+          options: (c.options || []).map(o => ({
+            slotId: o.slotId,
+            optionGroupId: o.optionGroupId,
+            optionItemId: o.optionItemId,
+            clientSurcharge: o.snapshotSurcharge ?? o.surchargePrice ?? 0
+          }))
+        }))
       })
       // Interceptor axios đã bóc envelope ApiResponse → `data` chính là { bookingId, bookingCode, expiresAt }.
       // Giữ `?? data` để an toàn nếu envelope không bị bóc (endpoint trả payload thô).
@@ -549,6 +610,11 @@ const performRestore = async (o) => {
   saleMode.value = 'TICKET'
   selectedShowtime.value = o.showtime
   selectedCombos.value = o.combos || []
+  // ── Backfill snapshotPrice cho đơn chờ cũ (restore từ posStore chưa có field này) ──
+  selectedCombos.value = selectedCombos.value.map(c => ({
+    ...c,
+    snapshotPrice: c.snapshotPrice ?? c.price
+  }))
   member.value = o.member || null
   restoredBookingId.value = o.bookingId || null
   showHeldPanel.value = false
@@ -841,6 +907,8 @@ const softReset = () => {
   showCashModal.value = false
   showQrModal.value = false
   cashGiven.value = 0
+  lockedPriceTable.value = null // ── Nhả lock snapshot giá vé khi bắt đầu phiên mới ──
+  lockedCombosPrices.value = null // ── Nhả lock snapshot giá catalog F&B ──
   clearVoucherState()
 }
 
@@ -901,6 +969,15 @@ const switchMode = (mode) => {
   showQrModal.value = false
   showMobileReceiptDrawer.value = false
   cashGiven.value = 0
+  lockedPriceTable.value = null  // nhả lock giá vé khi chuyển chế độ
+  lockedCombosPrices.value = null // nhả lock giá catalog trước, rồi set lại theo mode mới
+  // Khi vào chế độ Bán nhanh F&B: snapshot giá catalog ngay lập tức
+  // → onFnbUpdate không đổi giá hiển thị trên card trong suốt phiên bán này.
+  if (mode === 'FNB') {
+    const priceMap = {}
+    combos.value.forEach(c => { priceMap[c.id] = Number(c.price) })
+    lockedCombosPrices.value = priceMap
+  }
 }
 
 // Sẵn sàng thanh toán: TICKET cần ghế, FNB cần ít nhất 1 món
@@ -1181,8 +1258,15 @@ const handleFnbOptionsConfirm = ({ options, totalSurcharge }) => {
     if (existingIndex > -1) {
       if (selectedCombos.value[existingIndex].quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error') }
       else selectedCombos.value[existingIndex].quantity++
+      // snapshotPrice GIỮ NGUYÊN khi tăng số lượng
     } else {
-      selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options, surchargePrice: totalSurcharge })
+      // ── Snapshot giá tại thời điểm Thu ngân bấm chọn (Price Lock at Selection) ──
+      const snapOptions = (options || []).map(o => ({
+        ...o,
+        surchargePrice: Number(o.surchargePrice) || 0,
+        snapshotSurcharge: Number(o.surchargePrice) || 0
+      }))
+      selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), snapshotPrice: Number(cb.price), quantity: 1, options: snapOptions, surchargePrice: totalSurcharge })
     }
   }
   isFnbModalOpen.value = false
@@ -1198,8 +1282,11 @@ const addCombo = (cb) => {
   if (existingIndex > -1) {
     if (selectedCombos.value[existingIndex].quantity >= MAX_FNB_QTY) { showToast(`Tối đa ${MAX_FNB_QTY} phần/món.`, 'error'); return }
     selectedCombos.value[existingIndex].quantity++
+    // snapshotPrice GIỮ NGUYÊN khi tăng số lượng
   } else {
-    selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), quantity: 1, options: [], surchargePrice: 0 })
+    // ── Snapshot giá tại thời điểm Thu ngân bấm chọn (Price Lock at Selection) ──
+    // Giá đóng băng ngay lúc này, không bị ảnh hưởng nếu Admin cập nhật giá sau đó.
+    selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), snapshotPrice: Number(cb.price), quantity: 1, options: [], surchargePrice: 0 })
   }
 }
 
@@ -1221,7 +1308,14 @@ const changeComboQty = (item, delta) => {
 }
 
 const seatTotal = computed(() => selectedSeats.value.reduce((a, s) => a + priceOf(s), 0))
-const comboTotal = computed(() => selectedCombos.value.reduce((a, c) => a + (c.price + (c.surchargePrice || 0)) * c.quantity, 0))
+// ── Snapshot guard: dùng snapshotPrice (giá lock lúc chọn) thay vì c.price (có thể đã bị Admin cập nhật) ──
+// → tránh tổng tiền tự thay đổi khi Admin cập nhật giá F&B trong khi Thu ngân đang bán
+const comboTotal = computed(() =>
+  selectedCombos.value.reduce((a, c) => {
+    const base = c.snapshotPrice ?? c.price
+    return a + (base + (c.surchargePrice || 0)) * c.quantity
+  }, 0)
+)
 const totalPrice = computed(() => seatTotal.value + comboTotal.value)
 
 // Giảm giá voucher (xem trước phía client; số chính thức do BE tính lại khi thanh toán)
@@ -1365,7 +1459,17 @@ const openQrModal = async () => {
       showtimeId: selectedShowtime.value.id,
       seatIds: selectedSeats.value.map(s => s.seatId),
       seatSelections: buildSeatSelections(),
-      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
+      fnbs: selectedCombos.value.map(c => ({
+        fnbItemId: c.id,
+        quantity: c.quantity,
+        clientPrice: c.snapshotPrice ?? c.price, // ── Gửi giá đã lock để Backend verify ──
+        options: (c.options || []).map(o => ({
+          slotId: o.slotId,
+          optionGroupId: o.optionGroupId,
+          optionItemId: o.optionItemId,
+          clientSurcharge: o.snapshotSurcharge ?? o.surchargePrice ?? 0
+        }))
+      })),
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: 'TRANSFER',
@@ -1489,7 +1593,17 @@ const processPayment = async (method) => {
       showtimeId: selectedShowtime.value.id,
       seatIds: selectedSeats.value.map(s => s.seatId),
       seatSelections: buildSeatSelections(),
-      fnbs: selectedCombos.value.map(c => ({ fnbItemId: c.id, quantity: c.quantity, options: c.options || [] })),
+      fnbs: selectedCombos.value.map(c => ({
+        fnbItemId: c.id,
+        quantity: c.quantity,
+        clientPrice: c.snapshotPrice ?? c.price, // ── Gửi giá đã lock để Backend verify ──
+        options: (c.options || []).map(o => ({
+          slotId: o.slotId,
+          optionGroupId: o.optionGroupId,
+          optionItemId: o.optionItemId,
+          clientSurcharge: o.snapshotSurcharge ?? o.surchargePrice ?? 0
+        }))
+      })),
       customerId: member.value ? member.value.customerId : null,
       voucherId: appliedVoucher.value ? appliedVoucher.value.id : null,
       paymentMethod: method,
@@ -1926,6 +2040,8 @@ const resetPOS = () => {
   sessionStartedAt.value = null
   showMobileReceiptDrawer.value = false
   cashGiven.value = 0
+  lockedPriceTable.value = null // ── Nhả lock snapshot giá vé khi bắt đầu phiên mới ──
+  lockedCombosPrices.value = null // ── Nhả lock snapshot giá catalog F&B ──
   clearVoucherState()
   fetchData()
 }

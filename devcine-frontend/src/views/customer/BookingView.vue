@@ -1674,6 +1674,9 @@ const proceedToPayment = async () => {
                       {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
                     </p>
                     <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80 flex-wrap">
+                      <span v-if="voucherEvals[v.id]?.applicableMovieTitle" class="text-amber-300 font-medium">
+                        🎬 Phim: {{ voucherEvals[v.id].applicableMovieTitle }}
+                      </span>
                       <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                         Đơn từ {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
                       </span>
@@ -1737,6 +1740,9 @@ const proceedToPayment = async () => {
                     </div>
 
                     <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/60 pt-0.5 flex-wrap">
+                      <span v-if="voucherEvals[v.id]?.applicableMovieTitle" class="text-amber-300/80 font-medium">
+                        🎬 Phim: {{ voucherEvals[v.id].applicableMovieTitle }}
+                      </span>
                       <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                         Đơn tối thiểu {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
                       </span>

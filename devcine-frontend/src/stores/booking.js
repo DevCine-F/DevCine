@@ -246,9 +246,18 @@ export const useBookingStore = defineStore('booking', {
       if (q > 0) {
         if (index === -1) {
           // ── Snapshot giá tại thời điểm user bấm chọn (Price Lock at Selection) ──
-          // Giá được "đóng băng" ngay lúc này, không bị ảnh hưởng nếu admin
-          // cập nhật giá sau đó trong khi khách đang ở bước Combo.
-          this.selectedFnbs.push({ fnbItem, quantity: q, options, snapshotPrice: fnbItem.price });
+          // Giá được "đóng băng" ngay lúc này (cả giá base lẫn options phụ thu)
+          const snapOptions = (options || []).map(o => ({
+            ...o,
+            surchargePrice: Number(o.surchargePrice) || 0,
+            snapshotSurcharge: Number(o.surchargePrice) || 0
+          }))
+          this.selectedFnbs.push({
+            fnbItem,
+            quantity: q,
+            options: snapOptions,
+            snapshotPrice: fnbItem.price
+          });
         } else {
           this.selectedFnbs[index].quantity = q;
           // snapshotPrice GIỮ NGUYÊN — không cập nhật lại khi tăng số lượng
@@ -275,7 +284,7 @@ export const useBookingStore = defineStore('booking', {
         let surcharge = 0;
         if (fnb.options) {
            for (const opt of fnb.options) {
-               surcharge += (opt.surchargePrice || 0);
+               surcharge += (opt.snapshotSurcharge ?? opt.surchargePrice ?? 0);
            }
         }
         // Dùng snapshotPrice (giá tại thời điểm user bấm chọn) thay vì giá DB hiện tại
@@ -319,7 +328,12 @@ export const useBookingStore = defineStore('booking', {
              // Gửi snapshotPrice (giá lock lúc user bấm chọn) lên backend
              // Backend sẽ verify và dùng làm priceSnapshot thay vì luôn fetch DB price
              clientPrice: f.snapshotPrice ?? f.fnbItem.price,
-             options: f.options ? f.options.map(o => ({ slotId: o.slotId, optionGroupId: o.optionGroupId, optionItemId: o.optionItemId })) : []
+             options: f.options ? f.options.map(o => ({
+               slotId: o.slotId,
+               optionGroupId: o.optionGroupId,
+               optionItemId: o.optionItemId,
+               clientSurcharge: o.snapshotSurcharge ?? o.surchargePrice ?? 0
+             })) : []
           })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
           paymentMethod: paymentMethod,

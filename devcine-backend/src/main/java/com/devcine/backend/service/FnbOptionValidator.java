@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
 public class FnbOptionValidator {
 
     /** Một lựa chọn đã được xác thực + nạp entity thật, sẵn sàng để dựng snapshot. */
-    public record ResolvedOption(FnbComboSlot slot, FnbOptionItem item) {
+    public record ResolvedOption(FnbComboSlot slot, FnbOptionItem item, java.math.BigDecimal effectiveSurcharge) {
         public String slotLabel() { return slot.getSlotLabel(); }
         public String optionName() { return item.getName(); }
-        public java.math.BigDecimal surcharge() { return item.getSurchargePrice(); }
+        public java.math.BigDecimal surcharge() { return effectiveSurcharge != null ? effectiveSurcharge : item.getSurchargePrice(); }
     }
 
     /**
@@ -96,7 +96,13 @@ public class FnbOptionValidator {
                     throw new IllegalArgumentException(
                             "Lựa chọn không thuộc Ô '" + slot.getSlotLabel() + "' của món '" + item.getName() + "'.");
                 }
-                resolved.add(new ResolvedOption(slot, optItem));
+                java.math.BigDecimal effectiveSurcharge = optItem.getSurchargePrice();
+                // Price Lock at Selection: nếu client gửi clientSurcharge (giá lock lúc khách/thu ngân chọn)
+                // → bảo vệ snapshot để tránh nhảy giá nếu Admin thay đổi giá phụ thu trong lúc khách đang thanh toán.
+                if (sel.getClientSurcharge() != null && sel.getClientSurcharge().compareTo(java.math.BigDecimal.ZERO) >= 0) {
+                    effectiveSurcharge = sel.getClientSurcharge();
+                }
+                resolved.add(new ResolvedOption(slot, optItem, effectiveSurcharge));
             }
         }
         return resolved;

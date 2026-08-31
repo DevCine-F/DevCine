@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 /**
  * Một lựa chọn tùy chọn do client gửi lên khi chốt đơn.
  *
@@ -21,4 +23,6 @@ public class FnbOptionSelectionDTO {
     private Integer slotId;
     private Integer optionGroupId;
     private Integer optionItemId;
+    /** Phụ thu lock tại thời điểm khách/thu ngân chọn (Price Lock at Selection). */
+    private BigDecimal clientSurcharge;
 }

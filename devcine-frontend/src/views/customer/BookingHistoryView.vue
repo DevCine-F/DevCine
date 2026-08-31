@@ -367,10 +367,24 @@ onMounted(fetchHistory)
             <!-- Combo F&B -->
             <div v-if="selectedBooking.fnbs && selectedBooking.fnbs.length > 0">
               <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-2">Combo / Bắp nước</p>
-              <div class="flex flex-wrap gap-2 max-h-24 overflow-y-auto custom-scrollbar pr-1">
-                <span v-for="(fnb, idx) in selectedBooking.fnbs" :key="idx" class="text-xs text-zinc-100 bg-white/[0.06] border border-white/10 px-2.5 py-1.5 rounded-lg shrink-0">
-                  <span class="font-bold text-[#EAB308] mr-1">{{ fnb.quantity }}×</span>{{ fnb.itemName }}
-                </span>
+              <div class="flex flex-col gap-2 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                <div v-for="(fnb, idx) in selectedBooking.fnbs" :key="idx" class="text-xs text-zinc-100 bg-white/[0.06] border border-white/10 p-2.5 rounded-lg">
+                  <div class="flex items-center justify-between">
+                    <span class="font-semibold text-white">
+                      <span class="font-bold text-[#EAB308] mr-1">{{ fnb.quantity }}×</span>{{ fnb.itemName }}
+                    </span>
+                    <span v-if="fnb.priceSnapshot" class="text-[11px] text-zinc-300 font-mono">
+                      {{ (Number(fnb.priceSnapshot) * Number(fnb.quantity)).toLocaleString('vi-VN') }}đ
+                    </span>
+                  </div>
+                  <!-- Danh sách vị/topping nếu có -->
+                  <div v-if="fnb.options && fnb.options.length > 0" class="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-white/5">
+                    <span v-for="(opt, oIdx) in fnb.options" :key="oIdx" class="text-[10px] bg-black/30 text-zinc-300 px-2 py-0.5 rounded border border-white/5">
+                      <span class="text-zinc-400">{{ opt.slotLabel ? opt.slotLabel + ': ' : '' }}</span>{{ opt.optionName }}
+                      <span v-if="Number(opt.surcharge) > 0" class="text-amber-400 font-semibold">(+{{ Number(opt.surcharge).toLocaleString('vi-VN') }}đ)</span>
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 

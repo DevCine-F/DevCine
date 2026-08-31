@@ -281,13 +281,11 @@ public class MarketingController {
             var customer = customerRepository.findById(customerId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
 
-            Voucher voucher = Voucher.builder()
-                    .promotion(promo)
-                    .customer(customer)
-                    .isUsed(false)
-                    .validUntil(promo.getEndDate() != null ? promo.getEndDate() : LocalDateTime.now().plusMonths(1))
-                    .build();
-            voucherRepository.save(voucher);
+            Voucher voucher = voucherService.issueVoucher(
+                    promo,
+                    customer,
+                    promo.getEndDate() != null ? promo.getEndDate() : LocalDateTime.now().plusMonths(1)
+            );
             notifyVoucherUpdate("VOUCHER_ISSUED");
             return ResponseEntity.status(201).body(ApiResponse.ok(voucher));
         } catch (Exception e) {

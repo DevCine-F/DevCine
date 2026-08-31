@@ -110,7 +110,10 @@ public class ConcessionService {
                         .surchargeSnapshot(ro.surcharge())
                         .build());
             }
-            BigDecimal finalItemPrice = item.getPrice().add(lineSurcharge);
+            BigDecimal basePrice = (dto.getClientPrice() != null && dto.getClientPrice().compareTo(BigDecimal.ZERO) > 0)
+                    ? dto.getClientPrice()
+                    : item.getPrice();
+            BigDecimal finalItemPrice = basePrice.add(lineSurcharge);
             saleItem.setPriceSnapshot(finalItemPrice);
             if (!mappedOptions.isEmpty()) {
                 saleItem.setOptions(mappedOptions);
