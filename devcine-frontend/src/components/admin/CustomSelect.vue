@@ -32,7 +32,8 @@ const searchInputRef = ref(null);
 const searchQuery = ref('');
 
 const selectedOption = computed(() => {
-  return props.options.find(opt => opt.value === props.modelValue);
+  if (props.modelValue === '' || props.modelValue === null || props.modelValue === undefined) return null;
+  return props.options.find(opt => String(opt.value) === String(props.modelValue));
 });
 
 const filteredOptions = computed(() => {
@@ -143,7 +144,7 @@ onUnmounted(() => {
             class="px-4 py-3 cursor-pointer transition-colors flex items-center justify-between gap-2"
             :class="[
               option.disabled ? 'opacity-40 cursor-not-allowed' : '',
-              option.value === modelValue 
+              String(option.value) === String(modelValue) 
                 ? 'bg-primary/10 text-primary font-bold border-l-2 border-primary' 
                 : 'text-white/80 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
             ]"

@@ -279,7 +279,7 @@ const handleDragStart = (event, show) => {
               >
                 <div class="flex justify-between items-start">
                   <p class="text-[12px] font-bold font-sans text-white leading-tight truncate tracking-wide flex-1 pr-1 flex items-center gap-1">
-                    <span v-if="isShowtimeLocked(show)" class="text-[10px]">🔒</span>
+                    <span v-if="isShowtimeLocked(show)" class="material-symbols-outlined text-[13px] text-amber-400">lock</span>
                     {{ show.movie }}
                   </p>
                   <div class="flex items-center gap-1 shrink-0">

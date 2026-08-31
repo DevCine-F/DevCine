@@ -38,14 +38,21 @@ const getSelectedDateStr = () => {
       ? props.editData.startTime
       : (props.editData.fullDateTime || '');
     if (st.includes('T')) return st.split('T')[0];
-    if (st.includes('-')) return st.slice(0, 10);
+    if (st.includes('-') && st.length >= 10) return st.slice(0, 10);
   }
   if (props.selectedDateIso) return props.selectedDateIso;
   if (props.selectedDate) {
     if (props.selectedDate.includes('/')) {
-      const [d, m] = props.selectedDate.split('/');
-      const year = new Date().getFullYear();
-      return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      const parts = props.selectedDate.split('/');
+      if (parts.length === 2) {
+        const [d, m] = parts;
+        const year = new Date().getFullYear();
+        return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      if (parts.length === 3) {
+        const [d, m, y] = parts;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
     }
     if (props.selectedDate.includes('-')) return props.selectedDate;
   }
@@ -75,7 +82,17 @@ const getActualDateTimeStr = () => {
 const selectedDateDisplay = computed(() => {
   if (props.selectedDate) {
     if (props.selectedDate.includes('/')) {
-      return `${props.selectedDate}/${new Date().getFullYear()}`;
+      const parts = props.selectedDate.split('/');
+      if (parts.length === 2) {
+        return `${props.selectedDate}/${new Date().getFullYear()}`;
+      }
+      return props.selectedDate;
+    }
+    if (props.selectedDate.includes('-')) {
+      const parts = props.selectedDate.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
     }
     return props.selectedDate;
   }
@@ -109,6 +126,8 @@ const form = reactive({
   startMinute: ''
 });
 
+const isInitializing = ref(false);
+
 const movies = ref([]);
 const rooms = ref([]);
 const formats = ref([]);
@@ -124,7 +143,14 @@ const clearErrors = () => Object.keys(fieldErrors).forEach(k => { fieldErrors[k]
 
 const movieOptions = computed(() => {
   return [...movies.value]
-    .filter(m => (m.status || '').toLowerCase() === 'active' || (m.status || '').toLowerCase() === 'upcoming')
+    .filter(m => {
+      // Khi đang edit, luôn giữ phim của suất chiếu hiện tại trong options kể cả khi status đã đổi
+      if (props.editData && (m.id === form.movieId || m.id === props.editData.movieId || m.id === props.editData.movie?.id)) {
+        return true;
+      }
+      const st = (m.status || '').toLowerCase();
+      return st === 'active' || st === 'upcoming';
+    })
     .sort((a, b) => (b.id || 0) - (a.id || 0))
     .map(m => {
       const isUpcoming = (m.status || '').toLowerCase() === 'upcoming';
@@ -169,7 +195,7 @@ const selectedMovieMeta = computed(() => {
 
 const roomOptions = computed(() => {
   return rooms.value
-    .filter(r => r.status === 'Active' || r.id === form.roomId)
+    .filter(r => r.status === 'Active' || r.id === form.roomId || (props.editData && r.id === props.editData.roomId))
     .map(r => ({ value: r.id, label: r.name }));
 });
 
@@ -191,6 +217,12 @@ const formatOptions = computed(() => {
 
   const roomType = selectedRoom.type || 'STANDARD';
   supportedFormats = supportedFormats.filter(f => isFormatCompatibleWithRoomType(f.name, roomType));
+
+  // Khi đang edit, đảm bảo format hiện tại không bị lọc mất
+  if (props.editData && form.formatId && !supportedFormats.some(f => f.id === form.formatId)) {
+    const currentFmt = formats.value.find(f => f.id === form.formatId);
+    if (currentFmt) supportedFormats = [currentFmt, ...supportedFormats];
+  }
 
   return supportedFormats.map(f => ({ value: f.id, label: f.name }));
 });
@@ -234,25 +266,34 @@ const hourOptions = computed(() => {
   const hours = [];
   for (let h = startH; h <= endH; h++) {
     const val = (h % 24).toString().padStart(2, '0');
-    let disabled = false;
+    let isPastHour = false;
     if (todayCheck.value) {
       if (h >= startH) {
-        disabled = (h % 24) < currentHour.value;
+        isPastHour = (h % 24) < currentHour.value;
       }
     }
-    if (!disabled && !hours.some(opt => opt.value === val)) {
-      hours.push({ value: val, label: val });
+    if (!hours.some(opt => opt.value === val)) {
+      hours.push({
+        value: val,
+        label: val,
+        disabled: !isLocked.value && isPastHour && (!props.editData || val !== form.startHour)
+      });
     }
   }
+
+  // Đảm bảo nếu form.startHour đã có giá trị mà chưa nằm trong options thì add vào để luôn hiển thị đúng
+  if (form.startHour && !hours.some(opt => opt.value === form.startHour)) {
+    hours.unshift({ value: form.startHour, label: form.startHour });
+  }
+
   return hours;
 });
 
 const minuteOptions = computed(() => {
+  const allMinutes = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
+
   if (!form.startHour) {
-    return Array.from({ length: 12 }, (_, i) => {
-      const val = (i * 5).toString().padStart(2, '0');
-      return { value: val, label: val };
-    });
+    return allMinutes.map(val => ({ value: val, label: val }));
   }
 
   const { openMin, closeMin } = cinemaScheduleBounds.value;
@@ -260,19 +301,27 @@ const minuteOptions = computed(() => {
   let h = parseInt(form.startHour);
   if (h < (startH % 24)) h += 24;
 
-  return Array.from({ length: 12 }, (_, i) => i * 5)
-    .filter(minVal => {
-      const pos = h * 60 + minVal;
-      if (pos < openMin || pos > closeMin) return false;
-      if (todayCheck.value && currentHour.value !== -1 && parseInt(form.startHour) === currentHour.value) {
-        if (minVal < currentMinute.value) return false;
-      }
-      return true;
-    })
-    .map(minVal => {
-      const val = minVal.toString().padStart(2, '0');
-      return { value: val, label: val };
-    });
+  const result = allMinutes.map(val => {
+    const minVal = parseInt(val);
+    const pos = h * 60 + minVal;
+    let disabled = false;
+    if (pos < openMin || pos > closeMin) disabled = true;
+    if (todayCheck.value && currentHour.value !== -1 && parseInt(form.startHour) === currentHour.value) {
+      if (minVal < currentMinute.value) disabled = true;
+    }
+    return {
+      value: val,
+      label: val,
+      disabled: !isLocked.value && disabled && (!props.editData || val !== form.startMinute)
+    };
+  });
+
+  // Đảm bảo nếu form.startMinute đã có giá trị mà chưa nằm trong options thì add vào để luôn hiển thị đúng
+  if (form.startMinute && !result.some(opt => opt.value === form.startMinute)) {
+    result.unshift({ value: form.startMinute, label: form.startMinute });
+  }
+
+  return result;
 });
 
 const fetchOptions = async () => {
@@ -313,19 +362,23 @@ const fetchShowtimes = async () => {
 };
 
 watch(() => form.movieId, () => {
+  if (isInitializing.value) return;
   form.formatId = '';
   fieldErrors.movieId = '';
   fieldErrors.formatId = '';
 });
 watch(() => form.roomId, () => {
+  if (isInitializing.value) return;
   form.formatId = '';
   fieldErrors.roomId = '';
   fieldErrors.formatId = '';
 });
 watch(() => form.formatId, () => {
+  if (isInitializing.value) return;
   fieldErrors.formatId = '';
 });
 watch(() => form.startHour, () => {
+  if (isInitializing.value) return;
   fieldErrors.time = '';
   if (form.startMinute) {
     const isValid = minuteOptions.value.some(opt => opt.value === form.startMinute);
@@ -333,23 +386,56 @@ watch(() => form.startHour, () => {
   }
 });
 watch(() => form.startMinute, () => {
+  if (isInitializing.value) return;
   fieldErrors.time = '';
 });
 
-watch(() => props.isOpen, (newVal) => {
+watch(() => props.isOpen, async (newVal) => {
   if (newVal) {
-    fetchOptions();
-    fetchRooms(props.cinemaId);
-    fetchShowtimes();
+    isInitializing.value = true;
     clearErrors();
+
+    await Promise.all([
+      fetchOptions(),
+      fetchRooms(props.cinemaId),
+      fetchShowtimes()
+    ]);
+
     if (props.editData) {
-      form.movieId = props.editData.movieId || props.editData.movie?.id || '';
-      form.roomId = props.editData.roomId || props.editData.room?.id || '';
-      form.formatId = props.editData.formatId || props.editData.format?.id || '';
-      if (props.editData.startTime) {
-        const st = new Date(props.editData.startTime);
-        form.startHour = st.getHours().toString().padStart(2, '0');
-        form.startMinute = st.getMinutes().toString().padStart(2, '0');
+      const edit = props.editData;
+      let mId = edit.movieId || edit.movie?.id || '';
+      if (!mId && edit.movieTitle) {
+        const foundMovie = movies.value.find(m => (m.title || m.name) === edit.movieTitle || m.titleVietnamese === edit.movieTitle);
+        if (foundMovie) mId = foundMovie.id;
+      }
+      form.movieId = mId ? Number(mId) : '';
+
+      let rId = edit.roomId || edit.room?.id || '';
+      if (!rId && edit.roomName) {
+        const foundRoom = rooms.value.find(r => r.name === edit.roomName);
+        if (foundRoom) rId = foundRoom.id;
+      }
+      form.roomId = rId ? Number(rId) : '';
+
+      let fId = edit.formatId || edit.format?.id || '';
+      if (!fId && (edit.formatName || edit.format)) {
+        const targetFmtName = (edit.formatName || edit.format).trim().toUpperCase();
+        const foundFormat = formats.value.find(f => f.name.trim().toUpperCase() === targetFmtName);
+        if (foundFormat) fId = foundFormat.id;
+      }
+      form.formatId = fId ? Number(fId) : '';
+
+      if (edit.startTime) {
+        let stDate = null;
+        if (typeof edit.startTime === 'string') {
+          stDate = new Date(edit.startTime);
+        } else if (Array.isArray(edit.startTime)) {
+          stDate = new Date(edit.startTime[0], edit.startTime[1] - 1, edit.startTime[2], edit.startTime[3], edit.startTime[4]);
+        }
+        if (stDate && !isNaN(stDate.getTime())) {
+          form.startHour = stDate.getHours().toString().padStart(2, '0');
+          form.startMinute = stDate.getMinutes().toString().padStart(2, '0');
+        }
       }
     } else {
       form.movieId = '';
@@ -358,12 +444,34 @@ watch(() => props.isOpen, (newVal) => {
       form.startHour = '';
       form.startMinute = '';
     }
+
+    await nextTick();
+    isInitializing.value = false;
   }
+});
+
+const isPast = computed(() => {
+  if (!props.editData?.startTime) return false;
+  let st = null;
+  if (typeof props.editData.startTime === 'string') {
+    st = new Date(props.editData.startTime);
+  } else if (Array.isArray(props.editData.startTime)) {
+    st = new Date(props.editData.startTime[0], props.editData.startTime[1] - 1, props.editData.startTime[2], props.editData.startTime[3], props.editData.startTime[4]);
+  }
+  return st ? st < new Date() : false;
 });
 
 const isLocked = computed(() => {
   if (!props.editData) return false;
-  return (props.editData.soldSeats || 0) > 0 || (props.editData.reserved || 0) > 0 || (props.editData.heldSeats || 0) > 0;
+  const hasBookings = (props.editData.soldSeats || 0) > 0 || (props.editData.reserved || 0) > 0 || (props.editData.heldSeats || 0) > 0;
+  return hasBookings || isPast.value;
+});
+
+const lockReasonMessage = computed(() => {
+  if (isPast.value) {
+    return 'Suất chiếu đã hoặc đang diễn ra, không thể chỉnh sửa.';
+  }
+  return 'Suất chiếu đã có vé đặt, không thể thay đổi thời gian/phòng chiếu.';
 });
 
 const pricePreview = computed(() => {
@@ -714,7 +822,7 @@ const handleSave = async () => {
 
         <div v-if="isLocked" class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center gap-3">
           <span class="material-symbols-outlined text-amber-400">lock</span>
-          <p class="text-[11px] text-amber-400 font-bold">Suất chiếu đã có vé đặt, không thể thay đổi thời gian/phòng chiếu.</p>
+          <p class="text-[11px] text-amber-400 font-bold">{{ lockReasonMessage }}</p>
         </div>
 
         <!-- Banner cảnh báo Xuất chiếu sớm -->
@@ -865,7 +973,7 @@ const handleSave = async () => {
         </button>
         <button
           @click="handleSave"
-          :disabled="!!timeConflictError"
+          :disabled="!!timeConflictError || isLocked"
           class="flex-1 py-3 rounded-xl bg-primary enabled:hover:brightness-110 text-on-primary font-bold uppercase tracking-widest text-xs shadow-lg shadow-primary/20 transition-all disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed"
         >
           {{ editData ? 'Lưu Thay Đổi' : 'Lưu Suất Chiếu' }}

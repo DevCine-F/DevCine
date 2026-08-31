@@ -203,7 +203,8 @@ const onEditSaved = () => {
 
       <!-- Footer -->
       <div v-if="detail" class="p-6 border-t border-outline-variant/10 bg-surface-container">
-        <div class="flex gap-4">
+        <!-- Cho phép Sửa và Xoá khi suất chiếu hợp lệ (sắp chiếu và chưa có vé) -->
+        <div v-if="reserved === 0 && liveStatus === 'upcoming'" class="flex gap-4">
           <button
             @click="isEditing = true"
             class="flex-1 py-3 rounded-xl border border-white/10 bg-white/5 text-white text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
@@ -212,21 +213,24 @@ const onEditSaved = () => {
           </button>
           
           <button
-            v-if="reserved === 0"
             @click="$emit('delete')"
             class="flex-1 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 text-[11px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
           >
             <span class="material-symbols-outlined text-[16px]">delete</span> Xoá
           </button>
-          <div
-            v-else
-            class="flex-1 py-3 rounded-xl border border-white/10 bg-black/20 text-white/50 text-[10px] font-bold uppercase tracking-widest text-center flex flex-col items-center justify-center gap-0.5"
-          >
-            <div class="flex items-center gap-1.5 text-amber-400">
-              <span class="material-symbols-outlined text-[16px]">lock</span> Khóa sửa đổi
-            </div>
-            <span class="text-[9px] font-medium text-white/30 normal-case tracking-normal">Vé đã bán/đặt</span>
+        </div>
+
+        <!-- Khóa hoàn toàn mọi thao tác Sửa & Xóa khi suất chiếu đã qua hoặc đã có vé -->
+        <div
+          v-else
+          class="w-full py-3.5 px-4 rounded-xl border border-amber-500/20 bg-amber-500/10 text-center flex flex-col items-center justify-center gap-1"
+        >
+          <div class="flex items-center gap-1.5 text-amber-400 font-bold text-xs uppercase tracking-wider">
+            <span class="material-symbols-outlined text-[18px]">lock</span> Khóa sửa đổi & xoá
           </div>
+          <span class="text-[10px] font-medium text-amber-400/80">
+            {{ (liveStatus === 'past' || liveStatus === 'ongoing') ? 'Suất chiếu đã hoặc đang diễn ra' : 'Suất chiếu đã có vé bán hoặc giữ chỗ' }}
+          </span>
         </div>
       </div>
     </div>

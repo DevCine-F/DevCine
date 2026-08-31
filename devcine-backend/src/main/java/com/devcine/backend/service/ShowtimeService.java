@@ -833,33 +833,97 @@ public class ShowtimeService {
         Showtime showtime = showtimeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy suất chiếu."));
 
+        LocalDateTime now = LocalDateTime.now();
+        // RULE 1: Chặn tuyệt đối việc chỉnh sửa các suất chiếu trong quá khứ hoặc đang diễn ra
+        if (showtime.getStartTime().isBefore(now)) {
+            throw new IllegalStateException("Không thể chỉnh sửa suất chiếu đã hoặc đang diễn ra.");
+        }
+
+        // RULE 2: Kiểm tra số vé đã bán hoặc đang giữ chỗ
+        long reserved = bookingSeatRepository.countReservedByShowtime(id);
+        if (reserved > 0) {
+            if (updates.containsKey("roomId") && updates.get("roomId") != null) {
+                Integer newRoomId = ((Number) updates.get("roomId")).intValue();
+                if (!newRoomId.equals(showtime.getRoom().getId())) {
+                    throw new IllegalStateException("Suất chiếu đã có " + reserved + " vé được bán/giữ chỗ, không thể đổi phòng chiếu.");
+                }
+            }
+            if (updates.containsKey("movieId") && updates.get("movieId") != null) {
+                Integer newMovieId = ((Number) updates.get("movieId")).intValue();
+                if (!newMovieId.equals(showtime.getMovie().getId())) {
+                    throw new IllegalStateException("Suất chiếu đã có " + reserved + " vé được bán/giữ chỗ, không thể đổi phim.");
+                }
+            }
+            if (updates.containsKey("formatId") && updates.get("formatId") != null) {
+                Integer newFormatId = ((Number) updates.get("formatId")).intValue();
+                if (!newFormatId.equals(showtime.getFormat().getId())) {
+                    throw new IllegalStateException("Suất chiếu đã có " + reserved + " vé được bán/giữ chỗ, không thể đổi định dạng.");
+                }
+            }
+            if (updates.containsKey("startTime") && updates.get("startTime") != null) {
+                LocalDateTime newStartTime = LocalDateTime.parse((String) updates.get("startTime"));
+                if (!newStartTime.equals(showtime.getStartTime())) {
+                    throw new IllegalStateException("Suất chiếu đã có " + reserved + " vé được bán/giữ chỗ, không thể thay đổi thời gian chiếu.");
+                }
+            }
+            return;
+        }
+
+        // RULE 3: Suất chiếu chưa có vé bán (reserved == 0) -> cho phép cập nhật đầy đủ Phim, Định dạng, Phòng, Giờ
         Integer originalRoomId = showtime.getRoom().getId();
-        // Phòng đích: phòng mới (nếu đổi) hoặc phòng hiện tại.
+
+        Movie targetMovie = showtime.getMovie();
+        if (updates.containsKey("movieId") && updates.get("movieId") != null) {
+            Integer movieId = ((Number) updates.get("movieId")).intValue();
+            targetMovie = movieRepository.findById(movieId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phim với ID: " + movieId));
+        }
+
+        MovieFormat targetFormat = showtime.getFormat();
+        if (updates.containsKey("formatId") && updates.get("formatId") != null) {
+            Integer formatId = ((Number) updates.get("formatId")).intValue();
+            targetFormat = movieFormatRepository.findById(formatId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy định dạng với ID: " + formatId));
+        }
+
         Room targetRoom = showtime.getRoom();
         if (updates.containsKey("roomId") && updates.get("roomId") != null) {
             Integer roomId = ((Number) updates.get("roomId")).intValue();
             targetRoom = roomRepository.findById(roomId)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng chiếu."));
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng chiếu với ID: " + roomId));
         }
 
-        // Giờ bắt đầu đích: giờ mới (nếu đổi) hoặc giữ nguyên.
         LocalDateTime targetStart = showtime.getStartTime();
         if (updates.containsKey("startTime") && updates.get("startTime") != null) {
             targetStart = LocalDateTime.parse((String) updates.get("startTime"));
         }
 
-        // endTime luôn tính lại từ thời lượng phim + turnaround của PHÒNG ĐÍCH (nguồn
-        // duy nhất).
-        int duration = showtime.getMovie().getDurationMins() != null ? showtime.getMovie().getDurationMins() : 120;
+        if (targetStart.isBefore(now)) {
+            throw new IllegalArgumentException("Thời gian bắt đầu suất chiếu không thể ở trong quá khứ.");
+        }
+
+        // Kiểm tra tương thích định dạng và phòng chiếu
+        if (!isFormatCompatibleWithRoom(targetFormat, targetRoom)) {
+            throw new IllegalArgumentException("Phòng chiếu '" + targetRoom.getName() + "' (loại "
+                    + (targetRoom.getType() != null ? targetRoom.getType() : "STANDARD")
+                    + ") không tương thích với định dạng '" + targetFormat.getName() + "'.");
+        }
+
+        int duration = targetMovie.getDurationMins() != null ? targetMovie.getDurationMins() : 120;
         LocalDateTime targetEnd = targetStart.plusMinutes(duration + turnaroundOf(targetRoom));
 
-        // VÁ LỖ HỔNG: chặn đổi giờ/phòng gây chồng lấn (bỏ qua chính suất đang sửa).
+        // Kiểm tra xung đột lịch chiếu (loại trừ chính suất này)
         if (showtimeRepository.hasConflictExcluding(targetRoom.getId(), targetStart, targetEnd, id)) {
             throw new IllegalStateException(
                     "Phòng chiếu đã có lịch trong khung giờ này (gồm thời gian dọn dẹp). Vui lòng chọn giờ/phòng khác.");
         }
 
-        int[] win = cinemaWindow(targetRoom.getCinema());
+        Cinema cinema = targetRoom.getCinema();
+        if (cinema != null && "CLOSED".equalsIgnoreCase(cinema.getStatus())) {
+            throw new IllegalArgumentException("Không thể cập nhật suất chiếu cho cụm rạp đã đóng cửa.");
+        }
+
+        int[] win = cinemaWindow(cinema);
         int startPos = posOf(targetStart.toLocalTime(), win[0]);
         int endPos = startPos + duration + turnaroundOf(targetRoom);
         if (startPos < win[0] || startPos > win[1]) {
@@ -870,12 +934,20 @@ public class ShowtimeService {
             throw new IllegalArgumentException("Suất chiếu kết thúc lúc " + fmtMin(endPos) + ", vượt quá giới hạn ca đêm (03:30). Vui lòng chọn giờ bắt đầu sớm hơn.");
         }
 
+        // Tự động nhận diện xuất chiếu sớm
+        LocalDate showtimeDate = targetStart.toLocalDate();
+        boolean isEarlyScreening = targetMovie.getReleaseDate() != null
+                && showtimeDate.isBefore(targetMovie.getReleaseDate());
+        String showtimeStatus = isEarlyScreening ? "Xuất chiếu sớm" : "Sắp chiếu";
+
+        showtime.setMovie(targetMovie);
+        showtime.setFormat(targetFormat);
         showtime.setRoom(targetRoom);
         showtime.setStartTime(targetStart);
         showtime.setEndTime(targetEnd);
-        // Đổi sang phòng khác → chụp lại sơ đồ của phòng mới (giữ đúng nguyên tắc
-        // snapshot).
-        // Sửa phòng gốc thì KHÔNG re-snapshot: suất giữ nguyên sơ đồ đã đông cứng.
+        showtime.setStatus(showtimeStatus);
+
+        // Đổi sang phòng khác hoặc chưa có snapshot -> chụp lại sơ đồ của phòng mới
         if (!targetRoom.getId().equals(originalRoomId) || showtime.getLayoutData() == null) {
             showtime.setLayoutData(seatLayoutSnapshotService.buildSnapshotJson(targetRoom.getId()));
         }

@@ -129,5 +129,19 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
   - Tái cấu trúc 4 tab nghiệp vụ trực quan: *Vận hành & Quầy vé*, *Nội dung & Sản phẩm*, *Kinh doanh & Khách hàng*, *Hệ thống & Nhân sự*.
   - Tích hợp hệ thống Toast thông báo (`useToastStore` / [AppToast.vue](file:///e:/DATN/DevCine/devcine-frontend/src/components/common/AppToast.vue)) khi lưu thay đổi phân quyền cho Vai trò, Nhân viên hoặc Đặt lại quyền.
 
+### 18. Chuẩn Hóa Nghiệp Vụ Quản Lý & Chỉnh Sửa Suất Chiếu (Showtimes Business Guard & UX Modernization)
+- **Ràng buộc Nghiệp vụ Cốt lõi (Backend - `ShowtimeService.java`):**
+  - **Chặn suất chiếu trong quá khứ / đang diễn ra:** Kiểm tra `showtime.startTime < NOW()`, ném `IllegalStateException` ("Không thể chỉnh sửa suất chiếu đã hoặc đang diễn ra.").
+  - **Bảo vệ toàn vẹn vé đã bán/giữ chỗ (`reserved > 0`):** Nghiêm cấm thay đổi Phòng chiếu (`roomId`), Phim (`movieId`), Định dạng (`formatId`), và Giờ chiếu (`startTime`) khi suất chiếu đã phát sinh vé đặt.
+  - **Cập nhật toàn diện khi chưa có vé bán (`reserved == 0`):** Cho phép cập nhật đầy đủ Phim mới, Định dạng mới, Phòng chiếu mới, Giờ chiếu mới; tự động tính lại `endTime` theo thời lượng phim mới + thời gian dọn phòng (`turnaroundOf`); tự động nhận diện xuất chiếu sớm (`isEarlyScreening`); tự động cập nhật snapshot sơ đồ ghế (`seatLayoutSnapshotService.buildSnapshotJson`) khi đổi phòng; kiểm tra tương thích định dạng phòng, chống trùng lịch và trần ca đêm (03:30).
+- **Trải nghiệm Giao diện & Trực quan hóa (Frontend - `ShowtimeDrawer.vue`, `ShowtimeDetailsDrawer.vue`, `CinemaShowtimesTab.vue`):**
+  - **Khóa tập trung từ màn hình Chi tiết (`ShowtimeDetailsDrawer.vue`):** Khi suất chiếu đã/đang chiếu hoặc đã có vé bán, ẩn hoàn toàn 2 nút `[ Sửa ]` và `[ Xóa ]`, thay bằng thẻ trạng thái duy nhất: `[ 🔒 KHÓA SỬA ĐỔI & XOÁ ]` kèm lý do chi tiết. Chỉ hiển thị nút Sửa/Xóa khi suất chiếu còn ở trạng thái `upcoming` và chưa phát sinh vé.
+  - **Khắc phục lỗi mất dữ liệu khi Sửa suất chiếu (`ShowtimeDrawer.vue`):**
+    + Sử dụng cờ `isInitializing` ngăn watchers xóa rỗng `form.formatId` khi mở form.
+    + Nạp đồng bộ toàn bộ danh mục (`movies`, `formats`, `rooms`) trước khi bind dữ liệu vào form.
+    + Giữ lại đầy đủ các khung giờ trong `hourOptions` và `minuteOptions` để dropdown luôn hiển thị chính xác giờ đã có của suất chiếu, đánh dấu `disabled` thay vì lọc bỏ khỏi mảng.
+    + Sửa lỗi chuỗi ngày tháng bị trùng lặp năm (`selectedDateDisplay`).
+  - **Tuân thủ quy chuẩn UI:** Loại bỏ hoàn toàn emoji `🔒` trên nhãn giao diện, chuyển sang Material Symbols `<span class="material-symbols-outlined">lock</span>`.
+
 
 
