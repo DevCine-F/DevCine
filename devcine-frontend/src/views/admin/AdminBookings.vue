@@ -19,24 +19,44 @@ const totalElements = ref(0)
 
 const filters = reactive({ q: '', status: '', method: '', hasFnb: '', from: '', to: '' })
 
-const FNB_TABS = [
-  { value: '', label: 'Tất cả' },
-  { value: 'YES', label: 'Có F&B' },
-  { value: 'NO', label: 'Chỉ vé' }
-]
-
-const STATUS_TABS = [
-  { value: '', label: 'Tất cả' },
+const STATUS_OPTIONS = [
+  { value: '', label: 'Mọi trạng thái' },
   { value: 'CONFIRMED', label: 'Hoàn tất' },
   { value: 'HOLD', label: 'Đang giữ' },
   { value: 'EXPIRED', label: 'Hết hạn' },
   { value: 'CANCELLED', label: 'Đã huỷ' }
 ]
-const METHODS = ['CASH', 'CARD', 'TRANSFER', 'VNPAY']
 
-// Dropdown phương thức (custom — khớp theme tối)
+const FNB_OPTIONS = [
+  { value: '', label: 'Mọi dịch vụ' },
+  { value: 'YES', label: 'Có bắp nước (F&B)' },
+  { value: 'NO', label: 'Chỉ vé xem phim' }
+]
+
+const METHODS = ['CASH', 'TRANSFER', 'VNPAY']
+
+// Dropdown Trạng thái, Dịch vụ & Phương thức
+const statusOpen = ref(false)
+const selectStatus = (s) => { filters.status = s; statusOpen.value = false; page.value = 0; fetchBookings() }
+const statusFilterLabel = (s) => {
+  const found = STATUS_OPTIONS.find(o => o.value === s)
+  return found ? (found.value ? found.label : 'Trạng thái') : 'Trạng thái'
+}
+
+const fnbOpen = ref(false)
+const selectFnb = (v) => { filters.hasFnb = v; fnbOpen.value = false; page.value = 0; fetchBookings() }
+const fnbLabel = (v) => {
+  if (v === 'YES') return 'Có F&B'
+  if (v === 'NO') return 'Chỉ vé'
+  return 'Dịch vụ'
+}
+
 const methodOpen = ref(false)
 const selectMethod = (m) => { filters.method = m; methodOpen.value = false; page.value = 0; fetchBookings() }
+
+const hasActiveFilters = computed(() => {
+  return Boolean(filters.q || filters.status || filters.method || filters.hasFnb || filters.from || filters.to)
+})
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN')
 const fnbTotalSurcharge = (f) => (f?.options || []).reduce((sum, o) => sum + Number(o.surcharge || 0), 0)
@@ -268,12 +288,8 @@ const isQrDisabled = computed(() => {
 const paymentLabelFull = (m) => {
   const map = {
     CASH: 'Tiền mặt',
-    VNPAY: 'VNPAY (Trực tuyến)',
-    MOMO: 'Ví MoMo',
-    ZALOPAY: 'Ví ZaloPay',
     TRANSFER: 'Chuyển khoản (VietQR)',
-    CARD: 'Thẻ POS (Ngân hàng)',
-    MEMBER_WALLET: 'Ví thành viên'
+    VNPAY: 'VNPAY (Trực tuyến)'
   }
   return map[m] || m || 'Chưa xác định'
 }
@@ -353,77 +369,124 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 </script>
 
 <template>
-  <div class="h-full flex flex-col space-y-6 p-10">
+  <div class="h-full flex flex-col space-y-4 lg:space-y-5 p-6 lg:p-8">
     <!-- Header -->
     <div class="flex justify-between items-end flex-shrink-0">
       <div>
-        <h1 class="text-3xl font-black text-on-surface tracking-tighter uppercase italic">Quản lý <span class="text-primary">Hoá đơn</span></h1>
-        <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">Toàn bộ đơn đặt vé &amp; bắp nước · {{ totalElements }} đơn</p>
+        <h1 class="text-2xl lg:text-3xl font-black text-on-surface tracking-tighter uppercase italic">Quản lý <span class="text-primary">Hoá đơn</span></h1>
+        <p class="text-xs lg:text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-0.5">Toàn bộ đơn đặt vé &amp; bắp nước · {{ totalElements }} đơn</p>
       </div>
-      <button @click="exportCsv" class="px-6 py-3 bg-surface-container-high hover:bg-white/10 text-on-surface font-bold text-xs uppercase tracking-widest rounded transition-colors flex items-center gap-2 border border-outline-variant/20">
+      <button @click="exportCsv" class="px-5 py-2.5 bg-surface-container-high hover:bg-white/10 text-on-surface font-bold text-xs uppercase tracking-widest rounded-sm transition-colors flex items-center gap-2 border border-outline-variant/20 shadow-sm">
         <span class="material-symbols-outlined text-sm">download</span> Xuất CSV
       </button>
     </div>
 
-    <!-- Toolbar -->
-    <div class="bg-surface-container-low p-3 rounded-2xl border border-outline-variant/10 flex flex-wrap items-center gap-3 shadow-xl flex-shrink-0">
-      <div class="relative flex-grow min-w-[240px] group">
-        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">search</span>
-        <input v-model="filters.q" @input="onSearchInput" type="text" placeholder="Tìm theo mã đơn, tên khách..."
-               class="w-full h-11 bg-surface-container-highest border border-outline-variant/10 rounded-xl pl-12 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none hover:border-outline-variant/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15 transition-all">
+    <!-- Toolbar (1 Hàng Siêu Gọn: Search Trái - Bộ lọc Phải) -->
+    <div class="bg-surface-container-low p-2 rounded-sm border border-outline-variant/10 flex items-center justify-between gap-3 shadow-xl flex-shrink-0 flex-nowrap overflow-visible relative z-20">
+      <!-- 1. Ô tìm kiếm (Căn lề trái) -->
+      <div class="relative w-52 sm:w-60 shrink-0 group">
+        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors text-base">search</span>
+        <input v-model="filters.q" @input="onSearchInput" type="text" placeholder="Tìm mã đơn, tên khách..."
+               class="w-full h-9 bg-surface-container-highest border border-outline-variant/10 rounded-sm pl-8 pr-2.5 text-xs text-on-surface placeholder:text-on-surface-variant/50 outline-none hover:border-outline-variant/30 focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all">
       </div>
 
-      <div class="flex items-center gap-1 bg-surface-container-highest p-1 rounded-xl border border-outline-variant/10 h-11">
-        <button v-for="t in STATUS_TABS" :key="t.value" @click="filters.status = t.value; applyFilter()"
-                :class="filters.status === t.value ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/5'"
-                class="px-4 h-full text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all">{{ t.label }}</button>
-      </div>
+      <!-- Cụm bộ lọc chức năng (Căn lề phải) -->
+      <div class="flex items-center gap-2 shrink-0">
+        <!-- 2. Dropdown Trạng thái đơn -->
+        <div class="relative h-9 shrink-0">
+          <button @click="statusOpen = !statusOpen; fnbOpen = false; methodOpen = false" type="button"
+                  class="h-full px-3 bg-surface-container-highest border rounded-sm text-xs text-on-surface outline-none cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="[
+                    statusOpen ? 'border-primary/60 ring-1 ring-primary/20' : 'border-outline-variant/10 hover:border-outline-variant/30',
+                    filters.status ? 'border-primary/40 text-primary font-bold' : ''
+                  ]">
+            <span :class="filters.status ? 'text-primary font-bold' : 'text-on-surface-variant'">{{ statusFilterLabel(filters.status) }}</span>
+            <span class="material-symbols-outlined text-on-surface-variant text-sm transition-transform" :class="{ 'rotate-180': statusOpen }">expand_more</span>
+          </button>
 
-      <!-- Lọc theo F&B -->
-      <div class="flex items-center gap-1 bg-surface-container-highest p-1 rounded-xl border border-outline-variant/10 h-11">
-        <button v-for="t in FNB_TABS" :key="t.value" @click="filters.hasFnb = t.value; applyFilter()"
-                :class="filters.hasFnb === t.value ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/5'"
-                class="px-4 h-full text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all">{{ t.label }}</button>
-      </div>
+          <div v-if="statusOpen" class="fixed inset-0 z-[55]" @click="statusOpen = false"></div>
+          <transition name="fade">
+            <div v-if="statusOpen" class="absolute left-0 top-full mt-1.5 w-[150px] bg-surface-container-high border border-outline-variant/20 rounded-sm shadow-[0_10px_40px_-10px_var(--shadow-color)] z-[60] overflow-hidden py-1">
+              <button v-for="opt in STATUS_OPTIONS" :key="opt.value" @click="selectStatus(opt.value)" type="button"
+                      class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-left transition-colors"
+                      :class="filters.status === opt.value ? 'text-primary bg-primary/10 font-semibold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'">
+                <span>{{ opt.label }}</span>
+                <span v-if="filters.status === opt.value" class="material-symbols-outlined text-sm">check</span>
+              </button>
+            </div>
+          </transition>
+        </div>
 
-      <div class="relative h-11">
-        <button @click="methodOpen = !methodOpen" type="button"
-                class="h-full w-[190px] bg-surface-container-highest border rounded-xl pl-10 pr-9 text-sm text-left text-on-surface outline-none cursor-pointer transition-all relative flex items-center"
-                :class="methodOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">payments</span>
-          <span class="truncate" :class="filters.method ? 'text-on-surface font-semibold' : 'text-on-surface-variant'">{{ filters.method ? paymentLabel(filters.method) : 'Mọi phương thức' }}</span>
-          <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg transition-transform" :class="{ 'rotate-180': methodOpen }">expand_more</span>
+        <!-- 3. Dropdown Loại dịch vụ (F&B) -->
+        <div class="relative h-9 shrink-0">
+          <button @click="fnbOpen = !fnbOpen; statusOpen = false; methodOpen = false" type="button"
+                  class="h-full px-3 bg-surface-container-highest border rounded-sm text-xs text-on-surface outline-none cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="[
+                    fnbOpen ? 'border-primary/60 ring-1 ring-primary/20' : 'border-outline-variant/10 hover:border-outline-variant/30',
+                    filters.hasFnb ? 'border-primary/40 text-primary font-bold' : ''
+                  ]">
+            <span :class="filters.hasFnb ? 'text-primary font-bold' : 'text-on-surface-variant'">{{ fnbLabel(filters.hasFnb) }}</span>
+            <span class="material-symbols-outlined text-on-surface-variant text-sm transition-transform" :class="{ 'rotate-180': fnbOpen }">expand_more</span>
+          </button>
+
+          <div v-if="fnbOpen" class="fixed inset-0 z-[55]" @click="fnbOpen = false"></div>
+          <transition name="fade">
+            <div v-if="fnbOpen" class="absolute left-0 top-full mt-1.5 w-[160px] bg-surface-container-high border border-outline-variant/20 rounded-sm shadow-[0_10px_40px_-10px_var(--shadow-color)] z-[60] overflow-hidden py-1">
+              <button v-for="opt in FNB_OPTIONS" :key="opt.value" @click="selectFnb(opt.value)" type="button"
+                      class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-left transition-colors"
+                      :class="filters.hasFnb === opt.value ? 'text-primary bg-primary/10 font-semibold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'">
+                <span>{{ opt.label }}</span>
+                <span v-if="filters.hasFnb === opt.value" class="material-symbols-outlined text-sm">check</span>
+              </button>
+            </div>
+          </transition>
+        </div>
+
+        <!-- 4. Dropdown Phương thức thanh toán -->
+        <div class="relative h-9 shrink-0">
+          <button @click="methodOpen = !methodOpen; statusOpen = false; fnbOpen = false" type="button"
+                  class="h-full px-3 bg-surface-container-highest border rounded-sm text-xs text-on-surface outline-none cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="[
+                    methodOpen ? 'border-primary/60 ring-1 ring-primary/20' : 'border-outline-variant/10 hover:border-outline-variant/30',
+                    filters.method ? 'border-primary/40 text-primary font-bold' : ''
+                  ]">
+            <span :class="filters.method ? 'text-primary font-bold' : 'text-on-surface-variant'">{{ filters.method ? paymentLabel(filters.method) : 'Phương thức' }}</span>
+            <span class="material-symbols-outlined text-on-surface-variant text-sm transition-transform" :class="{ 'rotate-180': methodOpen }">expand_more</span>
+          </button>
+
+          <div v-if="methodOpen" class="fixed inset-0 z-[55]" @click="methodOpen = false"></div>
+          <transition name="fade">
+            <div v-if="methodOpen" class="absolute left-0 top-full mt-1.5 w-[190px] bg-surface-container-high border border-outline-variant/20 rounded-sm shadow-[0_10px_40px_-10px_var(--shadow-color)] z-[60] overflow-hidden py-1">
+              <button @click="selectMethod('')" type="button"
+                      class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-left transition-colors"
+                      :class="!filters.method ? 'text-primary bg-primary/10 font-semibold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'">
+                <span>Mọi phương thức</span>
+                <span v-if="!filters.method" class="material-symbols-outlined text-sm">check</span>
+              </button>
+              <button v-for="m in METHODS" :key="m" @click="selectMethod(m)" type="button"
+                      class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-left transition-colors"
+                      :class="filters.method === m ? 'text-primary bg-primary/10 font-semibold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'">
+                <span>{{ paymentLabel(m) }}</span>
+                <span v-if="filters.method === m" class="material-symbols-outlined text-sm">check</span>
+              </button>
+            </div>
+          </transition>
+        </div>
+
+        <!-- 5. Khung Khoảng ngày -->
+        <div class="flex items-center gap-1.5 h-9 px-2.5 bg-surface-container-highest border border-outline-variant/10 rounded-sm hover:border-outline-variant/30 transition-colors shrink-0">
+          <input v-model="filters.from" @change="applyFilter" type="date" title="Từ ngày" class="bg-transparent text-xs text-on-surface outline-none cursor-pointer w-[102px]">
+          <span class="text-on-surface-variant/40 text-xs">→</span>
+          <input v-model="filters.to" @change="applyFilter" type="date" title="Đến ngày" class="bg-transparent text-xs text-on-surface outline-none cursor-pointer w-[102px]">
+        </div>
+
+        <!-- 6. Nút Đặt lại (Chỉ icon vuông vắn) -->
+        <button @click="resetFilters" title="Đặt lại bộ lọc"
+                class="w-9 h-9 bg-surface-container-highest border rounded-sm transition-all flex items-center justify-center shrink-0"
+                :class="hasActiveFilters ? 'border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 shadow-sm' : 'border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-white/5'">
+          <span class="material-symbols-outlined text-base">restart_alt</span>
         </button>
-
-        <div v-if="methodOpen" class="fixed inset-0 z-[55]" @click="methodOpen = false"></div>
-        <transition name="fade">
-          <div v-if="methodOpen" class="absolute left-0 top-full mt-2 w-full min-w-[190px] bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_10px_40px_-10px_var(--shadow-color)] z-[60] overflow-hidden py-1">
-            <button @click="selectMethod('')" type="button"
-                    class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors"
-                    :class="!filters.method ? 'text-primary bg-primary/10 font-semibold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'">
-              <span class="material-symbols-outlined text-base">apps</span> Mọi phương thức
-            </button>
-            <button v-for="m in METHODS" :key="m" @click="selectMethod(m)" type="button"
-                    class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors"
-                    :class="filters.method === m ? 'text-primary bg-primary/10 font-semibold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'">
-              <span>{{ paymentLabel(m) }}</span>
-              <span v-if="filters.method === m" class="material-symbols-outlined text-base">check</span>
-            </button>
-          </div>
-        </transition>
       </div>
-
-      <div class="flex items-center gap-2 h-11 px-3 bg-surface-container-highest border border-outline-variant/10 rounded-xl hover:border-outline-variant/30 transition-colors">
-        <span class="material-symbols-outlined text-on-surface-variant text-lg">calendar_month</span>
-        <input v-model="filters.from" @change="applyFilter" type="date" title="Từ ngày" class="bg-transparent text-xs text-on-surface outline-none cursor-pointer w-[108px]">
-        <span class="text-on-surface-variant/50 text-xs">→</span>
-        <input v-model="filters.to" @change="applyFilter" type="date" title="Đến ngày" class="bg-transparent text-xs text-on-surface outline-none cursor-pointer w-[108px]">
-      </div>
-
-      <button @click="resetFilters" title="Đặt lại bộ lọc"
-              class="h-11 px-4 bg-surface-container-highest border border-outline-variant/10 text-on-surface-variant hover:text-primary hover:border-primary/40 text-xs font-bold uppercase tracking-widest rounded-xl transition-all flex items-center gap-1.5">
-        <span class="material-symbols-outlined text-base">restart_alt</span> Đặt lại
-      </button>
     </div>
 
     <!-- Table -->
@@ -900,4 +963,14 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s, transform 0.25s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(8px); }
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  filter: invert(0.8);
+  margin-left: 2px;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
 </style>

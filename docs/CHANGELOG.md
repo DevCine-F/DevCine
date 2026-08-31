@@ -19,6 +19,9 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 - **Chuẩn Hóa Nhãn Text:**
   - Đổi `"Tiền vé xem phim"` $\rightarrow$ `"Tiền vé"` (ngắn gọn, đối xứng hoàn hảo với *"Bắp nước & Combo"*).
   - Đổi `"PT:"` $\rightarrow$ `"Phương thức:"` (viết đầy đủ, chuyên nghiệp, không viết tắt cụt lủn).
+- **Tối Ưu Thanh Lọc 1 Hàng & Chuẩn Hóa Bo Góc Sắc Nét (`AdminBookings.vue`):**
+  - Chuyển đổi toàn bộ thanh lọc sang hệ thống Dropdown pills đồng bộ (`h-9` - 36px), rút gọn ô tìm kiếm `w-52` ~ `w-56` và nút Đặt lại chỉ còn icon vuông `w-9 h-9`, đảm bảo thanh lọc luôn nằm trọn trên 1 hàng duy nhất (< 850px) trên mọi màn hình Laptop.
+  - Chuẩn hóa toàn bộ bo góc thanh lọc, ô nhập liệu, dropdown, date picker và nút bấm sang **`rounded-sm` (2px)** chuẩn 1:1 theo mẫu `MovieToolbar.vue`, loại bỏ tình trạng bo tròn quá mức dạng viên thuốc.
 - **Bảo Vệ Đơn Hàng & Suất Chiếu Quá Hạn:**
   - Bổ sung tab lọc `Hết hạn` (`EXPIRED`) trên bảng quản trị hoá đơn.
   - Tự động nhận diện `isShowtimePast` để khóa/làm mờ mã QR khi suất chiếu đã kết thúc mà vé chưa check-in.

@@ -15,12 +15,8 @@ export const paymentLabel = (m) => {
   if (!m) return 'Tiền mặt'
   const up = String(m).toUpperCase()
   if (up === 'CASH') return 'Tiền mặt'
-  if (up === 'CARD') return 'Thẻ POS'
   if (up === 'TRANSFER') return 'Chuyển khoản (VietQR)'
   if (up === 'VNPAY') return 'VNPAY'
-  if (up === 'MOMO') return 'Ví MoMo'
-  if (up === 'ZALOPAY') return 'Ví ZaloPay'
-  if (up === 'MEMBER_WALLET') return 'Ví thành viên'
   return m
 }
 

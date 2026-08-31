@@ -349,3 +349,13 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
   - Khóa nút In lại hoá đơn đối với các đơn chưa hoàn tất thanh toán (`status !== 'CONFIRMED' && status !== 'COMPLETED'`).
   - Khóa tính điểm thành viên (`detailRewardPoints = 0`) đối với đơn không thành công.
 
+### 24. Chuẩn Hóa Thanh Lọc 1 Hàng & Quy Chuẩn Bo Góc Sắc Nét Admin (Compact Single-Row Toolbar & Rounded-SM Standard)
+- **Chuẩn Hóa Bo Góc Toàn Diện (`rounded-sm` - 2px / 0.125rem):**
+  - Đóng băng thông số bo góc tiêu chuẩn cho toàn bộ phân hệ Admin (khung toolbar, ô tìm kiếm, dropdowns, date picker, buttons) theo mẫu chuẩn của `MovieToolbar.vue` ("BỘ LỌC NÂNG CAO") với `rounded-sm` (2px).
+  - Cấm sử dụng `rounded-xl` (12px) hoặc `rounded-2xl` (16px) cho các nút và ô nhập liệu thanh công cụ vì gây hiệu ứng bo tròn quá mức dạng viên thuốc/capsule, làm mất đi vẻ sang trọng, góc cạnh của giao diện rạp phim.
+- **Tối Ưu Thanh Lọc 1 Hàng Duy Nhất Trên Laptop (`AdminBookings.vue`):**
+  - Chuyển đổi toàn bộ bộ lọc thành Dropdown pills đồng bộ (`h-9` - 36px): Trạng thái (`min-w-[120px]`), Dịch vụ (`min-w-[105px]`), Phương thức (`min-w-[125px]`), Khoảng ngày compact.
+  - Rút gọn ô tìm kiếm về kích thước vừa vặn `w-52` ~ `w-56` (208px - 224px).
+  - Rút gọn nút Đặt lại về dạng icon vuông duy nhất `w-9 h-9` (`restart_alt`).
+  - Tổng chiều ngang thanh lọc < 850px, đảm bảo luôn nằm trên 1 hàng duy nhất trên mọi độ phân giải laptop (1366px, 1440px) mà không bị rớt dòng.
+
