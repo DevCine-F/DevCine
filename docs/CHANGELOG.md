@@ -6,11 +6,17 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ## [1.6.8] — 2026-09-01
 
-### Fixed & Standardized — Bảo toàn Snapshot Đơn giá F&B & Khóa Cứng Số tiền Hoá đơn (Invoice Snapshot Preservation)
-- **Backend (`AdminBookingController.java`):**
+### Fixed & Standardized — Bảo toàn Snapshot Đơn giá F&B & Khóa Cứng Số tiền Hoá đơn (Invoice Snapshot Preservation & History Sync)
+- **Bảo toàn Snapshot Backend (`AdminBookingController.java` & `BookingController.java`):**
   - Loại bỏ hoàn toàn việc đọc `catalogPrice` từ entity live `fnbItem.getPrice()` khi xem chi tiết hoá đơn.
   - Thiết lập `finalUnitPrice = snapshot` và `basePrice = snapshot - totalSurcharge` cho cả đơn vé (`detail`) và đơn F&B lẻ (`getConcessionDetail`), bảo toàn 100% snapshot giá đã chốt tại thời điểm giao dịch.
-- **Frontend (`AdminBookings.vue`):**
+  - API lịch sử khách hàng (`GET /api/customer/bookings`) bổ sung tính toán và trả về trường `seatTotal` từ `SUM(BookingSeat.priceSnapshot)` độc lập với `originalPrice`.
+- **Đồng bộ & Chuẩn hóa Giao diện Khách hàng (`BookingHistoryView.vue`):**
+  - Khắc phục dòng "Tiền vé & Ghế" hiển thị chuẩn xác `seatTotal` thay vì gán nhầm tổng đơn `originalPrice`.
+  - Chuẩn hóa nhãn Loại ghế và Loại vé sang tiếng Việt có định dạng chuẩn: `VIP - Người lớn x1`, `Thường - HSSV x2` với số lượng `x1` màu vàng nổi bật.
+  - Chuẩn hóa danh sách tùy chọn Bắp nước sang dạng bullet list `• ` chuyên nghiệp, loại bỏ tiền tố "Ô chọn Bắp / Ô chọn Nước", hiển thị phụ thu `(+10.000đ)` màu vàng đồng bộ 100% với Admin.
+  - Khôi phục reactive state `showPriceDetails` cho accordion chi tiết giá.
+- **Frontend Quản lý Admin (`AdminBookings.vue`):**
   - Tối ưu `fnbLineTotal` để ưu tiên lấy trực tiếp `lineTotal` từ snapshot Backend.
   - Cập nhật computed `detailFinalPrice` ưu tiên lấy trực tiếp `finalPrice` từ snapshot DB thay vì tự tính toán lại theo giá client.
 

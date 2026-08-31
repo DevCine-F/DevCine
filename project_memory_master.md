@@ -158,3 +158,15 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
   - `priceOf(seat)` tính tổng giá cho cả 2 vé của ghế Sweetbox ($2 \times 105.000đ = 210.000đ$).
   - `buildSeatSelections()` sinh đủ 2 phần tử vé cho mỗi ghế Sweetbox trong payload gửi lên Backend (`BookingService.java`), giải quyết dứt điểm lỗi ngoại lệ thiếu vé khi tạo đơn và thanh toán.
   - Hóa đơn in nhiệt K80 (`printInvoice`) và Biên lai tạm tính hiển thị đầy đủ số ghế và số vé.
+
+### 20. Bảo Toàn Snapshot Hoá Đơn & Đồng Bộ Lịch Sử Đặt Vé (Invoice Snapshot Preservation & Customer History Synchronization)
+- **Bảo toàn Snapshot Hoá đơn Backend (AdminBookingController.java):**
+  - Loại bỏ hoàn toàn việc đọc catalogPrice từ entity live nbItem.getPrice() khi xem chi tiết hoá đơn.
+  - Thiết lập đơn giá inalUnitPrice = snapshot và asePrice = snapshot - totalSurcharge cho cả đơn vé (detail) và đơn F&B lẻ (getConcessionDetail), bảo toàn 100% snapshot giá đã chốt tại thời điểm giao dịch.
+- **Phân tách & Đồng bộ Tiền vé trên Giao diện Khách hàng (BookingController.java & BookingHistoryView.vue):**
+  - Backend bổ sung tính toán và trả về seatTotal = SUM(BookingSeat.priceSnapshot) độc lập với originalPrice (tổng tiền toàn bộ đơn hàng).
+  - Frontend BookingHistoryView.vue hiển thị dòng "Tiền vé & Ghế" chuẩn xác bằng seatTotal thay vì gán nhầm originalPrice.
+- **Chuẩn hóa Hiển thị Lịch sử Đặt vé Khách hàng (BookingHistoryView.vue):**
+  - **Loại ghế & Đối tượng:** Định dạng sang tiếng Việt chuyên nghiệp: VIP - Người lớn x1, Thường - HSSV x2 (với số lượng x1 màu vàng).
+  - **Tùy chọn Bắp nước:** Hiển thị dạng danh sách bullet point • , loại bỏ hoàn toàn tiền tố "Ô chọn Bắp / Ô chọn Nước", hiển thị phụ thu màu vàng (+10.000đ) đồng bộ 100% với giao diện Admin.
+  - **Toggle Chi tiết giá:** Khôi phục trạng thái showPriceDetails mượt mà khi bấm xem chi tiết giá.

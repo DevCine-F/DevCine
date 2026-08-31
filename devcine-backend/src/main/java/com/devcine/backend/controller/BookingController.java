@@ -133,10 +133,15 @@ public class BookingController {
                         .map(f -> (f.getPriceSnapshot() != null ? f.getPriceSnapshot() : java.math.BigDecimal.ZERO)
                                 .multiply(java.math.BigDecimal.valueOf(f.getQuantity() != null ? f.getQuantity() : 0)))
                         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+                java.math.BigDecimal seatTotal = seats.stream()
+                        .map(bs -> (bs.getPriceSnapshot() != null ? bs.getPriceSnapshot() : java.math.BigDecimal.ZERO))
+                        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
                 map.put("totalPrice", originalPrice);
                 map.put("finalPrice", finalPrice);
                 map.put("originalPrice", originalPrice);
+                map.put("seatTotal", seatTotal);
+                map.put("ticketTotal", seatTotal);
                 map.put("discountAmount", discountAmount);
                 map.put("fnbTotal", fnbTotal);
                 map.put("paymentMethod", b.getPaymentMethod() != null ? b.getPaymentMethod() : "");

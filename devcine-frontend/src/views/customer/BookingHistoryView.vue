@@ -128,17 +128,19 @@ const ageRatingColor = (rating) => {
 const selectedBooking = ref(null)
 const showTicketModal = ref(false)
 const showPriceDetails = ref(false)
+const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[String(t || '').toUpperCase()] || t || 'Thường')
+const ticketTypeLabel = (t) => ({ ADULT: 'Người lớn', U22: 'U22 / HSSV', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }[String(t || '').toUpperCase()] || t || '')
 
 const groupedSeats = computed(() => {
   if (!selectedBooking.value?.seatsDetail) return []
   const counts = {}
   selectedBooking.value.seatsDetail.forEach(s => {
-    const type = s.seatType || 'Thường'
-    const target = s.targetType ? ` (${s.targetType})` : ''
-    const key = `${type}${target}`
+    const type = seatTypeLabel(s.seatType)
+    const target = ticketTypeLabel(s.targetType)
+    const key = target ? `${type} - ${target}` : type
     counts[key] = (counts[key] || 0) + 1
   })
-  return Object.entries(counts).map(([k, v]) => `${v}× ${k}`)
+  return Object.entries(counts).map(([label, count]) => ({ label, count }))
 })
 
 const openTicketDetail = (booking) => {
@@ -350,8 +352,9 @@ onMounted(fetchHistory)
               <div class="rounded-xl bg-white/[0.04] border border-white/10 px-3.5 py-2.5 print:border-black/20">
                 <p class="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-0.5">Loại ghế</p>
                 <div v-if="groupedSeats.length > 0" class="flex flex-wrap gap-1 mt-1">
-                  <span v-for="(group, idx) in groupedSeats" :key="idx" class="font-semibold text-[11px] text-white print:text-black bg-white/10 print:bg-black/5 px-2 py-0.5 rounded leading-tight">
-                    {{ group }}
+                  <span v-for="(group, idx) in groupedSeats" :key="idx" class="font-semibold text-[11px] text-white print:text-black bg-white/10 print:bg-black/5 px-2 py-0.5 rounded leading-tight inline-flex items-center gap-1">
+                    <span>{{ group.label }}</span>
+                    <span class="text-[#EAB308] font-bold">x{{ group.count }}</span>
                   </span>
                 </div>
                 <p v-else class="font-semibold text-[13px] text-white print:text-black">—</p>
@@ -378,11 +381,12 @@ onMounted(fetchHistory)
                     </span>
                   </div>
                   <!-- Danh sách vị/topping nếu có -->
-                  <div v-if="fnb.options && fnb.options.length > 0" class="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-white/5">
-                    <span v-for="(opt, oIdx) in fnb.options" :key="oIdx" class="text-[10px] bg-black/30 text-zinc-300 px-2 py-0.5 rounded border border-white/5">
-                      <span class="text-zinc-400">{{ opt.slotLabel ? opt.slotLabel + ': ' : '' }}</span>{{ opt.optionName }}
+                  <div v-if="fnb.options && fnb.options.length > 0" class="mt-1.5 pt-1.5 border-t border-white/5 space-y-0.5">
+                    <p v-for="(opt, oIdx) in fnb.options" :key="oIdx" class="text-[11px] text-zinc-300 flex items-center gap-1.5 pl-0.5">
+                      <span class="text-zinc-500">&bull;</span>
+                      <span>{{ opt.optionName }}</span>
                       <span v-if="Number(opt.surcharge) > 0" class="text-amber-400 font-semibold">(+{{ Number(opt.surcharge).toLocaleString('vi-VN') }}đ)</span>
-                    </span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -445,7 +449,7 @@ onMounted(fetchHistory)
             <div v-show="showPriceDetails" class="bg-white/[0.03] rounded-xl p-4 mt-4 text-sm space-y-3 print:hidden border border-white/10">
               <div class="flex justify-between text-zinc-300">
                 <span>Tiền vé &amp; Ghế:</span>
-                <span class="font-mono">{{ formatPrice(selectedBooking.originalPrice) }}</span>
+                <span class="font-mono">{{ formatPrice(selectedBooking.seatTotal != null ? selectedBooking.seatTotal : (Number(selectedBooking.originalPrice || 0) - Number(selectedBooking.fnbTotal || 0))) }}</span>
               </div>
               <div v-if="selectedBooking.fnbTotal > 0" class="flex justify-between text-zinc-300">
                 <span>Tiền Bắp / Nước:</span>
