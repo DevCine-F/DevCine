@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/api/axios'
 import { openInvoice, paymentLabel } from '@/utils/invoiceTemplate'
 import { useToastStore } from '@/stores/toast'
@@ -50,6 +50,22 @@ const activeTab = ref('camera') // 'camera' or 'manual'
 const qrCodeInput = ref('')
 const isLoading = ref(false)
 const checkInResult = ref(null) // { success: boolean, data: object, message: string }
+
+const failureTitle = computed(() => {
+  const msg = checkInResult.value?.message || ''
+  if (msg.includes('\n')) {
+    return msg.split('\n')[0]
+  }
+  return 'In Vé Thất Bại'
+})
+
+const failureSubtitle = computed(() => {
+  const msg = checkInResult.value?.message || ''
+  if (msg.includes('\n')) {
+    return msg.substring(msg.indexOf('\n') + 1)
+  }
+  return msg
+})
 const cameraError = ref('')
 const isScannerActive = ref(false)
 let html5QrCode = null
@@ -470,8 +486,8 @@ onUnmounted(() => {
             <span class="material-symbols-outlined text-5xl">cancel</span>
           </div>
           <div>
-            <h2 class="text-2xl font-black text-red-400 uppercase italic">In Vé Thất Bại</h2>
-            <p class="text-sm text-on-surface font-bold mt-2 max-w-md">{{ checkInResult.message }}</p>
+            <h2 class="text-2xl font-black text-red-400 uppercase italic">{{ failureTitle }}</h2>
+            <p class="text-sm text-on-surface font-bold mt-2 max-w-md whitespace-pre-line">{{ failureSubtitle }}</p>
             <p class="text-[10px] text-on-surface-variant mt-1">Vui lòng kiểm tra lại mã đặt vé hoặc liên hệ quản lý.</p>
           </div>
           <div class="text-center pt-2 w-full max-w-md">

@@ -57,6 +57,32 @@ public class TicketService {
                 ? s.getRoom().getCinema().getId() : null;
     }
 
+    /**
+     * Tính toán thời điểm kết thúc chiếu phim (startTime + movie.durationMins).
+     * Không bao gồm thời gian dọn phòng/turnaround.
+     */
+    private LocalDateTime calculateMovieEndTime(Showtime showtime) {
+        if (showtime == null || showtime.getStartTime() == null) {
+            return null;
+        }
+        int durationMins = 120; // fallback nếu thiếu thông tin
+        if (showtime.getMovie() != null && showtime.getMovie().getDurationMins() != null && showtime.getMovie().getDurationMins() > 0) {
+            durationMins = showtime.getMovie().getDurationMins();
+        }
+        return showtime.getStartTime().plusMinutes(durationMins);
+    }
+
+    /**
+     * Chặn check-in / in vé nếu thời điểm hiện tại đã vượt quá giờ kết thúc chiếu phim.
+     */
+    private void assertMovieNotEnded(Showtime showtime) {
+        LocalDateTime movieEndTime = calculateMovieEndTime(showtime);
+        if (movieEndTime != null && LocalDateTime.now().isAfter(movieEndTime)) {
+            throw new RuntimeException("Quá giờ checkin!\nPhim đã kết thúc suất chiếu vào lúc "
+                    + movieEndTime.format(TIME_FMT) + ".");
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<Ticket> getTicketsByBooking(Integer bookingId) {
         return ticketRepository.findAllByBookingId(bookingId);
@@ -76,6 +102,9 @@ public class TicketService {
 
         // Cách ly cụm rạp: chỉ soát/tra cứu vé của cơ sở mình.
         SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
+
+        // Kiểm tra quá giờ kết thúc chiếu phim
+        assertMovieNotEnded(booking.getShowtime());
 
         if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
             throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để in vé.");
@@ -104,6 +133,10 @@ public class TicketService {
 
         // Cách ly cụm rạp: chỉ in/soát vé của cơ sở mình.
         SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
+
+        // Kiểm tra quá giờ kết thúc chiếu phim
+        assertMovieNotEnded(booking.getShowtime());
+
         Staff staff = currentStaffOrNull();
 
         if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
@@ -150,8 +183,9 @@ public class TicketService {
         if (qrCode == null || qrCode.isBlank()) {
             throw new RuntimeException("Vui lòng cung cấp mã QR vé.");
         }
-        Ticket ticket = ticketRepository.findByQrCode(qrCode.trim())
-                .orElseThrow(() -> new RuntimeException("Mã vé không tồn tại hoặc đã bị hủy sau khi đổi ghế."));
+        Ticket ticket = ticketRepository.findByQrCodeWithDetails(qrCode.trim())
+                .orElseGet(() -> ticketRepository.findByQrCode(qrCode.trim())
+                        .orElseThrow(() -> new RuntimeException("Mã vé không tồn tại hoặc đã bị hủy sau khi đổi ghế.")));
 
         if (Boolean.TRUE.equals(ticket.getIsRevoked())) {
             String seatLabel = ticket.getBookingSeat() != null && ticket.getBookingSeat().getSeat() != null
@@ -162,6 +196,7 @@ public class TicketService {
         Booking booking = ticket.getBookingSeat() != null ? ticket.getBookingSeat().getBooking() : null;
         if (booking != null) {
             SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
+            assertMovieNotEnded(booking.getShowtime());
         }
 
         if (Boolean.TRUE.equals(ticket.getIsCheckedIn())) {
