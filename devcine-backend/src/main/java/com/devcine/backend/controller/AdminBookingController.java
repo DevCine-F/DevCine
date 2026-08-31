@@ -109,8 +109,12 @@ public class AdminBookingController {
 
         // 2. Lấy danh sách ConcessionSale (Bán nhanh F&B độc lập) nếu không lọc "chỉ vé"
         if (!hasFnbFilter.equals("NO")) {
+            String concessionStatus = status.trim().toUpperCase();
+            if ("CONFIRMED".equals(concessionStatus)) {
+                concessionStatus = "COMPLETED";
+            }
             List<com.devcine.backend.entity.ConcessionSale> concessionList = concessionSaleRepository.searchForAdmin(
-                    q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), cinemaId,
+                    q.trim(), concessionStatus, method.trim().toUpperCase(), cinemaId,
                     fromDt, toDt);
 
             List<Integer> saleIds = concessionList.stream().map(com.devcine.backend.entity.ConcessionSale::getId).collect(Collectors.toList());

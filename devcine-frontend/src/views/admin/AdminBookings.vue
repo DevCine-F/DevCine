@@ -29,6 +29,7 @@ const STATUS_TABS = [
   { value: '', label: 'Tất cả' },
   { value: 'CONFIRMED', label: 'Hoàn tất' },
   { value: 'HOLD', label: 'Đang giữ' },
+  { value: 'EXPIRED', label: 'Hết hạn' },
   { value: 'CANCELLED', label: 'Đã huỷ' }
 ]
 const METHODS = ['CASH', 'CARD', 'TRANSFER', 'VNPAY']
@@ -68,11 +69,32 @@ const fmtDateTime = (iso) => {
 
 const statusBadge = (s) => {
   switch ((s || '').toUpperCase()) {
-    case 'CONFIRMED': return { label: 'Hoàn tất', cls: 'text-green-400 bg-green-400/10 border-green-400/20' }
-    case 'HOLD': return { label: 'Đang giữ', cls: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' }
+    case 'CONFIRMED':
+    case 'COMPLETED': return { label: 'Hoàn tất', cls: 'text-green-400 bg-green-400/10 border-green-400/20' }
+    case 'HOLD':
+    case 'PENDING_PAYMENT':
+    case 'PAYING': return { label: 'Đang giữ', cls: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' }
     case 'CANCELLED': return { label: 'Đã huỷ', cls: 'text-red-400 bg-red-400/10 border-red-400/20' }
     case 'EXPIRED': return { label: 'Hết hạn', cls: 'text-amber-400 bg-amber-400/10 border-amber-400/30' }
     default: return { label: s || '—', cls: 'text-gray-400 bg-gray-400/10 border-gray-400/20' }
+  }
+}
+
+const paymentStatusBadge = (s) => {
+  switch ((s || '').toUpperCase()) {
+    case 'CONFIRMED':
+    case 'COMPLETED':
+      return { label: 'ĐÃ THANH TOÁN', cls: 'text-green-400 bg-green-400/10 border-green-400/20' }
+    case 'HOLD':
+    case 'PENDING_PAYMENT':
+    case 'PAYING':
+      return { label: 'CHỜ THANH TOÁN', cls: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' }
+    case 'CANCELLED':
+      return { label: 'ĐÃ HUỶ GIAO DỊCH', cls: 'text-red-400 bg-red-400/10 border-red-400/20' }
+    case 'EXPIRED':
+      return { label: 'CHƯA THANH TOÁN (HẾT HẠN)', cls: 'text-amber-400 bg-amber-400/10 border-amber-400/30' }
+    default:
+      return { label: 'CHƯA THANH TOÁN', cls: 'text-gray-400 bg-gray-400/10 border-gray-400/20' }
   }
 }
 
@@ -184,6 +206,8 @@ const isPosOrder = computed(() => {
 
 const detailRewardPoints = computed(() => {
   if (!detail.value) return 0
+  const status = String(detail.value.status || '').toUpperCase()
+  if (status !== 'CONFIRMED' && status !== 'COMPLETED') return 0
   return Math.floor(Number(detailFinalPrice.value || detail.value.finalPrice || 0) / 10000)
 })
 
@@ -225,6 +249,21 @@ const isOrderCheckedIn = computed(() => {
   if (tickets.length > 0) {
     return tickets.every(t => t.isCheckedIn)
   }
+  return false
+})
+
+const isShowtimePast = computed(() => {
+  if (!detail.value) return false
+  const timeStr = detail.value.showtimeEnd || detail.value.showtimeStart
+  if (!timeStr) return false
+  const t = new Date(timeStr)
+  return !isNaN(t.getTime()) && t < new Date()
+})
+
+const isQrDisabled = computed(() => {
+  const status = String(detail.value?.status || '').toUpperCase()
+  if (status !== 'CONFIRMED' && status !== 'COMPLETED') return true
+  if (!isOrderCheckedIn.value && isShowtimePast.value) return true
   return false
 })
 
@@ -284,6 +323,11 @@ const reprint = async (bookingId, isConcession = false) => {
       toast.error(friendlyError(err, 'Không tải được dữ liệu để in.'))
       return
     }
+  }
+  const status = (d?.status || '').toUpperCase()
+  if (status !== 'CONFIRMED' && status !== 'COMPLETED') {
+    toast.warning('Không thể in vé/hoá đơn cho đơn hàng chưa hoàn tất thanh toán.')
+    return
   }
   const ok = openInvoice(buildInv(d))
   if (!ok) toast.warning('Trình duyệt đã chặn cửa sổ. Hãy cho phép pop-up để in.')
@@ -460,7 +504,15 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               <button @click="openDetail(r.bookingId, r.isConcession)" title="Xem chi tiết" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
                 <span class="material-symbols-outlined text-lg">visibility</span>
               </button>
-              <button @click="reprint(r.bookingId, r.isConcession)" title="In lại hoá đơn" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors">
+              <button
+                @click="reprint(r.bookingId, r.isConcession)"
+                :disabled="r.status !== 'CONFIRMED' && r.status !== 'COMPLETED'"
+                :title="r.status === 'CONFIRMED' || r.status === 'COMPLETED' ? 'In lại hoá đơn' : 'Không thể in cho đơn chưa hoàn tất thanh toán'"
+                class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                :class="r.status === 'CONFIRMED' || r.status === 'COMPLETED'
+                  ? 'text-on-surface-variant hover:bg-primary/10 hover:text-primary cursor-pointer'
+                  : 'text-on-surface-variant/20 cursor-not-allowed opacity-30'"
+              >
                 <span class="material-symbols-outlined text-lg">print</span>
               </button>
             </div>
@@ -633,17 +685,48 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                   <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">Mã QR đơn hàng</p>
                 </div>
                 <span
-                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border"
-                  :class="isOrderCheckedIn
-                    ? 'text-green-400 bg-green-400/10 border-green-400/20'
-                    : 'text-amber-400 bg-amber-400/10 border-amber-400/20'"
+                  v-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isOrderCheckedIn"
+                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-green-400 bg-green-400/10 border-green-400/20"
                 >
-                  {{ isOrderCheckedIn ? 'ĐÃ CHECK-IN' : 'CHƯA CHECK-IN' }}
+                  ĐÃ CHECK-IN
+                </span>
+                <span
+                  v-else-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isShowtimePast"
+                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/30"
+                >
+                  QUÁ HẠN SUẤT CHIẾU
+                </span>
+                <span
+                  v-else-if="(detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED'"
+                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/20"
+                >
+                  CHƯA CHECK-IN
+                </span>
+                <span
+                  v-else-if="(detail.status || '').toUpperCase() === 'EXPIRED'"
+                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-amber-400 bg-amber-400/10 border-amber-400/30"
+                >
+                  ĐÃ HẾT HẠN
+                </span>
+                <span
+                  v-else-if="(detail.status || '').toUpperCase() === 'CANCELLED'"
+                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-red-400 bg-red-400/10 border-red-400/20"
+                >
+                  VÉ ĐÃ HUỶ
+                </span>
+                <span
+                  v-else
+                  class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-yellow-400 bg-yellow-400/10 border-yellow-400/20"
+                >
+                  ĐANG GIỮ CHỖ
                 </span>
               </div>
 
-              <div class="p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
-                <div class="p-2 bg-white rounded-xl shadow-lg border border-black/10 inline-block">
+              <div class="p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden">
+                <div
+                  class="p-2 bg-white rounded-xl shadow-lg border border-black/10 inline-block transition-all"
+                  :class="{ 'opacity-25 grayscale blur-[0.5px]': isQrDisabled }"
+                >
                   <img
                     :src="`https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=0&data=${encodeURIComponent(detail.bookingCode)}`"
                     alt="QR"
@@ -652,7 +735,24 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 </div>
                 <div>
                   <p class="text-base font-black text-on-surface font-mono tracking-wider">{{ detail.bookingCode }}</p>
-                  <p class="text-[11px] text-on-surface-variant mt-0.5">Mã QR đại diện cho toàn bộ đơn hàng</p>
+                  <p v-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isOrderCheckedIn" class="text-[11px] text-green-400 font-medium mt-0.5">
+                    Mã QR đại diện cho toàn bộ đơn hàng (Đã check-in vào phòng)
+                  </p>
+                  <p v-else-if="((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') && isShowtimePast" class="text-[11px] text-amber-400/90 font-semibold mt-0.5">
+                    Suất chiếu đã kết thúc &bull; Vé chưa được sử dụng / Mã QR không còn hiệu lực
+                  </p>
+                  <p v-else-if="(detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED'" class="text-[11px] text-on-surface-variant mt-0.5">
+                    Mã QR đại diện cho toàn bộ đơn hàng
+                  </p>
+                  <p v-else-if="(detail.status || '').toUpperCase() === 'EXPIRED'" class="text-[11px] text-amber-400 font-semibold mt-0.5">
+                    Đơn hàng đã hết hạn giữ chỗ/thanh toán &bull; Mã QR không còn hiệu lực
+                  </p>
+                  <p v-else-if="(detail.status || '').toUpperCase() === 'CANCELLED'" class="text-[11px] text-red-400 font-semibold mt-0.5">
+                    Đơn hàng đã bị huỷ &bull; Mã QR không còn hiệu lực
+                  </p>
+                  <p v-else class="text-[11px] text-yellow-400 font-semibold mt-0.5">
+                    Đơn hàng đang chờ thanh toán &bull; Chưa phát hành vé chính thức
+                  </p>
                 </div>
               </div>
             </div>
@@ -693,34 +793,64 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               </div>
             </div>
 
-            <!-- TẠM TÍNH & TỔNG THANH TOÁN -->
-            <div class="pt-4 border-t border-outline-variant/10 space-y-2">
-              <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest mb-1">Tạm tính</p>
-              <div v-if="!detail.isConcession && detailSeatTotal > 0" class="flex justify-between text-sm text-on-surface-variant">
-                <span>Tiền vé:</span>
-                <span class="tabular-nums font-semibold">{{ fmt(detailSeatTotal) }} đ</span>
-              </div>
-              <div v-if="detailComboTotal > 0" class="flex justify-between text-sm text-on-surface-variant">
-                <span>Bắp nước &amp; combo:</span>
-                <span class="tabular-nums font-semibold">{{ fmt(detailComboTotal) }} đ</span>
-              </div>
-              <div class="flex justify-between text-sm text-on-surface-variant">
-                <span>Giảm giá:</span>
-                <span class="tabular-nums font-semibold" :class="detailDiscount > 0 ? 'text-green-400' : ''">
-                  {{ detailDiscount > 0 ? `−${fmt(detailDiscount)} đ` : '0 đ' }}
-                </span>
+            <!-- CHI TIẾT THANH TOÁN (CARD SANG TRỌNG, RÕ RÀNG & THOÁNG MẮT) -->
+            <div>
+              <div class="flex items-center gap-2 mb-2.5">
+                <span class="w-1 h-3.5 rounded-full bg-primary"></span>
+                <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
+                  Chi tiết thanh toán
+                </p>
               </div>
 
-              <div class="flex justify-between items-baseline pt-3 border-t border-outline-variant/15">
-                <span class="text-xs font-headline font-extrabold text-on-surface uppercase tracking-widest">TỔNG THANH TOÁN:</span>
-                <span class="text-2xl font-headline font-extrabold text-primary tabular-nums">{{ fmt(detailFinalPrice) }} đ</span>
-              </div>
+              <div class="p-4 sm:p-5 rounded-2xl bg-surface-container-high border border-outline-variant/10 shadow-sm space-y-3.5">
+                <!-- Danh sách các khoản tiền -->
+                <div class="space-y-2.5 text-xs">
+                  <div v-if="!detail.isConcession && detailSeatTotal > 0" class="flex justify-between items-center text-on-surface-variant">
+                    <span class="font-medium">Tiền vé xem phim</span>
+                    <span class="tabular-nums font-semibold font-mono text-on-surface text-sm">{{ fmt(detailSeatTotal) }} đ</span>
+                  </div>
 
-              <div class="flex justify-between items-center text-xs text-on-surface-variant pt-1">
-                <span>Phương thức: <b class="text-on-surface font-semibold">{{ paymentLabelFull(detail.paymentMethod) }}</b></span>
-                <span class="inline-flex px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 border border-green-400/20">
-                  ĐÃ THANH TOÁN
-                </span>
+                  <div v-if="detailComboTotal > 0" class="flex justify-between items-center text-on-surface-variant">
+                    <span class="font-medium">Bắp nước &amp; Combo</span>
+                    <span class="tabular-nums font-semibold font-mono text-on-surface text-sm">{{ fmt(detailComboTotal) }} đ</span>
+                  </div>
+
+                  <div class="flex justify-between items-center text-on-surface-variant">
+                    <span class="font-medium">Khuyến mãi / Giảm giá</span>
+                    <span
+                      class="tabular-nums font-semibold font-mono text-sm"
+                      :class="detailDiscount > 0 ? 'text-green-400 font-bold' : 'text-on-surface-variant'"
+                    >
+                      {{ detailDiscount > 0 ? `−${fmt(detailDiscount)} đ` : '0 đ' }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Divider nét đứt phân tách -->
+                <div class="border-t border-dashed border-outline-variant/20 pt-3">
+                  <div class="flex justify-between items-baseline">
+                    <span class="text-xs font-headline font-extrabold text-on-surface uppercase tracking-widest">
+                      TỔNG THANH TOÁN:
+                    </span>
+                    <span class="text-2xl font-headline font-black text-primary tabular-nums tracking-tight">
+                      {{ fmt(detailFinalPrice) }} đ
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Phương thức thanh toán & Trạng thái -->
+                <div class="pt-3 border-t border-outline-variant/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div class="flex items-center gap-1.5 text-on-surface-variant">
+                    <span>Phương thức:</span>
+                    <b class="text-on-surface font-bold">{{ paymentLabelFull(detail.paymentMethod) }}</b>
+                  </div>
+                  <span
+                    :class="paymentStatusBadge(detail.status).cls"
+                    class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm"
+                  >
+                    {{ paymentStatusBadge(detail.status).label }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -730,9 +860,17 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
             <button @click="showDetail = false" class="px-6 py-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-white/5 font-bold text-xs uppercase tracking-widest transition-colors">
               Đóng
             </button>
-            <button v-if="detail" @click="reprint(detail.bookingId, detail.isConcession)" class="px-6 py-3 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20">
+            <button
+              v-if="detail"
+              :disabled="(detail.status || '').toUpperCase() !== 'CONFIRMED' && (detail.status || '').toUpperCase() !== 'COMPLETED'"
+              @click="reprint(detail.bookingId, detail.isConcession)"
+              class="px-6 py-3 font-bold text-xs uppercase tracking-widest rounded-xl transition-all flex items-center gap-2"
+              :class="(detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED'
+                ? 'bg-primary text-on-primary hover:brightness-110 shadow-lg shadow-primary/20 cursor-pointer'
+                : 'bg-white/5 text-on-surface-variant/40 border border-white/5 cursor-not-allowed'"
+            >
               <span class="material-symbols-outlined text-base">print</span>
-              {{ isPosOrder ? 'IN LẠI VÉ / HOÁ ĐƠN' : 'IN VÉ / HOÁ ĐƠN' }}
+              {{ ((detail.status || '').toUpperCase() === 'CONFIRMED' || (detail.status || '').toUpperCase() === 'COMPLETED') ? (isPosOrder ? 'IN LẠI VÉ / HOÁ ĐƠN' : 'IN VÉ / HOÁ ĐƠN') : 'KHÔNG THỂ IN (CHƯA HOÀN TẤT)' }}
             </button>
           </div>
         </div>

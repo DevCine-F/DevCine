@@ -195,7 +195,9 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "LEFT JOIN FETCH b.customer c LEFT JOIN FETCH c.user u " +
            "LEFT JOIN b.soldBy st " +
            "WHERE b.createdAt BETWEEN :from AND :to " +
-           "AND (:status = '' OR b.status = :status) " +
+           "AND (:status = '' " +
+           "     OR (:status = 'HOLD' AND (b.status = 'HOLD' OR b.status = 'PENDING_PAYMENT' OR b.status = 'PAYING')) " +
+           "     OR b.status = :status) " +
            "AND (:method = '' OR b.paymentMethod = :method) " +
            "AND (:cinemaId IS NULL OR r.cinema.id = :cinemaId) " +
            "AND (:q = '' OR LOWER(b.bookingCode) LIKE CONCAT('%', LOWER(:q), '%') " +
