@@ -4,6 +4,21 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.6.7] — 2026-09-01
+
+### Enhanced & Standardized — Đồng bộ Kích thước Giao diện & Cơ chế Validate Inline Tài khoản nhận tiền VietQR (Admin Settings)
+- **Đồng bộ Kích thước Form (`AdminSettings.vue`):** Quy chuẩn toàn bộ các ô nhập liệu số, chữ và dropdown select ngân hàng về chiều cao chuẩn 56px (`py-4 px-5 rounded-xl border border-outline-variant/10`), căn lề chuẩn suffix badge (Vé, Phút, VNĐ) tại `right-5 pr-20`.
+- **Chuẩn hóa & Tự động định dạng Thông tin VietQR:**
+  - **Số tài khoản (STK):** Tự động lọc chỉ nhận ký tự số `0–9`, chặn chữ và ký tự đặc biệt, giới hạn độ dài `4–20` chữ số theo chuẩn ngân hàng.
+  - **Tên chủ tài khoản:** Tự động chuyển đổi sang chữ **IN HOA KHÔNG DẤU** (`A–Z` và khoảng trắng) theo thời gian thực khi người dùng gõ/dán, giới hạn tối đa 50 ký tự, tối thiểu 2 ký tự.
+  - **Mô tả bao quát:** Cập nhật mô tả hỗ trợ cả kênh đặt vé trực tuyến (Online) và tại quầy (POS).
+- **Cơ chế Báo lỗi trực tiếp (Real-time Inline Error):**
+  - Kiểm tra và hiển thị viền đỏ sáng kèm thông báo lỗi và biểu tượng cảnh báo trực tiếp dưới từng ô nhập liệu (`text-red-500`, `border-red-500`) theo thời gian thực ngay khi người dùng thao tác.
+  - Áp dụng nguyên tắc *All-or-Nothing*: Bắt buộc hoàn tất hợp lệ cả 3 trường (Ngân hàng, STK, Tên chủ TK) khi có cấu hình, hoặc cho phép để trống cả 3 nếu chưa áp dụng.
+  - Loại bỏ hoàn toàn toast popup khi validate dữ liệu form, giữ giao diện sạch sẽ và trực quan.
+
+---
+
 ## [1.6.6] — 2026-09-01
 
 ### Enhanced — Tách biệt & Đồng bộ Cấu hình Thời gian Giữ chỗ Phiên đặt vé & Lưu đơn chờ POS (Dual Hold Timers)

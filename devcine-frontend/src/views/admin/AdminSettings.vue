@@ -45,16 +45,66 @@ const settings = ref({
   accountName: ''
 })
 
+const bankErrors = ref({
+  bankCode: '',
+  accountNo: '',
+  accountName: ''
+})
+
 const onBankChange = () => {
   const bank = BANKS.find(b => b.code === settings.value.bankCode)
   settings.value.bankName = bank ? bank.name : ''
+  validateBankSettings(true)
+}
+
+const validateBankSettings = (showErrors = true) => {
+  const hasBank = !!settings.value.bankCode
+  const hasAccountNo = !!settings.value.accountNo?.trim()
+  const hasAccountName = !!settings.value.accountName?.trim()
+  const hasAny = hasBank || hasAccountNo || hasAccountName
+
+  let isValid = true
+  const errors = {
+    bankCode: '',
+    accountNo: '',
+    accountName: ''
+  }
+
+  if (hasAny) {
+    if (!hasBank) {
+      errors.bankCode = 'Vui lòng chọn ngân hàng nhận tiền'
+      isValid = false
+    }
+    const accNo = settings.value.accountNo?.trim() || ''
+    if (!accNo) {
+      errors.accountNo = 'Vui lòng nhập số tài khoản'
+      isValid = false
+    } else if (accNo.length < 4 || accNo.length > 20) {
+      errors.accountNo = 'Số tài khoản phải từ 4 đến 20 chữ số'
+      isValid = false
+    }
+
+    const accName = settings.value.accountName?.trim() || ''
+    if (!accName) {
+      errors.accountName = 'Vui lòng nhập tên chủ tài khoản'
+      isValid = false
+    } else if (accName.length < 2) {
+      errors.accountName = 'Tên chủ tài khoản phải từ 2 ký tự trở lên'
+      isValid = false
+    }
+  }
+
+  if (showErrors) {
+    bankErrors.value = errors
+  }
+  return isValid
 }
 
 // Xem trước mã VietQR của tài khoản nhận tiền (số tiền để trống → khách tự nhập / sẽ điền ở POS)
 const qrPreviewUrl = computed(() => {
   const { bankCode, accountNo, accountName } = settings.value
-  if (!bankCode || !accountNo) return ''
-  return `https://img.vietqr.io/image/${bankCode}-${accountNo}-compact2.png?accountName=${encodeURIComponent(accountName || '')}`
+  if (!bankCode || !accountNo || accountNo.trim().length < 4) return ''
+  return `https://img.vietqr.io/image/${bankCode}-${accountNo.trim()}-compact2.png?accountName=${encodeURIComponent(accountName?.trim() || '')}`
 })
 
 const isLoading = ref(false)
@@ -74,6 +124,7 @@ const loadSettings = async () => {
       else if (item.settingKey === 'PAYMENT_ACCOUNT_NO') settings.value.accountNo = item.settingValue || ''
       else if (item.settingKey === 'PAYMENT_ACCOUNT_NAME') settings.value.accountName = item.settingValue || ''
     })
+    bankErrors.value = { bankCode: '', accountNo: '', accountName: '' }
   } catch (err) {
     toast.error(friendlyError(err, 'Không tải được cài đặt hệ thống.'))
   } finally {
@@ -82,6 +133,11 @@ const loadSettings = async () => {
 }
 
 const saveSettings = async () => {
+  // Validate ràng buộc tài khoản nhận tiền VietQR và hiển thị lỗi inline
+  if (!validateBankSettings(true)) {
+    return
+  }
+
   // Kẹp các tham số nghiệp vụ về khoảng cho phép trước khi lưu
   settings.value.seatHoldMinutes = Math.min(30, Math.max(3, parseInt(settings.value.seatHoldMinutes) || 10))
   settings.value.posOrderHoldMinutes = Math.min(60, Math.max(3, parseInt(settings.value.posOrderHoldMinutes) || 15))
@@ -97,8 +153,8 @@ const saveSettings = async () => {
       settingsApi.save({ settingKey: 'BOOKING_LATE_MINUTES', settingValue: settings.value.bookingLateMinutes.toString() }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_CODE', settingValue: settings.value.bankCode }),
       settingsApi.save({ settingKey: 'PAYMENT_BANK_NAME', settingValue: settings.value.bankName }),
-      settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NO', settingValue: settings.value.accountNo }),
-      settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NAME', settingValue: settings.value.accountName })
+      settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NO', settingValue: settings.value.accountNo?.trim() || '' }),
+      settingsApi.save({ settingKey: 'PAYMENT_ACCOUNT_NAME', settingValue: settings.value.accountName?.trim() || '' })
     ])
     toast.success('Đã lưu cấu hình hệ thống.')
   } catch (err) {
@@ -138,6 +194,25 @@ const handlePointRateInput = (event) => {
   input.setSelectionRange(newCaretPos, newCaretPos)
 }
 
+const handleAccountNoInput = (event) => {
+  const input = event.target
+  let clean = (input.value || '').replace(/\D/g, '').slice(0, 20)
+  settings.value.accountNo = clean
+  input.value = clean
+  validateBankSettings(true)
+}
+
+const removeDiacritics = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+
+const handleAccountNameInput = (event) => {
+  const input = event.target
+  let clean = removeDiacritics(input.value).toUpperCase()
+  clean = clean.replace(/[^A-Z\s]/g, '').replace(/\s+/g, ' ').slice(0, 50)
+  settings.value.accountName = clean
+  input.value = clean
+  validateBankSettings(true)
+}
+
 onMounted(() => {
   loadSettings()
 })
@@ -160,31 +235,22 @@ onMounted(() => {
         </h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiền tệ</label>
-            <select :disabled="isLoading" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
-              <option>Việt Nam Đồng (VNĐ)</option>
-              <option>US Dollar ($)</option>
-            </select>
-          </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa / lần đặt</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số lượng vé tối đa mỗi giao dịch</label>
             <div class="relative">
               <input v-model.number="settings.maxTicketsPerBooking" :disabled="isLoading" type="number" min="1" max="20"
-                     class="w-full bg-surface-container-high border-none text-sm font-bold rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 pr-16 text-on-surface">
-              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Vé</span>
+                     class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
+              <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Vé</span>
             </div>
-            <p class="text-[10px] text-on-surface-variant/70">Chống đầu cơ/phe vé. Khoảng 1–20, mặc định 8.</p>
+            <p class="text-[10px] text-on-surface-variant/70">Giới hạn số vé tối đa cho mỗi lượt đặt.<br>Khoảng từ 1–20 vé.</p>
           </div>
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bán vé trễ sau giờ chiếu</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian mở bán sau giờ khởi chiếu tại quầy (POS)</label>
             <div class="relative">
               <input v-model.number="settings.bookingLateMinutes" :disabled="isLoading" type="number" min="0" max="60"
-                     class="w-full bg-surface-container-high border-none text-sm font-bold rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 pr-16 text-on-surface">
-              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
+                     class="w-full bg-surface-container-high border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all">
+              <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">Phút</span>
             </div>
-            <p class="text-[10px] text-on-surface-variant/70">Sau giờ chiếu vẫn cho mua trong khoảng này. Vd 15 → phim 19:30 bán đến 19:45.</p>
+            <p class="text-[10px] text-on-surface-variant/70">Khoảng thời gian vẫn cho phép tiếp tục bán vé sau khi suất chiếu đã bắt đầu.<br>Khoảng từ 0–60 phút.</p>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -201,7 +267,7 @@ onMounted(() => {
               <div class="w-full md:w-1/2 space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mức chi tiêu yêu cầu</label>
                 <div class="relative">
-                  <input :value="fmtThousand(settings.pointConversionRate)" @input="handlePointRateInput" :disabled="isLoading" type="text" inputmode="numeric" class="w-full bg-surface-container-highest border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-16 text-on-surface transition-all tabular-nums" placeholder="1.000">
+                  <input :value="fmtThousand(settings.pointConversionRate)" @input="handlePointRateInput" :disabled="isLoading" type="text" inputmode="numeric" class="w-full bg-surface-container-highest border border-outline-variant/10 text-sm font-bold rounded-xl focus:border-primary focus:ring-1 focus:ring-primary py-4 px-5 pr-20 text-on-surface transition-all tabular-nums" placeholder="1.000">
                   <span class="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none uppercase tracking-widest">VNĐ</span>
                 </div>
               </div>
@@ -266,29 +332,47 @@ onMounted(() => {
           <span class="material-symbols-outlined text-primary">qr_code_2</span>
           Tài khoản nhận tiền (QR chuyển khoản)
         </h3>
-        <p class="text-xs text-on-surface-variant mb-8">Thông tin này dùng để sinh mã VietQR ở bước thanh toán tại quầy (POS). Khách quét mã sẽ tự điền số tiền &amp; nội dung đơn hàng.</p>
+        <p class="text-xs text-on-surface-variant mb-8">Thông tin này dùng để sinh mã VietQR ở bước thanh toán trực tuyến (Online) và tại quầy (POS). Khách quét mã sẽ tự điền số tiền &amp; nội dung đơn hàng.</p>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div class="lg:col-span-2 space-y-6">
             <div class="space-y-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngân hàng</label>
-              <select v-model="settings.bankCode" @change="onBankChange" :disabled="isLoading" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
+              <select v-model="settings.bankCode" @change="onBankChange" :disabled="isLoading"
+                      :class="bankErrors.bankCode ? '!border-red-500 !ring-1 !ring-red-500/50' : 'border-outline-variant/10 focus:border-primary focus:ring-primary'"
+                      class="w-full bg-surface-container-high border text-sm font-medium rounded-xl focus:ring-1 py-4 px-5 text-on-surface transition-all">
                 <option value="">— Chọn ngân hàng —</option>
                 <option v-for="b in BANKS" :key="b.code" :value="b.code">{{ b.name }}</option>
               </select>
+              <p v-if="bankErrors.bankCode" class="text-[11px] text-red-500 flex items-center gap-1 font-medium mt-1">
+                <span class="material-symbols-outlined text-sm text-red-500">error</span>
+                {{ bankErrors.bankCode }}
+              </p>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số tài khoản (STK)</label>
-                <input v-model.trim="settings.accountNo" :disabled="isLoading" type="text" inputmode="numeric" placeholder="VD: 0123456789" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface">
+                <input :value="settings.accountNo" @input="handleAccountNoInput" :disabled="isLoading" type="text" inputmode="numeric" maxlength="20" placeholder="VD: 0123456789"
+                       :class="bankErrors.accountNo ? '!border-red-500 !ring-1 !ring-red-500/50' : 'border-outline-variant/10 focus:border-primary focus:ring-primary'"
+                       class="w-full bg-surface-container-high border text-sm font-bold rounded-xl focus:ring-1 py-4 px-5 text-on-surface transition-all tabular-nums">
+                <p v-if="bankErrors.accountNo" class="text-[11px] text-red-500 flex items-center gap-1 font-medium mt-1">
+                  <span class="material-symbols-outlined text-sm text-red-500">error</span>
+                  {{ bankErrors.accountNo }}
+                </p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Chủ tài khoản</label>
-                <input v-model.trim="settings.accountName" :disabled="isLoading" type="text" placeholder="VD: NGUYEN VAN A" class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-3 px-4 text-on-surface uppercase">
+                <input :value="settings.accountName" @input="handleAccountNameInput" :disabled="isLoading" type="text" maxlength="50" placeholder="VD: NGUYEN VAN A"
+                       :class="bankErrors.accountName ? '!border-red-500 !ring-1 !ring-red-500/50' : 'border-outline-variant/10 focus:border-primary focus:ring-primary'"
+                       class="w-full bg-surface-container-high border text-sm font-bold rounded-xl focus:ring-1 py-4 px-5 text-on-surface uppercase transition-all">
+                <p v-if="bankErrors.accountName" class="text-[11px] text-red-500 flex items-center gap-1 font-medium mt-1">
+                  <span class="material-symbols-outlined text-sm text-red-500">error</span>
+                  {{ bankErrors.accountName }}
+                </p>
               </div>
             </div>
             <p class="text-xs text-on-surface-variant italic opacity-75 border-t border-outline-variant/10 pt-4">
-              <span class="text-primary font-bold">Mẹo:</span> Tên chủ tài khoản nên viết IN HOA không dấu để khớp hiển thị trên app ngân hàng.
+              <span class="text-primary font-bold">Mẹo:</span> Tên chủ tài khoản sẽ tự động chuyển thành IN HOA KHÔNG DẤU để khớp chuẩn liên ngân hàng.
             </p>
           </div>
 
@@ -299,7 +383,7 @@ onMounted(() => {
               <img v-if="qrPreviewUrl" :src="qrPreviewUrl" alt="VietQR preview" class="w-full h-full object-contain" />
               <div v-else class="text-center text-surface-container-highest px-4">
                 <span class="material-symbols-outlined text-5xl text-gray-300">qr_code_2</span>
-                <p class="text-[10px] font-bold text-gray-400 mt-1">Nhập NH &amp; STK để xem QR</p>
+                <p class="text-[10px] font-bold text-gray-400 mt-1">Nhập đủ NH &amp; STK để xem QR</p>
               </div>
             </div>
             <p v-if="settings.bankName" class="text-xs font-bold text-on-surface text-center">{{ settings.bankName }}<br><span class="text-on-surface-variant font-mono">{{ settings.accountNo }}</span></p>
