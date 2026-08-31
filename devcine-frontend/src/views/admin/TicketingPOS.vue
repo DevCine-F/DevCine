@@ -428,6 +428,7 @@ const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(s
 // ===== Hoá đơn chờ (Hold Order / Pending List) — dùng Pinia Store =====
 const showHeldPanel = ref(false)
 const canHoldOrder = computed(() => {
+  if (currentStep.value === 6 || fnbStep.value === 3) return false
   if (saleMode.value === 'FNB') return selectedCombos.value.length > 0
   return !!selectedShowtime.value && selectedSeats.value.length > 0
 })
@@ -1601,43 +1602,293 @@ const printInvoice = () => {
   }
 }
 
-// ===== Hiển thị mã QR toàn màn hình (tab mới) cho khách quét — chỉ mã, không thông tin =====
+// ===== Hiển thị mã QR toàn màn hình (tab mới) cho khách quét — đồng bộ style DevCine =====
 const buildQrPageHtml = () => {
+  const st = selectedShowtime.value
+  const movieTitle = st ? (typeof st.movie === 'string' ? st.movie : (st.movie?.title || st.movieTitle || 'Vé xem phim')) : (saleMode.value === 'FNB' ? 'Bán nhanh bắp nước & Combo' : '')
+  const roomName = st?.roomName || ''
+  const formatName = st?.formatName || '2D'
+  const seatsStr = selectedSeats.value.map(s => seatLabel(s)).join(', ')
+  const totalVal = payableTotal.value || comboTotal.value || 0
+  const bank = bankInfo.value || {}
+  const qr = cleanQrUrl.value || ''
+
   return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Quét mã chuyển khoản — DevCine</title>
+<title>Thanh toán VietQR — DevCine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,700&family=Montserrat:ital,wght@0,700;0,800;0,900;1,700;1,800;1,900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',system-ui,Arial,sans-serif;background:#efe8da;color:#26221b;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{width:100%;max-width:560px;background:#fffdf8;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(40,34,22,.2);border:1px solid #ece3d0}
-  .head{background:linear-gradient(160deg,#211d16,#14110c);color:#f3ecdc;padding:24px 30px;display:flex;align-items:center;gap:14px;position:relative}
-  .head::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#b8902f,#e6c878,#b8902f)}
-  .mono{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#e9cd80,#b8902f);display:flex;align-items:center;justify-content:center;font-size:27px;font-weight:900;color:#1c1a17;font-family:'Playfair Display',serif;flex:none}
-  .brand{font-size:22px;font-weight:800;letter-spacing:.18em;line-height:1}
-  .brand .g{color:#e6c878}
-  .brand small{display:block;font-size:9px;letter-spacing:.28em;color:#a89c81;margin-top:6px;font-weight:600;text-transform:uppercase}
-  .body{padding:28px 30px 32px;text-align:center}
-  .qr{width:min(80vmin,440px);aspect-ratio:1;margin:0 auto;background:#fff;border-radius:18px;padding:12px;border:1px solid #eee}
-  .qr img{width:100%;height:100%;object-fit:contain}
-  .hint{font-size:13px;color:#8c836d;margin:16px 0 0}
-  .amount{margin-top:22px;background:#211d16;border-radius:14px;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
-  .amount span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a89c81;font-weight:700}
-  .amount b{font-family:'Playfair Display',serif;font-size:32px;font-weight:800;color:#e6c878}
-</style></head>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Be Vietnam Pro', -apple-system, sans-serif;
+    background-color: #0e0e0e;
+    background-image: radial-gradient(circle at 50% 25%, rgba(245, 197, 24, 0.09) 0%, transparent 65%);
+    color: #e5e2e1;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: #181818;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 35px -10px rgba(245, 197, 24, 0.12);
+  }
+  .head {
+    background: #201f1f;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f5c518;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(245, 197, 24, 0.3);
+  }
+  .logo-icon .material-symbols-outlined {
+    font-size: 22px;
+  }
+  .brand-text h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1.1;
+    color: #fff;
+  }
+  .brand-text h1 span { color: #f5c518; }
+  .brand-text p {
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: #a8a29e;
+    margin-top: 2px;
+  }
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #4ade80;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+  }
+  .body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .order-summary {
+    background: #242424;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    padding: 12px 16px;
+  }
+  .order-movie {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    font-style: italic;
+    text-transform: uppercase;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .order-details {
+    font-size: 11px;
+    font-weight: 600;
+    color: #a8a29e;
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .seat-tag {
+    color: #f5c518;
+    font-weight: 800;
+    background: rgba(245, 197, 24, 0.12);
+    padding: 1px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(245, 197, 24, 0.25);
+  }
+  .qr-wrapper {
+    position: relative;
+    width: min(72vw, 300px);
+    aspect-ratio: 1;
+    margin: 4px auto;
+    background: #fff;
+    border-radius: 20px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  }
+  .qr-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .scan-corner {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border: 3px solid #f5c518;
+    pointer-events: none;
+  }
+  .c-tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: 8px; }
+  .c-tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: 8px; }
+  .c-bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-bottom-left-radius: 8px; }
+  .c-br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-bottom-right-radius: 8px; }
+
+  .qr-hint {
+    font-size: 11px;
+    font-weight: 600;
+    color: #a8a29e;
+    text-align: center;
+  }
+  .amount-card {
+    background: #201f1f;
+    border: 1px solid rgba(245, 197, 24, 0.25);
+    border-radius: 18px;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .amount-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #a8a29e;
+  }
+  .amount-val {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 26px;
+    font-weight: 900;
+    font-style: italic;
+    color: #f5c518;
+    letter-spacing: -0.02em;
+  }
+  .bank-details {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    padding: 10px 16px;
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .bank-row {
+    display: flex;
+    justify-content: space-between;
+    color: #a8a29e;
+  }
+  .bank-row b {
+    color: #e5e2e1;
+    font-weight: 700;
+  }
+  .footer-hint {
+    font-size: 10px;
+    color: #78716c;
+    text-align: center;
+  }
+</style>
+</head>
 <body>
   <div class="card">
     <div class="head">
-      <div class="mono">D</div>
-      <div class="brand">DEV<span class="g">CINE</span><small>Quét mã để chuyển khoản</small></div>
+      <div class="brand-group">
+        <div class="logo-icon">
+          <span class="material-symbols-outlined">point_of_sale</span>
+        </div>
+        <div class="brand-text">
+          <h1>DEV<span>CINE</span></h1>
+          <p>Hệ thống thanh toán VietQR</p>
+        </div>
+      </div>
+      <div class="status-pill">
+        <span class="dot"></span> SẴN SÀNG
+      </div>
     </div>
     <div class="body">
-      <div class="qr"><img src="${cleanQrUrl.value}" alt="VietQR" /></div>
-      <p class="hint">Mở app ngân hàng → quét mã. Số tiền &amp; nội dung tự điền.</p>
-      <div class="amount"><span>Số tiền</span><b>${fmt(payableTotal.value)}đ</b></div>
+      ${movieTitle ? `
+      <div class="order-summary">
+        <div class="order-movie">${movieTitle}</div>
+        <div class="order-details">
+          ${roomName ? `<span>${roomName} • ${formatName}</span>` : ''}
+          ${seatsStr ? `<span>· Ghế: <span class="seat-tag">${seatsStr}</span></span>` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="qr-wrapper">
+        <span class="scan-corner c-tl"></span>
+        <span class="scan-corner c-tr"></span>
+        <span class="scan-corner c-bl"></span>
+        <span class="scan-corner c-br"></span>
+        <img src="${qr}" alt="VietQR" />
+      </div>
+
+      <p class="qr-hint">Mở ứng dụng Ngân hàng bất kỳ hoặc Ví điện tử để quét mã</p>
+
+      <div class="amount-card">
+        <span class="amount-label">Số tiền thanh toán</span>
+        <span class="amount-val">${fmt(totalVal)}đ</span>
+      </div>
+
+      <div class="bank-details">
+        <div class="bank-row"><span>Ngân hàng:</span><b>${bank.name || 'MB Bank'}</b></div>
+        <div class="bank-row"><span>Số tài khoản:</span><b style="font-family:monospace;letter-spacing:0.05em">${bank.accountNo || '—'}</b></div>
+        <div class="bank-row"><span>Chủ tài khoản:</span><b style="text-transform:uppercase">${bank.accountName || 'DEVCINE'}</b></div>
+      </div>
+
+      <p class="footer-hint">Hệ thống sẽ tự động xác nhận ngay sau khi nhận tiền</p>
     </div>
   </div>
-</body></html>`
+</body>
+</html>`
 }
 
 const openQrFullscreen = () => {
@@ -1681,7 +1932,13 @@ const resetPOS = () => {
 
 const handleGlobalKeydown = (e) => {
   if (isHolding.value || isPaying.value) return
-  // Các phím tắt thu ngân có thể xử lý ở đây (ví dụ: F2, F4...)
+  if (currentStep.value === 6 && (e.key === 'Enter' || e.code === 'Space')) {
+    e.preventDefault()
+    resetPOS()
+  } else if (fnbStep.value === 3 && (e.key === 'Enter' || e.code === 'Space')) {
+    e.preventDefault()
+    newConcessionSale()
+  }
 }
 
 const loadSettings = async () => {
@@ -1796,9 +2053,9 @@ onUnmounted(() => {
           <span class="text-xs sm:text-sm font-black tabular-nums tracking-wider">{{ holdMmSs }}</span>
         </div>
 
-        <!-- Giữ đơn (Hold Order) — vô hiệu hoá khi giỏ trống -->
+        <!-- Giữ đơn (Hold Order) — vô hiệu hoá khi giỏ trống hoặc đã thanh toán xong -->
         <button @click="holdCurrentOrder" :disabled="!canHoldOrder || isHolding"
-                :class="(canHoldOrder && !isHolding) ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20' : 'bg-surface-container-high border-outline-variant/10 text-on-surface-variant/40 cursor-not-allowed'"
+                :class="(canHoldOrder && !isHolding) ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20' : 'bg-surface-container-high border-outline-variant/10 text-on-surface-variant/40 cursor-not-allowed opacity-40'"
                 class="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all">
           <span class="material-symbols-outlined text-base sm:text-lg">{{ isHolding ? 'progress_activity' : 'pause_circle' }}</span> <span class="hidden sm:inline">{{ isHolding ? 'ĐANG GIỮ...' : 'GIỮ ĐƠN' }}</span>
         </button>
@@ -1809,8 +2066,8 @@ onUnmounted(() => {
           <span v-if="posStore.heldOrders.length > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 sm:w-5 sm:h-5 bg-primary text-on-primary font-bold text-[9px] sm:text-xs rounded-full flex items-center justify-center border-2 border-surface shadow-sm">{{ posStore.heldOrders.length }}</span>
         </AppButton>
 
-        <AppButton variant="outline" size="sm" class="hidden sm:inline-flex" @click="resetPOS">Hủy</AppButton>
-        <button class="sm:hidden p-2 text-on-surface-variant hover:text-red-400 rounded-lg hover:bg-white/5" @click="resetPOS" title="Hủy">
+        <AppButton variant="outline" size="sm" class="hidden sm:inline-flex" :disabled="currentStep === 6 || fnbStep === 3" :class="{'opacity-40 pointer-events-none': currentStep === 6 || fnbStep === 3}" @click="resetPOS">Hủy</AppButton>
+        <button class="sm:hidden p-2 text-on-surface-variant hover:text-red-400 rounded-lg hover:bg-white/5" :disabled="currentStep === 6 || fnbStep === 3" :class="{'opacity-40 pointer-events-none': currentStep === 6 || fnbStep === 3}" @click="resetPOS" title="Hủy">
           <span class="material-symbols-outlined text-lg">restart_alt</span>
         </button>
       </div>
@@ -2260,49 +2517,105 @@ onUnmounted(() => {
         </div>
 
         <!-- Step 6: Done -->
-        <div v-if="currentStep === 6" class="p-6 flex flex-col items-center justify-center text-center h-full space-y-8">
-          <div class="w-24 h-24 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center shadow-2xl shadow-green-500/20">
-            <span class="material-symbols-outlined text-6xl">check_circle</span>
+        <div v-if="currentStep === 6" class="p-6 sm:p-8 flex flex-col items-center justify-center text-center h-full space-y-6 overflow-y-auto custom-scrollbar">
+          <div class="w-20 h-20 bg-green-500/15 text-green-400 border border-green-500/30 rounded-full flex items-center justify-center shadow-xl shadow-green-500/10">
+            <span class="material-symbols-outlined text-5xl">check_circle</span>
           </div>
           <div>
-            <h2 class="text-4xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
-            <p class="text-on-surface-variant font-bold mt-2 uppercase tracking-widest text-xs">Xuất vé và bàn giao cho khách</p>
+            <h2 class="text-3xl sm:text-4xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
+            <p class="text-on-surface-variant font-bold mt-1 uppercase tracking-widest text-xs">Xuất vé và bàn giao cho khách</p>
           </div>
 
-          <div class="bg-surface-container-high p-8 rounded-3xl border border-outline-variant/10 w-full max-w-md space-y-6 text-left">
-            <div class="flex justify-between items-start">
+          <div class="bg-surface-container-high/90 p-6 sm:p-8 rounded-3xl border border-outline-variant/15 shadow-2xl w-full max-w-2xl space-y-6 text-left">
+            <!-- Header: Mã đơn + Phòng -->
+            <div class="flex justify-between items-start border-b border-outline-variant/10 pb-4">
               <div>
-                <p class="text-[10px] font-black text-primary uppercase">Mã đặt vé</p>
-                <p class="text-xl font-black text-on-surface">{{ completedBooking?.bookingCode }}</p>
+                <p class="text-[10px] font-black text-primary uppercase tracking-wider">Mã đặt vé</p>
+                <p class="text-xl sm:text-2xl font-black font-mono text-primary tracking-wide">{{ completedBooking?.bookingCode }}</p>
               </div>
               <div class="text-right">
-                <p class="text-[10px] font-black text-primary uppercase">Phòng</p>
-                <p class="text-xl font-black text-on-surface">{{ selectedShowtime?.roomName }}</p>
+                <p class="text-[10px] font-black text-primary uppercase tracking-wider">Phòng chiếu</p>
+                <p class="text-base sm:text-lg font-black text-on-surface">{{ selectedShowtime?.roomName }}</p>
               </div>
             </div>
-            <div class="border-t border-dashed border-outline-variant/20 pt-6 space-y-2">
-              <div class="flex justify-between text-sm font-bold text-on-surface">
-                <span>{{ selectedSeats.length }} ghế ({{ totalRequiredTickets }} vé): {{ selectedSeats.map(s => seatLabel(s)).join(', ') }}</span>
-                <span>{{ fmt(seatTotal) }}đ</span>
+
+            <!-- Phim & Suất chiếu -->
+            <div v-if="selectedShowtime" class="space-y-1">
+              <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Phim & Suất chiếu</p>
+              <h3 class="text-base sm:text-lg font-black uppercase italic text-on-surface">{{ selectedShowtime.movieTitle }}</h3>
+              <p class="text-xs text-on-surface-variant font-medium">
+                {{ selectedShowtime.formatName }} · {{ new Date(selectedShowtime.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }} - {{ new Date(selectedShowtime.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }} · {{ new Date(selectedShowtime.startTime).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }) }}
+              </p>
+            </div>
+
+            <!-- Danh sách ghế -->
+            <div v-if="selectedSeats.length" class="space-y-2.5 border-t border-dashed border-outline-variant/20 pt-4">
+              <div class="flex justify-between items-center text-xs">
+                <span class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
+                  Ghế đã chọn ({{ selectedSeats.length }} ghế / {{ totalRequiredTickets }} vé)
+                </span>
+                <span class="font-bold text-on-surface">{{ fmt(seatTotal) }}đ</span>
               </div>
-              <div v-if="selectedCombos.length" class="flex justify-between text-xs text-on-surface-variant font-medium">
-                <span>F&B / Combo ({{ selectedCombos.reduce((a, c) => a + c.quantity, 0) }} phần)</span>
-                <span>{{ fmt(comboTotal) }}đ</span>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="s in selectedSeats" :key="s.seatId"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/25 text-primary text-xs font-black uppercase">
+                  {{ seatLabel(s) }}
+                  <span class="text-[10px] font-semibold text-on-surface-variant normal-case">· {{ seatTypeLabel(s.seatType) }}</span>
+                </span>
               </div>
-              <div v-if="completedBooking?.discountAmount || discountAmount" class="flex justify-between text-xs text-green-400 font-bold">
+            </div>
+
+            <!-- F&B / Combo -->
+            <div v-if="selectedCombos.length" class="space-y-2 border-t border-dashed border-outline-variant/20 pt-4">
+              <div class="flex justify-between items-center text-xs">
+                <span class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
+                  Bắp nước & Combo ({{ selectedCombos.reduce((a, c) => a + c.quantity, 0) }} phần)
+                </span>
+                <span class="font-bold text-on-surface">{{ fmt(comboTotal) }}đ</span>
+              </div>
+              <div v-for="(c, ci) in selectedCombos" :key="ci" class="text-xs text-on-surface flex justify-between items-start">
+                <div>
+                  <span class="font-bold">{{ c.name }}</span> <span class="text-on-surface-variant">x{{ c.quantity }}</span>
+                  <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface-variant mt-0.5 ml-2">
+                    <span v-for="(opt, oi) in c.options" :key="opt.optionItemId">
+                      <span v-if="oi">, </span>{{ opt.optionName }}<span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium"> (+{{ fmt(opt.surchargePrice) }}đ)</span>
+                    </span>
+                  </div>
+                </div>
+                <span class="font-medium text-on-surface-variant">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+              </div>
+            </div>
+
+            <!-- Tóm tắt thanh toán -->
+            <div class="border-t border-dashed border-outline-variant/20 pt-4 space-y-2.5">
+              <div class="flex justify-between items-center text-xs text-on-surface-variant">
+                <span>Hình thức thanh toán</span>
+                <span class="font-bold text-on-surface">
+                  {{ paymentMethod === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản QR (VietQR)' }}
+                </span>
+              </div>
+              <div v-if="paymentMethod === 'CASH' && cashGiven > 0" class="flex justify-between items-center text-xs text-on-surface-variant">
+                <span>Tiền khách đưa / Trả lại</span>
+                <span>Khách đưa: <b class="text-on-surface">{{ fmt(cashGiven) }}đ</b> · Thối lại: <b class="text-green-400">{{ fmt(changeDue) }}đ</b></span>
+              </div>
+              <div v-if="member" class="flex justify-between items-center text-xs text-on-surface-variant">
+                <span>Thành viên</span>
+                <span class="font-bold text-primary">{{ member.fullName }} ({{ member.membershipTier }})</span>
+              </div>
+              <div v-if="completedBooking?.discountAmount || discountAmount" class="flex justify-between items-center text-xs text-green-400 font-bold">
                 <span>Giảm giá {{ appliedVoucher ? '(' + appliedVoucher.code + ')' : '' }}</span>
                 <span>-{{ fmt(completedBooking?.discountAmount ?? discountAmount) }}đ</span>
               </div>
-              <div class="flex justify-between items-center pt-2 border-t border-outline-variant/10">
-                <span class="text-[10px] font-black text-primary uppercase">Tổng thanh toán</span>
-                <span class="text-xl font-black text-primary italic">{{ fmt(completedBooking?.finalPrice ?? payableTotal) }}đ</span>
+              <div class="flex justify-between items-center pt-3 border-t border-outline-variant/10">
+                <span class="text-xs font-black text-primary uppercase tracking-wider">Tổng thanh toán</span>
+                <span class="text-2xl sm:text-3xl font-black text-primary italic tracking-tight">{{ fmt(completedBooking?.finalPrice ?? payableTotal) }}đ</span>
               </div>
             </div>
           </div>
 
-          <div class="flex justify-center w-full max-w-md">
-            <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base" @click="resetPOS">
-              <span class="material-symbols-outlined">add_circle</span> Giao dịch mới
+          <div class="flex justify-center w-full max-w-2xl">
+            <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base font-black uppercase tracking-wider rounded-2xl shadow-xl shadow-primary/20 hover:brightness-110 active:scale-[0.99] transition-all cursor-pointer" @click="resetPOS">
+              <span class="material-symbols-outlined text-xl">add_circle</span> Giao dịch mới
             </AppButton>
           </div>
         </div>
@@ -2465,34 +2778,77 @@ onUnmounted(() => {
           </div>
 
           <!-- FNB Step 3: Done -->
-          <div v-if="fnbStep === 3" class="p-6 flex flex-col items-center justify-center text-center h-full space-y-8">
-            <div class="w-24 h-24 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center shadow-2xl shadow-green-500/20">
-              <span class="material-symbols-outlined text-6xl">check_circle</span>
+          <div v-if="fnbStep === 3" class="p-6 sm:p-8 flex flex-col items-center justify-center text-center h-full space-y-6 overflow-y-auto custom-scrollbar">
+            <div class="w-20 h-20 bg-green-500/15 text-green-400 border border-green-500/30 rounded-full flex items-center justify-center shadow-xl shadow-green-500/10">
+              <span class="material-symbols-outlined text-5xl">check_circle</span>
             </div>
             <div>
-              <h2 class="text-4xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
-              <p class="text-on-surface-variant font-bold mt-2 uppercase tracking-widest text-xs">Giao bắp nước cho khách</p>
+              <h2 class="text-3xl sm:text-4xl font-black uppercase italic tracking-tighter text-on-surface">Thanh toán thành công</h2>
+              <p class="text-on-surface-variant font-bold mt-1 uppercase tracking-widest text-xs">Giao bắp nước cho khách</p>
             </div>
-            <div class="bg-surface-container-high p-8 rounded-3xl border border-outline-variant/10 w-full max-w-md space-y-6 text-left">
-              <div class="flex justify-between items-center">
+
+            <div class="bg-surface-container-high/90 p-6 sm:p-8 rounded-3xl border border-outline-variant/15 shadow-2xl w-full max-w-2xl space-y-6 text-left">
+              <!-- Header: Mã đơn + Loại đơn -->
+              <div class="flex justify-between items-start border-b border-outline-variant/10 pb-4">
                 <div>
-                  <p class="text-[10px] font-black text-primary uppercase">Mã hoá đơn</p>
-                  <p class="text-xl font-black text-on-surface">{{ concessionSale?.saleCode }}</p>
+                  <p class="text-[10px] font-black text-primary uppercase tracking-wider">Mã hoá đơn</p>
+                  <p class="text-xl sm:text-2xl font-black font-mono text-primary tracking-wide">{{ concessionSale?.saleCode }}</p>
                 </div>
                 <div class="text-right">
-                  <p class="text-[10px] font-black text-primary uppercase">Tổng tiền</p>
-                  <p class="text-xl font-black text-primary italic">{{ fmt(comboTotal) }}đ</p>
+                  <p class="text-[10px] font-black text-primary uppercase tracking-wider">Hình thức</p>
+                  <p class="text-base sm:text-lg font-black text-on-surface">Bán nhanh F&B</p>
+                </div>
+              </div>
+
+              <!-- Danh sách món F&B -->
+              <div v-if="selectedCombos.length" class="space-y-2">
+                <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
+                  Chi tiết món đã chọn ({{ selectedCombos.reduce((a, c) => a + c.quantity, 0) }} phần)
+                </p>
+                <div v-for="(c, ci) in selectedCombos" :key="ci" class="text-xs text-on-surface flex justify-between items-start border-b border-outline-variant/5 pb-2">
+                  <div>
+                    <span class="font-bold">{{ c.name }}</span> <span class="text-on-surface-variant">x{{ c.quantity }}</span>
+                    <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface-variant mt-0.5 ml-2">
+                      <span v-for="(opt, oi) in c.options" :key="opt.optionItemId">
+                        <span v-if="oi">, </span>{{ opt.optionName }}<span v-if="opt.surchargePrice > 0" class="text-amber-400 font-medium"> (+{{ fmt(opt.surchargePrice) }}đ)</span>
+                      </span>
+                    </div>
+                  </div>
+                  <span class="font-bold text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+                </div>
+              </div>
+
+              <!-- Tóm tắt thanh toán -->
+              <div class="border-t border-dashed border-outline-variant/20 pt-4 space-y-2.5">
+                <div class="flex justify-between items-center text-xs text-on-surface-variant">
+                  <span>Hình thức thanh toán</span>
+                  <span class="font-bold text-on-surface">
+                    {{ paymentMethod === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản QR (VietQR)' }}
+                  </span>
+                </div>
+                <div v-if="paymentMethod === 'CASH' && cashGiven > 0" class="flex justify-between items-center text-xs text-on-surface-variant">
+                  <span>Tiền khách đưa / Trả lại</span>
+                  <span>Khách đưa: <b class="text-on-surface">{{ fmt(cashGiven) }}đ</b> · Thối lại: <b class="text-green-400">{{ fmt(changeDue) }}đ</b></span>
+                </div>
+                <div v-if="member" class="flex justify-between items-center text-xs text-on-surface-variant">
+                  <span>Thành viên tích điểm</span>
+                  <span class="font-bold text-primary">{{ member.fullName }} ({{ member.membershipTier }})</span>
+                </div>
+                <div class="flex justify-between items-center pt-3 border-t border-outline-variant/10">
+                  <span class="text-xs font-black text-primary uppercase tracking-wider">Tổng thanh toán</span>
+                  <span class="text-2xl sm:text-3xl font-black text-primary italic tracking-tight">{{ fmt(comboTotal) }}đ</span>
                 </div>
               </div>
             </div>
-            <div class="flex justify-center w-full max-w-md">
-              <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base" @click="newConcessionSale">
-                <span class="material-symbols-outlined">add_circle</span> Giao dịch mới
+
+            <div class="flex justify-center w-full max-w-2xl">
+              <AppButton variant="primary" size="lg" class="w-full flex items-center justify-center gap-3 py-4 text-base font-black uppercase tracking-wider rounded-2xl shadow-xl shadow-primary/20 hover:brightness-110 active:scale-[0.99] transition-all cursor-pointer" @click="newConcessionSale">
+                <span class="material-symbols-outlined text-xl">add_circle</span> Giao dịch mới
               </AppButton>
             </div>
 
             <!-- Bấm nhầm? Yêu cầu Trưởng ca duyệt HỦY hóa đơn (nhân viên quầy không tự hủy được) -->
-            <div class="w-full max-w-md">
+            <div class="w-full max-w-2xl">
               <div v-if="voidRequested" class="flex items-center justify-center gap-2 text-amber-400 text-sm font-bold">
                 <span class="material-symbols-outlined text-base">hourglass_top</span>
                 Đã gửi yêu cầu hủy — chờ Trưởng ca duyệt
@@ -2521,7 +2877,7 @@ onUnmounted(() => {
           <span class="material-symbols-outlined text-primary">receipt_long</span>
           <h2 class="text-sm font-black uppercase tracking-[0.2em] text-primary">Biên lai tạm tính</h2>
         </div>
-        <div v-if="selectedShowtime || selectedCombos.length" class="space-y-4 flex-grow overflow-y-auto custom-scrollbar pr-1">
+        <div v-if="(selectedShowtime || selectedCombos.length) && currentStep !== 6 && fnbStep !== 3" class="space-y-4 flex-grow overflow-y-auto custom-scrollbar pr-1">
           <div v-if="saleMode === 'FNB'" class="pb-4 border-b border-outline-variant/10">
             <p class="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Bán nhanh F&B</p>
             <h3 class="text-sm sm:text-base font-black uppercase italic text-on-surface leading-tight">Bắp nước & Combo</h3>
@@ -2558,19 +2914,19 @@ onUnmounted(() => {
         </div>
         <div v-else class="flex-grow flex flex-col items-center justify-center text-on-surface-variant/40 gap-2">
           <span class="material-symbols-outlined text-4xl">shopping_cart</span>
-          <p class="text-xs font-semibold">{{ saleMode === 'FNB' ? 'Chưa chọn món nào' : 'Chưa chọn suất chiếu' }}</p>
+          <p class="text-xs font-semibold">{{ (currentStep === 6 || fnbStep === 3) ? 'Chưa có giao dịch mới' : (saleMode === 'FNB' ? 'Chưa chọn món nào' : 'Chưa chọn suất chiếu') }}</p>
         </div>
 
-        <div v-if="discountAmount > 0" class="pt-3 mt-2 flex justify-between items-center text-xs font-bold text-green-400">
+        <div v-if="discountAmount > 0 && currentStep !== 6 && fnbStep !== 3" class="pt-3 mt-2 flex justify-between items-center text-xs font-bold text-green-400">
           <span class="uppercase tracking-wider">Giảm giá {{ appliedVoucher ? '(' + appliedVoucher.code + ')' : '' }}</span>
           <span>-{{ fmt(discountAmount) }}đ</span>
         </div>
         <div class="pt-4 mt-2 border-t border-outline-variant/10 flex justify-between items-center">
           <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Tổng tiền</p>
-          <p class="text-2xl sm:text-3xl font-black italic tracking-tighter text-primary">{{ fmt(payableTotal) }}đ</p>
+          <p class="text-2xl sm:text-3xl font-black italic tracking-tighter text-primary">{{ fmt((currentStep === 6 || fnbStep === 3) ? 0 : payableTotal) }}đ</p>
         </div>
         
-        <button v-if="saleMode === 'FNB' || currentStep === 4"
+        <button v-if="(saleMode === 'FNB' || currentStep === 4) && currentStep !== 6 && fnbStep !== 3"
           class="w-full py-3 mt-3 bg-primary text-on-primary font-bold text-sm sm:text-base rounded-xl shadow-lg hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           :disabled="totalPrice === 0"
           @click="saleMode === 'FNB' ? fnbStep = 2 : currentStep = 5">
@@ -2580,7 +2936,7 @@ onUnmounted(() => {
     </main>
 
     <!-- Mobile/Tablet Bottom Floating Bar (< lg) -->
-    <div v-if="selectedShowtime || selectedCombos.length > 0"
+    <div v-if="(selectedShowtime || selectedCombos.length > 0) && currentStep !== 6 && fnbStep !== 3"
          class="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface/95 backdrop-blur-md border-t border-outline-variant/20 px-4 py-3 shadow-[0_-4px_25px_rgba(0,0,0,0.4)] flex items-center justify-between gap-3">
       <div class="cursor-pointer" @click="showMobileReceiptDrawer = true">
         <p class="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant flex items-center gap-1">
