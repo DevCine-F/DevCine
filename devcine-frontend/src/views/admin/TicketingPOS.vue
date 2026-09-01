@@ -1602,7 +1602,7 @@ const loadOwnedVouchers = async () => {
   try {
     const { data } = await ticketingApi.customerVouchers(member.value.customerId)
     const list = Array.isArray(data) ? data : (data?.data ?? [])
-    ownedVouchers.value = list.filter(v => v.status === 'ACTIVE')
+    ownedVouchers.value = list.filter(v => v.status === 'ACTIVE' || v.status === 'EXHAUSTED')
     await fetchPosVoucherEvals()
   } catch (_) {
     ownedVouchers.value = []

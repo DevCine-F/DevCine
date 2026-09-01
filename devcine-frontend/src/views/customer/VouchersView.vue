@@ -164,8 +164,8 @@ const handleVoucherSearchInput = () => {
     try {
       const { data } = await voucherApi.lookup(authStore.user.id, code)
       const d = data.data ?? data
-      // Chỉ gợi ý "lưu mã" khi tìm thấy promotion và còn có thể lưu (chưa sở hữu, chưa hết hạn, không phải loại đổi điểm)
-      lookupResult.value = (d.found && d.claimable) ? d : null
+      // Gợi ý lưu mã khi tìm thấy (cả trường hợp còn lưu được hoặc hết lượt để hiển thị badge thông báo)
+      lookupResult.value = (d.found && (d.claimable || d.reason === 'EXHAUSTED' || d.reason === 'PAUSED')) ? d : null
     } catch {
       lookupResult.value = null
     } finally {
@@ -286,7 +286,7 @@ onUnmounted(() => {
           />
         </div>
 
-        <!-- Voucher mới tìm thấy theo mã -> cho phép lưu -->
+        <!-- Voucher mới tìm thấy theo mã -> cho phép lưu hoặc hiển thị trạng thái hết lượt -->
         <div v-if="lookupResult" class="mt-4 relative bg-primary-container/5 rounded-xl flex overflow-hidden border border-primary-container/30 shadow-xl">
           <div class="w-20 sm:w-24 md:w-32 bg-primary-container/15 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-3 sm:p-4 shrink-0">
             <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-1 sm:mb-2" style="font-variation-settings: 'FILL' 1;">redeem</span>
@@ -297,12 +297,37 @@ onUnmounted(() => {
               <h3 class="text-base sm:text-xl font-bold font-headline text-white truncate">{{ formatDiscount(lookupResult) }}</h3>
               <span class="bg-surface-container-high text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded border border-white/10 tracking-widest w-fit">{{ lookupResult.code }}</span>
             </div>
-            <p class="text-xs sm:text-sm text-on-surface-variant mb-4 sm:mb-6 flex-grow">Mã hợp lệ! Lưu vào ví để dùng cho đơn đặt vé. Hạn dùng đến {{ formatDate(lookupResult.endDate) }}.</p>
+            <p class="text-xs sm:text-sm text-on-surface-variant mb-4 sm:mb-6 flex-grow">
+              {{ lookupResult.reason === 'EXHAUSTED' 
+                ? 'Mã ưu đãi này đã hết lượt sử dụng, hiện không thể lưu thêm vào ví.' 
+                : lookupResult.reason === 'PAUSED'
+                ? 'Mã ưu đãi đang tạm dừng áp dụng.'
+                : `Mã hợp lệ! Lưu vào ví để dùng cho đơn đặt vé. Hạn dùng đến ${formatDate(lookupResult.endDate)}.` }}
+            </p>
             <div class="flex justify-end items-center mt-auto pt-3 sm:pt-4 border-t border-white/5">
-              <button @click="handleClaim" :disabled="isClaiming" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 sm:px-5 py-2 sm:py-2.5 hover:bg-primary-fixed-dim transition-colors rounded-sm disabled:opacity-60 flex items-center gap-1.5">
+              <button 
+                v-if="lookupResult.claimable" 
+                @click="handleClaim" 
+                :disabled="isClaiming" 
+                class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 sm:px-5 py-2 sm:py-2.5 hover:bg-primary-fixed-dim transition-colors rounded-sm disabled:opacity-60 flex items-center gap-1.5"
+              >
                 <span class="material-symbols-outlined text-sm">bookmark_add</span>
                 {{ isClaiming ? 'Đang lưu...' : 'Lưu mã này' }}
               </button>
+              <span 
+                v-else-if="lookupResult.reason === 'EXHAUSTED'" 
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide"
+              >
+                <span class="material-symbols-outlined text-sm">info</span>
+                Mã ưu đãi đã hết lượt sử dụng
+              </span>
+              <span 
+                v-else-if="lookupResult.reason === 'PAUSED'" 
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide"
+              >
+                <span class="material-symbols-outlined text-sm">pause_circle</span>
+                Mã ưu đãi đang tạm dừng áp dụng
+              </span>
             </div>
           </div>
         </div>

@@ -156,16 +156,26 @@ public class VoucherController {
         LocalDateTime now = LocalDateTime.now();
         boolean expired = (promo.getEndDate() != null && promo.getEndDate().isBefore(now))
                 || (promo.getStartDate() != null && promo.getStartDate().isAfter(now));
+        boolean paused = Boolean.FALSE.equals(promo.getIsActive());
+        boolean exhausted = promo.getUsageLimit() != null && promo.getUsageLimit() > 0
+                && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit();
         boolean pointOnly = Boolean.TRUE.equals(promo.getAllowPointRedemption());
         boolean owned = voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), now).isPresent();
-        boolean claimable = !pointOnly && !expired && !owned;
-        String reason = pointOnly ? "POINT_ONLY" : expired ? "EXPIRED" : owned ? "ALREADY_OWNED" : "OK";
+        boolean claimable = !pointOnly && !expired && !paused && !exhausted && !owned;
+        String reason = pointOnly ? "POINT_ONLY"
+                : expired ? "EXPIRED"
+                : paused ? "PAUSED"
+                : exhausted ? "EXHAUSTED"
+                : owned ? "ALREADY_OWNED"
+                : "OK";
 
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "found", true,
                 "claimable", claimable,
                 "reason", reason,
+                "exhausted", exhausted,
                 "code", promo.getCode() != null ? promo.getCode() : "",
+                "name", promo.getName() != null ? promo.getName() : "",
                 "discountType", promo.getDiscountType() != null ? promo.getDiscountType() : "",
                 "discountValue", promo.getDiscountValue() != null ? promo.getDiscountValue() : 0,
                 "endDate", promo.getEndDate() != null ? promo.getEndDate().toString() : ""

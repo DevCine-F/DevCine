@@ -176,11 +176,22 @@ public class VoucherService {
             return new VoucherEval(false, "Mã ưu đãi đã hết hạn sử dụng.", BigDecimal.ZERO);
         }
 
-        // 3. Đối tượng áp dụng (Hard check - đọc từ SNAPSHOT của voucher)
+        // 2. Trạng thái hoạt động của chiến dịch
+        if (Boolean.FALSE.equals(promo.getIsActive())) {
+            return new VoucherEval(false, "Mã ưu đãi đang tạm dừng áp dụng.", BigDecimal.ZERO);
+        }
+
+        // 3. Lượt sử dụng toàn hệ thống (Hết lượt)
+        if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
+                && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
+            return new VoucherEval(false, "Mã ưu đãi đã hết lượt sử dụng.", BigDecimal.ZERO);
+        }
+
+        // 4. Đối tượng áp dụng (Hard check - đọc từ SNAPSHOT của voucher)
         String eligReason = eligibilityReason(customerId, customer, voucher.effectiveCustomerEligibility());
         if (eligReason != null) return new VoucherEval(false, eligReason, BigDecimal.ZERO);
 
-        // 4. Phim áp dụng (Hard check - đọc từ SNAPSHOT của voucher)
+        // 5. Phim áp dụng (Hard check - đọc từ SNAPSHOT của voucher)
         Integer applicableMovieId = voucher.effectiveApplicableMovieId();
         if (applicableMovieId != null && movieId != null
                 && !applicableMovieId.equals(movieId)) {
@@ -409,7 +420,7 @@ public class VoucherService {
         // Chặn sớm khi mã đã hết lượt toàn hệ thống
         if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
                 && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
-            throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng toàn hệ thống.");
+            throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng.");
         }
 
         // Chặn sớm theo đối tượng áp dụng (khách mới / hạng thành viên) trước khi lưu mã
@@ -475,7 +486,7 @@ public class VoucherService {
             }
             if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
                     && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
-                throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng toàn hệ thống.");
+                throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng.");
             }
             return existing;
         }
