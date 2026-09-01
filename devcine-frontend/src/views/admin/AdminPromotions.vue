@@ -4,17 +4,27 @@ import axios from 'axios'
 import api from '@/api/axios'
 import { marketingApi, customerApi, promoArticleApi } from '@/api/admin/index'
 import CustomSelect from '@/components/common/CustomSelect.vue'
+import TipTapEditor from '@/components/common/TipTapEditor.vue'
 import { prepareImageForUpload } from '@/utils/imageUpload'
 import { useAdminPerm } from '@/composables/useAdminPerm'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { parseMarkdownToHtml } from '@/utils/markdownParser'
 
 const { can } = useAdminPerm()
 const toastStore = useToastStore()
+// Hôm nay (YYYY-MM-DD, theo giờ local) — chặn chọn ngày hết hạn trong quá khứ và tính trạng thái hiệu lực
+const todayStr = computed(() => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
+
 const filterStatus = ref('all')
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
   { value: 'active', label: 'Đang hiển thị' },
+  { value: 'scheduled', label: 'Chưa tới hạn' },
+  { value: 'expired', label: 'Đã hết hạn' },
   { value: 'inactive', label: 'Đang ẩn' }
 ]
 const discountTypeOptions = [
@@ -49,6 +59,8 @@ const isSavingArticle = ref(false)
 const isUploadingArticleImage = ref(false)
 const articleDeleteTarget = ref(null)
 const isDeletingArticle = ref(false)
+const articleBodyRef = ref(null)
+const contentTextareaRef = ref(null)
 
 const newArticle = ref({
   title: '',
@@ -60,14 +72,50 @@ const newArticle = ref({
   status: 'active'
 })
 
-// Lọc theo từ khoá + trạng thái (client-side)
+// Lỗi validate từng trường của Tin khuyến mãi (inline error)
+const articleErrors = ref({})
+const clearAErr = (key) => {
+  if (articleErrors.value[key]) {
+    const e = { ...articleErrors.value }
+    delete e[key]
+    articleErrors.value = e
+  }
+}
+
+// Ngày kết thúc tối thiểu của tin = ngày bắt đầu (hoặc hôm nay)
+const articleEndMinStr = computed(() => {
+  return newArticle.value.startDate || todayStr.value
+})
+
+// Khi đổi ngày bắt đầu: nếu ngày kết thúc < ngày bắt đầu thì tự xóa để chọn lại
+const onArticleStartDateChange = () => {
+  clearAErr('startDate')
+  if (newArticle.value.endDate && newArticle.value.startDate && newArticle.value.endDate < newArticle.value.startDate) {
+    newArticle.value.endDate = ''
+    clearAErr('endDate')
+  }
+}
+
+// Trạng thái hiệu lực toàn diện của tin khuyến mãi
+const articleStatus = (article) => {
+  if (article.status === 'inactive' || article.isActive === false) {
+    return { code: 'inactive', label: 'Đang ẩn', tone: 'inactive' }
+  }
+  const today = todayStr.value
+  const start = article.startDate ? String(article.startDate).slice(0, 10) : null
+  const end = article.endDate ? String(article.endDate).slice(0, 10) : null
+  if (start && start > today) return { code: 'scheduled', label: 'Chưa tới hạn', tone: 'scheduled' }
+  if (end && end < today) return { code: 'expired', label: 'Đã hết hạn', tone: 'expired' }
+  return { code: 'active', label: 'Đang hiển thị', tone: 'active' }
+}
+
+// Lọc theo từ khoá + trạng thái hiệu lực thực tế (client-side)
 const filteredArticles = computed(() => {
   const q = articleSearch.value.trim().toLowerCase()
   return articles.value.filter(a => {
     const matchQ = !q || (a.title || '').toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q)
-    const matchStatus = filterStatus.value === 'all'
-      || (filterStatus.value === 'active' && a.status === 'active')
-      || (filterStatus.value === 'inactive' && a.status === 'inactive')
+    const st = articleStatus(a).code
+    const matchStatus = filterStatus.value === 'all' || filterStatus.value === st
     return matchQ && matchStatus
   })
 })
@@ -93,27 +141,216 @@ const fetchArticles = async () => {
   }
 }
 
+// ===== Quản lý nội dung TipTap & Bài viết =====
+const contentLength = computed(() => {
+  if (!newArticle.value.content) return 0
+  const tmp = document.createElement('div')
+  tmp.innerHTML = newArticle.value.content
+  return (tmp.innerText || tmp.textContent || '').replace(/\s+/g, ' ').trim().length
+})
+
 const openArticleDrawer = () => {
   editingArticleId.value = null
-  newArticle.value = { title: '', description: '', image: '', startDate: '', endDate: '', content: '', status: 'active' }
+  newArticle.value = { title: '', description: '', image: '', startDate: todayStr.value, endDate: '', content: '', status: 'active' }
+  articleErrors.value = {}
   isArticleDrawerOpen.value = true
 }
 
 const openEditArticle = (article) => {
   editingArticleId.value = article.id
+  const end = article.endDate ? String(article.endDate).slice(0, 10) : ''
+  const isExpired = end && end < todayStr.value
+  const htmlContent = parseMarkdownToHtml(article.content || '')
   newArticle.value = {
     title: article.title || '',
     description: article.description || '',
     image: article.image || '',
     startDate: article.startDate ? String(article.startDate).slice(0, 10) : '',
-    endDate: article.endDate ? String(article.endDate).slice(0, 10) : '',
-    content: article.content || '',
-    status: article.status || 'active'
+    endDate: end,
+    content: htmlContent,
+    status: isExpired ? 'inactive' : (article.status || 'active')
   }
+  articleErrors.value = {}
   isArticleDrawerOpen.value = true
 }
 
-// Upload ảnh tin lên Cloudinary qua /api/upload (giống màn Thực đơn F&B)
+// Tự động chuyển trạng thái sang tắt khi ngày kết thúc bị chỉnh về quá khứ
+watch(() => newArticle.value.endDate, (newEnd) => {
+  if (newEnd && newEnd < todayStr.value && newArticle.value.status === 'active') {
+    newArticle.value.status = 'inactive'
+  }
+})
+
+const toggleNewArticleStatus = () => {
+  if (newArticle.value.status === 'inactive') {
+    if (newArticle.value.endDate && newArticle.value.endDate < todayStr.value) {
+      showToast('Tin đã hết hạn. Vui lòng gia hạn ngày kết thúc để bật hiển thị.', 'warning')
+      return
+    }
+    newArticle.value.status = 'active'
+  } else {
+    newArticle.value.status = 'inactive'
+  }
+}
+
+// Format ngày chuẩn Việt Nam DD/MM/YYYY
+const formatDisplayDate = (d) => {
+  if (!d) return '—'
+  const s = String(d).slice(0, 10)
+  const parts = s.split('-')
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
+  return s
+}
+
+// Validate từng trường khi người dùng blur / thay đổi dữ liệu
+const validateArticleField = (key) => {
+  const f = newArticle.value
+  const isCreate = !editingArticleId.value
+  const errs = { ...articleErrors.value }
+
+  if (key === 'image') {
+    if (!f.image || !f.image.trim()) {
+      errs.image = 'Vui lòng tải lên ảnh Thumbnail / Banner cho tin khuyến mãi.'
+    } else {
+      delete errs.image
+    }
+  }
+
+  if (key === 'title') {
+    const title = (f.title || '').trim().replace(/\s+/g, ' ')
+    if (!title) {
+      errs.title = 'Vui lòng nhập tiêu đề tin khuyến mãi.'
+    } else if (title.length < 5 || title.length > 150) {
+      errs.title = `Tiêu đề phải từ 5 đến 150 ký tự (hiện có ${title.length} ký tự).`
+    } else if (/<[^>]*>/.test(title)) {
+      errs.title = 'Tiêu đề không được chứa thẻ HTML hoặc mã độc.'
+    } else {
+      delete errs.title
+    }
+  }
+
+  if (key === 'description') {
+    const desc = (f.description || '').trim()
+    if (!desc) {
+      errs.description = 'Vui lòng nhập mô tả tóm tắt ngắn cho tin khuyến mãi.'
+    } else if (desc.length < 5 || desc.length > 255) {
+      errs.description = `Mô tả ngắn phải từ 5 đến 255 ký tự (hiện có ${desc.length} ký tự).`
+    } else {
+      delete errs.description
+    }
+  }
+
+  if (key === 'startDate') {
+    if (!f.startDate) {
+      errs.startDate = 'Vui lòng chọn ngày bắt đầu áp dụng.'
+    } else if (isCreate && f.startDate < todayStr.value) {
+      errs.startDate = 'Ngày bắt đầu không được ở trong quá khứ.'
+    } else {
+      delete errs.startDate
+    }
+    if (f.startDate && f.endDate && f.endDate < f.startDate) {
+      errs.endDate = 'Ngày kết thúc không được trước ngày bắt đầu.'
+    }
+  }
+
+  if (key === 'endDate') {
+    if (!f.endDate) {
+      errs.endDate = 'Vui lòng chọn ngày kết thúc áp dụng.'
+    } else if (f.startDate && f.endDate < f.startDate) {
+      errs.endDate = 'Ngày kết thúc không được trước ngày bắt đầu.'
+    } else if (isCreate && f.endDate < todayStr.value) {
+      errs.endDate = 'Ngày kết thúc không được ở trong quá khứ.'
+    } else {
+      delete errs.endDate
+    }
+  }
+
+  if (key === 'content') {
+    const rawText = (newArticle.value.content || '').replace(/<[^>]*>/g, '').trim()
+    if (!rawText) {
+      errs.content = 'Vui lòng nhập nội dung chi tiết của chương trình khuyến mãi.'
+    } else if (rawText.length < 10) {
+      errs.content = `Nội dung chi tiết phải có tối thiểu 10 ký tự (hiện có ${rawText.length} ký tự).`
+    } else if (rawText.length > 10000) {
+      errs.content = 'Nội dung chi tiết không được vượt quá 10.000 ký tự.'
+    } else {
+      delete errs.content
+    }
+  }
+
+  articleErrors.value = errs
+}
+
+// Validate toàn diện form Tin Khuyến Mãi trước khi gửi
+const articleFieldOrder = ['image', 'title', 'description', 'startDate', 'endDate', 'content']
+const validateArticleForm = () => {
+  const errs = {}
+  const f = newArticle.value
+  
+  // 1. Ảnh thumbnail/banner
+  if (!f.image || !f.image.trim()) {
+    errs.image = 'Vui lòng tải lên ảnh Thumbnail / Banner cho tin khuyến mãi.'
+  }
+  
+  // 2. Tiêu đề
+  const title = (f.title || '').trim().replace(/\s+/g, ' ')
+  if (!title) {
+    errs.title = 'Vui lòng nhập tiêu đề tin khuyến mãi.'
+  } else if (title.length < 5 || title.length > 150) {
+    errs.title = `Tiêu đề phải từ 5 đến 150 ký tự (hiện có ${title.length} ký tự).`
+  } else if (/<[^>]*>/.test(title)) {
+    errs.title = 'Tiêu đề không được chứa thẻ HTML hoặc mã độc.'
+  }
+  
+  // 3. Mô tả ngắn
+  const desc = (f.description || '').trim()
+  if (!desc) {
+    errs.description = 'Vui lòng nhập mô tả tóm tắt ngắn cho tin khuyến mãi.'
+  } else if (desc.length < 5 || desc.length > 255) {
+    errs.description = `Mô tả ngắn phải từ 5 đến 255 ký tự (hiện có ${desc.length} ký tự).`
+  }
+  
+  // 4. Ngày áp dụng (Bắt buộc cả 2 ngày)
+  const isCreate = !editingArticleId.value
+  if (!f.startDate) {
+    errs.startDate = 'Vui lòng chọn ngày bắt đầu áp dụng.'
+  } else if (isCreate && f.startDate < todayStr.value) {
+    errs.startDate = 'Ngày bắt đầu không được ở trong quá khứ.'
+  }
+
+  if (!f.endDate) {
+    errs.endDate = 'Vui lòng chọn ngày kết thúc áp dụng.'
+  } else if (f.startDate && f.endDate < f.startDate) {
+    errs.endDate = 'Ngày kết thúc không được trước ngày bắt đầu.'
+  } else if (isCreate && f.endDate < todayStr.value) {
+    errs.endDate = 'Ngày kết thúc không được ở trong quá khứ.'
+  }
+  
+  // 5. Nội dung chi tiết
+  const rawContent = (f.content || '').replace(/<[^>]*>/g, '').trim()
+  if (!rawContent) {
+    errs.content = 'Vui lòng nhập nội dung chi tiết của chương trình khuyến mãi.'
+  } else if (rawContent.length < 10) {
+    errs.content = `Nội dung chi tiết phải có tối thiểu 10 ký tự (hiện có ${rawContent.length} ký tự).`
+  } else if (rawContent.length > 10000) {
+    errs.content = 'Nội dung chi tiết không được vượt quá 10.000 ký tự.'
+  }
+  
+  articleErrors.value = errs
+  return Object.keys(errs).length === 0
+}
+
+const focusFirstArticleError = () => {
+  const firstKey = articleFieldOrder.find(k => articleErrors.value[k])
+  if (!firstKey || !articleBodyRef.value) return
+  const el = articleBodyRef.value.querySelector(`[data-field="${firstKey}"]`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (typeof el.focus === 'function') el.focus()
+  }
+}
+
+// Upload ảnh tin lên Cloudinary qua /api/upload
 const handleArticleImageUpload = async (e) => {
   const file = e.target.files?.[0]
   if (!file) return
@@ -130,7 +367,10 @@ const handleArticleImageUpload = async (e) => {
     const fd = new FormData()
     fd.append('file', prepared)
     const { data } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-    newArticle.value.image = data.url
+    const uploadedUrl = data?.data?.url || data?.url || (typeof data?.data === 'string' ? data.data : '')
+    if (!uploadedUrl) throw new Error('Không nhận được URL ảnh từ máy chủ')
+    newArticle.value.image = uploadedUrl
+    clearAErr('image')
     showToast('Tải ảnh lên thành công.')
   } catch (err) {
     showToast('Tải ảnh thất bại.', 'error')
@@ -140,21 +380,26 @@ const handleArticleImageUpload = async (e) => {
   }
 }
 
+const removeArticleImage = () => {
+  newArticle.value.image = ''
+}
+
 const handleSaveArticle = async () => {
-  if (!newArticle.value.title?.trim()) {
-    showToast('Vui lòng nhập tiêu đề tin khuyến mãi.', 'error')
+  if (!validateArticleForm()) {
+    focusFirstArticleError()
+    showToast('Vui lòng kiểm tra và sửa các trường lỗi màu đỏ.', 'error')
     return
   }
   isSavingArticle.value = true
   try {
     const payload = {
-      title: newArticle.value.title.trim(),
+      title: newArticle.value.title.trim().replace(/\s+/g, ' '),
       description: newArticle.value.description?.trim() || null,
       imageUrl: newArticle.value.image || null,
       content: newArticle.value.content?.trim() || null,
       startDate: newArticle.value.startDate || null,
       endDate: newArticle.value.endDate || null,
-      isActive: newArticle.value.status === 'active'
+      isActive: newArticle.value.status === 'active' && !(newArticle.value.endDate && newArticle.value.endDate < todayStr.value)
     }
     if (editingArticleId.value) {
       await promoArticleApi.update(editingArticleId.value, payload)
@@ -243,11 +488,6 @@ const selectMovieForVoucher = (id) => {
   movieDropdownOpen.value = false
   movieSearch.value = ''
 }
-// Hôm nay (YYYY-MM-DD, theo giờ local) — chặn chọn ngày hết hạn trong quá khứ
-const todayStr = computed(() => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-})
 // Ngày tối thiểu cho ô Hết hạn = NGÀY SAU ngày bắt đầu (hoặc sau hôm nay nếu chưa chọn) → ép end > start
 const endMinStr = computed(() => {
   const base = newVoucher.value.startDate || todayStr.value
@@ -942,87 +1182,102 @@ onUnmounted(() => {
     <!-- Articles View -->
     <div v-if="activeTab === 'articles'" class="space-y-6">
       <!-- Search & Filter bar -->
-      <div class="flex justify-between items-center bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+      <div class="flex justify-between items-center bg-surface-container-low p-4 sm:px-6 rounded-xl border border-outline-variant/10 gap-4">
         <div class="relative w-80">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
-          <input v-model="articleSearch" type="text" placeholder="Tìm kiếm tin khuyến mãi..." class="w-full bg-surface-container-highest border-none rounded-lg pl-10 pr-4 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none">
+          <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+          <input v-model="articleSearch" type="text" placeholder="Tìm kiếm tin khuyến mãi..." class="w-full bg-surface-container-highest border border-outline-variant/15 rounded-sm pl-10 pr-4 py-2 text-xs text-on-surface focus:border-primary outline-none">
         </div>
-        <div class="flex gap-4 w-48">
+        <div class="flex gap-4 w-52">
           <CustomSelect 
             v-model="filterStatus" 
             :options="statusOptions" 
-            customClass="w-full px-4 py-2 rounded-lg text-sm border-none bg-surface-container-highest font-bold text-on-surface-variant" 
+            customClass="w-full px-4 py-2 rounded-sm text-xs border border-outline-variant/15 bg-surface-container-highest font-bold text-on-surface-variant" 
           />
         </div>
       </div>
       
       <!-- Table -->
       <div class="bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden shadow-xl">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="bg-surface-container-highest/50 border-b border-outline-variant/10">
-              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant w-24">Hình ảnh</th>
-              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thông tin</th>
-              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Thời gian áp dụng</th>
-              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-center">Trạng thái</th>
-              <th class="p-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Loading -->
-            <tr v-if="isLoadingArticles" v-for="i in 3" :key="'sk' + i" class="border-b border-outline-variant/5">
-              <td class="p-4"><div class="w-16 h-12 bg-surface-container-highest rounded animate-pulse"></div></td>
-              <td class="p-4"><div class="h-4 w-48 bg-surface-container-highest rounded animate-pulse"></div></td>
-              <td class="p-4"><div class="h-4 w-24 bg-surface-container-highest rounded animate-pulse"></div></td>
-              <td class="p-4"></td>
-              <td class="p-4"></td>
-            </tr>
-            <!-- Empty -->
-            <tr v-else-if="filteredArticles.length === 0">
-              <td colspan="5" class="py-16 text-center">
-                <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">campaign</span>
-                <p class="text-on-surface-variant text-sm font-semibold">{{ articleSearch || filterStatus !== 'all' ? 'Không tìm thấy tin phù hợp.' : 'Chưa có tin khuyến mãi nào. Bấm "Tạo Tin Khuyến Mãi" để đăng tin.' }}</p>
-              </td>
-            </tr>
-            <!-- Data -->
-            <tr v-else v-for="article in filteredArticles" :key="article.id" class="border-b border-outline-variant/5 hover:bg-white/5 transition-colors group">
-              <td class="p-4">
-                <div class="w-16 h-12 bg-surface-container-highest rounded overflow-hidden flex items-center justify-center">
-                  <img v-if="article.image" :src="article.image" class="w-full h-full object-cover" />
-                  <span v-else class="material-symbols-outlined text-on-surface-variant/40 text-xl">image</span>
-                </div>
-              </td>
-              <td class="p-4">
-                <h4 class="text-sm font-black text-on-surface uppercase italic">{{ article.title }}</h4>
-                <p class="text-xs text-on-surface-variant mt-1 line-clamp-1">{{ article.description }}</p>
-              </td>
-              <td class="p-4">
-                <div class="flex flex-col gap-1">
-                  <span class="text-xs text-on-surface font-mono">{{ article.startDate || '—' }}</span>
-                  <span class="text-[10px] text-on-surface-variant font-mono">đến {{ article.endDate || '—' }}</span>
-                </div>
-              </td>
-              <td class="p-4 text-center">
-                <button v-if="can('promotions', 'edit')" @click="handleToggleArticle(article)" :class="article.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'" class="material-symbols-outlined text-3xl transition-colors" :title="article.status === 'active' ? 'Đang hiển thị' : 'Đang ẩn'">
-                  {{ article.status === 'active' ? 'toggle_on' : 'toggle_off' }}
-                </button>
-                <span v-else class="material-symbols-outlined text-3xl" :class="article.status === 'active' ? 'text-green-400' : 'text-on-surface-variant'">
-                  {{ article.status === 'active' ? 'toggle_on' : 'toggle_off' }}
-                </span>
-              </td>
-              <td class="p-4 text-right">
-                <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button v-if="can('promotions', 'edit')" @click="openEditArticle(article)" title="Chỉnh sửa" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-primary flex items-center justify-center transition-colors">
-                    <span class="material-symbols-outlined text-sm">edit</span>
-                  </button>
-                  <button v-if="can('promotions', 'delete')" @click="articleDeleteTarget = article" title="Xoá" class="w-8 h-8 rounded-full bg-surface-container-highest hover:text-red-400 flex items-center justify-center transition-colors">
-                    <span class="material-symbols-outlined text-sm">delete</span>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[900px]">
+            <thead>
+              <tr class="bg-surface-container-highest/50 border-b border-outline-variant/10 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant select-none">
+                <th class="py-4 pl-6 pr-4 w-[12%]">Hình ảnh</th>
+                <th class="py-4 px-4 w-[44%]">Thông tin bài viết</th>
+                <th class="py-4 px-4 w-[20%]">Thời gian áp dụng</th>
+                <th class="py-4 px-4 w-[14%] text-center">Trạng thái</th>
+                <th class="py-4 pl-4 pr-6 w-[10%] text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/5">
+              <!-- Loading -->
+              <tr v-if="isLoadingArticles" v-for="i in 3" :key="'sk' + i">
+                <td class="py-4 pl-6 pr-4"><div class="w-20 h-12 bg-surface-container-highest rounded-sm animate-pulse"></div></td>
+                <td class="py-4 px-4"><div class="space-y-2"><div class="h-4 w-3/4 bg-surface-container-highest rounded-sm animate-pulse"></div><div class="h-3 w-1/2 bg-surface-container-highest rounded-sm animate-pulse"></div></div></td>
+                <td class="py-4 px-4"><div class="h-4 w-28 bg-surface-container-highest rounded-sm animate-pulse"></div></td>
+                <td class="py-4 px-4 text-center"><div class="h-5 w-24 bg-surface-container-highest rounded-sm mx-auto animate-pulse"></div></td>
+                <td class="py-4 pl-4 pr-6 text-right"><div class="h-8 w-24 bg-surface-container-highest rounded-sm ml-auto animate-pulse"></div></td>
+              </tr>
+              <!-- Empty -->
+              <tr v-else-if="filteredArticles.length === 0">
+                <td colspan="5" class="py-16 text-center">
+                  <span class="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">campaign</span>
+                  <p class="text-on-surface-variant text-sm font-semibold">{{ articleSearch || filterStatus !== 'all' ? 'Không tìm thấy tin phù hợp.' : 'Chưa có tin khuyến mãi nào. Bấm "Tạo Tin Khuyến Mãi" để đăng tin.' }}</p>
+                </td>
+              </tr>
+              <!-- Data -->
+              <tr v-else v-for="article in filteredArticles" :key="article.id" class="hover:bg-white/[0.03] transition-colors group">
+                <!-- Cột 1: Hình ảnh -->
+                <td class="py-4 pl-6 pr-4 align-middle">
+                  <div class="w-20 h-12 bg-surface-container-highest rounded-sm overflow-hidden flex items-center justify-center border border-outline-variant/15 shadow-sm shrink-0">
+                    <img v-if="article.image || article.imageUrl" :src="article.image || article.imageUrl" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <span v-else class="text-[10px] text-on-surface-variant/40 uppercase font-bold">Không ảnh</span>
+                  </div>
+                </td>
+                <!-- Cột 2: Thông tin bài viết -->
+                <td class="py-4 px-4 align-middle">
+                  <h4 class="text-sm font-black text-on-surface uppercase italic group-hover:text-primary transition-colors line-clamp-1" :title="article.title">{{ article.title }}</h4>
+                  <p class="text-xs text-on-surface-variant mt-1 line-clamp-1 leading-relaxed" :title="article.description">{{ article.description || 'Chưa có mô tả ngắn' }}</p>
+                </td>
+                <!-- Cột 3: Thời gian áp dụng -->
+                <td class="py-4 px-4 align-middle">
+                  <div class="flex flex-col gap-0.5">
+                    <span class="text-xs text-on-surface font-mono font-bold">{{ formatDisplayDate(article.startDate) }}</span>
+                    <span class="text-[10px] text-on-surface-variant font-mono">đến {{ formatDisplayDate(article.endDate) }}</span>
+                  </div>
+                </td>
+                <!-- Cột 4: Trạng thái (Căn giữa) -->
+                <td class="py-4 px-4 align-middle text-center">
+                  <span :class="{
+                    'bg-green-500/15 text-green-400 border-green-500/30': articleStatus(article).tone === 'active',
+                    'bg-red-500/15 text-red-400 border-red-500/30': articleStatus(article).tone === 'expired',
+                    'bg-sky-500/15 text-sky-400 border-sky-500/30': articleStatus(article).tone === 'scheduled',
+                    'bg-zinc-500/15 text-zinc-400 border-zinc-500/30': articleStatus(article).tone === 'inactive'
+                  }" class="inline-block px-3 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border">
+                    {{ articleStatus(article).label }}
+                  </span>
+                </td>
+                <!-- Cột 5: Thao tác (Căn phải, có đệm lề) -->
+                <td class="py-4 pl-4 pr-6 align-middle text-right">
+                  <div class="flex justify-end items-center gap-1.5">
+                    <button v-if="can('promotions', 'edit')" @click.stop="handleToggleArticle(article)"
+                      :title="article.status === 'active' ? 'Tắt/Ẩn tin khuyến mãi' : 'Bật hiển thị tin khuyến mãi'"
+                      class="w-8 h-8 rounded-sm hover:bg-white/10 flex items-center justify-center transition-colors border border-transparent hover:border-outline-variant/20"
+                      :class="article.status === 'active' ? 'text-green-400 hover:text-amber-400' : 'text-on-surface-variant/40 hover:text-green-400'">
+                      <span class="material-symbols-outlined text-lg">{{ article.status === 'active' ? 'visibility' : 'visibility_off' }}</span>
+                    </button>
+                    <button v-if="can('promotions', 'edit')" @click="openEditArticle(article)" title="Chỉnh sửa" class="w-8 h-8 rounded-sm hover:bg-white/10 text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors border border-transparent hover:border-outline-variant/20">
+                      <span class="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                    <button v-if="can('promotions', 'delete')" @click="articleDeleteTarget = article" title="Xoá" class="w-8 h-8 rounded-sm hover:bg-white/10 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors border border-transparent hover:border-outline-variant/20">
+                      <span class="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1254,79 +1509,119 @@ onUnmounted(() => {
         </div>
         
         <!-- Drawer Body (Scrollable) -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
+        <div ref="articleBodyRef" class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
           <!-- Image Upload (Cloudinary) -->
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ảnh Banner / Thumbnail</label>
-            <label class="relative block w-full h-40 bg-surface-container-highest border-2 border-dashed border-outline-variant/20 rounded-2xl overflow-hidden flex flex-col items-center justify-center text-on-surface-variant hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer">
+            <div class="flex justify-between items-center">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Ảnh Banner / Thumbnail <span class="text-red-400">*</span>
+              </label>
+              <button v-if="newArticle.image" type="button" @click="removeArticleImage" class="text-[10px] font-bold text-red-400 hover:underline uppercase tracking-wider flex items-center gap-1">
+                <span class="material-symbols-outlined text-xs">delete</span> Xóa ảnh
+              </button>
+            </div>
+            <label data-field="image" class="relative block w-full h-44 bg-surface-container-highest border-2 border-dashed rounded-2xl overflow-hidden flex flex-col items-center justify-center text-on-surface-variant hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer" :class="articleErrors.image ? 'border-red-500 bg-red-500/5' : 'border-outline-variant/20'">
               <img v-if="newArticle.image" :src="newArticle.image" class="absolute inset-0 w-full h-full object-cover" />
               <div v-if="newArticle.image" class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                <span class="text-xs font-bold uppercase tracking-widest text-white">Đổi ảnh khác</span>
+                <span class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-sm">photo_camera</span> Đổi ảnh khác
+                </span>
               </div>
               <template v-if="!newArticle.image">
-                <span v-if="isUploadingArticleImage" class="material-symbols-outlined text-3xl mb-2 animate-spin">progress_activity</span>
-                <span v-else class="material-symbols-outlined text-3xl mb-2">cloud_upload</span>
-                <span class="text-xs font-bold uppercase tracking-widest">{{ isUploadingArticleImage ? 'Đang tải lên...' : 'Click để tải ảnh lên' }}</span>
+                <span v-if="isUploadingArticleImage" class="material-symbols-outlined text-3xl mb-2 animate-spin text-primary">progress_activity</span>
+                <span v-else class="material-symbols-outlined text-3xl mb-2 text-on-surface-variant/60">cloud_upload</span>
+                <span class="text-xs font-bold uppercase tracking-widest">{{ isUploadingArticleImage ? 'Đang tải lên...' : 'Bấm để tải ảnh lên' }}</span>
+                <span class="text-[10px] text-on-surface-variant/60 mt-1">Định dạng JPG, PNG, WEBP (tối đa 5MB)</span>
               </template>
               <input type="file" accept="image/*" class="hidden" @change="handleArticleImageUpload" :disabled="isUploadingArticleImage" />
             </label>
+            <p v-if="articleErrors.image" class="text-[10px] text-red-400 font-bold">{{ articleErrors.image }}</p>
           </div>
 
+          <!-- Tiêu đề -->
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiêu đề Tin Khuyến Mãi</label>
-            <input v-model="newArticle.title" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" placeholder="VD: Khuyến mãi Hè rực rỡ" />
+            <div class="flex justify-between items-center">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Tiêu đề Tin Khuyến Mãi <span class="text-red-400">*</span>
+              </label>
+              <span class="text-[10px] text-on-surface-variant/60 font-mono">{{ (newArticle.title || '').length }}/150</span>
+            </div>
+            <input v-model="newArticle.title" @input="clearAErr('title')" @blur="validateArticleField('title')" maxlength="150" data-field="title" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="articleErrors.title ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: Khuyến mãi Hè rực rỡ" />
+            <p v-if="articleErrors.title" class="text-[10px] text-red-400 font-bold">{{ articleErrors.title }}</p>
           </div>
 
+          <!-- Mô tả ngắn -->
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
-            <textarea v-model="newArticle.description" rows="2" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-medium text-on-surface focus:border-primary outline-none resize-none" placeholder="Mô tả tóm tắt hiển thị ở danh sách ngoài trang chủ..."></textarea>
+            <div class="flex justify-between items-center">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Mô tả ngắn (Tóm tắt) <span class="text-red-400">*</span>
+              </label>
+              <span class="text-[10px] text-on-surface-variant/60 font-mono">{{ (newArticle.description || '').length }}/255</span>
+            </div>
+            <textarea v-model="newArticle.description" @input="clearAErr('description')" @blur="validateArticleField('description')" rows="2" maxlength="255" data-field="description" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-medium text-on-surface focus:border-primary outline-none resize-none" :class="articleErrors.description ? 'border-red-500' : 'border-outline-variant/20'" placeholder="Mô tả tóm tắt hiển thị ở danh sách ngoài trang chủ..."></textarea>
+            <p v-if="articleErrors.description" class="text-[10px] text-red-400 font-bold">{{ articleErrors.description }}</p>
           </div>
 
+          <!-- Ngày áp dụng -->
           <div class="grid grid-cols-2 gap-6">
             <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày bắt đầu</label>
-              <input v-model="newArticle.startDate" type="date" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Ngày bắt đầu <span class="text-red-400">*</span>
+              </label>
+              <input v-model="newArticle.startDate" @change="onArticleStartDateChange(); validateArticleField('startDate')" type="date" :min="!editingArticleId ? todayStr : undefined" data-field="startDate" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="articleErrors.startDate ? 'border-red-500' : 'border-outline-variant/20'" />
+              <p v-if="articleErrors.startDate" class="text-[10px] text-red-400 font-bold">{{ articleErrors.startDate }}</p>
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày kết thúc</label>
-              <input v-model="newArticle.endDate" type="date" class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" />
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Ngày kết thúc <span class="text-red-400">*</span>
+              </label>
+              <input v-model="newArticle.endDate" @input="clearAErr('endDate')" @change="validateArticleField('endDate')" type="date" :min="articleEndMinStr" data-field="endDate" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="articleErrors.endDate ? 'border-red-500' : 'border-outline-variant/20'" />
+              <p v-if="articleErrors.endDate" class="text-[10px] text-red-400 font-bold">{{ articleErrors.endDate }}</p>
             </div>
           </div>
 
           <!-- Trạng thái -->
           <div class="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10">
              <div>
-                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Trạng thái hiển thị</p>
-                <p class="text-xs text-on-surface-variant mt-1">Cho phép hiển thị tin tức này trên hệ thống website</p>
+                <div class="flex items-center gap-2">
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Trạng thái hiển thị</p>
+                  <span v-if="newArticle.endDate && newArticle.endDate < todayStr" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 uppercase tracking-widest border border-red-500/30">Đã hết hạn</span>
+                </div>
+                <p v-if="newArticle.endDate && newArticle.endDate < todayStr" class="text-xs text-red-400 mt-1">Tin đã qua ngày kết thúc. Gia hạn ngày kết thúc để bật hiển thị.</p>
+                <p v-else class="text-xs text-on-surface-variant mt-1">Cho phép hiển thị tin tức này trên hệ thống website</p>
              </div>
-             <button @click="newArticle.status = newArticle.status === 'active' ? 'inactive' : 'active'" :class="newArticle.status === 'active' ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
+             <button type="button" @click="toggleNewArticleStatus" :disabled="newArticle.endDate && newArticle.endDate < todayStr" :class="newArticle.status === 'active' ? 'bg-green-500' : 'bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
                 <span :class="newArticle.status === 'active' ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
              </button>
           </div>
 
-          <!-- Rich Text Mock -->
+          <!-- Nội dung chi tiết (TipTap WYSIWYG Editor) -->
           <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Nội dung chi tiết</label>
-            <div class="bg-surface-container-highest border border-outline-variant/20 rounded-xl overflow-hidden flex flex-col h-64">
-              <!-- Toolbar -->
-              <div class="bg-surface-container-lowest border-b border-outline-variant/10 p-2 flex gap-1 items-center">
-                 <button class="w-8 h-8 rounded hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors"><span class="material-symbols-outlined text-sm">format_bold</span></button>
-                 <button class="w-8 h-8 rounded hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors"><span class="material-symbols-outlined text-sm">format_italic</span></button>
-                 <button class="w-8 h-8 rounded hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors"><span class="material-symbols-outlined text-sm">format_underlined</span></button>
-                 <div class="w-px h-5 bg-outline-variant/20 mx-1"></div>
-                 <button class="w-8 h-8 rounded hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors"><span class="material-symbols-outlined text-sm">format_list_bulleted</span></button>
-                 <button class="w-8 h-8 rounded hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors"><span class="material-symbols-outlined text-sm">image</span></button>
-                 <button class="w-8 h-8 rounded hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors"><span class="material-symbols-outlined text-sm">link</span></button>
-              </div>
-              <textarea v-model="newArticle.content" class="flex-1 w-full bg-transparent p-4 text-sm font-medium text-on-surface outline-none resize-none scrollbar-custom" placeholder="Soạn thảo nội dung chi tiết của chương trình khuyến mãi..."></textarea>
+            <div class="flex justify-between items-center">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Nội dung chi tiết <span class="text-red-400">*</span>
+              </label>
+              <span class="text-[10px] text-on-surface-variant/60 font-mono">{{ contentLength }}/10000</span>
             </div>
+
+            <div data-field="content" :class="articleErrors.content ? 'ring-1 ring-red-500 rounded-xl' : ''">
+              <TipTapEditor
+                v-model="newArticle.content"
+                @blur="validateArticleField('content')"
+                placeholder="Nhập nội dung chi tiết bài viết (chữ in đậm, nghiêng, tiêu đề, danh sách, tải ảnh trực tiếp)..."
+              />
+            </div>
+            <p v-if="articleErrors.content" class="text-[10px] text-red-400 font-bold">{{ articleErrors.content }}</p>
           </div>
         </div>
 
         <!-- Drawer Footer -->
         <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
           <button @click="isArticleDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button @click="handleSaveArticle" :disabled="isSavingArticle || isUploadingArticleImage" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-60">{{ isSavingArticle ? 'Đang lưu...' : (editingArticleId ? 'Cập nhật tin' : 'Đăng tin') }}</button>
+          <button @click="handleSaveArticle" :disabled="isSavingArticle || isUploadingArticleImage" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-60 disabled:hover:scale-100 flex items-center justify-center gap-2">
+            <span v-if="isSavingArticle" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+            {{ isSavingArticle ? 'Đang lưu...' : (editingArticleId ? 'Cập nhật tin' : 'Đăng tin') }}
+          </button>
         </div>
       </div>
     </div>
@@ -1578,6 +1873,81 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.wysiwyg-editor:empty:before {
+  content: attr(data-placeholder);
+  color: rgba(148, 163, 184, 0.4);
+  pointer-events: none;
+}
+
+.wysiwyg-editor h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #fff;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wysiwyg-editor h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #f5c518;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.wysiwyg-editor p {
+  margin-bottom: 0.5rem;
+}
+
+.wysiwyg-editor ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.wysiwyg-editor ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.wysiwyg-editor li {
+  margin-bottom: 0.25rem;
+}
+
+.wysiwyg-editor blockquote {
+  border-left: 4px solid #f5c518;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+  background: rgba(245, 197, 24, 0.06);
+  font-style: italic;
+  color: #cbd5e1;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.wysiwyg-editor img {
+  border-radius: 0.75rem;
+  max-width: 100%;
+  display: inline-block;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wysiwyg-editor a {
+  color: #f5c518;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.wysiwyg-editor hr {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
 
 ::-webkit-scrollbar {
   width: 4px;

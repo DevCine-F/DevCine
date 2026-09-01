@@ -377,23 +377,25 @@ const heroStatusLabel = (movie) => isUpcoming(movie) ? 'Sắp khởi chiếu' : 
         </div>
 
         <!-- Right Column: Sidebar -->
-        <aside class="w-full lg:w-[20%] xl:w-[18%] space-y-8 lg:space-y-12">
+        <aside class="w-full lg:w-[20%] xl:w-[18%] space-y-6 lg:space-y-8">
           <div v-if="promoArticles.length">
-            <h2 class="font-headline text-base sm:text-lg font-bold tracking-tight mb-4 sm:mb-8 border-l-4 border-primary-container pl-3 sm:pl-4 uppercase">KHUYẾN MẠI</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 sm:gap-6">
-              <RouterLink v-for="promo in promoArticles.slice(0, 2)" :key="promo.id" to="/khuyen-mai" class="block group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
-                <img alt="Promo Banner" class="w-full aspect-[16/10] object-cover transition-transform duration-500 group-hover:scale-105" :src="promo.imageUrl || '/images/Hopper.webp'"/>
-                <div class="p-3 sm:p-2.5">
-                  <h4 class="font-headline font-bold text-white uppercase mb-1 text-[11px] sm:text-[9px] leading-tight line-clamp-1">{{ promo.title }}</h4>
-                  <p class="text-on-surface-variant text-[10px] sm:text-[8px] leading-snug line-clamp-2">{{ promo.description }}</p>
+            <h2 class="font-headline text-base sm:text-lg font-bold tracking-tight mb-4 sm:mb-6 border-l-4 border-primary-container pl-3 sm:pl-4 uppercase">KHUYẾN MẠI</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+              <RouterLink v-for="promo in promoArticles.slice(0, 2)" :key="promo.id" :to="`/khuyen-mai/${promo.id}`" class="block group cursor-pointer overflow-hidden rounded-xl glass-card glass-shine-edge">
+                <div class="w-full aspect-[16/9] overflow-hidden bg-surface-container-highest">
+                  <img alt="Promo Banner" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" :src="promo.imageUrl || '/images/Hopper.webp'"/>
+                </div>
+                <div class="p-3.5 sm:p-4">
+                  <h4 class="font-headline font-bold text-white uppercase text-xs sm:text-sm md:text-[13px] leading-snug line-clamp-2 group-hover:text-primary-container transition-colors">{{ promo.title }}</h4>
+                  <p class="text-on-surface-variant text-[11px] sm:text-xs leading-relaxed line-clamp-2 mt-1.5">{{ promo.description }}</p>
                 </div>
               </RouterLink>
             </div>
           </div>
-          <div v-if="promoArticles[2]" class="glass-card rounded-xl p-4">
-            <h3 class="font-headline font-bold text-[#f5c518] mb-2 sm:mb-3 uppercase text-xs sm:text-[10px] line-clamp-1">{{ promoArticles[2].title }}</h3>
-            <p class="text-on-surface-variant leading-relaxed mb-3 sm:mb-4 text-[11px] sm:text-[8px] line-clamp-3">{{ promoArticles[2].description }}</p>
-            <router-link :to="`/khuyen-mai/${promoArticles[2].id}`" class="w-full border border-primary-container text-primary-container font-headline text-[10px] sm:text-[8px] font-bold rounded-md hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-2 sm:py-1.5 inline-block text-center">XEM CHI TIẾT</router-link>
+          <div v-if="promoArticles[2]" class="glass-card rounded-xl p-4 sm:p-5">
+            <h3 class="font-headline font-bold text-primary-container mb-2 uppercase text-xs sm:text-sm leading-snug line-clamp-2">{{ promoArticles[2].title }}</h3>
+            <p class="text-on-surface-variant leading-relaxed mb-3 sm:mb-4 text-[11px] sm:text-xs line-clamp-3">{{ promoArticles[2].description }}</p>
+            <router-link :to="`/khuyen-mai/${promoArticles[2].id}`" class="w-full border border-primary-container text-primary-container font-headline text-xs font-bold rounded-lg hover:bg-primary-container hover:text-on-primary transition-colors uppercase py-2.5 inline-block text-center tracking-wider">XEM CHI TIẾT</router-link>
           </div>
         </aside>
       </div>

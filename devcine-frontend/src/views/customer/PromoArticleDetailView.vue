@@ -1,22 +1,30 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { ref, onMounted, watch, computed } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { promoArticleApi } from '@/api/customer/index'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { parseMarkdownToHtml } from '@/utils/markdownParser'
 
 const toast = useToastStore()
-
 const route = useRoute()
+const router = useRouter()
+
 const article = ref(null)
 const isLoading = ref(true)
 const loadError = ref(false)
 
 const fetchArticle = async () => {
+  const id = route.params.id
+  if (!id) {
+    router.replace('/khuyen-mai')
+    return
+  }
+
   isLoading.value = true
   loadError.value = false
   try {
-    const { data } = await promoArticleApi.getDetail(route.params.id)
+    const { data } = await promoArticleApi.getDetail(id)
     article.value = data?.data ?? data
   } catch (e) {
     loadError.value = true
@@ -25,6 +33,16 @@ const fetchArticle = async () => {
     isLoading.value = false
   }
 }
+
+onMounted(() => {
+  fetchArticle()
+})
+
+watch(() => route.params.id, (newId) => {
+  if (newId) {
+    fetchArticle()
+  }
+})
 
 const formatDate = (iso) => (iso ? new Date(iso).toLocaleDateString('vi-VN') : '')
 
@@ -37,7 +55,10 @@ const periodText = computed(() => {
   return 'Đang áp dụng'
 })
 
-onMounted(fetchArticle)
+const renderedContent = computed(() => {
+  if (!article.value?.content) return '<p class="text-on-surface-variant italic">Nội dung chi tiết đang được cập nhật.</p>'
+  return parseMarkdownToHtml(article.value.content)
+})
 </script>
 
 <template>
@@ -50,7 +71,7 @@ onMounted(fetchArticle)
         Tất cả ưu đãi
       </RouterLink>
 
-      <!-- Loading -->
+      <!-- Loading Skeleton -->
       <div v-if="isLoading" class="animate-pulse space-y-6">
         <div class="h-5 w-32 bg-surface-container-high rounded"></div>
         <div class="h-12 w-3/4 bg-surface-container-high rounded"></div>
@@ -85,15 +106,18 @@ onMounted(fetchArticle)
           </div>
         </header>
 
+        <!-- Ảnh Thumbnail / Banner chính nếu có -->
+        <div v-if="article.image || article.imageUrl" class="mb-8 rounded-2xl overflow-hidden border border-outline-variant/15 shadow-2xl">
+          <img :src="article.image || article.imageUrl" :alt="article.title" class="w-full max-h-[420px] object-cover" />
+        </div>
+
         <!-- Mô tả ngắn (lead) -->
-        <p v-if="article.description" class="text-base sm:text-xl text-on-surface font-semibold leading-relaxed mb-6 sm:mb-8">
+        <p v-if="article.description" class="text-base sm:text-xl text-on-surface font-semibold leading-relaxed mb-8 bg-surface-container-high/40 p-4 sm:p-5 rounded-xl border-l-4 border-primary-container">
           {{ article.description }}
         </p>
 
-        <!-- Nội dung chi tiết -->
-        <div class="prose-content text-on-surface-variant text-sm sm:text-lg leading-relaxed sm:leading-loose whitespace-pre-line">
-          {{ article.content || 'Nội dung chi tiết đang được cập nhật.' }}
-        </div>
+        <!-- Nội dung chi tiết Render HTML / TipTap -->
+        <div class="prose-content text-on-surface-variant text-sm sm:text-base leading-relaxed sm:leading-loose" v-html="renderedContent"></div>
 
         <!-- CTA -->
         <div class="mt-10 sm:mt-14 pt-6 sm:pt-8 border-t border-outline-variant/15 flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -112,3 +136,99 @@ onMounted(fetchArticle)
     </div>
   </main>
 </template>
+
+<style>
+.prose-content h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #fff;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.prose-content h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #f5c518;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-content p {
+  margin-bottom: 0.75rem;
+  line-height: 1.75;
+}
+
+.prose-content strong,
+.prose-content b {
+  color: #fff;
+  font-weight: 700;
+}
+
+.prose-content em,
+.prose-content i {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.prose-content u {
+  text-decoration: underline;
+}
+
+.prose-content s,
+.prose-content strike {
+  text-decoration: line-through;
+}
+
+.prose-content ul {
+  list-style-type: disc;
+  padding-left: 1.75rem;
+  margin: 0.75rem 0;
+}
+
+.prose-content ol {
+  list-style-type: decimal;
+  padding-left: 1.75rem;
+  margin: 0.75rem 0;
+}
+
+.prose-content li {
+  margin-bottom: 0.35rem;
+}
+
+.prose-content blockquote {
+  border-left: 4px solid #f5c518;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  background: rgba(245, 197, 24, 0.06);
+  font-style: italic;
+  color: #cbd5e1;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.prose-content img {
+  border-radius: 1rem;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.5rem auto;
+  box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.prose-content hr {
+  margin: 1.5rem 0;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.prose-content a {
+  color: #f5c518;
+  text-decoration: underline;
+  font-weight: 600;
+}
+</style>
