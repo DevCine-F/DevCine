@@ -83,7 +83,20 @@ const handleSaveProfile = async () => {
   isSaving.value = true
   try {
     const res = await customerApi.updateProfile(authStore.user.id, editForm.value)
-    customer.value = res.data?.data ?? res.data
+    const updated = res.data?.data ?? res.data
+    customer.value = updated
+    editForm.value = {
+      fullName: updated.fullName || '',
+      email: updated.email || '',
+      phone: updated.phone || '',
+      dob: updated.dob || ''
+    }
+    if (authStore.user) {
+      if (updated.fullName) authStore.user.fullName = updated.fullName
+      if (updated.email) authStore.user.email = updated.email
+      if (updated.phone) authStore.user.phone = updated.phone
+      localStorage.setItem('user', JSON.stringify(authStore.user))
+    }
     isEditing.value = false
     toast.success('Cập nhật hồ sơ thành công.')
   } catch (err) {
@@ -91,6 +104,18 @@ const handleSaveProfile = async () => {
   } finally {
     isSaving.value = false
   }
+}
+
+const handleCancelEdit = () => {
+  if (customer.value) {
+    editForm.value = {
+      fullName: customer.value.fullName || '',
+      email: customer.value.email || '',
+      phone: customer.value.phone || '',
+      dob: customer.value.dob || ''
+    }
+  }
+  isEditing.value = false
 }
 
 onMounted(() => {
@@ -274,7 +299,7 @@ const tierInfo = computed(() => {
               <span class="material-symbols-outlined text-sm">edit</span> Chỉnh sửa
             </button>
             <template v-else>
-              <button @click="isEditing = false" class="text-xs font-bold uppercase tracking-wider px-3.5 sm:px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant cursor-pointer">Huỷ</button>
+              <button @click="handleCancelEdit" class="text-xs font-bold uppercase tracking-wider px-3.5 sm:px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant cursor-pointer">Huỷ</button>
               <button @click="handleSaveProfile" :disabled="isSaving" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3.5 sm:px-4 py-2 bg-primary-container text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60 cursor-pointer">
                 <span v-if="isSaving" class="material-symbols-outlined text-sm animate-spin">autorenew</span>
                 <span v-else class="material-symbols-outlined text-sm">save</span>

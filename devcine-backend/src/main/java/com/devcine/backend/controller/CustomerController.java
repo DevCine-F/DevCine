@@ -429,9 +429,33 @@ public class CustomerController {
                     String name = body.get("fullName").toString().trim();
                     if (!name.isBlank()) {
                         user.setFullName(name);
-                        userRepository.save(user);
                     }
                 }
+                if (body.containsKey("email") && body.get("email") != null) {
+                    String email = body.get("email").toString().trim();
+                    if (!email.isBlank() && !email.equalsIgnoreCase(user.getEmail())) {
+                        if (userRepository.existsByEmailAndIdNot(email, user.getId())) {
+                            throw new RuntimeException("Email " + email + " đã được sử dụng bởi một tài khoản khác.");
+                        }
+                        user.setEmail(email);
+                    }
+                }
+                if (body.containsKey("phone")) {
+                    Object phoneVal = body.get("phone");
+                    String phone = phoneVal != null ? phoneVal.toString().trim() : null;
+                    if (phone != null && !phone.isBlank()) {
+                        String cleanPhone = com.devcine.backend.util.PhoneUtils.validateAndSanitize(phone, false);
+                        if (cleanPhone != null && !cleanPhone.equals(user.getPhone())) {
+                            if (userRepository.existsByPhoneAndIdNot(cleanPhone, user.getId())) {
+                                throw new RuntimeException("Số điện thoại " + cleanPhone + " đã được sử dụng bởi một tài khoản khác.");
+                            }
+                            user.setPhone(cleanPhone);
+                        }
+                    } else {
+                        user.setPhone(null);
+                    }
+                }
+                userRepository.save(user);
             }
 
             if (body.containsKey("dob")) {
@@ -444,10 +468,26 @@ public class CustomerController {
                 customerRepository.save(customer);
             }
 
-            return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                    "success", true,
-                    "message", "Cập nhật thông tin khách hàng thành công"
-            )));
+            BigDecimal totalSpent = BigDecimal.ZERO;
+            long orderCount = 0;
+
+            List<Object[]> bookingAgg = bookingRepository.aggregateSpentAndOrderCountByCustomerIds(List.of(id));
+            if (!bookingAgg.isEmpty()) {
+                BigDecimal sp = (BigDecimal) bookingAgg.get(0)[1];
+                Long cnt = ((Number) bookingAgg.get(0)[2]).longValue();
+                if (sp != null) totalSpent = totalSpent.add(sp);
+                if (cnt != null) orderCount += cnt;
+            }
+
+            List<Object[]> concessionAgg = concessionSaleRepository.aggregateConcessionSpentAndCountByCustomerIds(List.of(id));
+            if (!concessionAgg.isEmpty()) {
+                BigDecimal sp = (BigDecimal) concessionAgg.get(0)[1];
+                Long cnt = ((Number) concessionAgg.get(0)[2]).longValue();
+                if (sp != null) totalSpent = totalSpent.add(sp);
+                if (cnt != null) orderCount += cnt;
+            }
+
+            return ResponseEntity.ok(ApiResponse.ok(buildProfileResponse(customer, totalSpent, orderCount)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
