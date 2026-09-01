@@ -23,11 +23,11 @@ public class Promotion {
     private String code;
 
     /** Tên/tiêu đề hiển thị của voucher (vd "Khuyến mãi hè rực rỡ"). */
-    @Column(name = "name", length = 255)
+    @Column(name = "name", columnDefinition = "TEXT")
     private String name;
 
     /** Mô tả ngắn cho voucher, hiển thị ở chi tiết. */
-    @Column(name = "description", length = 500)
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "discount_type", nullable = false, length = 20)
@@ -114,7 +114,7 @@ public class Promotion {
     private Boolean isHidden = false;
 
     /** Danh sách ID phim áp dụng (ngăn cách bằng dấu phẩy, vd "1,3,7"). Null/rỗng = áp dụng mọi phim. */
-    @Column(name = "applicable_movie_ids", length = 500)
+    @Column(name = "applicable_movie_ids", columnDefinition = "TEXT")
     private String applicableMovieIds;
 
     /** Lấy danh sách ID các phim áp dụng (tương thích cả applicableMovieIds mới và applicableMovieId cũ). */

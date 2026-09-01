@@ -44,11 +44,11 @@ public class Voucher {
     // Null = voucher cũ (trước khi có snapshot) → fallback về Promotion LIVE.
 
     /** Tiêu đề / tên khuyến mãi snapshot (vd: "Ưu đãi hè 2026") */
-    @Column(name = "title_snapshot", length = 255)
+    @Column(name = "title_snapshot", columnDefinition = "TEXT")
     private String titleSnapshot;
 
     /** Mô tả chi tiết khuyến mãi snapshot */
-    @Column(name = "description_snapshot", length = 500)
+    @Column(name = "description_snapshot", columnDefinition = "TEXT")
     private String descriptionSnapshot;
 
     /** Loại giảm giá snapshot: PERCENTAGE | FIXED_AMOUNT */
@@ -76,19 +76,19 @@ public class Voucher {
     private Integer applicableMovieIdSnapshot;
 
     /** Tên phim áp dụng snapshot (đóng băng tên phim tại thời điểm phát) - cho dữ liệu cũ 1 phim */
-    @Column(name = "applicable_movie_title_snapshot", length = 255)
+    @Column(name = "applicable_movie_title_snapshot", columnDefinition = "TEXT")
     private String applicableMovieTitleSnapshot;
 
     /** Danh sách ID phim áp dụng snapshot (CSV, vd "1,3,7") */
-    @Column(name = "applicable_movie_ids_snapshot", length = 500)
+    @Column(name = "applicable_movie_ids_snapshot", columnDefinition = "TEXT")
     private String applicableMovieIdsSnapshot;
 
     /** Danh sách tên các phim áp dụng snapshot (vd "Conan, Doraemon") */
-    @Column(name = "applicable_movie_titles_snapshot", length = 1000)
+    @Column(name = "applicable_movie_titles_snapshot", columnDefinition = "TEXT")
     private String applicableMovieTitlesSnapshot;
 
     /** Đối tượng áp dụng snapshot: ALL | NEW_CUSTOMER | TIER_SILVER | ... */
-    @Column(name = "customer_eligibility_snapshot", length = 20)
+    @Column(name = "customer_eligibility_snapshot", length = 50)
     private String customerEligibilitySnapshot;
 
     /** Copy toàn bộ thông số từ Promotion vào snapshot — gọi khi tạo voucher. */

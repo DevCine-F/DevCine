@@ -34,6 +34,14 @@ public class DataSeeder {
             try {
                 jdbcTemplate.execute("ALTER TABLE promotions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;");
                 jdbcTemplate.execute("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_order_value_snapshot NUMERIC(15, 2);");
+                jdbcTemplate.execute("ALTER TABLE vouchers ALTER COLUMN applicable_movie_titles_snapshot TYPE TEXT;");
+                jdbcTemplate.execute("ALTER TABLE vouchers ALTER COLUMN applicable_movie_ids_snapshot TYPE TEXT;");
+                jdbcTemplate.execute("ALTER TABLE vouchers ALTER COLUMN applicable_movie_title_snapshot TYPE TEXT;");
+                jdbcTemplate.execute("ALTER TABLE vouchers ALTER COLUMN description_snapshot TYPE TEXT;");
+                jdbcTemplate.execute("ALTER TABLE vouchers ALTER COLUMN title_snapshot TYPE TEXT;");
+                jdbcTemplate.execute("ALTER TABLE promotions ALTER COLUMN applicable_movie_ids TYPE TEXT;");
+                jdbcTemplate.execute("ALTER TABLE promotions ALTER COLUMN description TYPE TEXT;");
+                jdbcTemplate.execute("ALTER TABLE promotions ALTER COLUMN name TYPE TEXT;");
                 // Chuẩn hóa chuỗi rỗng thành NULL và dọn dẹp các SĐT trùng cũ nếu có trước khi tạo Partial Unique Index
                 jdbcTemplate.execute("UPDATE users SET phone = NULL WHERE phone IS NOT NULL AND TRIM(phone) = '';");
                 jdbcTemplate.execute("WITH ranked_users AS (" +
