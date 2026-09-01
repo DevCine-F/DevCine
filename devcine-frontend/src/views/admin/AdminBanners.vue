@@ -103,11 +103,24 @@ const fetchBanners = async () => {
   try {
     const { data } = await bannerApi.getAll()
     const list = data.data ?? data
-    // Chuẩn hoá: entity serialize field 'displayOrder' -> map sang 'order' để template dùng nhất quán
-    // Sắp xếp tăng dần theo thứ tự để vị trí hiển thị (#1, #2...) khớp dữ liệu DB
-    banners.value = list
+    // Sắp xếp tăng dần theo displayOrder (null/0 coi như 0), tie-break id giảm dần khớp backend
+    const sorted = [...list]
       .map(b => ({ ...b, order: b.displayOrder ?? 0 }))
-      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .sort((a, b) => {
+        const ordA = a.order ?? 0
+        const ordB = b.order ?? 0
+        if (ordA !== ordB) return ordA - ordB
+        return (b.id || 0) - (a.id || 0)
+      })
+    // Luôn chuẩn hoá mảng banners trong state thành chuỗi thứ tự 1..N
+    banners.value = sorted.map((b, idx) => ({ ...b, order: idx + 1 }))
+
+    // Tự động phát hiện và đồng bộ ngầm về DB nếu dữ liệu cũ trong DB chưa chuẩn (có 0, trùng lặp hoặc nhảy cóc)
+    const hasDisorder = list.some((b, idx) => (b.displayOrder ?? 0) !== (idx + 1))
+    if (hasDisorder && banners.value.length > 0) {
+      persistOrder(true)
+    }
+
     await fetchBannerMovieImages() // nạp ảnh phim (bannerUrl) cho banner chế độ MOVIE
   } catch (e) {
     console.error('Failed to load banners', e)
@@ -143,7 +156,7 @@ const openAddModal = () => {
   isModalOpen.value = true
 }
 
-const openEditModal = (banner) => {
+const openEditModal = (banner, index = null) => {
   editingId.value = banner.id
   originalStartDate.value = toDateInput(banner.startDate)
   form.value = {
@@ -151,7 +164,7 @@ const openEditModal = (banner) => {
     imageUrl: banner.imageUrl || '',
     link: banner.link || '',
     isActive: banner.isActive,
-    order: banner.order ?? 1,
+    order: (index != null ? index + 1 : (banner.order ?? 1)),
     startDate: toDateInput(banner.startDate),
     endDate: toDateInput(banner.endDate),
     mode: banner.mode || 'IMAGE',
@@ -330,23 +343,29 @@ const moveCard = (from, to) => {
   const arr = banners.value
   const [item] = arr.splice(from, 1)
   arr.splice(to, 0, item)
+  // Cập nhật lại thuộc tính order ngay trong state để các card phản hồi tức thì
+  banners.value.forEach((b, idx) => { b.order = idx + 1 })
   persistOrder()
 }
 
 // Đánh số lại 1..n theo vị trí mới, gửi 1 request bulk chứa các banner thực sự đổi thứ tự
-const persistOrder = async () => {
+const persistOrder = async (silent = false) => {
   const changed = []
   banners.value.forEach((b, idx) => {
     const newOrder = idx + 1
-    if (b.order !== newOrder) { b.order = newOrder; changed.push({ id: b.id, order: newOrder }) }
+    if (b.order !== newOrder || b.displayOrder !== newOrder) {
+      b.order = newOrder
+      b.displayOrder = newOrder
+      changed.push({ id: b.id, order: newOrder })
+    }
   })
   if (!changed.length) return
   try {
     await bannerApi.reorder(changed)
-    toast.success('Đã cập nhật thứ tự banner.')
+    if (!silent) toast.success('Đã cập nhật thứ tự banner.')
   } catch (e) {
     console.error('Failed to reorder banners', e)
-    toast.error(friendlyError(e, 'Không lưu được thứ tự. Đang tải lại danh sách.'))
+    if (!silent) toast.error(friendlyError(e, 'Không lưu được thứ tự. Đang tải lại danh sách.'))
     fetchBanners() // khôi phục về trạng thái server nếu lưu lỗi
   }
 }
@@ -362,6 +381,8 @@ const deleteBanner = async (id) => {
   try {
     await bannerApi.delete(id)
     banners.value = banners.value.filter(b => b.id !== id)
+    banners.value.forEach((b, idx) => { b.order = idx + 1 })
+    await persistOrder(true)
     toast.success('Đã xoá banner.')
   } catch (e) {
     console.error('Failed to delete banner', e)
@@ -572,12 +593,12 @@ onMounted(() => { fetchBanners(); fetchMovies() })
                  class="flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none text-on-surface-variant hover:text-on-surface transition-colors"
                  title="Kéo để sắp xếp thứ tự">
               <span class="material-symbols-outlined text-lg">drag_indicator</span>
-              <!-- Hiện đúng thứ tự ưu tiên (displayOrder) đang lưu, không phải vị trí trong mảng -->
-              <span class="text-xs font-bold tracking-wide tabular-nums">#{{ banner.order }}</span>
+              <!-- Vị trí thứ tự thực tế trong danh sách (1-based, luôn chuẩn 1..N) -->
+              <span class="text-xs font-bold tracking-wide tabular-nums">#{{ i + 1 }}</span>
             </div>
 
             <div class="flex items-center gap-1">
-              <button v-if="can('banners', 'edit')" @click="openEditModal(banner)" class="w-8 h-8 rounded-sm hover:bg-white/5 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" title="Sửa">
+              <button v-if="can('banners', 'edit')" @click="openEditModal(banner, i)" class="w-8 h-8 rounded-sm hover:bg-white/5 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" title="Sửa">
                 <span class="material-symbols-outlined text-base">edit</span>
               </button>
               <button v-if="can('banners', 'edit')" @click="toggleActive(banner)" class="w-8 h-8 rounded-sm hover:bg-white/5 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors" :title="banner.isActive ? 'Tắt' : 'Bật'">

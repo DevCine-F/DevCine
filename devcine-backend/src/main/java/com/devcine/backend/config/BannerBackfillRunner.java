@@ -49,5 +49,7 @@ public class BannerBackfillRunner implements CommandLineRunner {
             log.info("[BannerBackfill] Phim bật showOnBanner — tạo mới {} banner theo phim, {} đã có sẵn.",
                     created, already);
         }
+        // Chuẩn hoá và làm sạch toàn bộ thứ tự hiển thị banner thành 1..N
+        bannerSyncService.normalizeOrders();
     }
 }

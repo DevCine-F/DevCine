@@ -45,16 +45,19 @@ public class BannerSyncService {
         List<Banner> existing = bannerRepository.findByModeAndMovieId(MOVIE_MODE, movieId);
         if (show) {
             if (existing.isEmpty()) {
+                Integer maxOrder = bannerRepository.findMaxDisplayOrder();
+                int nextOrder = (maxOrder != null && maxOrder > 0) ? maxOrder + 1 : 1;
                 bannerRepository.save(Banner.builder()
                         .title(movieTitle)
                         .mode(MOVIE_MODE)
                         .movieId(movieId)
                         .placement("HOME")
                         .isActive(true)
-                        .displayOrder(0)
+                        .displayOrder(nextOrder)
                         .startDate(LocalDateTime.now())
                         .endDate(null) // mở vô thời hạn: hiển thị đến khi tắt cờ / xoá banner
                         .build());
+                normalizeOrders();
             } else {
                 for (Banner b : existing) {
                     if (!Boolean.TRUE.equals(b.getIsActive())) {
@@ -70,6 +73,27 @@ public class BannerSyncService {
                     bannerRepository.save(b);
                 }
             }
+        }
+    }
+
+    /**
+     * Chuẩn hoá thứ tự hiển thị của toàn bộ banner trong CSDL thành chuỗi số nguyên liên tục 1..N
+     * theo đúng thứ tự ưu tiên (displayOrder ASC, id DESC), loại bỏ hoàn toàn các giá trị 0, âm, trùng lặp hoặc nhảy cóc.
+     */
+    @Transactional
+    public void normalizeOrders() {
+        List<Banner> all = bannerRepository.findAllOrderByDisplayOrder();
+        int cur = 1;
+        boolean changed = false;
+        for (Banner b : all) {
+            if (b.getDisplayOrder() == null || b.getDisplayOrder() != cur) {
+                b.setDisplayOrder(cur);
+                changed = true;
+            }
+            cur++;
+        }
+        if (changed) {
+            bannerRepository.saveAll(all);
         }
     }
 

@@ -34,6 +34,9 @@ public interface BannerRepository extends JpaRepository<Banner, Integer> {
     // -> Phim ĐANG chiếu (active) và SẮP chiếu (upcoming) đều được quảng cáo trên trang chủ;
     //    phim bị xoá (không còn dòng Movie), ngừng chiếu (archived) hoặc quá ngày kết thúc chiếu mới tự
     //    động biến mất. Khớp với checkMovieAvailable lúc tạo banner (chỉ chặn archived).
+    @Query("SELECT MAX(b.displayOrder) FROM Banner b")
+    Integer findMaxDisplayOrder();
+
     @Query("SELECT b FROM Banner b WHERE b.isActive = true "
             + "AND (b.placement = :placement OR b.placement IS NULL) "
             + "AND (b.startDate IS NULL OR b.startDate <= :now) "
@@ -44,3 +47,4 @@ public interface BannerRepository extends JpaRepository<Banner, Integer> {
             + "ORDER BY COALESCE(b.displayOrder, 0) ASC, b.id DESC")
     List<Banner> findActiveBanners(@Param("placement") String placement, @Param("now") LocalDateTime now);
 }
+

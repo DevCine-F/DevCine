@@ -104,6 +104,7 @@ public class BannerController {
             bannerRepository.save(banner);
             // Banner theo phim -> bật cờ showOnBanner của phim tương ứng.
             bannerSyncService.syncMovieFlag(banner.getMovieId());
+            bannerSyncService.normalizeOrders();
             return ResponseEntity.status(201).body(ApiResponse.ok(banner));
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
@@ -176,6 +177,7 @@ public class BannerController {
             if (banner.getMovieId() != null && !banner.getMovieId().equals(oldMovieId)) {
                 bannerSyncService.syncMovieFlag(banner.getMovieId());
             }
+            bannerSyncService.normalizeOrders();
             return ResponseEntity.ok(ApiResponse.ok(banner));
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
@@ -198,6 +200,7 @@ public class BannerController {
                 if (id == null || order == null) return badRequest("Dữ liệu thứ tự không hợp lệ.");
                 bannerRepository.findById(id).ifPresent(b -> b.setDisplayOrder(order));
             }
+            bannerSyncService.normalizeOrders();
             return ResponseEntity.ok(ApiResponse.success("Đã cập nhật thứ tự banner."));
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
@@ -314,6 +317,7 @@ public class BannerController {
             Integer movieId = bannerRepository.findById(id).map(Banner::getMovieId).orElse(null);
             bannerRepository.deleteById(id);
             bannerSyncService.syncMovieFlag(movieId);
+            bannerSyncService.normalizeOrders();
             return ResponseEntity.ok(ApiResponse.success("Đã xoá banner."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
