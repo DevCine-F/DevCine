@@ -35,8 +35,9 @@ public class BannerSyncService {
     }
 
     /**
-     * Chiều PHIM → BANNER: đảm bảo sự tồn tại của banner theo phim khớp với cờ {@code showOnBanner}.
-     * Bật mà chưa có → tạo mới; tắt mà đang có → xoá hẳn (theo lựa chọn "xoá khi tắt").
+     * Chiều PHIM → BANNER: đảm bảo trạng thái của banner theo phim khớp với cờ {@code showOnBanner}.
+     * Bật mà chưa có → tạo mới (isActive = true); bật mà đã có → kích hoạt lại (isActive = true);
+     * tắt mà đang có → vô hiệu hoá (isActive = false).
      */
     @Transactional
     public void applyMovieFlag(Integer movieId, boolean show, String movieTitle) {
@@ -54,23 +55,35 @@ public class BannerSyncService {
                         .startDate(LocalDateTime.now())
                         .endDate(null) // mở vô thời hạn: hiển thị đến khi tắt cờ / xoá banner
                         .build());
+            } else {
+                for (Banner b : existing) {
+                    if (!Boolean.TRUE.equals(b.getIsActive())) {
+                        b.setIsActive(true);
+                        bannerRepository.save(b);
+                    }
+                }
             }
         } else if (!existing.isEmpty()) {
-            bannerRepository.deleteAll(existing);
+            for (Banner b : existing) {
+                if (Boolean.TRUE.equals(b.getIsActive())) {
+                    b.setIsActive(false);
+                    bannerRepository.save(b);
+                }
+            }
         }
     }
 
     /**
-     * Chiều BANNER → PHIM: đồng bộ cờ {@code showOnBanner} theo việc còn tồn tại banner theo phim hay không.
+     * Chiều BANNER → PHIM: đồng bộ cờ {@code showOnBanner} theo việc còn tồn tại banner theo phim ĐANG BẬT hay không.
      * Chỉ ghi khi giá trị thực sự đổi để tránh update thừa.
      */
     @Transactional
     public void syncMovieFlag(Integer movieId) {
         if (movieId == null) return;
-        boolean has = bannerRepository.existsByModeAndMovieId(MOVIE_MODE, movieId);
+        boolean hasActive = bannerRepository.existsByModeAndMovieIdAndIsActiveTrue(MOVIE_MODE, movieId);
         movieRepository.findById(movieId).ifPresent(m -> {
-            if (!Boolean.valueOf(has).equals(m.getShowOnBanner())) {
-                m.setShowOnBanner(has);
+            if (!Boolean.valueOf(hasActive).equals(m.getShowOnBanner())) {
+                m.setShowOnBanner(hasActive);
                 movieRepository.save(m);
             }
         });

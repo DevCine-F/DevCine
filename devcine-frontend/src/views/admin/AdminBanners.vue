@@ -453,12 +453,13 @@ const visibilityMap = computed(() => {
 })
 
 const visToneClass = {
+  live: 'bg-green-600 text-white border-green-700',
+  off: 'bg-red-600 text-white border-red-700',
   expired: 'bg-red-600 text-white border-red-700',
   scheduled: 'bg-amber-500 text-black border-amber-600',
-  off: 'bg-neutral-700 text-white border-neutral-600',
   movie: 'bg-orange-600 text-white border-orange-700',
 }
-const visIcon = { expired: 'event_busy', scheduled: 'schedule', off: 'visibility_off', movie: 'movie' }
+const visIcon = { live: 'check_circle', expired: 'event_busy', scheduled: 'schedule', off: 'visibility_off', movie: 'movie' }
 
 onMounted(() => { fetchBanners(); fetchMovies() })
 </script>
@@ -521,30 +522,20 @@ onMounted(() => { fetchBanners(); fetchMovies() })
             </div>
           </div>
 
-          <!-- Thanh tag trên đầu ảnh: nhóm TRÁI (Mode + Lý do ẩn) tự xuống dòng khi chật,
-               nhóm PHẢI (Trạng thái) ghim phải. Dùng flex justify-between nên các tag KHÔNG BAO GIỜ
-               đè lên nhau ở mọi độ rộng card (thay cho kiểu ghim 3 góc tuyệt đối cũ). -->
+          <!-- Thanh tag trên đầu ảnh: nhóm TRÁI (Mode duy nhất) và nhóm PHẢI (Trạng thái hiệu lực toàn diện duy nhất).
+               Dùng flex justify-between nên không bao giờ chồng lấn hay mâu thuẫn. -->
           <div class="absolute top-3 inset-x-3 z-10 flex items-start justify-between gap-2 pointer-events-none">
-            <!-- Nhóm trái -->
-            <div class="flex flex-wrap items-start gap-2">
-              <!-- Mode -->
-              <div class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10 bg-neutral-900 text-white shadow-md flex items-center gap-1">
-                <span class="material-symbols-outlined text-xs">{{ banner.mode === 'MOVIE' ? 'movie' : 'image' }}</span>
-                {{ banner.mode === 'MOVIE' ? 'Theo phim' : 'Ảnh' }}
-              </div>
-              <!-- Lý do KHÔNG hiển thị trên trang chủ (hết hạn / chưa tới hạn / phim ngừng chiếu).
-                   Ẩn khi lý do là 'off' vì tag "Đang tắt" bên phải đã nói rõ. -->
-              <div v-if="visibilityMap[banner.id] && !visibilityMap[banner.id].live && visibilityMap[banner.id].tone !== 'off'"
-                   class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-md flex items-center gap-1 whitespace-nowrap"
-                   :class="visToneClass[visibilityMap[banner.id].tone]">
-                <span class="material-symbols-outlined text-xs">{{ visIcon[visibilityMap[banner.id].tone] }}</span>
-                {{ visibilityMap[banner.id].label }}
-              </div>
+            <!-- Nhóm trái: Mode hiển thị -->
+            <div class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10 bg-neutral-900/90 text-white shadow-md flex items-center gap-1 shrink-0 backdrop-blur-sm">
+              <span class="material-symbols-outlined text-xs">{{ banner.mode === 'MOVIE' ? 'movie' : 'image' }}</span>
+              {{ banner.mode === 'MOVIE' ? 'Theo phim' : 'Ảnh' }}
             </div>
-            <!-- Nhóm phải: trạng thái bật/tắt -->
-            <div class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-md whitespace-nowrap shrink-0"
-                 :class="banner.isActive ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'">
-              {{ banner.isActive ? 'Đang bật' : 'Đang tắt' }}
+
+            <!-- Nhóm phải: Trạng thái hiệu lực toàn diện (Đang hiển thị / Đang tắt / Phim ngừng chiếu / Đã hết hạn / Chưa tới hạn) -->
+            <div class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-md whitespace-nowrap shrink-0 flex items-center gap-1 backdrop-blur-sm"
+                 :class="visToneClass[visibilityMap[banner.id]?.tone || 'off']">
+              <span class="material-symbols-outlined text-xs">{{ visIcon[visibilityMap[banner.id]?.tone || 'off'] }}</span>
+              {{ visibilityMap[banner.id]?.label || 'Đang tắt' }}
             </div>
           </div>
 
@@ -585,15 +576,15 @@ onMounted(() => { fetchBanners(); fetchMovies() })
               <span class="text-xs font-bold tracking-wide tabular-nums">#{{ banner.order }}</span>
             </div>
 
-            <div class="flex items-center gap-2">
-              <button v-if="can('banners', 'edit')" @click="openEditModal(banner)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" title="Sửa">
-                <span class="material-symbols-outlined text-sm">edit</span>
+            <div class="flex items-center gap-1">
+              <button v-if="can('banners', 'edit')" @click="openEditModal(banner)" class="w-8 h-8 rounded-sm hover:bg-white/5 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" title="Sửa">
+                <span class="material-symbols-outlined text-base">edit</span>
               </button>
-              <button v-if="can('banners', 'edit')" @click="toggleActive(banner)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" :title="banner.isActive ? 'Tắt' : 'Bật'">
-                <span class="material-symbols-outlined text-sm">{{ banner.isActive ? 'visibility_off' : 'visibility' }}</span>
+              <button v-if="can('banners', 'edit')" @click="toggleActive(banner)" class="w-8 h-8 rounded-sm hover:bg-white/5 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors" :title="banner.isActive ? 'Tắt' : 'Bật'">
+                <span class="material-symbols-outlined text-base">{{ banner.isActive ? 'visibility_off' : 'visibility' }}</span>
               </button>
-              <button v-if="can('banners', 'delete')" @click="deleteBanner(banner.id)" class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center text-on-surface-variant transition-colors" title="Xoá">
-                <span class="material-symbols-outlined text-sm">delete</span>
+              <button v-if="can('banners', 'delete')" @click="deleteBanner(banner.id)" class="w-8 h-8 rounded-sm hover:bg-red-500/10 hover:text-red-400 flex items-center justify-center text-on-surface-variant transition-colors" title="Xoá">
+                <span class="material-symbols-outlined text-base">delete</span>
               </button>
             </div>
           </div>

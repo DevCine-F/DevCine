@@ -21,6 +21,8 @@ public interface BannerRepository extends JpaRepository<Banner, Integer> {
 
     boolean existsByModeAndMovieId(String mode, Integer movieId);
 
+    boolean existsByModeAndMovieIdAndIsActiveTrue(String mode, Integer movieId);
+
     // Banner đang hiển thị cho khách: đang bật, đúng vị trí, còn trong khoảng ngày,
     // sắp xếp theo thứ tự ưu tiên (displayOrder tăng dần, null coi như 0).
     //
