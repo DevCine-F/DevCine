@@ -812,14 +812,49 @@ watch(() => [store.selectedSeats.length, store.selectedFnbs.length], () => {
   if (currentStep.value >= 3) fetchVoucherEvals()
 })
 
+const isVoucherApplied = (v) => {
+  if (!store.selectedVoucher || !v) return false
+  if (store.selectedVoucher.id && v.id === store.selectedVoucher.id) return true
+  const vCode = v.promotion?.code || v.code || voucherEvals.value[v.id]?.code
+  if (store.selectedVoucher.code && vCode && vCode.toUpperCase() === store.selectedVoucher.code.toUpperCase()) return true
+  return false
+}
+
+const formatPromoMovieLabel = (v) => {
+  const ev = voucherEvals.value[v?.id]
+  const title = ev?.applicableMovieTitle || v?.promotion?.applicableMovieTitle || v?.applicableMovieTitle
+  if (!title) return ''
+  const list = title.split(',').map(t => t.trim()).filter(Boolean)
+  if (list.length === 0) return ''
+  if (list.length === 1) return `Phim: ${list[0]}`
+  
+  const curMovieTitle = showtime.value?.movieTitle || showtime.value?.movie?.title
+  if (curMovieTitle) {
+    const match = list.find(t => t.toLowerCase() === curMovieTitle.toLowerCase())
+    if (match) {
+      return `Áp dụng: ${match} (+${list.length - 1} phim)`
+    }
+  }
+  return `Áp dụng: ${list[0]} (+${list.length - 1} phim)`
+}
+
 /**
  * Phân loại danh sách Voucher thành 2 nhóm chuẩn Lotte Cinema / CGV:
- * 1. eligibleVouchers: Thỏa mãn 100% điều kiện, có thể tick chọn ngay.
+ * 1. eligibleVouchers: Thỏa mãn 100% điều kiện, tự động ghim voucher đang chọn lên ĐẦU danh sách.
  * 2. ineligibleVouchers: Chưa đủ điều kiện (làm mờ, hiển thị rõ lý do + gợi ý thông minh).
  */
 const eligibleVouchers = computed(() => {
   if (!isVoucherEvalsReady.value) return []
-  return vouchers.value.filter(v => voucherEvals.value[v.id]?.applicable === true)
+  const list = vouchers.value.filter(v => voucherEvals.value[v.id]?.applicable === true)
+  return [...list].sort((a, b) => {
+    const aActive = isVoucherApplied(a)
+    const bActive = isVoucherApplied(b)
+    if (aActive && !bActive) return -1
+    if (!aActive && bActive) return 1
+    const discA = Number(voucherEvals.value[a.id]?.discountAmount || 0)
+    const discB = Number(voucherEvals.value[b.id]?.discountAmount || 0)
+    return discB - discA
+  })
 })
 
 const ineligibleVouchers = computed(() => {
@@ -1632,14 +1667,14 @@ const proceedToPayment = async () => {
                   :key="v.id"
                   @click="selectVoucher(v)"
                   :class="[
-                    store.selectedVoucher?.id === v.id 
+                    isVoucherApplied(v) 
                       ? 'border-primary bg-primary/10 shadow-lg shadow-primary/5 ring-1 ring-primary' 
                       : 'border-outline-variant/25 bg-surface-container-high/40 hover:border-primary/50 hover:bg-surface-container-high/70'
                   ]"
                   class="border p-3.5 sm:p-4 rounded-xl flex items-center justify-between cursor-pointer transition-all duration-200 group relative overflow-hidden"
                 >
                   <!-- Accent bar for selected -->
-                  <div v-if="store.selectedVoucher?.id === v.id" class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+                  <div v-if="isVoucherApplied(v)" class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
                   
                   <div class="space-y-1 pl-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
@@ -1652,8 +1687,8 @@ const proceedToPayment = async () => {
                       {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
                     </p>
                     <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80 flex-wrap">
-                      <span v-if="voucherEvals[v.id]?.applicableMovieTitle" class="text-amber-300 font-medium">
-                        Phim: {{ voucherEvals[v.id].applicableMovieTitle }}
+                      <span v-if="formatPromoMovieLabel(v)" class="text-amber-300 font-medium" :title="voucherEvals[v.id]?.applicableMovieTitle">
+                        {{ formatPromoMovieLabel(v) }}
                       </span>
                       <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                         Đơn từ {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
@@ -1672,7 +1707,7 @@ const proceedToPayment = async () => {
                   </div>
 
                   <div class="shrink-0 ml-2 sm:ml-3">
-                    <div v-if="store.selectedVoucher?.id === v.id" class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+                    <div v-if="isVoucherApplied(v)" class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
                       <span class="material-symbols-outlined text-xs sm:text-sm font-bold">check</span>
                     </div>
                     <div v-else class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-outline-variant/40 group-hover:border-primary/60 transition-colors"></div>
@@ -1724,8 +1759,8 @@ const proceedToPayment = async () => {
                     </div>
 
                     <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/60 pt-0.5 flex-wrap">
-                      <span v-if="voucherEvals[v.id]?.applicableMovieTitle" class="text-amber-300/80 font-medium">
-                        Phim: {{ voucherEvals[v.id].applicableMovieTitle }}
+                      <span v-if="formatPromoMovieLabel(v)" class="text-amber-300/80 font-medium" :title="voucherEvals[v.id]?.applicableMovieTitle">
+                        {{ formatPromoMovieLabel(v) }}
                       </span>
                       <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                         Đơn tối thiểu {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ

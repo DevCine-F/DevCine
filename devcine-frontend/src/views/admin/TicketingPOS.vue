@@ -1669,10 +1669,57 @@ const selectVoucher = (v) => {
   showToast(`Đã áp mã ${appliedVoucher.value.code}.`, 'success')
 }
 
+const isVoucherModalOpen = ref(false)
+const showIneligibleVouchers = ref(false)
+const openVoucherModal = () => {
+  isVoucherModalOpen.value = true
+  voucherError.value = ''
+}
+const closeVoucherModal = () => {
+  isVoucherModalOpen.value = false
+  voucherError.value = ''
+}
+
+const formatPromoMovieLabel = (v) => {
+  const ev = voucherEvals.value[v?.id]
+  const title = ev?.applicableMovieTitle || v?.promotion?.applicableMovieTitle || v?.applicableMovieTitle
+  if (!title) return ''
+  const list = title.split(',').map(t => t.trim()).filter(Boolean)
+  if (list.length === 0) return ''
+  if (list.length === 1) return `Phim: ${list[0]}`
+  
+  const curMovieTitle = selectedShowtime.value?.movieTitle || selectedShowtime.value?.movie?.title
+  if (curMovieTitle) {
+    const match = list.find(t => t.toLowerCase() === curMovieTitle.toLowerCase())
+    if (match) {
+      return `Áp dụng: ${match} (+${list.length - 1} phim)`
+    }
+  }
+  return `Áp dụng: ${list[0]} (+${list.length - 1} phim)`
+}
+
+const isVoucherApplied = (v) => {
+  if (!appliedVoucher.value || !v) return false
+  if (appliedVoucher.value.id && v.id === appliedVoucher.value.id) return true
+  const vCode = v.code || v.promotion?.code || voucherEvals.value[v.id]?.code
+  if (appliedVoucher.value.code && vCode && vCode.toUpperCase() === appliedVoucher.value.code.toUpperCase()) return true
+  return false
+}
+
 // Phân loại danh sách Voucher thành 2 nhóm: Khả dụng & Chưa đủ điều kiện
+// Tự động ghim voucher đang được áp dụng lên TRÊN CÙNG của danh sách
 const eligibleVouchers = computed(() => {
   if (!isVoucherEvalsReady.value) return []
-  return ownedVouchers.value.filter(v => voucherEvals.value[v.id]?.applicable === true)
+  const list = ownedVouchers.value.filter(v => voucherEvals.value[v.id]?.applicable === true)
+  return [...list].sort((a, b) => {
+    const aActive = isVoucherApplied(a)
+    const bActive = isVoucherApplied(b)
+    if (aActive && !bActive) return -1
+    if (!aActive && bActive) return 1
+    const discA = Number(voucherEvals.value[a.id]?.discountAmount || 0)
+    const discB = Number(voucherEvals.value[b.id]?.discountAmount || 0)
+    return discB - discA
+  })
 })
 
 const ineligibleVouchers = computed(() => {
@@ -2661,176 +2708,66 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- Voucher / khuyến mãi: chỉ bật sau khi đã tra cứu thành viên -->
-              <div v-if="member" class="bg-surface-container-high border border-outline-variant/10 p-6 rounded-3xl space-y-4">
+              <!-- Voucher / Khuyến mãi: Thanh hiển thị ngắn gọn kèm nút mở Modal -->
+              <div v-if="member" class="bg-surface-container-high border border-outline-variant/10 p-5 rounded-3xl space-y-3">
                 <div class="flex items-center justify-between">
-                  <p class="text-[10px] font-black text-primary uppercase tracking-widest">Voucher / Khuyến mãi</p>
-                  <button v-if="appliedVoucher" @click="clearVoucher" class="text-xs text-on-surface-variant hover:text-red-400 font-bold flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
-                    <span class="material-symbols-outlined text-sm">close</span> Bỏ chọn
-                  </button>
+                  <p class="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">sell</span> Voucher / Khuyến mãi
+                  </p>
+                  <span v-if="eligibleVouchers.length > 0 && !appliedVoucher" class="text-[10px] font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-sm border border-green-500/20">
+                    {{ eligibleVouchers.length }} voucher khả dụng
+                  </span>
                 </div>
 
-                <!-- Ô nhập mã voucher thủ công -->
-                <div class="flex gap-2">
-                  <input v-model="voucherCodeInput" type="text" placeholder="NHẬP MÃ VOUCHER..."
-                         @keydown.enter.prevent="applyVoucher"
-                         class="flex-1 bg-surface-container border border-outline-variant/10 rounded-2xl py-3 px-4 text-on-surface text-sm font-bold outline-none focus:border-primary/50 uppercase" />
-                  <AppButton variant="primary" :disabled="isApplyingVoucher || !voucherCodeInput.trim()" @click="applyVoucher">
-                    {{ isApplyingVoucher ? '...' : 'Áp dụng' }}
-                  </AppButton>
-                </div>
-                <p v-if="voucherError" class="text-xs text-red-400 font-bold">{{ voucherError }}</p>
-
-                <!-- Skeleton loading khi đang chấm điều kiện -->
-                <div v-if="!isVoucherEvalsReady && ownedVouchers.length > 0" class="space-y-3 pt-2 border-t border-outline-variant/10">
-                  <div class="h-4 w-36 bg-white/10 rounded animate-pulse"></div>
-                  <div class="grid grid-cols-1 gap-2.5">
-                    <div v-for="i in Math.min(ownedVouchers.length, 3)" :key="i"
-                         class="border border-outline-variant/20 p-3 rounded-2xl flex items-center justify-between animate-pulse bg-surface-container/30">
-                      <div class="space-y-1.5 flex-1">
-                        <div class="h-3.5 w-28 bg-white/10 rounded"></div>
-                        <div class="h-2.5 w-20 bg-white/5 rounded"></div>
-                      </div>
-                      <div class="h-5 w-5 bg-white/5 rounded-full ml-4"></div>
+                <!-- Trạng thái 1: Đã áp dụng voucher -->
+                <div v-if="appliedVoucher" class="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-primary/10 border border-primary/30 ring-1 ring-primary/20">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-xl bg-primary text-on-primary flex items-center justify-center shrink-0 shadow-sm">
+                      <span class="material-symbols-outlined text-sm font-bold">confirmation_number</span>
                     </div>
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-mono font-black text-xs text-primary uppercase tracking-wide truncate">{{ appliedVoucher.code }}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-primary/20 text-primary">
+                          -{{ fmt(discountAmount) }}đ
+                        </span>
+                      </div>
+                      <p class="text-[10px] text-green-400 font-medium truncate">Đang áp dụng cho đơn hàng</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button @click="openVoucherModal" type="button" class="px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-highest text-primary text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                      Đổi mã
+                    </button>
+                    <button @click="clearVoucher" type="button" title="Bỏ chọn voucher" class="w-7 h-7 rounded-lg hover:bg-white/10 text-on-surface-variant hover:text-red-400 flex items-center justify-center transition-colors cursor-pointer">
+                      <span class="material-symbols-outlined text-sm">close</span>
+                    </button>
                   </div>
                 </div>
 
-                <!-- Danh sách Voucher phân loại -->
-                <div v-else-if="isVoucherEvalsReady" class="space-y-4 pt-2 border-t border-outline-variant/10">
-
-                  <!-- KHU VỰC 1: Voucher khả dụng -->
-                  <div class="space-y-2.5">
-                    <div class="flex items-center justify-between">
-                      <p class="text-xs font-bold text-primary uppercase tracking-wider">
-                        VOUCHER KHẢ DỤNG ({{ eligibleVouchers.length }})
+                <!-- Trạng thái 2: Chưa chọn voucher -->
+                <button
+                  v-else
+                  @click="openVoucherModal"
+                  type="button"
+                  class="w-full flex items-center justify-between p-3.5 rounded-2xl bg-surface-container hover:bg-surface-container-highest border border-outline-variant/20 hover:border-primary/40 transition-all duration-200 group text-left cursor-pointer"
+                >
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-xl bg-surface-container-high group-hover:bg-primary/10 text-on-surface-variant group-hover:text-primary flex items-center justify-center shrink-0 transition-colors">
+                      <span class="material-symbols-outlined text-base">local_activity</span>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs font-bold text-on-surface group-hover:text-primary transition-colors">
+                        {{ ownedVouchers.length > 0 ? `Chọn voucher khuyến mãi (${eligibleVouchers.length} khả dụng)` : 'Chọn hoặc nhập mã voucher' }}
                       </p>
-                      <span v-if="eligibleVouchers.length > 0" class="text-[11px] text-on-surface-variant/80">Nhấn để áp dụng</span>
-                    </div>
-
-                    <!-- Danh sách thẻ khả dụng -->
-                    <div v-if="eligibleVouchers.length > 0" class="grid grid-cols-1 gap-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                      <div
-                        v-for="v in eligibleVouchers"
-                        :key="v.id"
-                        @click="selectVoucher(v)"
-                        :class="[
-                          appliedVoucher?.id === v.id 
-                            ? 'border-primary bg-primary/10 shadow-lg shadow-primary/5 ring-1 ring-primary' 
-                            : 'border-outline-variant/25 bg-surface-container/60 hover:border-primary/50 hover:bg-surface-container/90'
-                        ]"
-                        class="border p-3 sm:p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 group relative overflow-hidden text-left"
-                      >
-                        <!-- Accent bar khi được chọn -->
-                        <div v-if="appliedVoucher?.id === v.id" class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
-                        
-                        <div class="space-y-1 pl-1 min-w-0 flex-1">
-                          <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-mono font-black text-xs sm:text-sm text-primary uppercase tracking-wide">
-                              {{ v.code || v.promotion?.code || voucherEvals[v.id]?.code }}
-                            </span>
-                            <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-primary/20 text-primary">
-                              Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType || v.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + '%' : fmt(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + 'đ' }}
-                            </span>
-                          </div>
-                          <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface font-semibold line-clamp-1">
-                            {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
-                          </p>
-                          <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80 flex-wrap">
-                            <span v-if="voucherEvals[v.id]?.applicableMovieTitle" class="text-amber-300 font-medium">
-                              Phim: {{ voucherEvals[v.id].applicableMovieTitle }}
-                            </span>
-                            <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
-                              Đơn từ {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
-                            </span>
-                            <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
-                              Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
-                            </span>
-                            <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
-                              Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
-                            </span>
-                            <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
-                          </div>
-                          <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-[11px] text-green-400 font-bold pt-0.5">
-                            Tiết kiệm {{ fmt(voucherEvals[v.id].discountAmount) }}đ
-                          </p>
-                        </div>
-
-                        <div class="shrink-0 ml-2 sm:ml-3">
-                          <div v-if="appliedVoucher?.id === v.id" class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
-                            <span class="material-symbols-outlined text-xs sm:text-sm font-bold">check</span>
-                          </div>
-                          <div v-else class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-outline-variant/40 group-hover:border-primary/60 transition-colors"></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Trống khả dụng -->
-                    <div v-else-if="ineligibleVouchers.length > 0" class="py-3 px-4 rounded-xl border border-dashed border-outline-variant/20 bg-surface-container/30 text-center">
-                      <p class="text-xs text-on-surface-variant">Chưa có voucher nào đủ điều kiện áp dụng cho đơn hàng hiện tại.</p>
-                    </div>
-                    <div v-else class="py-3 px-4 rounded-xl border border-dashed border-outline-variant/20 bg-surface-container/30 text-center">
-                      <p class="text-xs text-on-surface-variant">Khách hàng chưa có voucher nào trong ví.</p>
+                      <p class="text-[10px] text-on-surface-variant/70">Bấm để xem danh sách hoặc nhập mã code</p>
                     </div>
                   </div>
-
-                  <!-- KHU VỰC 2: Ưu đãi chưa đủ điều kiện -->
-                  <div v-if="ineligibleVouchers.length > 0" class="space-y-2.5 pt-3 border-t border-outline-variant/15">
-                    <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-                      ƯU ĐÃI CHƯA ĐỦ ĐIỀU KIỆN ({{ ineligibleVouchers.length }})
-                    </p>
-
-                    <div class="grid grid-cols-1 gap-2.5 max-h-56 overflow-y-auto custom-scrollbar pr-1">
-                      <div
-                        v-for="v in ineligibleVouchers"
-                        :key="v.id"
-                        class="border border-dashed border-outline-variant/25 bg-surface-container/20 p-3 sm:p-3.5 rounded-2xl opacity-75 relative overflow-hidden text-left"
-                      >
-                        <div class="space-y-1.5">
-                          <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-mono font-bold text-xs sm:text-sm text-on-surface-variant uppercase">
-                              {{ v.code || v.promotion?.code || voucherEvals[v.id]?.code }}
-                            </span>
-                            <span class="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-white/5 text-on-surface-variant">
-                              Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType || v.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + '%' : fmt(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + 'đ' }}
-                            </span>
-                          </div>
-                          
-                          <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface-variant/90 line-clamp-1">
-                            {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
-                          </p>
-
-                          <!-- Lý do chưa đủ điều kiện -->
-                          <div class="pt-0.5">
-                            <p v-if="isMissingOrderTotal(v)" class="text-[11px] text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20">
-                              Mua thêm {{ getMissingAmount(v) }} để được giảm {{ fmt(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) }}{{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType || v.discountType) === 'PERCENTAGE' ? '%' : 'đ' }}
-                            </p>
-                            <p v-else class="text-[11px] text-red-400/90 font-medium bg-red-500/10 px-2.5 py-1.5 rounded-lg border border-red-500/20">
-                              {{ voucherEvals[v.id]?.reason || 'Không đủ điều kiện áp dụng' }}
-                            </p>
-                          </div>
-
-                          <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/60 pt-0.5 flex-wrap">
-                            <span v-if="voucherEvals[v.id]?.applicableMovieTitle" class="text-amber-300/80 font-medium">
-                              Phim: {{ voucherEvals[v.id].applicableMovieTitle }}
-                            </span>
-                            <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
-                              Đơn tối thiểu {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
-                            </span>
-                            <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
-                              Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
-                            </span>
-                            <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
-                              Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
-                            </span>
-                            <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <div class="flex items-center gap-1 text-primary text-xs font-bold uppercase tracking-wider shrink-0">
+                    <span>Chọn</span>
+                    <span class="material-symbols-outlined text-sm group-hover:translate-x-0.5 transition-transform">chevron_right</span>
                   </div>
-
-                </div>
+                </button>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
@@ -3617,6 +3554,252 @@ onUnmounted(() => {
               Đóng và Sửa giỏ hàng
             </button>
           </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Modal: Chọn Voucher / Khuyến mãi (POS) -->
+    <transition name="fade">
+      <div v-if="isVoucherModalOpen" class="fixed inset-0 z-[1250] flex items-center justify-center bg-black/75 backdrop-blur-md p-4" @click.self="closeVoucherModal">
+        <div class="w-full max-w-xl bg-surface-container-low border border-outline-variant/20 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          
+          <!-- Header Modal -->
+          <div class="p-6 border-b border-outline-variant/10 flex justify-between items-start gap-4 bg-surface-container/40">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-primary text-xl">sell</span>
+                <h3 class="font-headline font-black uppercase italic text-primary text-lg">Chọn Voucher Khuyến Mãi</h3>
+              </div>
+              <p class="text-xs text-on-surface-variant font-bold">
+                Thành viên: <span class="text-on-surface">{{ member?.fullName || 'Khách hàng' }}</span> · 
+                <span class="text-primary">{{ eligibleVouchers.length }} voucher khả dụng</span>
+              </p>
+            </div>
+            <button @click="closeVoucherModal" type="button" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors cursor-pointer">
+              <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          <!-- Body Modal (Cuộn độc lập) -->
+          <div class="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+            
+            <!-- Ô nhập mã code thủ công -->
+            <div class="space-y-2 bg-surface-container/60 p-4 rounded-2xl border border-outline-variant/10">
+              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block">Nhập mã ưu đãi / riêng tư</label>
+              <div class="flex gap-2">
+                <input 
+                  v-model="voucherCodeInput" 
+                  type="text" 
+                  placeholder="NHẬP MÃ VOUCHER..."
+                  @keydown.enter.prevent="applyVoucher"
+                  class="flex-1 bg-surface-container-highest border border-outline-variant/15 rounded-sm py-2.5 px-4 text-on-surface text-xs font-bold outline-none focus:border-primary uppercase tracking-wider" 
+                />
+                <button 
+                  type="button"
+                  :disabled="isApplyingVoucher || !voucherCodeInput.trim()" 
+                  @click="applyVoucher"
+                  class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-sm hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  {{ isApplyingVoucher ? '...' : 'Áp dụng' }}
+                </button>
+              </div>
+              <p v-if="voucherError" class="text-xs text-red-400 font-bold mt-1">{{ voucherError }}</p>
+            </div>
+
+            <!-- Skeleton loading khi đang preview -->
+            <div v-if="!isVoucherEvalsReady && ownedVouchers.length > 0" class="space-y-3">
+              <div class="h-4 w-36 bg-white/10 rounded animate-pulse"></div>
+              <div class="space-y-2">
+                <div v-for="i in Math.min(ownedVouchers.length, 3)" :key="i"
+                     class="border border-outline-variant/20 p-3.5 rounded-2xl flex items-center justify-between animate-pulse bg-surface-container/30">
+                  <div class="space-y-1.5 flex-1">
+                    <div class="h-3.5 w-28 bg-white/10 rounded"></div>
+                    <div class="h-2.5 w-20 bg-white/5 rounded"></div>
+                  </div>
+                  <div class="h-5 w-5 bg-white/5 rounded-full ml-4"></div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="isVoucherEvalsReady" class="space-y-5">
+              
+              <!-- KHU VỰC 1: Voucher khả dụng -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <p class="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">check_circle</span>
+                    VOUCHER KHẢ DỤNG ({{ eligibleVouchers.length }})
+                  </p>
+                  <span v-if="eligibleVouchers.length > 0" class="text-[11px] text-on-surface-variant/80">Nhấn thẻ để áp dụng</span>
+                </div>
+
+                <!-- Danh sách thẻ khả dụng -->
+                <div v-if="eligibleVouchers.length > 0" class="space-y-2.5">
+                  <div
+                    v-for="v in eligibleVouchers"
+                    :key="v.id"
+                    @click="selectVoucher(v)"
+                    :class="[
+                      isVoucherApplied(v) 
+                        ? 'border-primary bg-primary/10 shadow-lg shadow-primary/5 ring-1 ring-primary' 
+                        : 'border-outline-variant/25 bg-surface-container/60 hover:border-primary/50 hover:bg-surface-container/90'
+                    ]"
+                    class="border p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 group relative overflow-hidden text-left"
+                  >
+                    <!-- Accent bar khi được chọn -->
+                    <div v-if="isVoucherApplied(v)" class="absolute left-0 top-0 bottom-0 w-1.5 bg-primary"></div>
+                    
+                    <div class="space-y-1 pl-1 min-w-0 flex-1">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-mono font-black text-sm text-primary uppercase tracking-wide">
+                          {{ v.code || v.promotion?.code || voucherEvals[v.id]?.code }}
+                        </span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-sm font-bold bg-primary/20 text-primary border border-primary/30">
+                          Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType || v.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + '%' : fmt(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + 'đ' }}
+                        </span>
+                      </div>
+                      <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface font-semibold line-clamp-1">
+                        {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
+                      </p>
+                      <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80 flex-wrap">
+                        <span v-if="formatPromoMovieLabel(v)" class="text-amber-300 font-medium" :title="voucherEvals[v.id]?.applicableMovieTitle">
+                          {{ formatPromoMovieLabel(v) }}
+                        </span>
+                        <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
+                          Đơn từ {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
+                        </span>
+                        <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
+                          Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
+                        </span>
+                        <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
+                          Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
+                        </span>
+                        <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
+                      </div>
+                      <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-[11px] text-green-400 font-bold pt-0.5">
+                        Tiết kiệm {{ fmt(voucherEvals[v.id].discountAmount) }}đ
+                      </p>
+                    </div>
+
+                    <div class="shrink-0 ml-3">
+                      <div v-if="isVoucherApplied(v)" class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+                        <span class="material-symbols-outlined text-sm font-bold">check</span>
+                      </div>
+                      <div v-else class="w-6 h-6 rounded-full border border-outline-variant/40 group-hover:border-primary/60 transition-colors"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Trống khả dụng -->
+                <div v-else-if="ineligibleVouchers.length > 0" class="py-4 px-4 rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container/30 text-center">
+                  <p class="text-xs text-on-surface-variant font-medium">Chưa có voucher nào đủ điều kiện áp dụng cho đơn hàng hiện tại.</p>
+                </div>
+                <div v-else class="py-6 px-4 rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container/30 text-center">
+                  <span class="material-symbols-outlined text-3xl text-on-surface-variant/40 mb-1">sentiment_dissatisfied</span>
+                  <p class="text-xs text-on-surface-variant">Khách hàng chưa có voucher nào trong ví.</p>
+                </div>
+              </div>
+
+              <!-- KHU VỰC 2: Ưu đãi chưa đủ điều kiện (Dạng Accordion thu gọn) -->
+              <div v-if="ineligibleVouchers.length > 0" class="pt-3 border-t border-outline-variant/15 space-y-3">
+                <button 
+                  @click="showIneligibleVouchers = !showIneligibleVouchers" 
+                  type="button"
+                  class="w-full flex items-center justify-between p-3 rounded-xl bg-surface-container/40 hover:bg-surface-container/70 border border-outline-variant/10 text-left transition-colors cursor-pointer"
+                >
+                  <div class="flex items-center gap-2 text-xs font-bold text-on-surface-variant">
+                    <span class="material-symbols-outlined text-sm transition-transform duration-200" :class="showIneligibleVouchers ? 'rotate-90' : ''">chevron_right</span>
+                    <span>ƯU ĐÃI CHƯA ĐỦ ĐIỀU KIỆN ({{ ineligibleVouchers.length }})</span>
+                  </div>
+                  <span class="text-[10px] text-on-surface-variant/60 font-medium">
+                    {{ showIneligibleVouchers ? 'Thu gọn' : 'Bấm để xem' }}
+                  </span>
+                </button>
+
+                <!-- Danh sách Chưa đủ điều kiện khi mở rộng -->
+                <div v-if="showIneligibleVouchers" class="space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div
+                    v-for="v in ineligibleVouchers"
+                    :key="v.id"
+                    class="border border-dashed border-outline-variant/25 bg-surface-container/20 p-3.5 rounded-2xl opacity-75 relative overflow-hidden text-left"
+                  >
+                    <div class="space-y-1.5">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-mono font-bold text-xs text-on-surface-variant uppercase">
+                          {{ v.code || v.promotion?.code || voucherEvals[v.id]?.code }}
+                        </span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-sm font-semibold bg-white/5 text-on-surface-variant">
+                          Giảm {{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType || v.discountType) === 'PERCENTAGE' ? (voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + '%' : fmt(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) + 'đ' }}
+                        </span>
+                      </div>
+                      
+                      <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface-variant/90 line-clamp-1">
+                        {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
+                      </p>
+
+                      <!-- Lý do chưa đủ điều kiện & gợi ý upsell -->
+                      <div class="pt-0.5">
+                        <p v-if="isMissingOrderTotal(v)" class="text-[11px] text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20 flex items-center gap-1.5">
+                          <span class="material-symbols-outlined text-sm shrink-0">add_shopping_cart</span>
+                          <span>Mua thêm {{ getMissingAmount(v) }} để được giảm {{ fmt(voucherEvals[v.id]?.discountValue ?? v.promotion?.discountValue ?? v.discountValue) }}{{ (voucherEvals[v.id]?.discountType || v.promotion?.discountType || v.discountType) === 'PERCENTAGE' ? '%' : 'đ' }}</span>
+                        </p>
+                        <p v-else class="text-[11px] text-red-400/90 font-medium bg-red-500/10 px-2.5 py-1.5 rounded-lg border border-red-500/20 flex items-center gap-1.5">
+                          <span class="material-symbols-outlined text-sm shrink-0">info</span>
+                          <span>{{ voucherEvals[v.id]?.reason || 'Không đủ điều kiện áp dụng' }}</span>
+                        </p>
+                      </div>
+
+                      <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/60 pt-0.5 flex-wrap">
+                        <span v-if="formatPromoMovieLabel(v)" class="text-amber-300/80 font-medium" :title="voucherEvals[v.id]?.applicableMovieTitle">
+                          {{ formatPromoMovieLabel(v) }}
+                        </span>
+                        <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
+                          Đơn tối thiểu {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
+                        </span>
+                        <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
+                          Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
+                        </span>
+                        <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
+                          Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
+                        </span>
+                        <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Footer Modal -->
+          <div class="p-4 sm:px-6 border-t border-outline-variant/10 bg-surface-container/50 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/70">Mã đang chọn</p>
+              <p class="text-xs font-bold text-on-surface truncate">
+                <span v-if="appliedVoucher" class="font-mono text-primary">{{ appliedVoucher.code }} (-{{ fmt(discountAmount) }}đ)</span>
+                <span v-else class="text-on-surface-variant/50">Chưa áp dụng voucher nào</span>
+              </p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button 
+                v-if="appliedVoucher"
+                @click="clearVoucher" 
+                type="button" 
+                class="px-4 py-2 rounded-sm border border-outline-variant/20 hover:bg-white/5 text-on-surface-variant hover:text-red-400 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Bỏ chọn
+              </button>
+              <button 
+                @click="closeVoucherModal" 
+                type="button" 
+                class="px-6 py-2 rounded-sm bg-primary text-on-primary text-xs font-bold uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer shadow"
+              >
+                Xong
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     </transition>
