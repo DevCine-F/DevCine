@@ -21,7 +21,7 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
     @Query("SELECT v FROM Voucher v JOIN FETCH v.promotion WHERE v.customer.userId = :customerId AND v.promotion.code = :code AND v.isUsed = false AND v.validUntil > :now")
     Optional<Voucher> findActiveVoucherByCustomerAndCode(@Param("customerId") Integer customerId, @Param("code") String code, @Param("now") LocalDateTime now);
 
-    @Query("SELECT v FROM Voucher v JOIN FETCH v.promotion WHERE v.customer.userId = :customerId ORDER BY v.validUntil DESC")
+    @Query("SELECT v FROM Voucher v JOIN FETCH v.promotion WHERE v.customer.userId = :customerId ORDER BY v.usedAt DESC NULLS LAST, v.validUntil DESC, v.id DESC")
     List<Voucher> findAllByCustomerIdWithPromotion(@Param("customerId") Integer customerId);
 
     // Khách đã từng sở hữu voucher của promotion này chưa (bất kể đã dùng/hết hạn) — chặn đổi điểm trùng

@@ -77,9 +77,15 @@ const activeVouchers = computed(() => {
 })
 
 // Voucher đã dùng / hết hạn -> tab "Lịch sử"
-const historyVouchers = computed(() => vouchers.value
-  .filter(v => v.status === 'USED' || v.status === 'EXPIRED')
-  .map(v => ({
+const historyVouchers = computed(() => {
+  const list = vouchers.value.filter(v => v.status === 'USED' || v.status === 'EXPIRED')
+  // Sắp xếp: Ưu tiên thời điểm sử dụng mới nhất (usedAt DESC), nếu chưa dùng (hết hạn) thì xếp theo validUntil DESC
+  list.sort((a, b) => {
+    const timeA = a.usedAt ? new Date(a.usedAt).getTime() : (a.validUntil ? new Date(a.validUntil).getTime() : 0)
+    const timeB = b.usedAt ? new Date(b.usedAt).getTime() : (b.validUntil ? new Date(b.validUntil).getTime() : 0)
+    return timeB - timeA
+  })
+  return list.map(v => ({
     usedAt: v.usedAt ? formatDate(v.usedAt) : '—', // '—' cho voucher hết hạn hoặc dữ liệu cũ chưa lưu mốc dùng
     date: formatDate(v.validUntil),
     code: v.code,
@@ -88,7 +94,8 @@ const historyVouchers = computed(() => vouchers.value
     status: v.status === 'USED' ? 'Đã sử dụng'
            : v.status === 'EXHAUSTED' ? 'Hết lượt dùng'
            : 'Đã hết hạn'
-  })))
+  }))
+})
 
 // Phân trang lịch sử voucher
 const HISTORY_PAGE_SIZE = 8
