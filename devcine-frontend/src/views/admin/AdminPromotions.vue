@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import axios from 'axios'
 import api from '@/api/axios'
-import { marketingApi, customerApi, promoArticleApi } from '@/api/admin/index'
+import { marketingApi, customerApi, promoArticleApi, settingsApi } from '@/api/admin/index'
 import CustomSelect from '@/components/common/CustomSelect.vue'
 import TipTapEditor from '@/components/common/TipTapEditor.vue'
 import { prepareImageForUpload } from '@/utils/imageUpload'
@@ -18,6 +18,8 @@ const todayStr = computed(() => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
+
+const maxTicketsPerBooking = ref(8) // Số vé tối đa/đơn lấy theo cấu hình rạp MAX_TICKETS_PER_BOOKING
 
 const filterStatus = ref('all')
 const statusOptions = [
@@ -699,12 +701,14 @@ const discountValueError = computed(() => {
   return ''
 })
 
-// Lỗi "Số vé tối đa/đơn" theo thời gian thực — không vượt quá số ghế một phòng chiếu
+// Lỗi "Số vé tối đa/đơn" theo thời gian thực — không vượt quá số vé tối đa/đơn theo cấu hình rạp
 const maxTicketError = computed(() => {
   const v = newVoucher.value.maxTicketQuantity
   if (v == null || v === '') return ''
-  if (Number(v) > MAX_TICKETS_PER_HALL) {
-    return `Số vé tối đa được ưu đãi trên một đơn không được vượt quá ${MAX_TICKETS_PER_HALL} (số ghế một phòng chiếu).`
+  const num = Number(v)
+  if (Number.isNaN(num) || num < 0) return 'Số vé tối đa phải là số nguyên ≥ 0.'
+  if (num > maxTicketsPerBooking.value) {
+    return `Số vé tối đa được giảm trên một đơn không được vượt quá ${maxTicketsPerBooking.value} vé (theo cấu hình rạp).`
   }
   return ''
 })
@@ -816,8 +820,8 @@ const validateVoucher = () => {
   const maxTk = v.maxTicketQuantity != null && v.maxTicketQuantity !== '' ? Number(v.maxTicketQuantity) : 0
   if (Number.isNaN(maxTk) || !Number.isInteger(maxTk) || maxTk < 0) {
     e.maxTicketQuantity = 'Số vé tối đa phải là số nguyên ≥ 0.'
-  } else if (maxTk > MAX_TICKETS_PER_HALL) {
-    e.maxTicketQuantity = `Số vé tối đa/đơn không được vượt quá ${MAX_TICKETS_PER_HALL} (số ghế một phòng chiếu).`
+  } else if (maxTk > maxTicketsPerBooking.value) {
+    e.maxTicketQuantity = `Số vé tối đa được giảm trên một đơn không được vượt quá ${maxTicketsPerBooking.value} vé (theo cấu hình rạp).`
   }
 
   // maxDiscountAmount: BẮT BUỘC, số nguyên >= 0 (mã tiền cố định tự điền = giá trị giảm)
@@ -1180,6 +1184,16 @@ onMounted(async () => {
   fetchMarketingData()
   fetchArticles()
   try {
+    const { data } = await settingsApi.getAll()
+    const list = data?.data || data || []
+    const st = list.find(i => i.settingKey === 'MAX_TICKETS_PER_BOOKING')
+    if (st && st.settingValue) {
+      maxTicketsPerBooking.value = parseInt(st.settingValue) || 8
+    }
+  } catch (e) {
+    maxTicketsPerBooking.value = 8
+  }
+  try {
     const { data } = await api.get('/movies')
     moviesList.value = Array.isArray(data) ? data : []
   } catch (error) {
@@ -1538,9 +1552,9 @@ onUnmounted(() => {
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa được giảm / đơn</label>
-                <input :value="newVoucher.maxTicketQuantity ?? ''" @input="onIntInput($event, 'maxTicketQuantity')" type="text" inputmode="numeric" data-field="maxTicketQuantity" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.maxTicketQuantity || maxTicketError) ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
+                <input :value="newVoucher.maxTicketQuantity ?? ''" @input="onIntInput($event, 'maxTicketQuantity')" type="text" inputmode="numeric" data-field="maxTicketQuantity" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.maxTicketQuantity || maxTicketError) ? 'border-red-500' : 'border-outline-variant/20'" :placeholder="`0 = toàn bộ vé (tối đa ${maxTicketsPerBooking} vé)`" />
                 <p v-if="voucherErrors.maxTicketQuantity || maxTicketError" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.maxTicketQuantity || maxTicketError }}</p>
-                <p v-else class="text-[10px] text-on-surface-variant/70">Chỉ áp cho tối đa X vé đắt nhất; vé còn lại giá gốc.</p>
+                <p v-else class="text-[10px] text-on-surface-variant/70">Nhập 0 để giảm toàn bộ vé trong đơn; Tối đa {{ maxTicketsPerBooking }} vé (theo cấu hình rạp).</p>
               </div>
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giảm tối đa (VNĐ)</label>

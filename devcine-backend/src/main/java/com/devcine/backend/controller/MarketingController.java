@@ -33,6 +33,7 @@ public class MarketingController {
     private final com.devcine.backend.repository.BookingRepository bookingRepository;
     private final com.devcine.backend.service.LoyaltyService loyaltyService;
     private final com.devcine.backend.service.VoucherService voucherService;
+    private final com.devcine.backend.service.SystemSettingService systemSettingService;
     private final SimpMessagingTemplate messagingTemplate;
 
     private void notifyVoucherUpdate(String action) {
@@ -197,6 +198,15 @@ public class MarketingController {
             String movieIdsCsv = extractMovieIdsCsv(body.get("applicableMovieIds"), body.get("applicableMovieId"));
             Integer primaryMovieId = extractPrimaryMovieId(movieIdsCsv, body.get("applicableMovieId"));
 
+            int maxTicketsLimit = systemSettingService.getMaxTicketsPerBooking();
+            int maxTk = body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0;
+            if (maxTk < 0) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Số vé áp dụng không được là số âm."));
+            }
+            if (maxTk > maxTicketsLimit) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Số vé tối đa được giảm trên một đơn không được vượt quá " + maxTicketsLimit + " vé (theo cấu hình rạp)."));
+            }
+
             Promotion promo = Promotion.builder()
                     .code(code)
                     .name((String) body.get("name"))
@@ -214,7 +224,7 @@ public class MarketingController {
                     .isHidden(Boolean.parseBoolean(body.getOrDefault("isHidden", false).toString()))
                     .customerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL")
                     .usageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0)
-                    .maxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0)
+                    .maxTicketQuantity(maxTk)
                     .maxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO)
                     .build();
             promotionRepository.save(promo);
@@ -285,7 +295,17 @@ public class MarketingController {
             }
             if (body.containsKey("customerEligibility")) promo.setCustomerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL");
             if (body.containsKey("usageLimit")) promo.setUsageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0);
-            if (body.containsKey("maxTicketQuantity")) promo.setMaxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0);
+            if (body.containsKey("maxTicketQuantity")) {
+                int maxTicketsLimit = systemSettingService.getMaxTicketsPerBooking();
+                int maxTkUpdate = body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0;
+                if (maxTkUpdate < 0) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Số vé áp dụng không được là số âm."));
+                }
+                if (maxTkUpdate > maxTicketsLimit) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Số vé tối đa được giảm trên một đơn không được vượt quá " + maxTicketsLimit + " vé (theo cấu hình rạp)."));
+                }
+                promo.setMaxTicketQuantity(maxTkUpdate);
+            }
             if (body.containsKey("maxDiscountAmount")) promo.setMaxDiscountAmount(body.get("maxDiscountAmount") != null ? new BigDecimal(body.get("maxDiscountAmount").toString()) : BigDecimal.ZERO);
             promotionRepository.save(promo);
             notifyVoucherUpdate("PROMOTION_UPDATED");
