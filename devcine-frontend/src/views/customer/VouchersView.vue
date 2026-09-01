@@ -179,8 +179,8 @@ const handleVoucherSearchInput = () => {
     try {
       const { data } = await voucherApi.lookup(authStore.user.id, code)
       const d = data.data ?? data
-      // Gợi ý lưu mã khi tìm thấy (cả trường hợp còn lưu được hoặc hết lượt để hiển thị badge thông báo)
-      lookupResult.value = (d.found && (d.claimable || d.reason === 'EXHAUSTED' || d.reason === 'PAUSED')) ? d : null
+      // Gợi ý lưu mã khi tìm thấy (cả trường hợp còn lưu được hoặc hết lượt/đã dùng để hiển thị badge thông báo)
+      lookupResult.value = (d.found && (d.claimable || d.reason === 'EXHAUSTED' || d.reason === 'PAUSED' || d.reason === 'ALREADY_USED')) ? d : null
     } catch {
       lookupResult.value = null
     } finally {
@@ -256,22 +256,22 @@ onUnmounted(() => {
           {{ loyaltyPoints.toLocaleString('vi-VN') }} điểm
         </span>
       </div>
-      <div class="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0 touch-pan-x">
+      <div class="flex gap-3 sm:gap-6 overflow-x-auto no-scrollbar w-full md:w-auto pt-2 pb-1 touch-pan-x items-center">
         <button
           @click="activeTab = 'active'"
-          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors shrink-0', activeTab === 'active' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
+          :class="['text-xs font-bold uppercase tracking-widest pt-1.5 pb-1.5 border-b-2 transition-colors shrink-0 leading-relaxed', activeTab === 'active' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
         >
           Voucher của tôi
         </button>
         <button
           @click="activeTab = 'redeem'"
-          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors shrink-0', activeTab === 'redeem' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
+          :class="['text-xs font-bold uppercase tracking-widest pt-1.5 pb-1.5 border-b-2 transition-colors shrink-0 leading-relaxed', activeTab === 'redeem' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
         >
           Đổi điểm lấy ưu đãi
         </button>
         <button
           @click="activeTab = 'history'"
-          :class="['text-xs font-bold uppercase tracking-widest pb-1 border-b-2 transition-colors shrink-0', activeTab === 'history' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
+          :class="['text-xs font-bold uppercase tracking-widest pt-1.5 pb-1.5 border-b-2 transition-colors shrink-0 leading-relaxed', activeTab === 'history' ? 'border-primary-container text-primary-container' : 'border-transparent text-neutral-500 hover:text-on-surface']"
         >
           Lịch sử voucher
         </button>
@@ -313,8 +313,10 @@ onUnmounted(() => {
               <span class="bg-surface-container-high text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded border border-white/10 tracking-widest w-fit">{{ lookupResult.code }}</span>
             </div>
             <p class="text-xs sm:text-sm text-on-surface-variant mb-4 sm:mb-6 flex-grow">
-              {{ lookupResult.reason === 'EXHAUSTED' 
-                ? 'Mã ưu đãi này đã hết lượt sử dụng, hiện không thể lưu thêm vào ví.' 
+              {{ lookupResult.reason === 'ALREADY_USED'
+                ? 'Bạn đã sử dụng mã ưu đãi này rồi. Mỗi tài khoản chỉ áp dụng 1 lần.'
+                : lookupResult.reason === 'EXHAUSTED' 
+                ? 'Mã ưu đãi này đã hết lượt sử dụng trên toàn hệ thống.' 
                 : lookupResult.reason === 'PAUSED'
                 ? 'Mã ưu đãi đang tạm dừng áp dụng.'
                 : `Mã hợp lệ! Lưu vào ví để dùng cho đơn đặt vé. Hạn dùng đến ${formatDate(lookupResult.endDate)}.` }}
@@ -329,6 +331,12 @@ onUnmounted(() => {
                 <span class="material-symbols-outlined text-sm">bookmark_add</span>
                 {{ isClaiming ? 'Đang lưu...' : 'Lưu mã này' }}
               </button>
+              <span 
+                v-else-if="lookupResult.reason === 'ALREADY_USED'" 
+                class="inline-flex items-center px-3 py-1.5 rounded-sm bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-bold tracking-wide"
+              >
+                Bạn đã sử dụng mã này
+              </span>
               <span 
                 v-else-if="lookupResult.reason === 'EXHAUSTED'" 
                 class="inline-flex items-center px-3 py-1.5 rounded-sm bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide"

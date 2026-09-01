@@ -171,10 +171,12 @@ public class VoucherController {
                 && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit();
         boolean pointOnly = Boolean.TRUE.equals(promo.getAllowPointRedemption());
         boolean owned = voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), now).isPresent();
-        boolean claimable = !pointOnly && !expired && !paused && !exhausted && !owned;
+        boolean alreadyUsed = voucherRepository.existsUsedByCustomerIdAndPromotionId(customerId, promo.getId());
+        boolean claimable = !pointOnly && !expired && !paused && !alreadyUsed && !exhausted && !owned;
         String reason = pointOnly ? "POINT_ONLY"
                 : expired ? "EXPIRED"
                 : paused ? "PAUSED"
+                : alreadyUsed ? "ALREADY_USED"
                 : exhausted ? "EXHAUSTED"
                 : owned ? "ALREADY_OWNED"
                 : "OK";

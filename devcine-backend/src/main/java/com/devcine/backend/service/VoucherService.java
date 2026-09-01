@@ -446,18 +446,24 @@ public class VoucherService {
             throw new RuntimeException("Ưu đãi đã hết hạn.");
         }
 
+        // Chặn sớm nếu khách đã từng SỬ DỤNG mã này rồi
+        if (voucherRepository.existsUsedByCustomerIdAndPromotionId(customerId, promo.getId())) {
+            throw new RuntimeException("Bạn đã sử dụng mã ưu đãi này rồi.");
+        }
+
+        // Chặn sớm nếu khách đang sở hữu voucher này chưa dùng
+        if (voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), now).isPresent()) {
+            throw new RuntimeException("Bạn đã lưu mã này rồi.");
+        }
+
         // Chặn sớm khi mã đã hết lượt toàn hệ thống
         if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
                 && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
-            throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng.");
+            throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng trên toàn hệ thống.");
         }
 
         // Chặn sớm theo đối tượng áp dụng (khách mới / hạng thành viên) trước khi lưu mã
         assertEligibility(customerId, customer, promo);
-
-        if (voucherRepository.findActiveVoucherByCustomerAndCode(customerId, promo.getCode(), now).isPresent()) {
-            throw new RuntimeException("Bạn đã lưu mã này rồi.");
-        }
 
         String movieTitles = getMovieTitles(promo);
         Voucher voucher = Voucher.builder()
@@ -515,9 +521,14 @@ public class VoucherService {
             }
             if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
                     && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
-                throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng.");
+                throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng trên toàn hệ thống.");
             }
             return existing;
+        }
+
+        // Khách không có voucher active -> kiểm tra xem khách ĐÃ TỪNG SỬ DỤNG mã này chưa
+        if (voucherRepository.existsUsedByCustomerIdAndPromotionId(customerId, promo.getId())) {
+            throw new RuntimeException("Bạn đã sử dụng mã ưu đãi này rồi.");
         }
 
         // Khách chưa sở hữu -> chỉ cho claim mới khi promotion đang active

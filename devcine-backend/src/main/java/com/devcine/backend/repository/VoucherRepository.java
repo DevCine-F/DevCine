@@ -27,4 +27,8 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
     // Khách đã từng sở hữu voucher của promotion này chưa (bất kể đã dùng/hết hạn) — chặn đổi điểm trùng
     @Query("SELECT COUNT(v) > 0 FROM Voucher v WHERE v.customer.userId = :customerId AND v.promotion.id = :promotionId")
     boolean existsByCustomerAndPromotion(@Param("customerId") Integer customerId, @Param("promotionId") Integer promotionId);
+
+    // Khách đã từng SỬ DỤNG voucher của promotion này chưa (isUsed = true)
+    @Query("SELECT COUNT(v) > 0 FROM Voucher v WHERE v.customer.userId = :customerId AND v.promotion.id = :promotionId AND v.isUsed = true")
+    boolean existsUsedByCustomerIdAndPromotionId(@Param("customerId") Integer customerId, @Param("promotionId") Integer promotionId);
 }
