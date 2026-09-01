@@ -571,10 +571,15 @@ const performRestore = async (o) => {
   saleMode.value = 'TICKET'
   selectedShowtime.value = o.showtime
   selectedCombos.value = o.combos || []
-  // ── Backfill snapshotPrice cho đơn chờ cũ (restore từ posStore chưa có field này) ──
+  // ── Backfill snapshotPrice & snapshotSurcharge cho đơn chờ cũ ──
   selectedCombos.value = selectedCombos.value.map(c => ({
     ...c,
-    snapshotPrice: c.snapshotPrice ?? c.price
+    snapshotPrice: c.snapshotPrice ?? c.price,
+    options: (c.options || []).map(opt => ({
+      ...opt,
+      surchargePrice: Number(opt.surchargePrice) || 0,
+      snapshotSurcharge: Number(opt.snapshotSurcharge ?? opt.surchargePrice) || 0
+    }))
   }))
   member.value = o.member || null
   restoredBookingId.value = o.bookingId || null
@@ -911,7 +916,7 @@ const handleRequestVoid = async () => {
   }
 }
 
-const switchMode = (mode) => {
+const switchMode = async (mode) => {
   if (saleMode.value === mode) return
   saleMode.value = mode
   // Đổi luồng → dọn sạch khu làm việc để tránh lẫn dữ liệu giữa 2 kiểu bán
@@ -936,9 +941,9 @@ const switchMode = (mode) => {
   cashGiven.value = 0
   lockedPriceTable.value = null  // nhả lock giá vé khi chuyển chế độ
   lockedCombosPrices.value = null // nhả lock giá catalog trước, rồi set lại theo mode mới
-  // Khi vào chế độ Bán nhanh F&B: snapshot giá catalog ngay lập tức
-  // → onFnbUpdate không đổi giá hiển thị trên card trong suốt phiên bán này.
+  // Khi vào chế độ Bán nhanh F&B: nạp F&B mới nhất rồi snapshot giá catalog
   if (mode === 'FNB') {
+    await reloadPosCombos()
     const priceMap = {}
     combos.value.forEach(c => { priceMap[c.id] = Number(c.price) })
     lockedCombosPrices.value = priceMap
@@ -1020,14 +1025,19 @@ const printConcessionInvoice = () => {
     showToast('Trình duyệt đã chặn cửa sổ. Hãy cho phép pop-up để in hoá đơn.', 'error')
   }
 }
-const newConcessionSale = () => {
+const newConcessionSale = async () => {
   selectedCombos.value = []
   member.value = null
   cardNumberInput.value = ''
   cardError.value = ''
   concessionSale.value = null
   fnbStep.value = 1
+  lockedCombosPrices.value = null
   resetVoidState()
+  await reloadPosCombos()
+  const priceMap = {}
+  combos.value.forEach(c => { priceMap[c.id] = Number(c.price) })
+  lockedCombosPrices.value = priceMap
 }
 
 const unwrapData = (res) => {
@@ -1082,11 +1092,17 @@ const selectShowtime = async (st) => {
   selectedShowtime.value = st
   sessionStartedAt.value = new Date().toISOString()
   selectedSeats.value = []
+  selectedCombos.value = []
   stopHoldTimer()
   isLoadingSeats.value = true
   currentStep.value = 2
+  lockedCombosPrices.value = null // nhả lock catalog F&B cũ để nạp mới cho phiên này
   try {
-    const { data } = await ticketingApi.getSeats(st.id)
+    const [seatRes] = await Promise.all([
+      ticketingApi.getSeats(st.id),
+      reloadPosCombos() // nạp thực đơn F&B & kho tùy chọn mới nhất khi bắt đầu phiên bán vé mới
+    ])
+    const data = seatRes.data
     seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
     captureSeatMeta(data)
     // ── Snapshot bảng giá vé NGAY TỪ ĐẦU PHIÊN (khi nạp sơ đồ ghế) ──
@@ -1207,11 +1223,16 @@ const editFnbOptions = (item, index) => {
 }
 
 const handleFnbOptionsConfirm = ({ options, totalSurcharge }) => {
+  const snapOptions = (options || []).map(o => ({
+    ...o,
+    surchargePrice: Number(o.surchargePrice) || 0,
+    snapshotSurcharge: Number(o.snapshotSurcharge ?? o.surchargePrice) || 0
+  }))
   if (editingFnbIndex.value > -1) {
     // Đổi vị của ĐÚNG dòng đang chỉnh (ghi đè tại chỗ).
     const item = selectedCombos.value[editingFnbIndex.value]
     if (item) {
-      item.options = options
+      item.options = snapOptions
       item.surchargePrice = totalSurcharge
     }
   } else {
@@ -1224,11 +1245,6 @@ const handleFnbOptionsConfirm = ({ options, totalSurcharge }) => {
       // snapshotPrice GIỮ NGUYÊN khi tăng số lượng
     } else {
       // ── Snapshot giá tại thời điểm Thu ngân bấm chọn (Price Lock at Selection) ──
-      const snapOptions = (options || []).map(o => ({
-        ...o,
-        surchargePrice: Number(o.surchargePrice) || 0,
-        snapshotSurcharge: Number(o.surchargePrice) || 0
-      }))
       selectedCombos.value.push({ id: cb.id, name: cb.name, price: Number(cb.price), snapshotPrice: Number(cb.price), quantity: 1, options: snapOptions, surchargePrice: totalSurcharge })
     }
   }

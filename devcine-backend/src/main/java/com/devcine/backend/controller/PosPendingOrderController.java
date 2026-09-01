@@ -64,6 +64,7 @@ public class PosPendingOrderController {
                                     .slotId(opt.get("slotId") != null ? Integer.parseInt(opt.get("slotId").toString()) : null)
                                     .optionGroupId(opt.get("optionGroupId") != null ? Integer.parseInt(opt.get("optionGroupId").toString()) : null)
                                     .optionItemId(opt.get("optionItemId") != null ? Integer.parseInt(opt.get("optionItemId").toString()) : null)
+                                    .clientSurcharge(opt.get("clientSurcharge") != null ? new java.math.BigDecimal(opt.get("clientSurcharge").toString()) : null)
                                     .build())
                             .toList();
                     return com.devcine.backend.dto.request.FnbSelectionDTO.builder()

@@ -90,7 +90,8 @@ const selectedOptions = computed(() => {
         optionGroupId: slot.optionGroup?.id ?? null,
         optionItemId: opt.id,
         optionName: opt.name,
-        surchargePrice: Number(opt.surchargePrice) || 0
+        surchargePrice: Number(opt.surchargePrice) || 0,
+        snapshotSurcharge: Number(opt.surchargePrice) || 0
       })
     }
   }
