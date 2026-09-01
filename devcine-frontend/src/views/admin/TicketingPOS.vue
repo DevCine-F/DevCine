@@ -641,6 +641,42 @@ const confirmRestoreAction = () => {
 
 const deleteHeldOrder = (o) => posStore.deleteHeldOrder(o)
 
+const heldAgeLabel = (createdAt) => {
+  if (!createdAt) return ''
+  const diffSec = Math.max(0, Math.floor((Date.now() - createdAt) / 1000))
+  if (diffSec < 60) return 'Vừa xong'
+  const mins = Math.floor(diffSec / 60)
+  return `${mins} phút trước`
+}
+
+const heldRemainingSec = (o) => {
+  if (!o) return null
+  if (o.holdRemaining != null && o.holdRemaining > 0) return o.holdRemaining
+  if (o.expiresAt) {
+    const diff = Math.floor((new Date(o.expiresAt).getTime() - Date.now()) / 1000)
+    return diff > 0 ? diff : 0
+  }
+  return null
+}
+
+const heldCountdown = (o) => {
+  const sec = heldRemainingSec(o)
+  if (sec == null) return ''
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+const confirmDeleteHold = ref(null)
+const askDeleteHeldOrder = (o) => { confirmDeleteHold.value = o }
+const cancelDeleteHeldOrder = () => { confirmDeleteHold.value = null }
+const confirmDeleteHeldOrder = () => {
+  if (confirmDeleteHold.value) {
+    deleteHeldOrder(confirmDeleteHold.value)
+    confirmDeleteHold.value = null
+  }
+}
+
 // 1. TRÍCH XUẤT NGUỒN DỮ LIỆU NGÀY CÓ LỊCH
 // Helper 1: Chuyển chuỗi bất kỳ sang Date Object chuẩn
 const parseToDate = (st) => {
@@ -831,33 +867,6 @@ const getPoster = (movie) => {
   return movie?.posterBase64 || movie?.posterUrl || movie?.poster_base64 || '/images/Hopper.webp'
 }
 
-// Số giây còn lại của đơn chờ có vé (null = đơn F&B, không hết hạn)
-const heldRemainingSec = (o) => {
-  if (o.mode === 'FNB' || !(o.seats && o.seats.length)) return null
-  return Math.max(0, HOLD_SECONDS - Math.floor((nowTs.value - o.createdAt) / 1000))
-}
-const heldCountdown = (o) => {
-  const s = heldRemainingSec(o)
-  if (s == null) return ''
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
-}
-// Tự xoá đơn chờ hết giờ + nhả ghế được xử lý tập trung trong posStore.updateTimers()
-// (chạy mỗi giây khi còn đơn giữ). Không lặp lại ở component để tránh lệch trạng thái.
-const heldAgeLabel = (ts) => {
-  const mins = Math.floor((nowTs.value - ts) / 60000)
-  if (mins < 1) return 'vừa xong'
-  if (mins < 60) return `${mins} phút trước`
-  return `${Math.floor(mins / 60)} giờ trước`
-}
-
-// Xác nhận trước khi xoá đơn chờ (chống bấm nhầm)
-const confirmDeleteHold = ref(null)
-const askDeleteHeldOrder = (o) => { confirmDeleteHold.value = o }
-const cancelDeleteHeldOrder = () => { confirmDeleteHold.value = null }
-const confirmDeleteHeldOrder = () => {
-  if (confirmDeleteHold.value) deleteHeldOrder(confirmDeleteHold.value)
-  confirmDeleteHold.value = null
-}
 
 // Dọn khu làm việc về bước 1 mà KHÔNG tải lại danh sách suất/combo (dùng sau khi giữ đơn)
 const softReset = () => {
@@ -2281,10 +2290,12 @@ onUnmounted(() => {
         </button>
 
         <!-- Danh sách đơn chờ -->
-        <AppButton variant="outline" class="w-9 h-9 sm:w-10 sm:h-10 !p-0 shrink-0 relative" @click="showHeldPanel = true" title="Danh sách đơn chờ">
+        <button type="button" @click="showHeldPanel = true"
+                class="w-9 h-9 sm:w-10 sm:h-10 shrink-0 relative flex items-center justify-center rounded-xl border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary transition-all cursor-pointer"
+                title="Danh sách đơn chờ">
           <span class="material-symbols-outlined text-base sm:text-lg">receipt_long</span>
-          <span v-if="posStore.heldOrders.length > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 sm:w-5 sm:h-5 bg-primary text-on-primary font-bold text-[9px] sm:text-xs rounded-full flex items-center justify-center border-2 border-surface shadow-sm">{{ posStore.heldOrders.length }}</span>
-        </AppButton>
+          <span v-if="posStore.heldOrders.length > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 sm:w-5 sm:h-5 bg-primary text-black font-black text-[9px] sm:text-xs rounded-full flex items-center justify-center border-2 border-surface shadow-sm">{{ posStore.heldOrders.length }}</span>
+        </button>
 
         <AppButton variant="outline" size="sm" class="hidden sm:inline-flex" :disabled="currentStep === 6 || fnbStep === 3" :class="{'opacity-40 pointer-events-none': currentStep === 6 || fnbStep === 3}" @click="resetPOS">Hủy</AppButton>
         <button class="sm:hidden p-2 text-on-surface-variant hover:text-red-400 rounded-lg hover:bg-white/5" :disabled="currentStep === 6 || fnbStep === 3" :class="{'opacity-40 pointer-events-none': currentStep === 6 || fnbStep === 3}" @click="resetPOS" title="Hủy">
