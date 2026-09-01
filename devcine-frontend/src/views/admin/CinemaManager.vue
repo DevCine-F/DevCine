@@ -1,7 +1,11 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import ShowtimeDrawer from "@/components/admin/ShowtimeDrawer.vue";
 import BatchShowtimeDrawer from "@/components/admin/BatchShowtimeDrawer.vue";
+
+const route = useRoute();
+const router = useRouter();
 
 // Composables
 import { useCinemas } from "@/composables/useCinemas";
@@ -139,12 +143,100 @@ const filteredCinemas = computed(() =>
 
 const openCinemaDetail = (cinema) => {
   loadCinemaDetail(cinema);
+  router.replace({
+    query: {
+      ...route.query,
+      cinemaId: cinema.id,
+      tab: activeTab.value || "infrastructure"
+    }
+  });
+};
+
+const handleTabChange = (tabId) => {
+  activeTab.value = tabId;
+  if (selectedCinema.value) {
+    router.replace({
+      query: {
+        ...route.query,
+        cinemaId: selectedCinema.value.id,
+        tab: tabId
+      }
+    });
+  }
 };
 
 const closeDetail = () => {
   selectedCinema.value = null;
   activeTab.value = "infrastructure";
+  router.replace({
+    query: {
+      ...route.query,
+      cinemaId: undefined,
+      id: undefined,
+      tab: undefined
+    }
+  });
 };
+
+const isSyncingRoute = ref(false);
+
+const syncStateFromRoute = async () => {
+  if (isSyncingRoute.value) return;
+  isSyncingRoute.value = true;
+  try {
+    const cinemaIdFromQuery = route.query.cinemaId || route.query.id;
+    const tabFromQuery = route.query.tab;
+
+    if (tabFromQuery && tabs.some(t => t.id === tabFromQuery)) {
+      activeTab.value = tabFromQuery;
+    }
+
+    if (cinemaIdFromQuery) {
+      if (selectedCinema.value && String(selectedCinema.value.id) === String(cinemaIdFromQuery)) {
+        return;
+      }
+      let target = cinemas.value.find(c => String(c.id) === String(cinemaIdFromQuery));
+      if (!target) {
+        try {
+          const res = await api.get(`/v1/cinemas/${cinemaIdFromQuery}`);
+          if (res.data) {
+            target = res.data;
+          }
+        } catch (e) {
+          console.warn("Không tìm thấy cụm rạp từ URL query:", cinemaIdFromQuery, e);
+          router.replace({
+            query: {
+              ...route.query,
+              cinemaId: undefined,
+              id: undefined,
+              tab: undefined
+            }
+          });
+          return;
+        }
+      }
+      if (target) {
+        await loadCinemaDetail(target);
+      }
+    } else if (selectedCinema.value) {
+      selectedCinema.value = null;
+      activeTab.value = "infrastructure";
+    }
+  } finally {
+    isSyncingRoute.value = false;
+  }
+};
+
+watch(
+  () => [route.query.cinemaId, route.query.id, route.query.tab],
+  async ([newCinemaId, newId, newTab], [oldCinemaId, oldId, oldTab]) => {
+    const currentId = newCinemaId || newId;
+    const prevId = oldCinemaId || oldId;
+    if (currentId !== prevId || newTab !== oldTab) {
+      await syncStateFromRoute();
+    }
+  }
+);
 
 // Trạng thái hoạt động của rạp đang chọn (đồng bộ màu + nhãn với card & tab cấu hình)
 const selectedCinemaStatusMeta = computed(() => {
@@ -264,8 +356,9 @@ const handleShowtimesUpdated = async () => {
   }
 };
 
-onMounted(() => {
-  fetchCinemas();
+onMounted(async () => {
+  await fetchCinemas();
+  await syncStateFromRoute();
   window.addEventListener('showtimes-updated', handleShowtimesUpdated);
 });
 
@@ -380,7 +473,7 @@ onUnmounted(() => {
         <CinemaTabBar 
           :tabs="tabs.filter(t => !['staff', 'analytics'].includes(t.id))" 
           :active-tab="activeTab" 
-          @update:activeTab="(id) => activeTab = id" 
+          @update:activeTab="handleTabChange" 
         />
 
         <div class="p-10 min-h-[500px]">
