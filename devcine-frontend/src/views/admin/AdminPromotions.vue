@@ -949,23 +949,94 @@ const emailTarget = ref(null)        // promotion đang chờ xác nhận gửi 
 const isSendingCampaign = ref(false)
 const eligibilityLabel = (val) => eligibilityOptions.find(o => o.value === val)?.label || 'Mọi khách hàng'
 const movieTitleById = (id) => id ? (moviesList.value.find(m => m.id === id)?.title || 'Tất cả phim') : 'Tất cả phim'
-const movieTitleByPromo = (p) => {
-  if (!p) return 'Tất cả phim'
-  if (p.applicableMovieTitle && p.applicableMovieTitle.trim()) {
-    return p.applicableMovieTitle
-  }
+
+// Trích xuất danh sách object phim áp dụng cho voucher
+const getPromoMoviesList = (p) => {
+  if (!p) return []
+  const result = []
+  const seenIds = new Set()
+
   if (p.applicableMovieIds) {
     const ids = String(p.applicableMovieIds).split(',').map(x => Number(x.trim())).filter(Boolean)
-    if (ids.length > 0) {
-      const titles = ids.map(id => moviesList.value.find(m => m.id === id)?.title).filter(Boolean)
-      if (titles.length > 0) return titles.join(', ')
-    }
+    ids.forEach(id => {
+      if (!seenIds.has(id)) {
+        seenIds.add(id)
+        const m = moviesList.value.find(item => item.id === id)
+        if (m) {
+          result.push({
+            id: m.id,
+            title: m.title || `Phim #${id}`,
+            posterUrl: m.posterUrl || '',
+            durationMinutes: m.durationMinutes || null,
+            genre: m.genre || '',
+            releaseDate: m.releaseDate || ''
+          })
+        } else {
+          result.push({
+            id,
+            title: `Phim #${id}`,
+            posterUrl: '',
+            durationMinutes: null
+          })
+        }
+      }
+    })
+  } else if (p.applicableMovieId) {
+    const id = Number(p.applicableMovieId)
+    const m = moviesList.value.find(item => item.id === id)
+    result.push(m ? {
+      id: m.id,
+      title: m.title || `Phim #${id}`,
+      posterUrl: m.posterUrl || '',
+      durationMinutes: m.durationMinutes || null,
+      genre: m.genre || '',
+      releaseDate: m.releaseDate || ''
+    } : {
+      id,
+      title: p.applicableMovieTitle || `Phim #${id}`,
+      posterUrl: '',
+      durationMinutes: null
+    })
+  } else if (p.applicableMovieTitle && p.applicableMovieTitle.trim()) {
+    const titles = p.applicableMovieTitle.split(',').map(t => t.trim()).filter(Boolean)
+    titles.forEach((t, idx) => {
+      result.push({
+        id: 'title-' + idx,
+        title: t,
+        posterUrl: '',
+        durationMinutes: null
+      })
+    })
   }
-  if (p.applicableMovieId) {
-    const m = moviesList.value.find(m => m.id === p.applicableMovieId)
-    return m ? m.title : 'Phim #' + p.applicableMovieId
-  }
-  return 'Tất cả phim'
+
+  return result
+}
+
+// Modal danh sách phim áp dụng (Phương án 1)
+const promoMoviesModalTarget = ref(null)
+const promoMoviesSearch = ref('')
+const openPromoMoviesModal = (promo) => {
+  promoMoviesModalTarget.value = promo
+  promoMoviesSearch.value = ''
+}
+const closePromoMoviesModal = () => {
+  promoMoviesModalTarget.value = null
+  promoMoviesSearch.value = ''
+}
+const filteredPromoMovies = computed(() => {
+  if (!promoMoviesModalTarget.value) return []
+  const list = getPromoMoviesList(promoMoviesModalTarget.value)
+  const q = promoMoviesSearch.value.trim().toLowerCase()
+  if (!q) return list
+  return list.filter(m => (m.title || '').toLowerCase().includes(q))
+})
+
+const movieTitleByPromo = (p) => {
+  if (!p) return 'Tất cả phim'
+  const list = getPromoMoviesList(p)
+  if (list.length === 0) return 'Tất cả phim'
+  if (list.length === 1) return list[0].title
+  return `${list.length} phim áp dụng`
 }
 
 // Tình trạng sử dụng voucher: %, màu theo mức dùng, số còn lại — cho thanh đo ở view chi tiết
@@ -1842,7 +1913,26 @@ onUnmounted(() => {
               </div>
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 shrink-0">Áp dụng theo phim</span>
-                <span class="text-sm font-bold text-on-surface truncate text-right" :title="movieTitleByPromo(detailTarget)">{{ movieTitleByPromo(detailTarget) }}</span>
+                <!-- 0 phim: Tất cả phim -->
+                <span v-if="getPromoMoviesList(detailTarget).length === 0" class="text-sm font-bold text-on-surface-variant/50">
+                  Tất cả phim
+                </span>
+                <!-- 1 phim: Hiển thị tên phim gọn gàng -->
+                <span v-else-if="getPromoMoviesList(detailTarget).length === 1" class="text-sm font-bold text-on-surface truncate text-right max-w-[220px]" :title="getPromoMoviesList(detailTarget)[0].title">
+                  {{ getPromoMoviesList(detailTarget)[0].title }}
+                </span>
+                <!-- Nhiều phim (>= 2): Badge đếm thông minh tương tác (Phương án 1) -->
+                <button 
+                  v-else 
+                  @click="openPromoMoviesModal(detailTarget)" 
+                  type="button" 
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-all duration-200 cursor-pointer group shadow-sm shrink-0"
+                  title="Bấm để xem danh sách phim áp dụng"
+                >
+                  <span class="material-symbols-outlined text-[13px] text-primary/80 group-hover:scale-110 transition-transform">movie</span>
+                  <span class="text-xs font-black tracking-wide">{{ getPromoMoviesList(detailTarget).length }} phim áp dụng</span>
+                  <span class="material-symbols-outlined text-[14px] text-primary/80 group-hover:translate-x-0.5 transition-transform">chevron_right</span>
+                </button>
               </div>
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Hình thức hiển thị</span>
@@ -1981,6 +2071,86 @@ onUnmounted(() => {
         <div class="flex gap-3 mt-6">
           <button @click="articleDeleteTarget = null" class="flex-1 px-4 py-3 rounded-xl border border-white/15 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Huỷ</button>
           <button @click="confirmDeleteArticle" :disabled="isDeletingArticle" class="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-60">{{ isDeletingArticle ? 'Đang xoá...' : 'Xoá' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Promo Movies List Modal (Xem danh sách phim áp dụng - Phương án 1) -->
+    <div v-if="promoMoviesModalTarget" class="fixed inset-0 z-[1050] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/70 backdrop-blur-md" @click="closePromoMoviesModal"></div>
+      <div class="relative w-full max-w-lg bg-surface-container-low border border-outline-variant/20 rounded-2xl shadow-2xl flex flex-col max-h-[82vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <!-- Header -->
+        <div class="p-5 border-b border-outline-variant/10 flex justify-between items-start gap-3 bg-surface-container/50">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="material-symbols-outlined text-primary text-base">movie</span>
+              <h3 class="font-headline font-black uppercase italic text-primary text-base">Danh sách phim áp dụng</h3>
+            </div>
+            <p class="text-xs text-on-surface-variant font-bold">
+              Mã: <span class="font-mono text-primary">{{ promoMoviesModalTarget.code }}</span> · 
+              <span class="text-on-surface">{{ getPromoMoviesList(promoMoviesModalTarget).length }} phim được áp dụng</span>
+            </p>
+          </div>
+          <button @click="closePromoMoviesModal" class="w-8 h-8 shrink-0 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+
+        <!-- Search box if multiple movies -->
+        <div v-if="getPromoMoviesList(promoMoviesModalTarget).length > 3" class="px-5 pt-3.5 pb-2">
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-base pointer-events-none">search</span>
+            <input 
+              v-model="promoMoviesSearch" 
+              type="text" 
+              placeholder="Tìm kiếm theo tên phim..." 
+              class="w-full bg-surface-container-highest border border-outline-variant/15 rounded-sm pl-9 pr-3 py-2 text-xs text-on-surface focus:border-primary outline-none" 
+            />
+          </div>
+        </div>
+
+        <!-- Movie List -->
+        <div class="flex-1 overflow-y-auto p-5 space-y-2 scrollbar-custom">
+          <div v-if="filteredPromoMovies.length === 0" class="py-8 text-center text-on-surface-variant text-xs italic">
+            Không tìm thấy phim phù hợp với từ khóa tìm kiếm.
+          </div>
+          <div 
+            v-else 
+            v-for="(m, idx) in filteredPromoMovies" 
+            :key="m.id || idx"
+            class="flex items-center gap-3 bg-surface-container p-2.5 rounded-sm border border-outline-variant/10 hover:border-primary/30 transition-colors"
+          >
+            <!-- STT Badge -->
+            <span class="text-[9.5px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-sm shrink-0 border border-primary/20">
+              #{{ idx + 1 }}
+            </span>
+
+            <!-- Poster Thumbnail -->
+            <div class="w-9 h-12 rounded-sm bg-surface-container-highest overflow-hidden shrink-0 border border-white/10 flex items-center justify-center">
+              <img v-if="m.posterUrl" :src="m.posterUrl" :alt="m.title" class="w-full h-full object-cover" />
+              <span v-else class="material-symbols-outlined text-base text-on-surface-variant/40">theaters</span>
+            </div>
+
+            <!-- Title & Metadata -->
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold text-on-surface truncate" :title="m.title">{{ m.title }}</p>
+              <div class="flex items-center gap-2 text-[10px] text-on-surface-variant/70 mt-0.5 font-medium">
+                <span v-if="m.durationMinutes">{{ m.durationMinutes }} phút</span>
+                <span v-if="m.durationMinutes && m.genre">·</span>
+                <span v-if="m.genre" class="truncate">{{ m.genre }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-3.5 border-t border-outline-variant/10 bg-surface-container/30 flex justify-end">
+          <button 
+            @click="closePromoMoviesModal" 
+            class="px-5 py-2 bg-surface-container-highest hover:bg-surface-container-high text-on-surface text-xs font-bold uppercase tracking-wider rounded-sm transition-colors cursor-pointer"
+          >
+            Đóng
+          </button>
         </div>
       </div>
     </div>
