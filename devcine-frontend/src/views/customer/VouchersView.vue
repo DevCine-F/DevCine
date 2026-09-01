@@ -40,10 +40,15 @@ const formatDate = (iso) => {
   return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// Voucher còn dùng được -> tab "Voucher của tôi"
-const activeVouchers = computed(() => vouchers.value
-  .filter(v => v.status === 'ACTIVE')
-  .map(v => {
+// Voucher còn hạn & chưa dùng -> tab "Voucher của tôi" (bao gồm cả còn lượt và hết lượt)
+const activeVouchers = computed(() => {
+  const list = vouchers.value.filter(v => v.status === 'ACTIVE' || v.status === 'EXHAUSTED')
+  // Sắp xếp: ACTIVE lên trước, EXHAUSTED xuống cuối
+  list.sort((a, b) => {
+    if (a.status === b.status) return 0
+    return a.status === 'ACTIVE' ? -1 : 1
+  })
+  return list.map(v => {
     let desc = v.description
     if (!desc || desc.trim() === '') {
       if (v.applicableMovieTitle) {
@@ -64,13 +69,16 @@ const activeVouchers = computed(() => vouchers.value
       applicableMovieTitle: v.applicableMovieTitle,
       minOrderValue: Number(v.minOrderValue || 0),
       maxDiscountAmount: Number(v.maxDiscountAmount || 0),
-      maxTicketQuantity: Number(v.maxTicketQuantity || 0)
+      maxTicketQuantity: Number(v.maxTicketQuantity || 0),
+      status: v.status,
+      isExhausted: v.status === 'EXHAUSTED'
     }
-  }))
+  })
+})
 
-// Voucher đã dùng / hết hạn / hết lượt -> tab "Lịch sử"
+// Voucher đã dùng / hết hạn -> tab "Lịch sử"
 const historyVouchers = computed(() => vouchers.value
-  .filter(v => v.status !== 'ACTIVE')
+  .filter(v => v.status === 'USED' || v.status === 'EXPIRED')
   .map(v => ({
     usedAt: v.usedAt ? formatDate(v.usedAt) : '—', // '—' cho voucher hết hạn hoặc dữ liệu cũ chưa lưu mốc dùng
     date: formatDate(v.validUntil),
@@ -316,16 +324,14 @@ onUnmounted(() => {
               </button>
               <span 
                 v-else-if="lookupResult.reason === 'EXHAUSTED'" 
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide"
+                class="inline-flex items-center px-3 py-1.5 rounded-sm bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide"
               >
-                <span class="material-symbols-outlined text-sm">info</span>
                 Mã ưu đãi đã hết lượt sử dụng
               </span>
               <span 
                 v-else-if="lookupResult.reason === 'PAUSED'" 
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide"
+                class="inline-flex items-center px-3 py-1.5 rounded-sm bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide"
               >
-                <span class="material-symbols-outlined text-sm">pause_circle</span>
                 Mã ưu đãi đang tạm dừng áp dụng
               </span>
             </div>
@@ -335,16 +341,33 @@ onUnmounted(() => {
 
       <!-- Danh sách voucher -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-      <div v-for="voucher in filteredActiveVouchers" :key="voucher.id" class="relative bg-surface-container-low rounded-xl flex overflow-hidden border border-white/5 hover:border-primary-container/30 transition-all shadow-xl">
-        <div class="w-20 sm:w-24 md:w-32 bg-primary-container/10 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-3 sm:p-4 shrink-0">
-          <span class="material-symbols-outlined text-3xl sm:text-4xl text-primary-container mb-1 sm:mb-2">loyalty</span>
-          <span class="text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-primary-container text-center">{{ voucher.type }}</span>
+      <div 
+        v-for="voucher in filteredActiveVouchers" 
+        :key="voucher.id" 
+        :class="[
+          'relative rounded-xl flex overflow-hidden border transition-all shadow-xl',
+          voucher.isExhausted 
+            ? 'bg-surface-container-low/60 border-white/5 opacity-60 hover:border-white/10' 
+            : 'bg-surface-container-low border-white/5 hover:border-primary-container/30'
+        ]"
+      >
+        <div 
+          :class="[
+            'w-20 sm:w-24 md:w-32 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-3 sm:p-4 shrink-0',
+            voucher.isExhausted ? 'bg-neutral-800/40 text-neutral-400' : 'bg-primary-container/10 text-primary-container'
+          ]"
+        >
+          <span class="material-symbols-outlined text-3xl sm:text-4xl mb-1 sm:mb-2" :class="voucher.isExhausted ? 'text-neutral-400' : 'text-primary-container'">loyalty</span>
+          <span class="text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-center" :class="voucher.isExhausted ? 'text-neutral-400' : 'text-primary-container'">{{ voucher.type }}</span>
         </div>
         <div class="p-4 sm:p-6 flex-grow flex flex-col min-w-0">
           <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
             <div class="flex items-center gap-2 flex-wrap min-w-0">
-              <h3 class="text-base sm:text-xl font-bold font-headline text-white truncate">{{ voucher.title }}</h3>
-              <span v-if="voucher.title !== voucher.discountBadge" class="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded shrink-0">
+              <h3 class="text-base sm:text-xl font-bold font-headline truncate" :class="voucher.isExhausted ? 'text-neutral-300' : 'text-white'">{{ voucher.title }}</h3>
+              <span v-if="voucher.title !== voucher.discountBadge" :class="[
+                'text-[10px] font-bold px-2 py-0.5 rounded shrink-0',
+                voucher.isExhausted ? 'bg-neutral-700/50 text-neutral-300' : 'bg-primary/20 text-primary'
+              ]">
                 {{ voucher.discountBadge }}
               </span>
             </div>
@@ -353,9 +376,8 @@ onUnmounted(() => {
           <p class="text-xs sm:text-sm text-on-surface-variant mb-2.5 flex-grow">{{ voucher.description }}</p>
 
           <!-- Badges điều kiện áp dụng (Snapshot) -->
-          <div v-if="voucher.applicableMovieTitle || voucher.minOrderValue > 0 || voucher.maxDiscountAmount > 0" class="flex flex-wrap gap-1.5 mb-3.5">
-            <span v-if="voucher.applicableMovieTitle" class="inline-flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded">
-              <span class="material-symbols-outlined text-xs">movie</span>
+          <div v-if="voucher.applicableMovieTitle || voucher.minOrderValue > 0 || voucher.maxDiscountAmount > 0 || voucher.maxTicketQuantity > 0" class="flex flex-wrap gap-1.5 mb-3.5">
+            <span v-if="voucher.applicableMovieTitle" class="inline-flex items-center bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded">
               Chỉ áp dụng phim: {{ voucher.applicableMovieTitle }}
             </span>
             <span v-if="voucher.minOrderValue > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
@@ -364,16 +386,27 @@ onUnmounted(() => {
             <span v-if="voucher.maxDiscountAmount > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
               Giảm tối đa: {{ voucher.maxDiscountAmount.toLocaleString('vi-VN') }}đ
             </span>
+            <span v-if="voucher.maxTicketQuantity > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
+              Tối đa: {{ voucher.maxTicketQuantity }} vé
+            </span>
+          </div>
+
+          <!-- Thông báo hết lượt dùng toàn hệ thống -->
+          <div v-if="voucher.isExhausted" class="mb-3.5 px-3 py-1.5 rounded-sm bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+            Mã ưu đãi đã hết lượt sử dụng trên toàn hệ thống.
           </div>
 
           <div class="flex justify-between items-center mt-auto pt-3 sm:pt-4 border-t border-white/5 gap-2">
             <div>
               <p class="text-[8px] sm:text-[9px] uppercase tracking-widest text-neutral-500 mb-0.5">Ngày hết hạn</p>
-              <p class="text-xs font-bold text-error">{{ voucher.expiry }}</p>
+              <p class="text-xs font-bold" :class="voucher.isExhausted ? 'text-neutral-400' : 'text-error'">{{ voucher.expiry }}</p>
             </div>
-            <button @click="handleUseVoucher(voucher.id)" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm shrink-0">
+            <button v-if="!voucher.isExhausted" @click="handleUseVoucher(voucher.id)" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm shrink-0">
               Dùng ngay
             </button>
+            <span v-else class="inline-flex items-center gap-1 bg-neutral-800/80 text-neutral-400 border border-neutral-700 text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-sm shrink-0 select-none">
+              Hết lượt dùng
+            </span>
           </div>
         </div>
       </div>

@@ -177,7 +177,10 @@ public class VoucherService {
         }
 
         // 2. Trạng thái hoạt động của chiến dịch
-        if (Boolean.FALSE.equals(promo.getIsActive())) {
+        // Với voucher ĐÃ TRONG VÍ khách hàng (voucher.getId() != null hoặc voucher.getCustomer() != null),
+        // khách đã sở hữu voucher có hạn dùng validUntil riêng → vẫn được áp dụng theo snapshot.
+        // Chỉ chặn khi chưa cấp phát (guest hoặc claim mã mới khi promo đang tạm dừng).
+        if (Boolean.FALSE.equals(promo.getIsActive()) && (voucher.getId() == null || voucher.getCustomer() == null)) {
             return new VoucherEval(false, "Mã ưu đãi đang tạm dừng áp dụng.", BigDecimal.ZERO);
         }
 

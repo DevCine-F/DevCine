@@ -2743,6 +2743,12 @@ onUnmounted(() => {
                             <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                               Đơn từ {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
                             </span>
+                            <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
+                              Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
+                            </span>
+                            <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
+                              Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
+                            </span>
                             <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
                           </div>
                           <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-[11px] text-green-400 font-bold pt-0.5">
@@ -2810,6 +2816,12 @@ onUnmounted(() => {
                             </span>
                             <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                               Đơn tối thiểu {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
+                            </span>
+                            <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
+                              Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
+                            </span>
+                            <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
+                              Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
                             </span>
                             <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
                           </div>
