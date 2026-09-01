@@ -503,11 +503,15 @@ const endMinStr = computed(() => {
 
 const editingVoucherId = ref(null)
 const isSavingVoucher = ref(false)
+// Chế độ hiển thị của Modal Voucher: 'create' (Tạo mới) | 'edit' (Sửa) | 'view' (Xem chi tiết)
+const voucherModalMode = ref('create')
 // Khóa cứng ô Ngày bắt đầu khi sửa voucher ĐANG CHẠY (start <= hôm nay hoặc null) — tránh sai lịch sử đơn cũ
 const editStartLocked = ref(false)
 
 const openVoucherDrawer = () => {
   editingVoucherId.value = null
+  detailTarget.value = null
+  voucherModalMode.value = 'create'
   editStartLocked.value = false
   newVoucher.value = {
     code: '',
@@ -540,7 +544,10 @@ const openVoucherDrawer = () => {
 
 // Mở drawer ở chế độ chỉnh sửa, đổ dữ liệu promotion thật vào form
 const openEditVoucher = (promo) => {
+  if (!promo) return
   editingVoucherId.value = promo.id
+  detailTarget.value = promo
+  voucherModalMode.value = 'edit'
   const movieIdsList = []
   if (promo.applicableMovieIds) {
     String(promo.applicableMovieIds).split(',').map(x => Number(x.trim())).filter(Boolean).forEach(id => {
@@ -882,12 +889,20 @@ const handleSaveVoucher = async () => {
     if (editingVoucherId.value) {
       await marketingApi.updatePromotion(editingVoucherId.value, payload)
       showToast('Cập nhật voucher thành công.')
+      await fetchMarketingData()
+      const fresh = promotions.value.find(p => p.id === editingVoucherId.value)
+      if (fresh) {
+        detailTarget.value = fresh
+        voucherModalMode.value = 'view'
+      } else {
+        isVoucherDrawerOpen.value = false
+      }
     } else {
       await marketingApi.createPromotion(payload)
       showToast('Tạo voucher thành công.')
+      isVoucherDrawerOpen.value = false
+      await fetchMarketingData()
     }
-    isVoucherDrawerOpen.value = false
-    await fetchMarketingData()
   } catch (err) {
     // Trùng mã (409) -> gắn lỗi vào ô code cho rõ
     if (err.response?.status === 409) {
@@ -917,6 +932,8 @@ const detailTarget = ref(null)
 const openDetail = async (promo) => {
   if (!promo) return
   detailTarget.value = promo
+  voucherModalMode.value = 'view'
+  isVoucherDrawerOpen.value = true
   try {
     await fetchMarketingData()
     if (detailTarget.value && detailTarget.value.id === promo.id) {
@@ -927,7 +944,10 @@ const openDetail = async (promo) => {
     // Giữ nguyên dữ liệu hiện tại nếu mạng chập chờn
   }
 }
-const closeDetail = () => { detailTarget.value = null }
+const closeDetail = () => {
+  detailTarget.value = null
+  isVoucherDrawerOpen.value = false
+}
 
 // Xoá voucher với xác nhận
 const deleteTarget = ref(null)
@@ -1061,11 +1081,16 @@ const askSendCampaign = (promo) => { emailTarget.value = promo }
 const confirmSendCampaign = async () => {
   if (!emailTarget.value) return
   isSendingCampaign.value = true
+  const promoId = emailTarget.value.id
   try {
-    const { data } = await marketingApi.sendCampaign(emailTarget.value.id)
+    const { data } = await marketingApi.sendCampaign(promoId)
     showToast(data.message || `Đã gửi email tới ${data.sent ?? 0} khách hàng.`, data.sent > 0 ? 'success' : 'info')
     emailTarget.value = null
     await fetchMarketingData() // cập nhật lịch sử gửi trên card
+    if (detailTarget.value && detailTarget.value.id === promoId) {
+      const fresh = promotions.value.find(p => p.id === promoId)
+      if (fresh) detailTarget.value = fresh
+    }
   } catch (err) {
     showToast(friendlyError(err, 'Gửi email chiến dịch thất bại.'), 'error')
   } finally {
@@ -1108,11 +1133,16 @@ const handleCustomerSearchInput = () => {
 const handleIssueVoucher = async (customer) => {
   if (!issueTarget.value) return
   isIssuing.value = true
+  const promoId = issueTarget.value.id
   try {
-    await marketingApi.issueVoucher(issueTarget.value.id, customer.userId)
+    await marketingApi.issueVoucher(promoId, customer.userId)
     showToast(`Đã phát voucher ${issueTarget.value.code} cho ${customer.fullName || 'khách'}.`)
     issueTarget.value = null
     await fetchMarketingData()
+    if (detailTarget.value && detailTarget.value.id === promoId) {
+      const fresh = promotions.value.find(p => p.id === promoId)
+      if (fresh) detailTarget.value = fresh
+    }
   } catch (err) {
     showToast(friendlyError(err, 'Phát voucher thất bại.'), 'error')
   } finally {
@@ -1219,17 +1249,17 @@ onUnmounted(() => {
   <div class="p-10 space-y-8">
     <header class="flex justify-between items-end">
       <div>
-        <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Marketing Hub</h1>
-        <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Quản lý chiến dịch tiếp thị, mã giảm giá và tin khuyến mãi</p>
+        <h1 class="text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">Quản lý khuyến mãi</h1>
+        <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">Quản lý mã giảm giá, chương trình ưu đãi và tin tức khuyến mãi</p>
       </div>
       <div class="flex gap-4">
         <button v-if="activeTab === 'vouchers' && can('promotions', 'add')" @click="openVoucherDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
           <span class="material-symbols-outlined text-sm">add_card</span>
-          Tạo Voucher
+          Tạo mã giảm giá
         </button>
         <button v-if="activeTab === 'articles' && can('promotions', 'add')" @click="openArticleDrawer" class="bg-primary text-on-primary px-6 py-3 rounded-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 text-xs">
           <span class="material-symbols-outlined text-sm">post_add</span>
-          Tạo Tin Khuyến Mãi
+          Tạo tin khuyến mãi
         </button>
       </div>
     </header>
@@ -1237,10 +1267,10 @@ onUnmounted(() => {
     <!-- Tabs -->
     <div class="flex gap-8 border-b border-outline-variant/10">
       <button @click="activeTab = 'vouchers'" :class="activeTab === 'vouchers' ? 'text-primary border-primary' : 'text-on-surface-variant border-transparent'" class="pb-4 font-black text-xs uppercase tracking-[0.2em] border-b-2 transition-all">
-        Mã Giảm Giá (Vouchers)
+        Mã giảm giá
       </button>
       <button @click="activeTab = 'articles'" :class="activeTab === 'articles' ? 'text-primary border-primary' : 'text-on-surface-variant border-transparent'" class="pb-4 font-black text-xs uppercase tracking-[0.2em] border-b-2 transition-all">
-        Tin Khuyến Mãi
+        Tin khuyến mãi
       </button>
     </div>
 
@@ -1248,7 +1278,7 @@ onUnmounted(() => {
     <div v-if="activeTab === 'vouchers'">
       <div v-if="promotions.length === 0" class="py-24 text-center border border-dashed border-outline-variant/20 rounded-2xl">
         <span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4">sell</span>
-        <p class="text-on-surface-variant font-semibold">Chưa có voucher nào. Bấm "Tạo Voucher" để thêm mới.</p>
+        <p class="text-on-surface-variant font-semibold">Chưa có mã giảm giá nào. Bấm "Tạo mã giảm giá" để thêm mới.</p>
       </div>
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         <div v-for="promo in promotions" :key="promo.id"
@@ -1447,28 +1477,215 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Voucher Modal Form (Sleek Minimalist 2-Column Layout) -->
+    <!-- Voucher Modal (Unified View & Edit / Create Modes) -->
     <div v-if="isVoucherDrawerOpen" class="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-5">
       <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/75 backdrop-blur-md" @click="isVoucherDrawerOpen = false"></div>
+      <div class="absolute inset-0 bg-black/75 backdrop-blur-md" @click="closeDetail"></div>
 
       <!-- Modal Panel -->
       <div class="relative w-full max-w-4xl lg:max-w-5xl max-h-[92vh] bg-[#141416] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <!-- Modal Header -->
         <div class="px-6 py-3.5 border-b border-white/10 flex items-center justify-between flex-shrink-0 bg-white/[0.02]">
-          <div class="flex items-center gap-2.5">
-            <span class="material-symbols-outlined text-primary text-xl">confirmation_number</span>
-            <h3 class="text-sm sm:text-base font-bold uppercase text-white tracking-wide">
-              {{ editingVoucherId ? 'Cập nhật voucher' : 'Tạo mã giảm giá mới' }}
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="material-symbols-outlined text-primary text-xl shrink-0">confirmation_number</span>
+            <h3 class="text-sm sm:text-base font-bold uppercase text-white tracking-wide truncate">
+              {{ voucherModalMode === 'view' ? 'Chi tiết mã giảm giá' : (editingVoucherId ? 'Cập nhật mã giảm giá' : 'Tạo mã giảm giá mới') }}
             </h3>
+            <span v-if="voucherModalMode === 'view' && detailTarget" :class="promoStatus(detailTarget) === 'active' ? 'bg-green-500/15 text-green-400 border-green-500/30' : promoStatus(detailTarget) === 'paused' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'" class="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ml-1">
+              {{ promoStatus(detailTarget) === 'active' ? 'Đang chạy' : promoStatus(detailTarget) === 'paused' ? 'Tạm dừng' : 'Hết hạn' }}
+            </span>
           </div>
-          <button @click="isVoucherDrawerOpen = false" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors">
-            <span class="material-symbols-outlined text-lg">close</span>
-          </button>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <!-- Nút Chuyển sang Sửa khi đang ở View Mode -->
+            <button v-if="voucherModalMode === 'view' && can('promotions', 'edit')" @click="openEditVoucher(detailTarget)" class="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold flex items-center gap-1.5 transition-colors">
+              <span class="material-symbols-outlined text-sm">edit</span>
+              <span class="hidden sm:inline">Chỉnh sửa</span>
+            </button>
+            
+            <!-- Nút Quay lại Xem chi tiết khi đang ở Edit Mode (nếu có detailTarget) -->
+            <button v-if="voucherModalMode === 'edit' && detailTarget" @click="voucherModalMode = 'view'" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors">
+              <span class="material-symbols-outlined text-sm">visibility</span>
+              <span class="hidden sm:inline">Quay lại xem</span>
+            </button>
+
+            <button @click="closeDetail" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors">
+              <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
         </div>
         
-        <!-- Modal Body (Sleek 2 Columns) -->
-        <div ref="voucherBodyRef" class="flex-1 overflow-y-auto p-5 sm:p-6 scrollbar-custom" @click="movieDropdownOpen = false">
+        <!-- Modal Body (VIEW MODE - Sleek 2 Columns) -->
+        <div v-if="voucherModalMode === 'view' && detailTarget" class="flex-1 overflow-y-auto p-5 sm:p-6 scrollbar-custom">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <!-- CỘT TRÁI: Thông tin cơ bản & Mức giảm -->
+            <div class="lg:col-span-6 space-y-4">
+              <div class="flex items-center gap-1.5 pb-1.5 border-b border-white/10 text-primary text-xs font-semibold">
+                <span class="material-symbols-outlined text-base">sell</span>
+                <span>Thông tin cơ bản &amp; Mức giảm</span>
+              </div>
+
+              <!-- Mã Voucher Card -->
+              <div class="space-y-1">
+                <span class="text-xs font-medium text-neutral-400">Mã voucher</span>
+                <div class="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                  <div class="flex items-center gap-2.5">
+                    <span class="font-mono text-base font-bold text-primary tracking-widest uppercase">{{ detailTarget.code }}</span>
+                    <span v-if="detailTarget.isHidden" class="px-1.5 py-0.5 rounded-sm bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[8px] font-bold uppercase tracking-wider">Riêng tư</span>
+                    <span v-else class="px-1.5 py-0.5 rounded-sm bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[8px] font-bold uppercase tracking-wider">Công khai</span>
+                  </div>
+                  <button @click="handleCopyCode(detailTarget.code)" class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/10 hover:bg-primary text-primary hover:text-black font-semibold text-xs transition-colors">
+                    <span class="material-symbols-outlined text-xs">content_copy</span>
+                    <span>Sao chép</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Tiêu đề chiến dịch -->
+              <div class="space-y-1">
+                <span class="text-xs font-medium text-neutral-400">Tiêu đề chiến dịch</span>
+                <p class="text-sm font-semibold text-white">{{ detailTarget.name || 'Chưa đặt tên' }}</p>
+              </div>
+
+              <!-- Mô tả ngắn -->
+              <div class="space-y-1">
+                <span class="text-xs font-medium text-neutral-400">Mô tả</span>
+                <p class="text-xs text-neutral-300 whitespace-pre-line leading-relaxed bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+                  {{ detailTarget.description || 'Không có mô tả chi tiết.' }}
+                </p>
+              </div>
+
+              <!-- Khối Mức giảm giá -->
+              <div class="p-3.5 rounded-xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 space-y-1">
+                <span class="text-[10.5px] font-medium text-neutral-400">Mức giảm giá</span>
+                <div class="flex items-baseline justify-between">
+                  <span class="text-2xl sm:text-3xl font-bold text-primary">
+                    {{ detailTarget.discountType === 'PERCENTAGE' ? Number(detailTarget.discountValue) + '%' : Number(detailTarget.discountValue).toLocaleString('vi-VN') + 'đ' }}
+                  </span>
+                  <span class="text-xs font-medium text-neutral-300">
+                    {{ detailTarget.discountType === 'PERCENTAGE' ? 'Giảm theo % giá vé' : 'Giảm tiền cố định' }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Thời gian hiệu lực -->
+              <div class="space-y-1.5 pt-1">
+                <span class="text-xs font-medium text-neutral-400">Thời gian hiệu lực</span>
+                <div class="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/10">
+                  <div>
+                    <p class="text-[10px] text-neutral-400">Ngày bắt đầu</p>
+                    <p class="text-xs font-semibold text-white mt-0.5">{{ detailTarget.startDate ? formatPromoDate(detailTarget.startDate) : 'Áp dụng ngay' }}</p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] text-neutral-400">Ngày hết hạn</p>
+                    <p class="text-xs font-semibold mt-0.5" :class="promoStatus(detailTarget) === 'active' ? 'text-white' : 'text-red-400'">
+                      {{ formatPromoDate(detailTarget.endDate) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CỘT PHẢI: Điều kiện & Hiệu suất sử dụng -->
+            <div class="lg:col-span-6 space-y-4">
+              <div class="flex items-center gap-1.5 pb-1.5 border-b border-white/10 text-primary text-xs font-semibold">
+                <span class="material-symbols-outlined text-base">tune</span>
+                <span>Điều kiện &amp; Hiệu suất sử dụng</span>
+              </div>
+
+              <!-- Tình trạng / Tiến độ sử dụng (Usage Progress) -->
+              <div class="space-y-1.5">
+                <span class="text-xs font-medium text-neutral-400">Tiến độ sử dụng toàn hệ thống</span>
+                <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-neutral-300">Số lượt đã dùng:</span>
+                    <span class="text-xs font-bold" :class="usageInfo(detailTarget).text">
+                      {{ usageInfo(detailTarget).used.toLocaleString('vi-VN') }}
+                      <template v-if="usageInfo(detailTarget).limited"> / {{ usageInfo(detailTarget).limit.toLocaleString('vi-VN') }} lượt</template>
+                      <template v-else> lượt (Không giới hạn)</template>
+                    </span>
+                  </div>
+                  <template v-if="usageInfo(detailTarget).limited">
+                    <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div class="h-full rounded-full transition-all duration-500" :class="usageInfo(detailTarget).bar" :style="{ width: usageInfo(detailTarget).pct + '%' }"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-[10.5px]">
+                      <span :class="usageInfo(detailTarget).exhausted ? 'text-red-400 font-semibold' : 'text-neutral-400'">
+                        {{ usageInfo(detailTarget).exhausted ? 'Đã dùng hết lượt' : `Còn lại ${usageInfo(detailTarget).remaining.toLocaleString('vi-VN')} lượt` }}
+                      </span>
+                      <span class="font-bold" :class="usageInfo(detailTarget).text">{{ usageInfo(detailTarget).pct }}%</span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Bảng thông số: Đơn tối thiểu & Giảm tối đa, Số vé & Đối tượng -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-0.5">
+                  <p class="text-[10.5px] text-neutral-400">Đơn tối thiểu</p>
+                  <p class="text-xs font-semibold text-white">{{ Number(detailTarget.minOrderValue || 0) > 0 ? Number(detailTarget.minOrderValue).toLocaleString('vi-VN') + 'đ' : 'Không yêu cầu' }}</p>
+                </div>
+                <div class="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-0.5">
+                  <p class="text-[10.5px] text-neutral-400">Giảm tối đa</p>
+                  <p class="text-xs font-semibold text-white">{{ Number(detailTarget.maxDiscountAmount || 0) > 0 ? Number(detailTarget.maxDiscountAmount).toLocaleString('vi-VN') + 'đ' : (detailTarget.discountType === 'FIXED_AMOUNT' ? 'Bằng giá trị giảm' : 'Không giới hạn') }}</p>
+                </div>
+                <div class="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-0.5">
+                  <p class="text-[10.5px] text-neutral-400">Số vé tối đa / đơn</p>
+                  <p class="text-xs font-semibold text-white">{{ Number(detailTarget.maxTicketQuantity || 0) > 0 ? `${Number(detailTarget.maxTicketQuantity)} vé` : 'Toàn bộ vé' }}</p>
+                </div>
+                <div class="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-0.5">
+                  <p class="text-[10.5px] text-neutral-400">Đối tượng áp dụng</p>
+                  <p class="text-xs font-semibold text-white truncate" :title="eligibilityLabel(detailTarget.customerEligibility)">{{ eligibilityLabel(detailTarget.customerEligibility) }}</p>
+                </div>
+              </div>
+
+              <!-- Áp dụng theo phim -->
+              <div class="p-3 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[10.5px] text-neutral-400">Áp dụng theo phim</p>
+                  <span v-if="getPromoMoviesList(detailTarget).length === 0" class="text-xs font-semibold text-neutral-300">Tất cả phim</span>
+                  <span v-else-if="getPromoMoviesList(detailTarget).length === 1" class="text-xs font-semibold text-white truncate block" :title="getPromoMoviesList(detailTarget)[0].title">
+                    {{ getPromoMoviesList(detailTarget)[0].title }}
+                  </span>
+                </div>
+                <!-- Badge đếm nhiều phim -->
+                <button 
+                  v-if="getPromoMoviesList(detailTarget).length >= 2"
+                  @click="openPromoMoviesModal(detailTarget)" 
+                  type="button" 
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-all duration-200 cursor-pointer shadow-sm shrink-0"
+                  title="Bấm để xem danh sách phim áp dụng"
+                >
+                  <span class="material-symbols-outlined text-[13px] text-primary/80">movie</span>
+                  <span class="text-xs font-bold tracking-wide">{{ getPromoMoviesList(detailTarget).length }} phim áp dụng</span>
+                  <span class="material-symbols-outlined text-[14px] text-primary/80">chevron_right</span>
+                </button>
+              </div>
+
+              <!-- Khối Cài đặt nâng cao (Unified Box) -->
+              <div class="rounded-xl bg-white/[0.02] border border-white/10 divide-y divide-white/10 overflow-hidden text-xs">
+                <div class="p-3 flex items-center justify-between">
+                  <span class="text-neutral-300 font-medium">Đổi bằng điểm:</span>
+                  <span v-if="detailTarget.allowPointRedemption" class="font-bold text-amber-400">{{ Number(detailTarget.pointsRequired).toLocaleString('vi-VN') }} pts</span>
+                  <span v-else class="text-neutral-500 font-medium">Tắt</span>
+                </div>
+                <div class="p-3 flex items-center justify-between">
+                  <span class="text-neutral-300 font-medium">Cộng dồn mã khác:</span>
+                  <span class="font-semibold text-white">{{ detailTarget.isStackable ? 'Có' : 'Không' }}</span>
+                </div>
+                <div v-if="!detailTarget.allowPointRedemption" class="p-3 flex items-center justify-between">
+                  <span class="text-neutral-300 font-medium">Email chiến dịch:</span>
+                  <span class="font-medium" :class="Number(detailTarget.campaignSentCount || 0) > 0 ? 'text-emerald-400 font-semibold' : 'text-neutral-500'">
+                    {{ Number(detailTarget.campaignSentCount || 0) > 0 ? `Đã gửi ${Number(detailTarget.campaignSentCount).toLocaleString('vi-VN')} khách` : 'Chưa gửi' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Body (EDIT / CREATE MODE - Sleek 2 Columns) -->
+        <div v-else ref="voucherBodyRef" class="flex-1 overflow-y-auto p-5 sm:p-6 scrollbar-custom" @click="movieDropdownOpen = false">
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             <!-- CỘT TRÁI: Thông tin cơ bản & Mức giảm (col-span-6) -->
@@ -1702,10 +1919,33 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Modal Footer -->
-        <div class="px-6 py-3 border-t border-white/10 flex justify-end gap-2.5 flex-shrink-0 bg-white/[0.02]">
-          <button @click="isVoucherDrawerOpen = false" class="px-5 py-2 rounded-lg text-neutral-300 hover:text-white hover:bg-white/5 font-medium text-xs transition-colors">
-            Hủy bỏ
+        <!-- Modal Footer (VIEW MODE) -->
+        <div v-if="voucherModalMode === 'view' && detailTarget" class="px-6 py-3 border-t border-white/10 flex items-center justify-between flex-shrink-0 bg-white/[0.02]">
+          <div class="flex items-center gap-2">
+            <button v-if="can('promotions', 'add')" @click="openIssueModal(detailTarget)" class="px-3.5 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 font-semibold text-xs flex items-center gap-1.5 transition-colors">
+              <span class="material-symbols-outlined text-sm">card_giftcard</span>
+              <span>Phát cho khách</span>
+            </button>
+            <button v-if="can('promotions', 'edit') && !detailTarget.allowPointRedemption" @click="askSendCampaign(detailTarget)" class="px-3.5 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 font-semibold text-xs flex items-center gap-1.5 transition-colors">
+              <span class="material-symbols-outlined text-sm">mail</span>
+              <span>{{ Number(detailTarget.campaignSentCount || 0) > 0 ? 'Gửi thêm email' : 'Gửi email' }}</span>
+            </button>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <button @click="closeDetail" class="px-5 py-2 rounded-lg text-neutral-300 hover:text-white hover:bg-white/5 font-medium text-xs transition-colors">
+              Đóng
+            </button>
+            <button v-if="can('promotions', 'edit')" @click="openEditVoucher(detailTarget)" class="px-5 py-2 rounded-lg bg-primary text-black font-semibold text-xs hover:bg-primary-fixed-dim transition-colors shadow-md shadow-primary/10 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">edit</span>
+              <span>Chỉnh sửa</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal Footer (EDIT / CREATE MODE) -->
+        <div v-else class="px-6 py-3 border-t border-white/10 flex justify-end gap-2.5 flex-shrink-0 bg-white/[0.02]">
+          <button @click="detailTarget && voucherModalMode === 'edit' ? (voucherModalMode = 'view') : (isVoucherDrawerOpen = false)" class="px-5 py-2 rounded-lg text-neutral-300 hover:text-white hover:bg-white/5 font-medium text-xs transition-colors">
+            {{ detailTarget && voucherModalMode === 'edit' ? 'Quay lại' : 'Hủy bỏ' }}
           </button>
           <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError || !!maxTicketError || !!minOrderValueError" class="px-5 py-2 rounded-lg bg-primary text-black font-semibold text-xs hover:bg-primary-fixed-dim transition-colors shadow-md shadow-primary/10 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed">
             {{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}
@@ -1850,7 +2090,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Issue voucher to customer modal -->
-    <div v-if="issueTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div v-if="issueTarget" class="fixed inset-0 z-[1050] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeIssueModal"></div>
       <div class="relative w-full max-w-lg bg-surface-container-low border border-outline-variant/20 rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
         <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
@@ -1884,186 +2124,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Voucher detail modal -->
-    <div v-if="detailTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeDetail"></div>
-      <div class="relative w-full max-w-md bg-surface-container-low border border-outline-variant/20 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
-        <div class="p-6 border-b border-outline-variant/10 flex justify-between items-start gap-4">
-          <div class="min-w-0">
-            <div class="flex items-center gap-3 mb-2">
-              <span class="font-black text-lg tracking-widest text-primary font-mono uppercase px-3 py-1 bg-primary/10 rounded-lg border border-primary/20">{{ detailTarget.code }}</span>
-              <span :class="promoStatus(detailTarget) === 'active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'" class="text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-widest">
-                {{ promoStatus(detailTarget) === 'active' ? 'Đang chạy' : 'Hết hạn' }}
-              </span>
-            </div>
-            <h3 class="font-headline font-black uppercase italic text-on-surface text-lg truncate">{{ detailTarget.name || 'Voucher chưa đặt tên' }}</h3>
-          </div>
-          <button @click="closeDetail" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom">
-          <!-- Mô tả -->
-          <div v-if="detailTarget.description" class="space-y-1">
-            <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Mô tả</p>
-            <p class="text-sm text-on-surface whitespace-pre-line leading-relaxed">{{ detailTarget.description }}</p>
-          </div>
-
-          <!-- NHÓM 1 · Giá trị giảm -->
-          <section class="space-y-2.5">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-base">sell</span>
-              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Giá trị giảm</span>
-            </div>
-            <div class="rounded-xl bg-surface-container p-4">
-              <div class="flex items-end justify-between gap-3">
-                <div>
-                  <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 mb-1">Mức giảm</p>
-                  <p class="text-3xl font-black text-primary leading-none">{{ detailTarget.discountType === 'PERCENTAGE' ? Number(detailTarget.discountValue) + '%' : Number(detailTarget.discountValue).toLocaleString() + 'đ' }}</p>
-                </div>
-                <div class="text-right">
-                  <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 mb-1">Loại giảm</p>
-                  <p class="text-sm font-bold text-on-surface">{{ detailTarget.discountType === 'PERCENTAGE' ? 'Phần trăm' : 'Tiền cố định' }}</p>
-                </div>
-              </div>
-              <div class="mt-3 pt-3 border-t border-outline-variant/10 flex justify-between items-center">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Giảm tối đa</span>
-                <span class="text-sm font-bold" :class="Number(detailTarget.maxDiscountAmount || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">{{ Number(detailTarget.maxDiscountAmount || 0) > 0 ? Number(detailTarget.maxDiscountAmount).toLocaleString() + 'đ' : 'Không giới hạn' }}</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- NHÓM 2 · Điều kiện áp dụng -->
-          <section class="space-y-2.5">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-base">rule</span>
-              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Điều kiện áp dụng</span>
-            </div>
-            <div class="rounded-xl bg-surface-container p-4 space-y-2.5">
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Đơn tối thiểu</span>
-                <span class="text-sm font-bold" :class="Number(detailTarget.minOrderValue || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">{{ Number(detailTarget.minOrderValue || 0) > 0 ? Number(detailTarget.minOrderValue).toLocaleString() + 'đ' : 'Không yêu cầu' }}</span>
-              </div>
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Số vé tối đa được giảm</span>
-                <span class="text-sm font-bold" :class="Number(detailTarget.maxTicketQuantity || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">{{ Number(detailTarget.maxTicketQuantity || 0) > 0 ? Number(detailTarget.maxTicketQuantity).toLocaleString() + ' vé' : 'Không giới hạn' }}</span>
-              </div>
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Đối tượng áp dụng</span>
-                <span class="text-sm font-bold text-on-surface text-right">{{ eligibilityLabel(detailTarget.customerEligibility) }}</span>
-              </div>
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 shrink-0">Áp dụng theo phim</span>
-                <!-- 0 phim: Tất cả phim -->
-                <span v-if="getPromoMoviesList(detailTarget).length === 0" class="text-sm font-bold text-on-surface-variant/50">
-                  Tất cả phim
-                </span>
-                <!-- 1 phim: Hiển thị tên phim gọn gàng -->
-                <span v-else-if="getPromoMoviesList(detailTarget).length === 1" class="text-sm font-bold text-on-surface truncate text-right max-w-[220px]" :title="getPromoMoviesList(detailTarget)[0].title">
-                  {{ getPromoMoviesList(detailTarget)[0].title }}
-                </span>
-                <!-- Nhiều phim (>= 2): Badge đếm thông minh tương tác (Phương án 1) -->
-                <button 
-                  v-else 
-                  @click="openPromoMoviesModal(detailTarget)" 
-                  type="button" 
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-all duration-200 cursor-pointer group shadow-sm shrink-0"
-                  title="Bấm để xem danh sách phim áp dụng"
-                >
-                  <span class="material-symbols-outlined text-[13px] text-primary/80 group-hover:scale-110 transition-transform">movie</span>
-                  <span class="text-xs font-black tracking-wide">{{ getPromoMoviesList(detailTarget).length }} phim áp dụng</span>
-                  <span class="material-symbols-outlined text-[14px] text-primary/80 group-hover:translate-x-0.5 transition-transform">chevron_right</span>
-                </button>
-              </div>
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Hình thức hiển thị</span>
-                <span class="text-sm font-bold" :class="detailTarget.isHidden ? 'text-purple-400' : 'text-sky-400'">{{ detailTarget.isHidden ? 'Riêng tư (Không công khai)' : 'Công khai toàn hệ thống' }}</span>
-              </div>
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Cộng dồn với mã khác</span>
-                <span class="text-sm font-bold text-on-surface">{{ detailTarget.isStackable ? 'Có' : 'Không' }}</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- NHÓM 3 · Thời gian & Đổi điểm -->
-          <section class="space-y-2.5">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-base">schedule</span>
-              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Thời gian & Đổi điểm</span>
-            </div>
-            <div class="rounded-xl bg-surface-container p-4 space-y-2.5">
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Bắt đầu</span>
-                <span class="text-sm font-bold text-on-surface">{{ detailTarget.startDate ? formatPromoDate(detailTarget.startDate) : 'Áp dụng ngay' }}</span>
-              </div>
-              <div class="flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Hết hạn</span>
-                <span class="text-sm font-bold" :class="promoStatus(detailTarget) === 'active' ? 'text-on-surface' : 'text-red-400'">{{ formatPromoDate(detailTarget.endDate) }}</span>
-              </div>
-              <div class="flex justify-between items-center gap-3 pt-2.5 border-t border-outline-variant/10">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Đổi bằng điểm</span>
-                <span v-if="detailTarget.allowPointRedemption" class="text-sm font-black text-amber-400">{{ Number(detailTarget.pointsRequired).toLocaleString() }} điểm</span>
-                <span v-else class="text-sm font-bold text-on-surface-variant/50">Tắt</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- NHÓM 4 · Tình trạng sử dụng -->
-          <section class="space-y-2.5">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-base">insights</span>
-              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Tình trạng sử dụng</span>
-            </div>
-            <div class="rounded-xl bg-surface-container p-4">
-              <div class="flex items-baseline justify-between mb-2.5">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Số lượt đã dùng</span>
-                <span class="text-sm font-black" :class="usageInfo(detailTarget).text">
-                  {{ usageInfo(detailTarget).used.toLocaleString() }}<template v-if="usageInfo(detailTarget).limited">/{{ usageInfo(detailTarget).limit.toLocaleString() }}</template>
-                  <span class="text-on-surface-variant/60 font-bold text-xs"> lượt</span>
-                </span>
-              </div>
-              <template v-if="usageInfo(detailTarget).limited">
-                <div class="h-2 rounded-full bg-white/[0.08] ring-1 ring-white/5 overflow-hidden">
-                  <div class="h-full rounded-full transition-all duration-500" :class="usageInfo(detailTarget).bar" :style="{ width: usageInfo(detailTarget).pct + '%' }"></div>
-                </div>
-                <div class="flex justify-between items-center mt-1.5">
-                  <span class="text-[10px] font-bold" :class="usageInfo(detailTarget).exhausted ? 'text-red-400' : 'text-on-surface-variant/60'">
-                    {{ usageInfo(detailTarget).exhausted ? 'Đã dùng hết lượt' : 'Còn ' + usageInfo(detailTarget).remaining.toLocaleString() + ' lượt' }}
-                  </span>
-                  <span class="text-[10px] font-black" :class="usageInfo(detailTarget).text">{{ usageInfo(detailTarget).pct }}%</span>
-                </div>
-              </template>
-              <p v-else class="text-[11px] font-bold text-on-surface-variant/60">Không giới hạn lượt sử dụng</p>
-              <!-- Lịch sử gửi email chiến dịch (mã nhập trực tiếp) -->
-              <div v-if="!detailTarget.allowPointRedemption" class="mt-3 pt-3 border-t border-outline-variant/10 flex justify-between items-center gap-3">
-                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Email chiến dịch</span>
-                <span class="text-sm font-bold" :class="Number(detailTarget.campaignSentCount || 0) > 0 ? 'text-on-surface' : 'text-on-surface-variant/50'">
-                  {{ Number(detailTarget.campaignSentCount || 0) > 0 ? `Đã gửi ${Number(detailTarget.campaignSentCount).toLocaleString()} khách · ${formatPromoDate(detailTarget.campaignSentAt)}` : 'Chưa gửi' }}
-                </span>
-              </div>
-            </div>
-          </section>
-        </div>
-        <div class="p-6 border-t border-outline-variant/10 flex gap-3">
-          <button @click="openIssueModal(detailTarget); closeDetail()" class="flex-1 px-4 py-3 rounded-xl bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-colors flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-sm">card_giftcard</span> Phát cho khách
-          </button>
-          <button v-if="can('promotions', 'edit')" @click="handleToggleVoucher(detailTarget); closeDetail()"
-            class="flex-1 px-4 py-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
-            :class="detailTarget.isActive === false ? 'border-green-500/30 text-green-400 hover:bg-green-500/10' : 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10'">
-            <span class="material-symbols-outlined text-lg leading-none">{{ detailTarget.isActive === false ? 'toggle_on' : 'toggle_off' }}</span>
-            {{ detailTarget.isActive === false ? 'Kích hoạt' : 'Tạm dừng' }}
-          </button>
-          <button @click="openEditVoucher(detailTarget); closeDetail()" class="flex-1 px-4 py-3 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-sm">edit</span> Sửa
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Delete confirm modal -->
-    <div v-if="deleteTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div v-if="deleteTarget" class="fixed inset-0 z-[1050] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="deleteTarget = null"></div>
       <div class="relative w-full max-w-sm bg-surface-container-low border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
         <span class="material-symbols-outlined text-4xl text-red-400 mb-3">warning</span>
@@ -2077,7 +2139,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Send campaign email confirm modal -->
-    <div v-if="emailTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div v-if="emailTarget" class="fixed inset-0 z-[1050] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="emailTarget = null"></div>
       <div class="relative w-full max-w-sm bg-surface-container-low border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
         <span class="material-symbols-outlined text-4xl text-primary mb-3">mark_email_read</span>
@@ -2103,7 +2165,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Delete article confirm modal -->
-    <div v-if="articleDeleteTarget" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div v-if="articleDeleteTarget" class="fixed inset-0 z-[1050] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="articleDeleteTarget = null"></div>
       <div class="relative w-full max-w-sm bg-surface-container-low border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
         <span class="material-symbols-outlined text-4xl text-red-400 mb-3">warning</span>
