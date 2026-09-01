@@ -97,7 +97,7 @@ const loginAsAdmin = async (e) => {
 
     // Tài khoản dùng mật khẩu mặc định → buộc đổi mật khẩu trước khi vào hệ thống
     if (authStore.mustChangePassword) {
-      toast.info('Vui lòng đổi mật khẩu để kích hoạt tài khoản.')
+      toast.warning('Vui lòng đổi mật khẩu để kích hoạt tài khoản.')
       router.push('/admin/first-login')
       return
     }

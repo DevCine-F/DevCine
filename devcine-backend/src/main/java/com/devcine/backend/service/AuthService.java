@@ -188,8 +188,25 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
 
-        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
-            throw new RuntimeException("Mật khẩu hiện tại không đúng");
+        if (Boolean.TRUE.equals(user.getMustChangePassword())) {
+            // Đổi mật khẩu lần đầu: người dùng đã xác thực đăng nhập trước đó, không bắt buộc nhập mật khẩu cũ
+            if (oldPassword != null && !oldPassword.isBlank()) {
+                if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+                    throw new RuntimeException("Mật khẩu hiện tại không đúng");
+                }
+            }
+        } else {
+            if (oldPassword == null || oldPassword.isBlank() || !passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+                throw new RuntimeException("Mật khẩu hiện tại không đúng");
+            }
+        }
+
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new RuntimeException("Mật khẩu mới phải có tối thiểu 8 ký tự");
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new RuntimeException("Mật khẩu mới không được trùng với mật khẩu hiện tại");
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));

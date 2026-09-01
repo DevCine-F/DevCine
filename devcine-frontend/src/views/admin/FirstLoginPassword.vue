@@ -14,7 +14,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToastStore()
 
-const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPw = ref(false)
@@ -24,7 +23,6 @@ const isSaving = ref(false)
 const pwError = computed(() => {
   if (!newPassword.value) return ''
   if (newPassword.value.length < 8) return 'Mật khẩu mới cần tối thiểu 8 ký tự.'
-  if (newPassword.value === currentPassword.value) return 'Mật khẩu mới phải khác mật khẩu hiện tại.'
   return ''
 })
 const confirmError = computed(() => {
@@ -33,7 +31,7 @@ const confirmError = computed(() => {
   return ''
 })
 const canSubmit = computed(() =>
-  currentPassword.value && newPassword.value && confirmPassword.value &&
+  newPassword.value && confirmPassword.value &&
   !pwError.value && !confirmError.value && !isSaving.value
 )
 
@@ -43,13 +41,13 @@ const handleSubmit = async () => {
   if (!userId) { toast.error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.'); return }
   isSaving.value = true
   try {
-    await authApi.changePassword(userId, currentPassword.value, newPassword.value)
+    await authApi.changePassword(userId, null, newPassword.value)
     authStore.clearMustChangePassword()
     toast.success('Đổi mật khẩu thành công! Tài khoản đã được kích hoạt.')
     try { await authStore.fetchPermissions(true) } catch { /* vẫn cho vào, guard sẽ xử lý */ }
     router.replace(resolveFirstAccessibleAdminPath(adminRoutes, authStore))
   } catch (e) {
-    toast.error(friendlyError(e, e?.message || 'Đổi mật khẩu thất bại. Kiểm tra lại mật khẩu hiện tại.'))
+    toast.error(friendlyError(e, e?.message || 'Đổi mật khẩu thất bại.'))
   } finally {
     isSaving.value = false
   }
@@ -76,12 +74,6 @@ const handleLogout = () => {
         </div>
 
         <form @submit.prevent="handleSubmit" class="space-y-5">
-          <div class="space-y-1.5">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-white/50">Mật khẩu hiện tại (mặc định)</label>
-            <input v-model="currentPassword" :type="showPw ? 'text' : 'password'" placeholder="VD: DevCine@2026"
-                   class="w-full py-3 px-4 rounded-xl bg-white/10 border border-white/20 text-white text-sm outline-none focus:border-[#f5c518] transition-colors" />
-          </div>
-
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-white/50">Mật khẩu mới</label>
             <input v-model="newPassword" :type="showPw ? 'text' : 'password'" placeholder="Tối thiểu 8 ký tự"
