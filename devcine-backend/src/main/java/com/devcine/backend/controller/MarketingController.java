@@ -66,7 +66,7 @@ public class MarketingController {
                 ? customerRepository.findById(resolvedCustomerId).orElse(null)
                 : null;
 
-        List<Map<String, Object>> result = promotionRepository.findAll().stream()
+        List<Map<String, Object>> result = promotionRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id")).stream()
                 .filter(p -> p.getCode() != null && !p.getCode().isBlank())
                 .filter(p -> !Boolean.FALSE.equals(p.getIsActive()))
                 .filter(p -> !Boolean.TRUE.equals(p.getIsHidden())) // Voucher kín: không công khai trên trang khuyến mãi
