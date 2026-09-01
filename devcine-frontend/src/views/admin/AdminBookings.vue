@@ -7,8 +7,12 @@ import { friendlyError } from '@/utils/friendlyError'
 
 const toast = useToastStore()
 
-const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[t] || t)
-const ticketTypeLabel = (t) => ({ ADULT: 'Người lớn', U22: 'U22 / HSSV', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }[t] || '')
+const seatTypeLabel = (t) => ({ NORMAL: 'Thường', STANDARD: 'Thường', VIP: 'VIP', SWEETBOX: 'Sweetbox' }[String(t || '').toUpperCase()] || t)
+const ticketTypeLabel = (t) => {
+  if (!t) return ''
+  const up = String(t).trim().toUpperCase()
+  return { ADULT: 'Người lớn', U22: 'U22 / HSSV', STUDENT: 'HSSV', CHILD: 'Trẻ em', SENIOR: 'Cao tuổi' }[up] || t
+}
 
 const isLoading = ref(false)
 const error = ref('')
@@ -175,21 +179,35 @@ const openDetail = async (bookingId, isConcession = false) => {
 }
 
 const detailSeatTotal = computed(() => (detail.value?.seats || []).reduce((a, s) => a + Number(s.price || 0), 0))
-// Gom ghế theo loại ghế + loại vé để danh sách gọn, dễ đối chiếu tiền (thay vì N chip trùng lặp).
+// Gom ghế theo loại ghế + loại vé để danh sách gọn, dễ đối chiếu tiền (hỗ trợ ghế đôi Sweetbox nhiều vé).
 const detailSeatGroups = computed(() => {
   const map = {}
   for (const s of (detail.value?.seats || [])) {
-    const key = `${s.seatType || 'NORMAL'}|${s.ticketType || ''}`
-    if (!map[key]) map[key] = {
-      typeLabel: seatTypeLabel(s.seatType), ticketLabel: ticketTypeLabel(s.ticketType),
-      seats: [], count: 0, subtotal: 0, unit: Number(s.price || 0)
+    const rawTypes = s.ticketType ? String(s.ticketType).split(',').map(t => t.trim()).filter(Boolean) : ['ADULT']
+    const types = rawTypes.length > 0 ? rawTypes : ['ADULT']
+    const unit = Number(s.price || 0) / types.length
+    for (const t of types) {
+      const key = `${s.seatType || 'NORMAL'}|${t}`
+      if (!map[key]) {
+        map[key] = {
+          typeLabel: seatTypeLabel(s.seatType),
+          ticketLabel: ticketTypeLabel(t),
+          seats: [],
+          count: 0,
+          subtotal: 0,
+          unit: unit
+        }
+      }
+      if (!map[key].seats.includes(s.label)) {
+        map[key].seats.push(s.label)
+      }
+      map[key].count++
+      map[key].subtotal += unit
     }
-    map[key].seats.push(s.label)
-    map[key].count++
-    map[key].subtotal += Number(s.price || 0)
   }
   return Object.values(map)
 })
+const detailTotalTickets = computed(() => (detailSeatGroups.value || []).reduce((a, g) => a + g.count, 0))
 const detailComboTotal = computed(() => {
   if (!detail.value?.fnbs?.length) return 0
   return detail.value.fnbs.reduce((a, f) => a + fnbLineTotal(f), 0)
@@ -307,11 +325,16 @@ const buildInv = (d) => {
     cinemaName: d.cinemaName || 'DEVCINE CINEMA',
     cinemaAddress: d.cinemaAddress || 'Tầng 3, TTTM DevCine Plaza, Hà Nội',
     printedAt: d.checkedInAt || new Date(),
-    seats: (d.seats || []).map(s => ({
-      seatLabel: s.label,
-      ticketType: s.ticketType || 'ADULT',
-      price: Number(s.price || 0)
-    })),
+    seats: (d.seats || []).flatMap(s => {
+      const rawTypes = s.ticketType ? String(s.ticketType).split(',').map(t => t.trim()).filter(Boolean) : ['ADULT']
+      const types = rawTypes.length > 0 ? rawTypes : ['ADULT']
+      const unitPrice = Number(s.price || 0) / types.length
+      return types.map(t => ({
+        seatLabel: s.label,
+        ticketType: t,
+        price: unitPrice
+      }))
+    }),
     fnbs: (d.fnbs || []).map(f => ({
       name: f.name,
       quantity: f.quantity,
@@ -682,7 +705,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                   <div class="flex items-center gap-2 mb-2">
                     <span class="w-1 h-3 rounded-full bg-primary"></span>
                     <p class="text-[10px] font-headline font-bold text-on-surface-variant uppercase tracking-widest">
-                      Vé xem phim ({{ detail.seats.length }})
+                      Vé xem phim ({{ detailTotalTickets || detail.seats.length }})
                     </p>
                   </div>
                   <div class="rounded-2xl bg-surface-container-high border border-outline-variant/10 divide-y divide-outline-variant/5 overflow-hidden shadow-sm">

@@ -135,10 +135,14 @@ const groupedSeats = computed(() => {
   if (!selectedBooking.value?.seatsDetail) return []
   const counts = {}
   selectedBooking.value.seatsDetail.forEach(s => {
-    const type = seatTypeLabel(s.seatType)
-    const target = ticketTypeLabel(s.targetType)
-    const key = target ? `${type} - ${target}` : type
-    counts[key] = (counts[key] || 0) + 1
+    const rawTypes = s.targetType ? String(s.targetType).split(',').map(t => t.trim()).filter(Boolean) : ['ADULT']
+    const types = rawTypes.length > 0 ? rawTypes : ['ADULT']
+    types.forEach(t => {
+      const type = seatTypeLabel(s.seatType)
+      const target = ticketTypeLabel(t)
+      const key = target ? `${type} - ${target}` : type
+      counts[key] = (counts[key] || 0) + 1
+    })
   })
   return Object.entries(counts).map(([label, count]) => ({ label, count }))
 })

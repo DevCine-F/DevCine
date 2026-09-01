@@ -31,7 +31,12 @@ export const seatTypeLabel = (t) => {
 
 export const ticketTypeLabel = (t) => {
   if (!t) return 'Người lớn'
-  const up = String(t).toUpperCase()
+  const raw = String(t).trim()
+  if (raw.includes(',')) {
+    const parts = raw.split(',').map(p => ticketTypeLabel(p.trim())).filter(Boolean)
+    return parts.length > 0 ? parts[0] : 'Người lớn'
+  }
+  const up = raw.toUpperCase()
   if (up === 'ADULT') return 'Người lớn'
   if (up === 'U22') return 'U22'
   if (up === 'STUDENT') return 'HSSV'

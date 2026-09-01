@@ -359,3 +359,15 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
   - Rút gọn nút Đặt lại về dạng icon vuông duy nhất `w-9 h-9` (`restart_alt`).
   - Tổng chiều ngang thanh lọc < 850px, đảm bảo luôn nằm trên 1 hàng duy nhất trên mọi độ phân giải laptop (1366px, 1440px) mà không bị rớt dòng.
 
+### 25. Xử Lý Hiển Thị Vé Ghế Đôi Sweetbox & Đồng Bộ Hoá Đơn Toàn Diện (Sweetbox Capacity Invoice Display & Reprint Synchronization)
+- **Bóc Tách Chuỗi Loại Vé Nhiều Phần Tử (`AdminBookings.vue` & `BookingHistoryView.vue`):**
+  - Dưới cơ sở dữ liệu, mỗi ghế đôi Sweetbox được lưu thành 1 bản ghi `BookingSeat` với chuỗi `ticketType` ghép bởi dấu phẩy (ví dụ `"ADULT,ADULT"` hoặc `"ADULT,U22"`) và giá `priceSnapshot` là tổng của 2 vé (ví dụ 178.000đ).
+  - Frontend `detailSeatGroups` (`AdminBookings.vue`) tự động phân tách chuỗi `s.ticketType.split(',')`, tính đơn giá vé lẻ `unit = price / types.length` và tăng biến đếm `count++` cho từng vé.
+  - Nhãn hiển thị dòng vé Sweetbox được chuẩn hóa thành `Sweetbox - Người lớn x2: 178.000 đ` (hoặc tách riêng từng nhóm đối tượng nếu chọn nhiều loại vé khác nhau).
+- **Chuẩn Hóa Tiêu Đề Tổng Số Vé:**
+  - Tiêu đề nhóm vé chuyển đổi từ `detail.seats.length` (đếm ghế vật lý) sang `detailTotalTickets` (tổng số vé thực tế theo sức chứa), hiển thị chuẩn `Vé xem phim (3)` hoặc `Vé xem phim (N vé)`.
+- **Đồng Bộ Dữ Liệu In Lại Vé K80 (`AdminBookings.vue` $\rightarrow$ `invoiceTemplate.js`):**
+  - Hàm `buildInv` áp dụng cơ chế `flatMap` để giải nén ghế đôi Sweetbox thành các phần tử vé đơn lẻ, đảm bảo khi nhân viên bấm "In lại vé / Hoá đơn" từ Admin, phiếu in K80 sinh đúng đủ 3 vé (`3 VÉ: Người lớn 3 - 267.000 đ`) khớp 100% với mẫu in trực tiếp từ POS.
+- **Nâng Cấp Xử Lý Chuỗi Loại Vé (`invoiceTemplate.js`):**
+  - Hàm `ticketTypeLabel` hỗ trợ xử lý chuỗi phân tách bởi dấu phẩy, bảo toàn nhãn tiếng Việt của đối tượng vé.
+
