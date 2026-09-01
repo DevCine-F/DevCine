@@ -178,9 +178,15 @@ public class MarketingController {
     @PreAuthorize("@perm.can('promotions','add')")
     public ResponseEntity<?> createPromotion(@RequestBody Map<String, Object> body) {
         try {
-            String code = body.get("code") != null ? ((String) body.get("code")).trim() : "";
+            String code = body.get("code") != null ? ((String) body.get("code")).trim().toUpperCase() : "";
             if (code.isBlank()) {
                 return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập mã code."));
+            }
+            if (code.length() < 3 || code.length() > 15) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Mã code phải dài từ 3 đến 15 ký tự."));
+            }
+            if (!code.matches("^[A-Z0-9]+$")) {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Mã code chỉ được chứa chữ cái không dấu và số."));
             }
             if (promotionRepository.existsByCodeIgnoreCase(code)) {
                 return ResponseEntity.status(409).body(ApiResponse.fail("Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));
@@ -244,9 +250,15 @@ public class MarketingController {
             Promotion promo = promotionRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khuyến mãi"));
             if (body.containsKey("code")) {
-                String code = body.get("code") != null ? ((String) body.get("code")).trim() : "";
+                String code = body.get("code") != null ? ((String) body.get("code")).trim().toUpperCase() : "";
                 if (code.isBlank()) {
                     return ResponseEntity.badRequest().body(ApiResponse.fail("Vui lòng nhập mã code."));
+                }
+                if (code.length() < 3 || code.length() > 15) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Mã code phải dài từ 3 đến 15 ký tự."));
+                }
+                if (!code.matches("^[A-Z0-9]+$")) {
+                    return ResponseEntity.badRequest().body(ApiResponse.fail("Mã code chỉ được chứa chữ cái không dấu và số."));
                 }
                 if (promotionRepository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
                     return ResponseEntity.status(409).body(ApiResponse.fail("Mã code '" + code + "' đã tồn tại. Vui lòng chọn mã khác."));

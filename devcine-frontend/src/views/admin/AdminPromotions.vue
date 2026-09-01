@@ -608,7 +608,7 @@ const clearVErr = (key) => {
 
 // Cuộn + focus tới ô lỗi ĐẦU TIÊN (theo thứ tự hiển thị) khi validate fail
 const voucherBodyRef = ref(null)
-const voucherFieldOrder = ['code', 'title', 'description', 'value', 'startDate', 'expiry', 'minOrderValue', 'usageLimit', 'maxTicketQuantity', 'maxDiscountAmount', 'pointsRequired']
+const voucherFieldOrder = ['code', 'title', 'description', 'value', 'startDate', 'expiry', 'minOrderValue', 'usageLimit', 'maxTicketQuantity', 'maxDiscountAmount', 'selectedMovieIds', 'pointsRequired']
 const focusFirstVoucherError = () => {
   const firstKey = voucherFieldOrder.find(k => voucherErrors.value[k])
   if (!firstKey) return
@@ -623,16 +623,16 @@ const focusFirstVoucherError = () => {
 // ---- (1) FORMAT TỰ ĐỘNG (UX khi gõ) ----
 const fmtThousand = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('vi-VN'))
 
-// Mã code: viết hoa + chỉ giữ chữ và số (bỏ khoảng trắng & ký tự đặc biệt)
+// Mã code: viết hoa + chỉ giữ chữ và số (bỏ khoảng trắng & ký tự đặc biệt, tối đa 15 ký tự)
 // Ô Mã code: bỏ dấu (É→E, Đ→D), viết hoa, chỉ giữ chữ & số. Lọc ở input để không "nhảy" con trỏ.
-// Lưu ý: bộ gõ tiếng Việt cấp HĐH (Unikey/EVKey) biến s/f/r/x/j thành dấu THANH trước khi tới ô,
-// JS không chặn được — nên khuyến nghị người dùng tắt bộ gõ khi nhập mã (xem gợi ý dưới ô).
 const onCodeInput = () => {
-  newVoucher.value.code = (newVoucher.value.code || '')
+  let raw = (newVoucher.value.code || '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/đ/g, 'd').replace(/Đ/g, 'D')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
+  if (raw.length > 15) raw = raw.slice(0, 15)
+  newVoucher.value.code = raw
   clearVErr('code')
 }
 // ===== Hạn mức trần (Ceiling Bounding) — khống chế SỐ KÝ TỰ để không nhập được số vô lý =====
@@ -759,10 +759,10 @@ const validateVoucher = () => {
   const e = {}
   const v = newVoucher.value
 
-  // code: bắt buộc, 3–20 ký tự, chỉ chữ & số
+  // code: bắt buộc, 3–15 ký tự, chỉ chữ & số
   const code = (v.code || '').trim()
   if (!code) e.code = 'Vui lòng nhập mã code.'
-  else if (code.length < 3 || code.length > 20) e.code = 'Mã code dài 3–20 ký tự.'
+  else if (code.length < 3 || code.length > 15) e.code = 'Mã code dài 3–15 ký tự.'
   else if (!/^[A-Z0-9]+$/.test(code)) e.code = 'Mã code chỉ gồm chữ và số.'
 
   // title: bắt buộc, 5–100 ký tự
@@ -841,6 +841,11 @@ const validateVoucher = () => {
   if (v.type === 'PERCENTAGE') {
     // % bắt buộc đặt trần Giảm tối đa để chặn đơn lớn giảm quá tay
     if (!maxDisc || maxDisc <= 0) e.maxDiscountAmount = 'Mã giảm % cần đặt trần Giảm tối đa (> 0).'
+  }
+
+  // Áp dụng theo phim: khi chọn "Phim được chọn", bắt buộc chọn ít nhất 1 phim
+  if (v.movieMode === 'specific' && (!v.selectedMovieIds || v.selectedMovieIds.length === 0)) {
+    e.selectedMovieIds = 'Vui lòng chọn ít nhất 1 bộ phim áp dụng.'
   }
 
   // Đổi bằng điểm: bắt buộc nhập số điểm > 0
@@ -1698,7 +1703,7 @@ onUnmounted(() => {
               <!-- Mã Code -->
               <div class="space-y-1">
                 <label class="text-xs font-medium text-neutral-300">Mã code (Tự tạo)</label>
-                <input v-model="newVoucher.code" @input="onCodeInput" maxlength="20" data-field="code" autocomplete="off" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-semibold text-white focus:border-primary focus:bg-white/[0.07] outline-none font-mono uppercase tracking-wider transition-colors placeholder:text-neutral-500" :class="voucherErrors.code ? 'border-red-500' : 'border-white/10'" placeholder="VD: SUMMER2026" />
+                <input v-model="newVoucher.code" @input="onCodeInput" maxlength="15" data-field="code" autocomplete="off" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-semibold text-white focus:border-primary focus:bg-white/[0.07] outline-none font-mono uppercase tracking-wider transition-colors placeholder:text-neutral-500" :class="voucherErrors.code ? 'border-red-500' : 'border-white/10'" placeholder="VD: SUMMER2026" />
                 <p v-if="voucherErrors.code" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.code }}</p>
                 <p v-else class="text-[10px] text-neutral-400">
                   Chỉ chữ &amp; số, không dấu
@@ -1840,13 +1845,14 @@ onUnmounted(() => {
                     <input v-model="movieSearch" type="text" placeholder="Tìm tên phim..."
                       class="w-full h-8 bg-white/[0.04] border border-white/10 pl-8 pr-2.5 rounded-md text-xs text-white focus:border-primary outline-none placeholder:text-neutral-500" />
                   </div>
-                  <div class="flex flex-col gap-1 max-h-32 overflow-y-auto scrollbar-custom">
+                  <div class="flex flex-col gap-1 max-h-32 overflow-y-auto scrollbar-custom" data-field="selectedMovieIds">
                     <label v-for="m in filteredMoviesList" :key="m.id" class="flex items-center gap-2 cursor-pointer p-1 hover:bg-white/5 rounded transition-colors">
-                      <input type="checkbox" :value="m.id" v-model="newVoucher.selectedMovieIds" class="accent-primary rounded shrink-0">
+                      <input type="checkbox" :value="m.id" v-model="newVoucher.selectedMovieIds" @change="clearVErr('selectedMovieIds')" class="accent-primary rounded shrink-0">
                       <span class="text-xs font-medium text-neutral-200 truncate">{{ m.title }}</span>
                     </label>
                     <div v-if="filteredMoviesList.length === 0" class="px-2 py-1.5 text-xs text-neutral-400 italic text-center">Không tìm thấy phim</div>
                   </div>
+                  <p v-if="voucherErrors.selectedMovieIds" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.selectedMovieIds }}</p>
                 </div>
               </div>
 
