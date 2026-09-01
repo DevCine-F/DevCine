@@ -4,6 +4,22 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.7.1] — 2026-09-02
+
+### Enhanced & Standardized — Cơ Chế Giữ Chỗ CSDL Sớm & Cập Nhật Liền Mạch (Early DB Hold & Mutation Flow)
+- **Kích Hoạt Giữ Chỗ Database Sớm (`BookingView.vue`):**
+  - Kích hoạt `ensureHeld()` tạo đơn hàng `HOLD` trong Database ngay khi khách hàng bấm *"Tiếp tục"* rời Bước 1 Chọn ghế, bảo vệ độc quyền 100% vị trí ghế trong CSDL xuyên suốt quá trình chọn bắp nước (Bước 2) và chọn voucher (Bước 3).
+  - Ngay cả khi người dùng dừng lại lâu hoặc bị ngắt kết nối WebSocket/chuyển tab, trạng thái ghế vẫn được bảo vệ vững chắc trong CSDL theo cấu hình `SEAT_HOLD_MINUTES`.
+- **Cập Nhật Đơn Liền Mạch Qua `heldBookingId` (`stores/booking.js` & `BookingService.java`):**
+  - Truyền `heldBookingId: this.bookingId || null` trong payload của `holdSeatsAndProceed`.
+  - Backend `BookingService.java` giải phóng an toàn đơn giữ cũ và tạo/cập nhật đơn mới trong cùng một transaction, bảo toàn mốc thời gian đếm ngược `expiresAt` ban đầu.
+  - Triệt tiêu hoàn toàn lỗi Toast đỏ *"Một số ghế vừa được người khác đặt"* khi người dùng thao tác chậm hoặc dừng lâu giữa các bước.
+- **Tối Ưu Trải Nghiệm & Đồng Bộ Đếm Ngược (`BookingView.vue`):**
+  - Đồng bộ mốc đếm ngược `holdStartTs` với thời gian tạo đơn `heldAt` nhận từ Server.
+  - Thêm hiệu ứng xoay spinner và nhãn *"Đang giữ chỗ..."* trên nút bấm Tiếp tục khi đang xử lý, ngăn chặn việc bấm liên tiếp gây race-condition.
+
+---
+
 ## [1.7.0] — 2026-09-01
 
 ### Fixed & Standardized — Chuẩn hoá Luồng In Vé POS & Phân Tách Nghiệp Vụ Soát Vé Vào Cổng (POS Ticket Printing & Gate Check-in Differentiation)

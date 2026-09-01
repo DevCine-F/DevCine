@@ -229,10 +229,17 @@ const validateStep1 = () => {
   return true;
 };
 
-const goNext = () => {
+const goNext = async () => {
   if (holdExpiredNow()) { handleHoldExpired(); return; } // hết giờ giữ chỗ → không cho đi tiếp
   if (currentStep.value === 1) {
     if (!validateStep1()) return;
+    // Giữ ghế ngay trong DB khi rời bước 1 để bảo vệ ghế 100% xuyên suốt các bước tiếp theo
+    const ok = await ensureHeld();
+    if (!ok) {
+      toast.error(friendlyError(store.lastHoldError, 'Một số ghế vừa được người khác đặt. Vui lòng chọn ghế khác.'));
+      await store.fetchSeats();
+      return;
+    }
   }
   if (currentStep.value < steps.length) {
     currentStep.value++;
@@ -250,7 +257,7 @@ const goBack = () => {
   if (window.history.length > 1) router.back();
   else router.push('/lich-chieu');
 };
-const goToStep = (id) => {
+const goToStep = async (id) => {
   if (id === currentStep.value) return;
   // Cho phép quay lại bất kỳ bước trước mà không cần validate
   if (id < currentStep.value) {
@@ -258,15 +265,21 @@ const goToStep = (id) => {
     scrollTop();
     return;
   }
-  // Nếu đang ở bước 1 và muốn nhảy tới bước sau (2, 3, 4) -> bắt buộc vượt qua validateStep1
+  // Nếu đang ở bước 1 và muốn nhảy tới bước sau (2, 3, 4) -> bắt buộc vượt qua validateStep1 + ensureHeld
   if (currentStep.value === 1 && id > 1) {
     if (!validateStep1()) return;
+    const ok = await ensureHeld();
+    if (!ok) {
+      toast.error(friendlyError(store.lastHoldError, 'Một số ghế vừa được người khác đặt. Vui lòng chọn ghế khác.'));
+      await store.fetchSeats();
+      return;
+    }
   }
   currentStep.value = id;
   scrollTop();
 };
 
-// Giữ ghế (tạo đơn) SẴN ở nền ngay khi mở bước Thanh toán → lúc bấm "Xác nhận" chỉ còn completePayment (nhanh hơn)
+// Giữ ghế (tạo đơn) trong DB ngay khi hoàn thành chọn ghế → bảo vệ ghế 100% trong suốt phiên
 let holdPromise = null
 const ensureHeld = async () => {
   if (held.value) return true
@@ -277,10 +290,13 @@ const ensureHeld = async () => {
       held.value = ok
       holding.value = false
       holdPromise = null
+      if (ok && store.heldAt && holdStartTs.value === 0) {
+        holdStartTs.value = new Date(store.heldAt).getTime()
+      }
       return ok
     })
   }
-  return holdPromise // người bấm "Xác nhận" sớm sẽ chờ chung promise giữ ghế đang chạy ở nền
+  return holdPromise
 }
 watch(currentStep, async (s) => {
   if (s === 3) {
@@ -291,11 +307,13 @@ watch(currentStep, async (s) => {
     ensureHeld()
   }
 })
-// Đổi ghế/loại vé/combo/voucher → đơn đã giữ không còn đúng, sẽ giữ lại khi vào bước 4 lần tới
-watch(() => [store.selectedSeats.length, JSON.stringify(store.ticketQuantities), store.selectedFnbs.length, store.selectedVoucher?.id], () => {
+// Đổi combo hoặc voucher -> cập nhật lại đơn giữ chỗ (re-hold với heldBookingId)
+watch(() => [store.selectedFnbs.length, JSON.stringify(store.selectedFnbs.map(f => [f.fnbItem.id, f.quantity])), store.selectedVoucher?.id], () => {
   held.value = false
-  store.bookingId = null
-  store.heldAt = null
+})
+// Đổi ghế/loại vé ở bước 1 -> đánh dấu held = false để giữ lại khi bấm Tiếp tục
+watch(() => [store.selectedSeats.length, JSON.stringify(store.selectedSeats.map(s => s.seatId)), JSON.stringify(store.ticketQuantities)], () => {
+  held.value = false
 })
 
 // ===== Đồng hồ đếm ngược thời gian giữ chỗ (bắt đầu từ khi chọn ghế) =====
@@ -1898,10 +1916,15 @@ const proceedToPayment = async () => {
           <button
             v-if="currentStep < steps.length"
             @click="goNext"
-            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-3.5 sm:py-4 rounded-2xl font-headline font-extrabold text-xs sm:text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+            :disabled="holding"
+            class="group w-full bg-gradient-to-r from-primary to-amber-500 text-black py-3.5 sm:py-4 rounded-2xl font-headline font-extrabold text-xs sm:text-sm tracking-[0.12em] uppercase shadow-[0_8px_24px_-6px_rgba(245,197,24,0.5)] hover:shadow-[0_10px_30px_-4px_rgba(245,197,24,0.65)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75 disabled:cursor-wait"
           >
-            Tiếp tục
-            <span class="material-symbols-outlined text-lg sm:text-xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
+            <svg v-if="holding" class="animate-spin -ml-1 mr-2 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            {{ holding ? 'Đang giữ chỗ...' : 'Tiếp tục' }}
+            <span v-if="!holding" class="material-symbols-outlined text-lg sm:text-xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
           </button>
           <button
             v-else

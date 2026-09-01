@@ -339,6 +339,7 @@ export const useBookingStore = defineStore('booking', {
           })),
           voucherId: this.selectedVoucher ? this.selectedVoucher.id : null,
           paymentMethod: paymentMethod,
+          heldBookingId: this.bookingId || null,
           sessionStartedAt: this.sessionStartedAt
         };
         const { data } = await bookingApi.holdSeats(payload);

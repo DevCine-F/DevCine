@@ -17,6 +17,7 @@ Hệ thống phân tách rạch ròi giữa 3 khái niệm thời gian:
 
 2. **Thời gian Giữ chỗ Phiên đặt vé trực tiếp (`SEAT_HOLD_MINUTES` — 3–30 phút, mặc định 10):**
    * Áp dụng khi khách đặt Online (`BookingView.vue`) hoặc thu ngân đang chọn ghế trên màn hình POS (`TicketingPOS.vue`).
+   * **Cơ chế Early DB Hold & Mutation Flow:** Kênh Online (`BookingView.vue`) kích hoạt giữ chỗ CSDL ngay khi khách hoàn tất Bước 1 chọn ghế và bấm *"Tiếp tục"* (không chờ đến Bước 4 thanh toán). Ghế được bảo vệ độc quyền 100% trong CSDL xuyên suốt quá trình chọn bắp nước và voucher. Tái dùng `heldBookingId` trong Pinia store `stores/booking.js` để Backend cập nhật đơn liền mạch mà không làm mất ghế hay reset timer.
    * Đơn hàng được cấp **trọn vẹn thời gian chờ thanh toán** (`expiresAt = now + SEAT_HOLD_MINUTES`, cấu hình động từ Admin).
    * **Quy tắc bất biến:** Thời hạn `expiresAt` tuyệt đối **không bị cắt cụt** theo mốc đóng bán `startTime + BOOKING_LATE_MINUTES`.
    * Khách hàng / Thu ngân có toàn bộ khoảng thời gian chờ để hoàn tất thanh toán (quét QR, chuyển tiền, thanh toán tiền mặt) ngay cả khi thời điểm thanh toán thực tế đã vượt qua mốc kết thúc bán vé trễ.

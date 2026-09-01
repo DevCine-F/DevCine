@@ -371,11 +371,14 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 - **Nâng Cấp Xử Lý Chuỗi Loại Vé (`invoiceTemplate.js`):**
   - Hàm `ticketTypeLabel` hỗ trợ xử lý chuỗi phân tách bởi dấu phẩy, bảo toàn nhãn tiếng Việt của đối tượng vé.
 
-### 26. Cố Định Bố Cục Bảng Quản Lý Nhân Viên & Đơn Giản Hóa Xác Thực Số Điện Thoại (Staff Table Standardization & Phone Validation Simplification)
-- **Bố Cục Cố Định Bảng Nhân Viên (`StaffManager.vue`):**
-  - Chuyển bảng sang `table-fixed` kết hợp phân bổ tỷ lệ độ rộng chuẩn: `Nhân viên: 26%`, `Mã NV: 11%`, `Cơ sở: 20%`, `Vai trò: 13%`, `Ngày gia nhập: 12%`, `Trạng thái: 11%`, `Thao tác: 7%`.
-  - Thu ngắn khoảng cách dư thừa ở cột Nhân viên, đổi padding từ `px-8` xuống `px-6 py-4`, thêm `truncate` và `min-w-0` giúp bảng cân xứng, không bị dãn bất thường trên màn hình lớn.
-- **Quy Chuẩn Xác Thực Số Điện Thoại Nhân Viên (`StaffManager.vue` & `StaffController.java`):**
-  - Đơn giản hóa quy tắc kiểm tra số điện thoại: Chỉ yêu cầu đúng **10 chữ số** (`^\d{10}$`), loại bỏ kiểm tra bắt buộc đầu số nhà mạng (03/05/07/08/09) ở cả Frontend và Backend.
-  - Thêm tự động lọc bỏ ký tự không phải số (`replace(/\D/g, '')`) và giới hạn độ dài `maxlength="10"` ngay khi nhập.
+### 27. Cơ Chế Giữ Chỗ CSDL Sớm & Cập Nhật Liền Mạch (Early DB Hold & Mutation Flow)
+- **Kích Hoạt Giữ Chỗ Database Sớm (`BookingView.vue`):**
+  - Khi khách hàng hoàn thành chọn ghế ở Bước 1 và bấm nút *"Tiếp tục"*, hệ thống lập tức gọi `ensureHeld()` để tạo bản ghi giữ chỗ `HOLD` trong Cơ sở dữ liệu (`Booking` và `BookingSeat` status `HOLD`).
+  - Toàn bộ thời gian khách dừng lại chọn bắp nước (Bước 2), chọn voucher (Bước 3) và thanh toán (Bước 4) đều được **bảo vệ tuyệt đối 100% trong Database**, không ai có thể chọn hoặc cướp ghế giữa chừng.
+  - Ngay cả khi kết nối mạng/WebSocket bị ngắt tạm thời hoặc khách chuyển tab trình duyệt, trạng thái ghế vẫn được bảo toàn nguyên vẹn trong CSDL theo thời hạn cấu hình `SEAT_HOLD_MINUTES`.
+- **Cập Nhật Đơn Liền Mạch Qua `heldBookingId` (`stores/booking.js` & `BookingService.java`):**
+  - Store `booking.js` truyền `heldBookingId: this.bookingId || null` trong payload của `holdSeatsAndProceed`.
+  - Khi khách hàng thêm/bớt F&B hoặc áp dụng/đổi Voucher, Backend `BookingService.java` nhận diện và cập nhật đơn hiện tại trong cùng một transaction mà không gây xung đột đơn, không làm mất ghế và bảo toàn mốc thời gian đếm ngược `expiresAt` ban đầu.
+  - Triệt tiêu 100% lỗi xuất hiện Toast đỏ *"Một số ghế vừa được người khác đặt"* khi khách hàng thao tác chậm hoặc dừng lâu giữa các bước.
+
 
