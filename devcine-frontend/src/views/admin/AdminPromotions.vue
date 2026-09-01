@@ -908,9 +908,21 @@ const handleCopyCode = async (code) => {
   }
 }
 
-// Xem chi tiết voucher
+// Xem chi tiết voucher — tự động làm mới dữ liệu từ server khi mở
 const detailTarget = ref(null)
-const openDetail = (promo) => { detailTarget.value = promo }
+const openDetail = async (promo) => {
+  if (!promo) return
+  detailTarget.value = promo
+  try {
+    await fetchMarketingData()
+    if (detailTarget.value && detailTarget.value.id === promo.id) {
+      const fresh = promotions.value.find(p => p.id === promo.id)
+      if (fresh) detailTarget.value = fresh
+    }
+  } catch (err) {
+    // Giữ nguyên dữ liệu hiện tại nếu mạng chập chờn
+  }
+}
 const closeDetail = () => { detailTarget.value = null }
 
 // Xoá voucher với xác nhận
@@ -1025,6 +1037,7 @@ const handleIssueVoucher = async (customer) => {
     await marketingApi.issueVoucher(issueTarget.value.id, customer.userId)
     showToast(`Đã phát voucher ${issueTarget.value.code} cho ${customer.fullName || 'khách'}.`)
     issueTarget.value = null
+    await fetchMarketingData()
   } catch (err) {
     showToast(friendlyError(err, 'Phát voucher thất bại.'), 'error')
   } finally {
