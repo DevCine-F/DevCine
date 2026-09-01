@@ -75,7 +75,15 @@ public class StaffController {
     }
 
     private String validateAndSanitizePhone(Object v, boolean required) {
-        return com.devcine.backend.util.PhoneUtils.validateAndSanitize(v, required);
+        String clean = com.devcine.backend.util.PhoneUtils.sanitize(v);
+        if (clean == null) {
+            if (required) throw new IllegalArgumentException("Vui lòng nhập số điện thoại.");
+            return null;
+        }
+        if (!clean.matches("^\\d{10}$")) {
+            throw new IllegalArgumentException("Số điện thoại không hợp lệ (yêu cầu đúng 10 số).");
+        }
+        return clean;
     }
 
     private void validateUsernameFormat(String v) {
