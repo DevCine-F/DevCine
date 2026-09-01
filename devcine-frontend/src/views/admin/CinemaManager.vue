@@ -413,9 +413,6 @@ onUnmounted(() => {
             @update:selectedDate="(d) => selectedDate = d"
             @add-showtime="handleAddShowtime"
             @open-batch="showBatchShowtimeDrawer = true"
-            @publish="handlePublish"
-            @dragstart="onDragStart"
-            @drop="onDrop"
             @open-showtime="openShowtimeDetails"
           />
 

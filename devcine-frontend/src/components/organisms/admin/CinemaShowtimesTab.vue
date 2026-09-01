@@ -1,6 +1,5 @@
 <script setup>
 import { computed } from 'vue'
-import { useToastStore } from "@/stores/toast";
 
 const props = defineProps({
   cinema: {
@@ -69,9 +68,6 @@ defineEmits([
   'update:selected-date',
   'add-showtime',
   'open-batch',
-  'publish',
-  'dragstart',
-  'drop',
   'open-showtime'
 ])
 
@@ -80,8 +76,6 @@ const LABEL_COL_PX = 192 // cột "Room \ Time" (w-48)
 const gridTemplate = computed(() => `repeat(${props.gridCols}, minmax(0, 1fr))`)
 const gridMinWidth = computed(() => `${props.gridCols * PX_PER_COL}px`)
 const wrapperMinWidth = computed(() => `${LABEL_COL_PX + props.gridCols * PX_PER_COL}px`)
-
-const toast = useToastStore()
 
 const sortedHalls = computed(() => {
   if (!props.cinema?.halls) return []
@@ -92,15 +86,6 @@ const sortedHalls = computed(() => {
 
 const isShowtimeLocked = (st) => {
   return (st.soldSeats || 0) + (st.heldSeats || 0) > 0 || st.reserved > 0;
-}
-
-const handleDragStart = (event, show) => {
-  if (isShowtimeLocked(show)) {
-    event.preventDefault();
-    toast.warning("Suất chiếu đã có khách đặt/bán vé, không thể di chuyển giờ!");
-    return;
-  }
-  emit('dragstart', event, show);
 }
 </script>
 
@@ -143,14 +128,6 @@ const handleDragStart = (event, show) => {
       >
         <span class="material-symbols-outlined text-sm">add</span>
         Thêm suất chiếu
-      </button>
-      <button
-        v-if="canScheduleEdit"
-        @click="$emit('publish')"
-        class="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-500/20 hover:brightness-110 transition-all flex items-center gap-2"
-      >
-        <span class="material-symbols-outlined text-sm">publish</span>
-        Xuất bản
       </button>
     </div>
   </header>
@@ -247,8 +224,6 @@ const handleDragStart = (event, show) => {
 
             <!-- Showtime Container -->
             <div
-              @dragover.prevent
-              @drop="$emit('drop', $event, hall.id)"
               class="flex-grow grid grid-rows-1 gap-x-0 relative p-0 items-center"
               :style="{ gridTemplateColumns: gridTemplate, minWidth: gridMinWidth }"
             >
@@ -257,9 +232,6 @@ const handleDragStart = (event, show) => {
                   (s) => s.roomId === hall.id && s.date === selectedDate
                 )"
                 :key="show.id"
-                :draggable="!isShowtimeLocked(show)"
-                @dragstart="handleDragStart($event, show)"
-                :title="isShowtimeLocked(show) ? 'Suất chiếu đã có khách đặt/bán vé, không thể di chuyển giờ!' : 'Kéo thả để đổi giờ chiếu'"
                 :style="{
                   ...getGridStyle(show.startTime, show.duration),
                   backgroundColor: show.color + '33',
@@ -270,11 +242,10 @@ const handleDragStart = (event, show) => {
                       : show.color + '66',
                 }"
                 @click="$emit('open-showtime', show)"
-                class="relative h-[76px] mx-0.5 border rounded-xl p-2.5 group/card transition-all duration-300 hover:z-30 hover:scale-[1.02] hover:brightness-125 shadow-xl flex flex-col justify-between"
+                class="relative h-[76px] mx-0.5 border rounded-xl p-2.5 group/card transition-all duration-300 hover:z-30 hover:scale-[1.02] hover:brightness-125 shadow-xl flex flex-col justify-between cursor-pointer"
                 :class="{
                   'ring-2 ring-red-500 ring-inset animate-pulse': checkConflict(hall.id, show) || checkFormatMismatch(hall, show.format),
-                  'cursor-not-allowed opacity-80': isShowtimeLocked(show),
-                  'cursor-pointer': !isShowtimeLocked(show)
+                  'opacity-90': isShowtimeLocked(show)
                 }"
               >
                 <div class="flex justify-between items-start">
