@@ -293,35 +293,40 @@ onMounted(() => {
             {{ getPromoStatusBadge(promo).label }}
           </div>
         </div>
-        <div class="p-4 sm:p-6 md:p-8 flex flex-col flex-grow">
-          <div class="flex items-center justify-between mb-2 gap-2">
-            <h3 class="text-base sm:text-lg font-headline font-bold text-on-surface truncate">{{ promo.name || 'Ưu đãi đặc biệt' }}</h3>
+        <div class="p-4 sm:p-5 flex flex-col flex-grow">
+          <div class="flex items-center justify-between mb-1 gap-2">
+            <h3 class="text-base font-headline font-bold text-on-surface truncate" :title="promo.name">{{ promo.name || 'Ưu đãi đặc biệt' }}</h3>
             <span v-if="promo.pointsRequired > 0" class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded shrink-0">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
           </div>
-          <p class="text-on-surface-variant text-xs sm:text-sm leading-relaxed mb-3 flex-grow">
+          <p class="text-on-surface-variant text-xs truncate mb-2.5" :title="promo.description || `${formatValue(promo)} khi đặt vé tại DevCine.`">
             {{ promo.description || `${formatValue(promo)} khi đặt vé tại DevCine. ${isPointPromo(promo) ? 'Đổi bằng điểm tích luỹ.' : 'Lưu mã để dùng khi thanh toán.'} ${formatEnd(promo.endDate)}.` }}
           </p>
 
-          <!-- Badges điều kiện áp dụng (Snapshot chuẩn) -->
-          <div v-if="promo.applicableMovieTitle || Number(promo.minOrderValue) > 0 || Number(promo.maxDiscountAmount) > 0 || Number(promo.maxTicketQuantity) > 0" class="flex flex-wrap gap-2 mb-4">
-            <span v-if="promo.applicableMovieTitle" class="inline-flex items-center bg-white/5 text-neutral-300 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
-              Phim: {{ promo.applicableMovieTitle }}
-            </span>
-            <span v-if="Number(promo.minOrderValue) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
-              Đơn từ {{ Number(promo.minOrderValue).toLocaleString('vi-VN') }}đ
-            </span>
-            <span v-if="Number(promo.maxDiscountAmount) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
-              Tối đa {{ Number(promo.maxDiscountAmount).toLocaleString('vi-VN') }}đ
-            </span>
-            <span v-if="Number(promo.maxTicketQuantity) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
-              Tối đa {{ promo.maxTicketQuantity }} vé
+          <!-- Badges điều kiện áp dụng (1 hàng duy nhất, đồng bộ) -->
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 mb-3 min-h-[26px] touch-pan-x">
+            <template v-if="promo.applicableMovieTitle || Number(promo.minOrderValue) > 0 || Number(promo.maxDiscountAmount) > 0 || Number(promo.maxTicketQuantity) > 0">
+              <span v-if="promo.applicableMovieTitle" class="inline-flex items-center bg-white/5 text-neutral-300 border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+                Phim: {{ promo.applicableMovieTitle }}
+              </span>
+              <span v-if="Number(promo.minOrderValue) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+                Đơn từ {{ Number(promo.minOrderValue).toLocaleString('vi-VN') }}đ
+              </span>
+              <span v-if="Number(promo.maxDiscountAmount) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+                Tối đa {{ Number(promo.maxDiscountAmount).toLocaleString('vi-VN') }}đ
+              </span>
+              <span v-if="Number(promo.maxTicketQuantity) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+                Tối đa {{ promo.maxTicketQuantity }} vé
+              </span>
+            </template>
+            <span v-else class="inline-flex items-center bg-white/5 text-neutral-500 border border-white/5 text-[10px] font-medium px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+              Mọi đơn hàng
             </span>
           </div>
 
           <!-- Khu vực trạng thái / hành động -->
-          <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
-            <span class="inline-flex items-center gap-1.5 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3 py-1.5 rounded-sm select-none">
-              <span class="material-symbols-outlined text-sm">check_circle</span>
+          <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5 min-h-[44px]">
+            <span class="inline-flex items-center gap-1.5 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider px-3 h-8 rounded-sm select-none">
+              <span class="material-symbols-outlined text-[15px]">check_circle</span>
               {{ isPointPromo(promo) ? 'Đã đổi' : 'Đã lưu' }}
             </span>
             <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-[10px] sm:text-xs uppercase tracking-widest hover:underline shrink-0">
@@ -329,33 +334,33 @@ onMounted(() => {
             </RouterLink>
           </div>
 
-          <div v-else-if="promo.exhausted" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
-            <span class="inline-flex items-center bg-neutral-800 text-neutral-400 border border-neutral-700 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3 py-1.5 rounded-sm select-none">
+          <div v-else-if="promo.exhausted" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5 min-h-[44px]">
+            <span class="inline-flex items-center bg-neutral-800 text-neutral-400 border border-neutral-700 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider px-3 h-8 rounded-sm select-none">
               Hết lượt lưu
             </span>
             <span class="text-[11px] text-neutral-500">Đã hết suất hệ thống</span>
           </div>
 
-          <div v-else-if="getIneligibilityReason(promo)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
-            <span class="inline-flex items-center bg-amber-500/10 border border-amber-500/20 text-amber-400 font-medium text-[11px] px-3 py-1.5 rounded-sm select-none">
+          <div v-else-if="getIneligibilityReason(promo)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5 min-h-[44px]">
+            <span class="inline-flex items-center bg-amber-500/10 border border-amber-500/20 text-amber-400 font-medium text-[11px] px-3 h-8 rounded-sm select-none">
               {{ getIneligibilityReason(promo) }}
             </span>
           </div>
 
           <!-- Nút đổi điểm -->
-          <div v-else-if="isPointPromo(promo)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
+          <div v-else-if="isPointPromo(promo)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5 min-h-[44px]">
             <button @click="redeemPoints(promo)" :disabled="savingId === promo.id"
-                    class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-4 py-2 rounded-sm hover:bg-amber-500/20 transition-all disabled:opacity-60">
-              <span class="material-symbols-outlined text-sm">redeem</span>
+                    class="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider px-3.5 h-8 rounded-sm hover:bg-amber-500/20 transition-all disabled:opacity-60">
+              <span class="material-symbols-outlined text-[15px]">redeem</span>
               {{ savingId === promo.id ? 'Đang đổi...' : `Đổi ${Number(promo.pointsRequired).toLocaleString('vi-VN')} điểm` }}
             </button>
           </div>
 
           <!-- Nút lưu mã -->
-          <div v-else class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
+          <div v-else class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5 min-h-[44px]">
             <button @click="claimCode(promo)" :disabled="savingId === promo.id"
-                    class="flex items-center gap-1.5 bg-primary-container text-on-primary font-bold text-[10px] sm:text-xs uppercase tracking-widest px-4 py-2 rounded-sm hover:bg-primary-fixed-dim transition-all disabled:opacity-60 shadow-sm">
-              <span class="material-symbols-outlined text-sm">bookmark_add</span>
+                    class="inline-flex items-center gap-1.5 bg-primary-container text-on-primary font-bold text-[10px] sm:text-[11px] uppercase tracking-wider px-3.5 h-8 rounded-sm hover:bg-primary-fixed-dim transition-all disabled:opacity-60 shadow-sm">
+              <span class="material-symbols-outlined text-[15px]">bookmark_add</span>
               {{ savingId === promo.id ? 'Đang lưu...' : 'Lưu mã' }}
             </button>
           </div>
@@ -386,5 +391,12 @@ onMounted(() => {
 <style scoped>
 .editorial-gradient {
   background: linear-gradient(to top, rgba(14, 14, 14, 1) 0%, rgba(14, 14, 14, 0.4) 50%, rgba(14, 14, 14, 0) 100%);
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>
