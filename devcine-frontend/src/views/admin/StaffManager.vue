@@ -41,7 +41,7 @@ const touch = (field) => { touched.value[field] = true }
 const RE_USERNAME = /^[a-z0-9_]{3,20}$/
 const RE_STAFFCODE = /^[A-Z0-9]{3,15}$/
 const RE_EMAIL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-const RE_PHONE = /^\d{10}$/
+const RE_PHONE = /^(03|05|07|08|09)\d{8}$/
 const RE_NAME = /^[\p{L}\p{M} ]+$/u
 
 const errFullName = computed(() => {
@@ -60,6 +60,7 @@ const errUsername = computed(() => {
 })
 const errStaffCode = computed(() => {
   return ''
+  return ''
 })
 const errEmail = computed(() => {
   const s = form.value.email.trim()
@@ -70,7 +71,7 @@ const errEmail = computed(() => {
 const errPhone = computed(() => {
   const s = form.value.phone.trim()
   if (!s) return 'Vui lòng nhập số điện thoại.'
-  if (!RE_PHONE.test(s)) return 'Số điện thoại không hợp lệ (yêu cầu đúng 10 số).'
+  if (!RE_PHONE.test(s)) return 'Số điện thoại không hợp lệ (10 số, bắt đầu 03/05/07/08/09).'
   return ''
 })
 const errCinema = computed(() => form.value.cinemaId ? '' : 'Vui lòng chọn cơ sở làm việc.')
@@ -101,6 +102,82 @@ const formatDate = (iso) => {
 }
 
 const cinemaNameById = (id) => cinemas.value.find(c => c.id === id)?.name || null
+
+const isSelf = (person) => Number(person.userId) === Number(auth.user?.id)
+const isEditingSelf = computed(() => editingId.value && Number(editingId.value) === Number(auth.user?.id))
+
+const getRoleLevel = (role) => {
+  switch ((role || '').toUpperCase()) {
+    case 'ADMIN': return 3
+    case 'MANAGER': return 2
+    case 'STAFF': return 1
+    default: return 0
+  }
+}
+
+const canEditPerson = (person) => {
+  if (!can('staff_management', 'edit')) return false
+  if (isSelf(person)) return true // Cho phép tự sửa thông tin cá nhân
+
+  const callerRole = auth.user?.role || auth.role || ''
+  const callerLevel = getRoleLevel(callerRole)
+  const targetLevel = getRoleLevel(person.role)
+
+  // Vai trò cùng cấp hoặc cấp cao hơn -> không được sửa thông tin của nhau
+  if (targetLevel >= callerLevel) return false
+
+  // Quản lý chỉ được sửa nhân viên thuộc cơ sở của mình
+  if (!auth.isAdmin) {
+    if (!auth.user?.cinemaId || person.cinemaId !== auth.user?.cinemaId) return false
+  }
+
+  return true
+}
+
+const editPersonTitle = (person) => {
+  if (isSelf(person)) return 'Sửa thông tin của bạn'
+
+  const callerRole = auth.user?.role || auth.role || ''
+  const callerLevel = getRoleLevel(callerRole)
+  const targetLevel = getRoleLevel(person.role)
+
+  if (targetLevel > callerLevel) return 'Không thể sửa tài khoản cấp cao hơn'
+  if (targetLevel === callerLevel) return `Không thể sửa tài khoản của ${roleLabel(person.role)} cùng cấp`
+  if (!auth.isAdmin && person.cinemaId !== auth.user?.cinemaId) return 'Không thể sửa nhân viên khác cơ sở'
+  return 'Sửa'
+}
+
+const canTogglePerson = (person) => {
+  if (!can('staff_management', 'edit')) return false
+  if (isSelf(person)) return false // Không được chuyển trạng thái của bản thân
+
+  const callerRole = auth.user?.role || auth.role || ''
+  const callerLevel = getRoleLevel(callerRole)
+  const targetLevel = getRoleLevel(person.role)
+
+  // Vai trò cùng cấp hoặc cấp cao hơn -> không được đổi trạng thái
+  if (targetLevel >= callerLevel) return false
+
+  // Quản lý chỉ được đổi trạng thái nhân viên thuộc cơ sở của mình
+  if (!auth.isAdmin) {
+    if (!auth.user?.cinemaId || person.cinemaId !== auth.user?.cinemaId) return false
+  }
+
+  return true
+}
+
+const togglePersonTitle = (person) => {
+  if (isSelf(person)) return 'Không thể tự đổi trạng thái của chính mình'
+
+  const callerRole = auth.user?.role || auth.role || ''
+  const callerLevel = getRoleLevel(callerRole)
+  const targetLevel = getRoleLevel(person.role)
+
+  if (targetLevel > callerLevel) return 'Không thể đổi trạng thái tài khoản cấp cao hơn'
+  if (targetLevel === callerLevel) return `Không thể đổi trạng thái của ${roleLabel(person.role)} cùng cấp`
+  if (!auth.isAdmin && person.cinemaId !== auth.user?.cinemaId) return 'Không thể đổi trạng thái nhân viên khác cơ sở'
+  return person.isActive ? 'Tạm ngưng' : 'Kích hoạt'
+}
 
 // ===== Tải dữ liệu =====
 const fetchStaff = async () => {
@@ -198,9 +275,12 @@ const buildPayload = () => {
     email: form.value.email.trim(),
     phone: form.value.phone.trim() || null,
     staffCode: form.value.staffCode.trim().toUpperCase() || null,
-    cinemaId: form.value.cinemaId || null,
   }
-  // Chỉ ADMIN mới được gán vai trò (STAFF/MANAGER); manager tạo NV luôn là STAFF
+  if (isEditingSelf.value) {
+    // Sửa thông tin bản thân: không thay đổi trạng thái, vai trò, cơ sở
+    return base
+  }
+  base.cinemaId = form.value.cinemaId || null
   if (auth.isAdmin) base.role = form.value.role
   if (editingId.value) {
     return { ...base, isActive: form.value.isActive }
@@ -221,7 +301,13 @@ const saveStaff = async () => {
   try {
     if (editingId.value) {
       await staffApi.update(editingId.value, buildPayload())
-      toast.success('Cập nhật nhân viên thành công.')
+      toast.success(isEditingSelf.value ? 'Cập nhật thông tin cá nhân thành công.' : 'Cập nhật nhân viên thành công.')
+      if (isEditingSelf.value && auth.user) {
+        auth.user.fullName = form.value.fullName.trim()
+        auth.user.email = form.value.email.trim()
+        auth.user.phone = form.value.phone.trim()
+        localStorage.setItem('user', JSON.stringify(auth.user))
+      }
       await fetchStaff()
       closeModal()
     } else {
@@ -291,45 +377,45 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
       <div class="relative flex-1 min-w-[220px]">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
         <input v-model="search" type="text" placeholder="Tìm theo tên, email, mã NV, SĐT..."
-               class="w-full bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 pl-10 pr-4 text-on-surface" />
+               class="w-full bg-surface-container-high border-none text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 pl-10 pr-4 text-on-surface" />
       </div>
 
-      <select v-model="cinemaFilter" class="bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface min-w-[200px]">
+      <select v-model="cinemaFilter" class="bg-surface-container-high border-none text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface min-w-[200px]">
         <option value="">Tất cả cơ sở</option>
         <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }} ({{ countByCinema[c.id] || 0 }})</option>
       </select>
 
-      <select v-model="statusFilter" class="bg-surface-container-high border-none text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+      <select v-model="statusFilter" class="bg-surface-container-high border-none text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
         <option value="ALL">Mọi trạng thái</option>
         <option value="ACTIVE">Đang làm việc</option>
         <option value="INACTIVE">Đã tạm ngưng</option>
       </select>
 
       <button v-if="search || cinemaFilter || statusFilter !== 'ALL'" @click="resetFilters"
-              class="text-xs font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors px-3 py-2.5 flex items-center gap-1">
+              class="text-xs font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors px-3 py-2.5 flex items-center gap-1 rounded-sm">
         <span class="material-symbols-outlined text-sm">filter_alt_off</span> Bỏ lọc
       </button>
     </div>
 
     <!-- Bảng -->
-    <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg overflow-hidden">
-      <table class="w-full text-left border-collapse table-fixed">
+    <section class="bg-surface-container-low border border-outline-variant/10 rounded-sm overflow-hidden">
+      <table class="w-full text-left border-collapse">
         <thead>
           <tr class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant border-b border-outline-variant/10">
-            <th class="px-6 py-5 w-[26%]">Nhân viên</th>
-            <th class="px-6 py-5 w-[11%]">Mã NV</th>
-            <th class="px-6 py-5 w-[20%]">Cơ sở</th>
-            <th class="px-6 py-5 w-[13%]">Vai trò</th>
-            <th class="px-6 py-5 w-[12%]">Ngày gia nhập</th>
-            <th class="px-6 py-5 w-[11%]">Trạng thái</th>
-            <th class="px-6 py-5 w-[7%] text-right">Thao tác</th>
+            <th class="px-8 py-5">Nhân viên</th>
+            <th class="px-8 py-5">Mã NV</th>
+            <th class="px-8 py-5">Cơ sở</th>
+            <th class="px-8 py-5">Vai trò</th>
+            <th class="px-8 py-5">Ngày gia nhập</th>
+            <th class="px-8 py-5">Trạng thái</th>
+            <th class="px-8 py-5 text-right">Thao tác</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-outline-variant/10 text-on-surface">
           <!-- Loading skeleton -->
           <template v-if="isLoading">
             <tr v-for="i in 4" :key="`sk-${i}`">
-              <td colspan="7" class="px-6 py-4">
+              <td colspan="7" class="px-8 py-4">
                 <div class="h-10 bg-surface-container-highest rounded animate-pulse"></div>
               </td>
             </tr>
@@ -338,48 +424,63 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
           <!-- Dữ liệu -->
           <template v-else-if="filteredStaff.length">
             <tr v-for="person in filteredStaff" :key="person.userId" class="group hover:bg-white/5 transition-all">
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-3.5 min-w-0">
-                <img v-if="person.avatarUrl" :src="person.avatarUrl" class="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
-                <div v-else class="w-10 h-10 rounded-full bg-primary/20 shrink-0 flex items-center justify-center text-primary font-bold uppercase">
+            <td class="px-8 py-4">
+              <div class="flex items-center gap-4">
+                <img v-if="person.avatarUrl" :src="person.avatarUrl" class="w-10 h-10 rounded-full object-cover" alt="" />
+                <div v-else class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold uppercase">
                   {{ (person.fullName || '?').charAt(0) }}
                 </div>
-                <div class="min-w-0">
-                  <p class="font-bold text-sm uppercase tracking-tight group-hover:text-primary transition-colors truncate">{{ person.fullName }}</p>
-                  <p class="text-[10px] text-on-surface-variant mt-0.5 truncate">{{ person.email || '—' }}</p>
+                <div>
+                  <p class="font-bold text-sm uppercase tracking-tight group-hover:text-primary transition-colors flex items-center gap-2">
+                    {{ person.fullName }}
+                    <span v-if="isSelf(person)" class="text-[9px] px-1.5 py-0.5 rounded-sm bg-primary/20 text-primary font-bold tracking-normal">BẠN</span>
+                  </p>
+                  <p class="text-[10px] text-on-surface-variant mt-0.5">{{ person.email || '—' }}</p>
                 </div>
               </div>
             </td>
-            <td class="px-6 py-4">
+            <td class="px-8 py-4">
               <span class="text-xs font-mono text-on-surface-variant">{{ person.staffCode || '—' }}</span>
             </td>
-            <td class="px-6 py-4 truncate">
-              <span v-if="person.cinemaName" class="inline-flex items-center gap-1.5 text-xs font-semibold truncate">
-                <span class="material-symbols-outlined text-sm text-primary/70 shrink-0">location_on</span>
-                <span class="truncate">{{ person.cinemaName }}</span>
+            <td class="px-8 py-4">
+              <span v-if="person.cinemaName" class="inline-flex items-center gap-1.5 text-xs font-semibold">
+                <span class="material-symbols-outlined text-sm text-primary/70">location_on</span>{{ person.cinemaName }}
               </span>
               <span v-else class="text-xs text-on-surface-variant/60 italic">Chưa gán cơ sở</span>
             </td>
-            <td class="px-6 py-4">
-              <span class="text-xs font-semibold whitespace-nowrap">{{ roleLabel(person.role) }}</span>
+            <td class="px-8 py-4">
+              <span class="text-xs font-semibold">{{ roleLabel(person.role) }}</span>
             </td>
-            <td class="px-6 py-4">
-              <span class="text-xs text-on-surface-variant whitespace-nowrap">{{ formatDate(person.joinDate) }}</span>
+            <td class="px-8 py-4">
+              <span class="text-xs text-on-surface-variant">{{ formatDate(person.joinDate) }}</span>
             </td>
-            <td class="px-6 py-4">
-              <span :class="person.isActive ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'" class="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-tighter whitespace-nowrap inline-block">
+            <td class="px-8 py-4">
+              <span :class="person.isActive ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'" class="px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-tighter">
                 {{ person.isActive ? 'Đang làm việc' : 'Đã tạm ngưng' }}
               </span>
             </td>
-            <td class="px-6 py-4 text-right">
-              <div class="flex justify-end gap-1.5">
-                <button v-if="can('staff_management', 'edit')" @click="openEditModal(person)" :disabled="person.userId === auth.user?.id" :title="person.userId === auth.user?.id ? 'Không thể tự sửa tài khoản của chính mình' : 'Sửa'" class="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed">
+            <td class="px-8 py-4 text-right">
+              <div class="flex justify-end gap-2 items-center">
+                <!-- Nút Sửa: Chỉ hiện khi có quyền sửa (bản thân hoặc cấp dưới) -->
+                <button v-if="can('staff_management', 'edit') && canEditPerson(person)"
+                        @click="openEditModal(person)"
+                        :title="editPersonTitle(person)"
+                        class="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant">
                   <span class="material-symbols-outlined text-sm">edit</span>
                 </button>
-                <button v-if="can('staff_management', 'edit')" @click="toggleActive(person)" :disabled="person.userId === auth.user?.id" :title="person.userId === auth.user?.id ? 'Không thể tự đổi trạng thái của chính mình' : (person.isActive ? 'Tạm ngưng' : 'Kích hoạt')" class="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed">
+
+                <!-- Nút Toggle: Chỉ hiện khi có quyền đổi trạng thái (chỉ cấp dưới, không hiện cho bản thân hoặc cùng cấp) -->
+                <button v-if="can('staff_management', 'edit') && canTogglePerson(person)"
+                        @click="toggleActive(person)"
+                        :title="togglePersonTitle(person)"
+                        class="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant">
                   <span class="material-symbols-outlined text-sm">{{ person.isActive ? 'toggle_on' : 'toggle_off' }}</span>
                 </button>
-                <span v-if="!can('staff_management','edit')" class="text-on-surface-variant/40 text-xs">—</span>
+
+                <!-- Dấu gạch ngang khi không có quyền thao tác nào (nhân sự cùng cấp hoặc cấp cao hơn) -->
+                <span v-if="!canEditPerson(person) && !canTogglePerson(person)"
+                      class="text-on-surface-variant/40 text-xs px-2 select-none"
+                      title="Không có quyền thao tác trên tài khoản này">—</span>
               </div>
             </td>
             </tr>
@@ -414,13 +515,13 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
     </p>
 
     <!-- Modal thêm/sửa -->
-    <AppModal :show="isModalOpen" :title="editingId ? 'Sửa nhân viên' : 'Thêm nhân viên mới'" @close="closeModal">
+    <AppModal :show="isModalOpen" :title="editingId ? (isEditingSelf ? 'Sửa thông tin cá nhân' : 'Sửa nhân viên') : 'Thêm nhân viên mới'" @close="closeModal">
       <div class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1.5 col-span-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Họ và tên <span class="text-red-500">*</span></label>
             <input v-model="form.fullName" @blur="touch('fullName')" type="text" placeholder="VD: Trần Quang Huy"
-                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+                   class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
                    :class="showErr('fullName', errFullName) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('fullName', errFullName)" class="text-[11px] text-red-400 font-medium">{{ errFullName }}</p>
           </div>
@@ -430,35 +531,35 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
               Tài khoản đăng nhập <span v-if="!editingId" class="text-red-500">*</span>
             </label>
             <input v-model="form.username" @blur="touch('username')" type="text" :disabled="!!editingId" placeholder="vd: nv_huy"
-                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed"
+                   class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed"
                    :class="showErr('username', errUsername) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('username', errUsername)" class="text-[11px] text-red-400 font-medium">{{ errUsername }}</p>
           </div>
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã nhân viên</label>
             <input v-model.trim="form.staffCode" type="text" placeholder="Đang tạo mã..." disabled
-                   class="w-full bg-surface-container-high border text-sm rounded-lg py-2.5 px-4 text-on-surface uppercase border-transparent disabled:opacity-50 disabled:cursor-not-allowed font-bold" />
+                   class="w-full bg-surface-container-high border text-sm rounded-sm py-2.5 px-4 text-on-surface uppercase border-transparent disabled:opacity-50 disabled:cursor-not-allowed font-bold" />
           </div>
 
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Email <span class="text-red-500">*</span></label>
             <input v-model="form.email" @blur="touch('email')" type="email" placeholder="email@devcine.com"
-                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+                   class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
                    :class="showErr('email', errEmail) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('email', errEmail)" class="text-[11px] text-red-400 font-medium">{{ errEmail }}</p>
           </div>
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số điện thoại <span class="text-red-500">*</span></label>
-            <input v-model="form.phone" @input="form.phone = form.phone.replace(/\D/g, '').slice(0, 10)" @blur="touch('phone')" type="text" maxlength="10" placeholder="VD: 0912345678"
-                   class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+            <input v-model="form.phone" @blur="touch('phone')" type="text" placeholder="09xxxxxxxx"
+                   class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
                    :class="showErr('phone', errPhone) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('phone', errPhone)" class="text-[11px] text-red-400 font-medium">{{ errPhone }}</p>
           </div>
 
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Cơ sở làm việc <span class="text-red-500">*</span></label>
-            <select v-model="form.cinemaId" @blur="touch('cinemaId')"
-                    class="w-full bg-surface-container-high border text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
+            <select v-model="form.cinemaId" @blur="touch('cinemaId')" :disabled="isEditingSelf"
+                    class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed"
                     :class="showErr('cinemaId', errCinema) ? 'border-red-500' : 'border-transparent'">
               <option value="">— Chưa gán cơ sở —</option>
               <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }}</option>
@@ -466,9 +567,9 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             <p v-if="showErr('cinemaId', errCinema)" class="text-[11px] text-red-400 font-medium">{{ errCinema }}</p>
           </div>
 
-          <div v-if="auth.isAdmin" class="space-y-1.5">
+          <div v-if="auth.isAdmin && !isEditingSelf" class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Vai trò <span class="text-red-500">*</span></label>
-            <select v-model="form.role" class="w-full bg-surface-container-high border border-transparent text-sm rounded-lg focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
+            <select v-model="form.role" class="w-full bg-surface-container-high border border-transparent text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
               <option value="STAFF">Nhân viên</option>
               <option value="MANAGER">Quản lý cơ sở</option>
             </select>
@@ -476,13 +577,15 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
 
           <div v-if="editingId" class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Trạng thái</label>
-            <button type="button" @click="form.isActive = !form.isActive"
-                    class="w-full h-[42px] px-4 rounded-lg bg-surface-container-high border border-outline-variant/10 text-left flex items-center justify-between transition-all hover:border-primary/30">
+            <button v-if="!isEditingSelf" type="button" @click="form.isActive = !form.isActive"
+                    class="w-full h-[42px] px-4 rounded-sm bg-surface-container-high border border-outline-variant/10 text-left flex items-center justify-between transition-all hover:border-primary/30">
               <span class="text-sm font-semibold text-on-surface">{{ form.isActive ? 'Đang làm việc' : 'Tạm ngưng' }}</span>
               <span class="relative inline-flex h-5 w-9 rounded-full transition-colors" :class="form.isActive ? 'bg-green-500' : 'bg-outline-variant'">
                 <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform" :class="form.isActive ? 'translate-x-4' : 'translate-x-0.5'"></span>
               </span>
             </button>
+            <input v-else type="text" :value="form.isActive ? 'Đang làm việc' : 'Đã tạm ngưng'" disabled
+                   class="w-full bg-surface-container-high border text-sm rounded-sm py-2.5 px-4 text-on-surface border-transparent disabled:opacity-50 disabled:cursor-not-allowed font-medium" />
           </div>
         </div>
 
@@ -491,8 +594,8 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
         </p>
 
         <div class="flex justify-end gap-3 pt-2 border-t border-outline-variant/10">
-          <button @click="closeModal" class="px-5 py-2.5 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded hover:bg-white/10 transition-all">Huỷ</button>
-          <button @click="saveStaff" :disabled="isSaving || !formValid" class="px-5 py-2.5 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+          <button @click="closeModal" class="px-5 py-2.5 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-white/10 transition-all">Huỷ</button>
+          <button @click="saveStaff" :disabled="isSaving || !formValid" class="px-5 py-2.5 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {{ isSaving ? 'Đang lưu...' : (editingId ? 'Lưu thay đổi' : 'Thêm nhân viên') }}
           </button>
         </div>
@@ -514,8 +617,8 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
           {{ credsResult.emailSent ? 'Đã gửi email thông tin đăng nhập cho nhân viên.' : 'Chưa gửi được email — vui lòng báo trực tiếp thông tin trên cho nhân viên.' }}
         </div>
         <div class="flex justify-end gap-3 pt-2">
-          <button @click="copyCreds" class="px-4 py-2 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded hover:bg-white/10 transition-all">Sao chép</button>
-          <button @click="credsResult = null" class="px-5 py-2 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded hover:brightness-110 transition-all">Đã hiểu</button>
+          <button @click="copyCreds" class="px-4 py-2 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-white/10 transition-all">Sao chép</button>
+          <button @click="credsResult = null" class="px-5 py-2 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all">Đã hiểu</button>
         </div>
       </div>
     </AppModal>

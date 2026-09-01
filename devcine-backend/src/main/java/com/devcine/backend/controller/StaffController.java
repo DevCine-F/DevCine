@@ -75,15 +75,7 @@ public class StaffController {
     }
 
     private String validateAndSanitizePhone(Object v, boolean required) {
-        String clean = com.devcine.backend.util.PhoneUtils.sanitize(v);
-        if (clean == null) {
-            if (required) throw new IllegalArgumentException("Vui lòng nhập số điện thoại.");
-            return null;
-        }
-        if (!clean.matches("^\\d{10}$")) {
-            throw new IllegalArgumentException("Số điện thoại không hợp lệ (yêu cầu đúng 10 số).");
-        }
-        return clean;
+        return com.devcine.backend.util.PhoneUtils.validateAndSanitize(v, required);
     }
 
     private void validateUsernameFormat(String v) {
@@ -284,25 +276,105 @@ public class StaffController {
         }
     }
 
+    private static int getRoleRank(String roleName) {
+        if (roleName == null) return 0;
+        return switch (roleName.toUpperCase()) {
+            case "ADMIN" -> 3;
+            case "MANAGER" -> 2;
+            case "STAFF" -> 1;
+            default -> 0;
+        };
+    }
+
+    private static String roleLabel(String role) {
+        if (role == null) return "Nhân viên";
+        return switch (role.toUpperCase()) {
+            case "ADMIN" -> "Quản trị viên";
+            case "MANAGER" -> "Quản lý cơ sở";
+            case "STAFF" -> "Nhân viên";
+            default -> role;
+        };
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("@perm.can('staff_management','edit')")
     @Transactional
     public ResponseEntity<?> updateStaff(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
         try {
-            if (id.equals(com.devcine.backend.util.SecurityUtils.getCurrentUserId())) {
-                throw new IllegalArgumentException("Bạn không thể tự đổi trạng thái hoặc chỉnh sửa tài khoản của mình. Vui lòng nhờ cấp trên thao tác!");
+            Integer currentUserId = com.devcine.backend.util.SecurityUtils.getCurrentUserId();
+            if (currentUserId == null) {
+                return ResponseEntity.status(401).body(ApiResponse.fail("Vui lòng đăng nhập để thực hiện thao tác này."));
             }
 
-            Staff staff = staffRepository.findById(id)
+            Staff staff = staffRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhân viên."));
             User u = staff.getUser();
             if (u == null) throw new IllegalArgumentException("Nhân viên không hợp lệ.");
 
+            User caller = userRepository.findById(currentUserId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin tài khoản đang thao tác."));
+            String callerRoleName = caller.getRole() != null ? caller.getRole().getName() : "";
+            int callerRank = getRoleRank(callerRoleName);
+
+            String targetRoleName = u.getRole() != null ? u.getRole().getName() : "";
+            int targetRank = getRoleRank(targetRoleName);
+
+            boolean isSelf = id.equals(currentUserId);
+
+            if (isSelf) {
+                // 1. Chỉ được sửa thông tin của bản thân, KHÔNG được chuyển trạng thái của bản thân
+                if (body.containsKey("isActive")) {
+                    Boolean requestedActive = Boolean.TRUE.equals(body.get("isActive"));
+                    if (!requestedActive.equals(Boolean.TRUE.equals(u.getIsActive()))) {
+                        throw new IllegalArgumentException("Bạn không thể tự thay đổi trạng thái hoạt động của chính mình. Vui lòng nhờ cấp trên thao tác!");
+                    }
+                }
+                // Không được tự đổi vai trò của chính mình
+                if (body.containsKey("role") && !str(body.get("role")).isBlank() && !str(body.get("role")).equalsIgnoreCase(targetRoleName)) {
+                    throw new IllegalArgumentException("Bạn không thể tự thay đổi vai trò của chính mình.");
+                }
+                // Không được tự chuyển cơ sở làm việc của chính mình
+                if (body.containsKey("cinemaId")) {
+                    Object cid = body.get("cinemaId");
+                    Integer requestedCinemaId = (cid != null && !str(cid).isBlank()) ? Integer.parseInt(str(cid)) : null;
+                    Integer currentCinemaId = staff.getCinema() != null ? staff.getCinema().getId() : null;
+                    if (!java.util.Objects.equals(requestedCinemaId, currentCinemaId)) {
+                        throw new IllegalArgumentException("Bạn không thể tự chuyển đổi cơ sở làm việc của chính mình.");
+                    }
+                }
+            } else {
+                // 2. Thao tác trên tài khoản khác:
+                // a. Cấp cao hơn
+                if (targetRank > callerRank) {
+                    throw new IllegalArgumentException("Bạn không có quyền chỉnh sửa thông tin của tài khoản cấp cao hơn.");
+                }
+                // b. Cùng cấp (ADMIN vs ADMIN, MANAGER vs MANAGER, STAFF vs STAFF)
+                if (targetRank == callerRank) {
+                    throw new IllegalArgumentException("Bạn không thể chỉnh sửa thông tin của nhân sự cùng cấp (" + roleLabel(targetRoleName) + ").");
+                }
+                // c. Cấp thấp hơn (callerRank > targetRank)
+                if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
+                    Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
+                    if (myCinemaId == null) throw new IllegalArgumentException("Bạn chưa được gán cơ sở.");
+                    if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
+                        throw new IllegalArgumentException("Bạn chỉ có thể sửa nhân viên thuộc cơ sở của mình.");
+                    }
+                    if (body.containsKey("cinemaId")) {
+                        Object finalCinemaId = body.get("cinemaId");
+                        if (finalCinemaId != null && !str(finalCinemaId).isBlank() && !str(finalCinemaId).equals(myCinemaId.toString())) {
+                            throw new IllegalArgumentException("Bạn chỉ có thể gán nhân viên vào cơ sở của mình.");
+                        }
+                    }
+                }
+            }
+
+            // Cập nhật họ tên (cho phép cả self và cấp trên)
             if (body.containsKey("fullName") && !str(body.get("fullName")).isBlank()) {
                 String fullName = toTitleCase(str(body.get("fullName")));
                 validateFullName(fullName);
                 u.setFullName(fullName);
             }
+            // Cập nhật SĐT (cho phép cả self và cấp trên)
             if (body.containsKey("phone")) {
                 String cleanPhone = validateAndSanitizePhone(body.get("phone"), false);
                 if (cleanPhone != null && !cleanPhone.equals(u.getPhone())) {
@@ -312,6 +384,7 @@ public class StaffController {
                 }
                 u.setPhone(cleanPhone);
             }
+            // Cập nhật Email (cho phép cả self và cấp trên)
             if (body.containsKey("email")) {
                 String email = str(body.get("email"));
                 if (!email.isBlank() && !email.equalsIgnoreCase(u.getEmail())) {
@@ -321,10 +394,14 @@ public class StaffController {
                     u.setEmail(email);
                 }
             }
-            if (body.containsKey("isActive"))
+
+            // Cập nhật trạng thái (chỉ cấp trên mới được đổi trạng thái cấp dưới)
+            if (!isSelf && body.containsKey("isActive")) {
                 u.setIsActive(Boolean.TRUE.equals(body.get("isActive")));
-            // Chỉ ADMIN được đổi vai trò, và chỉ giữa STAFF <-> MANAGER
-            if (body.containsKey("role") && com.devcine.backend.util.SecurityUtils.isAdmin()) {
+            }
+
+            // Cập nhật vai trò (chỉ ADMIN đổi cho cấp dưới)
+            if (!isSelf && body.containsKey("role") && com.devcine.backend.util.SecurityUtils.isAdmin()) {
                 String newRole = str(body.get("role")).toUpperCase();
                 if (!newRole.isBlank()) {
                     if (!newRole.equals("STAFF") && !newRole.equals("MANAGER")) {
@@ -335,29 +412,20 @@ public class StaffController {
                     u.setRole(r);
                 }
             }
+
             userRepository.save(u);
             staff.setUpdatedAt(LocalDateTime.now());
 
-            if (body.containsKey("cinemaId")) {
+            // Cập nhật cơ sở làm việc (chỉ cấp trên đổi cho cấp dưới)
+            if (!isSelf && body.containsKey("cinemaId")) {
                 Object finalCinemaId = body.get("cinemaId");
                 if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
                     Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
-                    if (myCinemaId == null) throw new IllegalArgumentException("Bạn chưa được gán cơ sở.");
-                    if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
-                        throw new IllegalArgumentException("Bạn chỉ có thể sửa nhân viên của cơ sở mình.");
-                    }
-                    if (finalCinemaId != null && !str(finalCinemaId).isBlank() && !str(finalCinemaId).equals(myCinemaId.toString())) {
-                        throw new IllegalArgumentException("Bạn chỉ có thể gán nhân viên vào cơ sở của mình.");
-                    }
                     finalCinemaId = myCinemaId;
                 }
                 staff.setCinema(resolveCinema(finalCinemaId));
-            } else if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
-                Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
-                if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
-                    throw new IllegalArgumentException("Bạn chỉ có thể sửa nhân viên của cơ sở mình.");
-                }
             }
+
             if ("MANAGER".equalsIgnoreCase(u.getRole() != null ? u.getRole().getName() : "") && staff.getCinema() == null) {
                 throw new IllegalArgumentException("Quản lý phải được gán một cơ sở.");
             }
@@ -375,22 +443,41 @@ public class StaffController {
     @PreAuthorize("@perm.can('staff_management','edit')")
     @Transactional
     public ResponseEntity<?> toggleStaff(@PathVariable Integer id) {
-        if (id.equals(com.devcine.backend.util.SecurityUtils.getCurrentUserId())) {
-            return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn không thể tự đổi trạng thái tài khoản của mình. Vui lòng nhờ cấp trên thao tác!"));
+        Integer currentUserId = com.devcine.backend.util.SecurityUtils.getCurrentUserId();
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).body(ApiResponse.fail("Vui lòng đăng nhập để thực hiện thao tác này."));
         }
 
-        Staff staff = staffRepository.findById(id).orElse(null);
+        if (id.equals(currentUserId)) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn không thể tự đổi trạng thái tài khoản của chính mình. Vui lòng nhờ cấp trên thao tác!"));
+        }
+
+        Staff staff = staffRepository.findByIdWithDetails(id).orElse(null);
         if (staff == null || staff.getUser() == null)
             return ResponseEntity.badRequest().body(ApiResponse.fail("Không tìm thấy nhân viên."));
+
+        User caller = userRepository.findById(currentUserId).orElse(null);
+        String callerRoleName = caller != null && caller.getRole() != null ? caller.getRole().getName() : "";
+        int callerRank = getRoleRank(callerRoleName);
+
+        User u = staff.getUser();
+        String targetRoleName = u.getRole() != null ? u.getRole().getName() : "";
+        int targetRank = getRoleRank(targetRoleName);
+
+        if (targetRank > callerRank) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn không có quyền thay đổi trạng thái tài khoản cấp cao hơn."));
+        }
+        if (targetRank == callerRank) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn không thể thay đổi trạng thái tài khoản của nhân sự cùng cấp (" + roleLabel(targetRoleName) + ")."));
+        }
 
         if (!com.devcine.backend.util.SecurityUtils.isAdmin()) {
             Integer myCinemaId = com.devcine.backend.util.SecurityUtils.getCurrentUserCinemaId();
             if (staff.getCinema() == null || !staff.getCinema().getId().equals(myCinemaId)) {
-                return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn chỉ có thể đổi trạng thái nhân viên của cơ sở mình."));
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Bạn chỉ có thể đổi trạng thái nhân viên thuộc cơ sở của mình."));
             }
         }
 
-        User u = staff.getUser();
         u.setIsActive(!Boolean.TRUE.equals(u.getIsActive()));
         userRepository.save(u);
         staff.setUpdatedAt(LocalDateTime.now());
