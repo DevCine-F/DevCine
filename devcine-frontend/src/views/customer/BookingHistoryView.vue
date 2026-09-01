@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { bookingApi } from '@/api/customer/index'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 
+const route = useRoute()
+const router = useRouter()
 const toast = useToastStore()
 
 const props = defineProps({
@@ -64,6 +66,21 @@ const goToPage = (p) => {
 watch(activeFilter, () => { currentPage.value = 1 })
 watch(totalPages, (n) => { if (currentPage.value > n) currentPage.value = n })
 
+const checkAndOpenTargetBooking = () => {
+  const target = String(route.query?.code || route.query?.bookingCode || route.query?.id || '').trim().toUpperCase()
+  if (!target || !bookings.value || bookings.value.length === 0) return
+
+  const found = bookings.value.find(b => 
+    String(b.bookingCode || '').toUpperCase() === target ||
+    String(b.bookingId || '').toUpperCase() === target ||
+    String(b.id || '').toUpperCase() === target
+  )
+
+  if (found) {
+    openTicketDetail(found)
+  }
+}
+
 const fetchHistory = async () => {
   if (!authStore.isAuthenticated || !authStore.user?.id) return
   isLoading.value = true
@@ -71,6 +88,7 @@ const fetchHistory = async () => {
   try {
     const { data } = await bookingApi.getHistory(authStore.user.id)
     bookings.value = data
+    checkAndOpenTargetBooking()
   } catch (err) {
     error.value = friendlyError(err, 'Không thể tải lịch sử đặt vé. Vui lòng thử lại.')
     toast.error(error.value)
@@ -78,6 +96,10 @@ const fetchHistory = async () => {
     isLoading.value = false
   }
 }
+
+watch(() => [route.query?.code, route.query?.bookingCode, route.query?.id], () => {
+  checkAndOpenTargetBooking()
+})
 
 const extractTime = (iso) => {
   if (!iso) return ''
@@ -157,6 +179,13 @@ const closeTicketDetail = () => {
   showTicketModal.value = false
   selectedBooking.value = null
   showPriceDetails.value = false
+  if (route.query?.code || route.query?.bookingCode || route.query?.id) {
+    const query = { ...route.query }
+    delete query.code
+    delete query.bookingCode
+    delete query.id
+    router.replace({ query })
+  }
 }
 
 const printTicket = () => {

@@ -199,7 +199,7 @@ const fnbLines = computed(() => (store.selectedFnbs || []).filter(f => f && f.fn
     <!-- Action Buttons -->
     <div class="relative z-10 mt-6 grid grid-cols-2 gap-3 w-full max-w-md" v-if="!isLoading && paymentStatus === 'success'">
       <router-link to="/" class="bg-transparent border border-outline-variant text-on-surface font-headline font-bold text-xs uppercase tracking-widest py-3.5 rounded-sm hover:bg-primary-container/10 transition-all active:scale-[0.98] text-center flex items-center justify-center">TRANG CHỦ</router-link>
-      <router-link to="/profile" class="bg-primary-container text-on-primary font-headline font-bold text-xs uppercase tracking-widest py-3.5 rounded-sm hover:brightness-110 transition-all active:scale-[0.98] text-center flex items-center justify-center">VÉ CỦA TÔI</router-link>
+      <router-link :to="{ path: '/profile/history', query: { code: store.bookingCode || store.bookingId } }" class="bg-primary-container text-on-primary font-headline font-bold text-xs uppercase tracking-widest py-3.5 rounded-sm hover:brightness-110 transition-all active:scale-[0.98] text-center flex items-center justify-center">VÉ CỦA TÔI</router-link>
     </div>
 
     <!-- Nút khi thất bại -->

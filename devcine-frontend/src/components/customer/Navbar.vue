@@ -313,7 +313,7 @@ const viewNotification = (notif) => {
           <button @click="isNotifModalOpen = false" class="py-3.5 sm:py-4 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-neutral-400 transition-all">
             Đóng
           </button>
-          <router-link :to="selectedNotif.type === 'booking' ? '/profile' : '/khuyen-mai'" 
+          <router-link :to="selectedNotif.type === 'booking' ? '/profile/history' : '/khuyen-mai'" 
                        @click="isNotifModalOpen = false"
                        class="py-3.5 sm:py-4 bg-[#f5c518] hover:bg-[#ffda5c] rounded-xl text-xs font-black uppercase tracking-widest text-black shadow-xl shadow-[#f5c518]/20 transition-all text-center">
             {{ selectedNotif.type === 'booking' ? 'Xem vé của tôi' : 'Xem chi tiết' }}
