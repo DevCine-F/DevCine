@@ -387,11 +387,6 @@ const seatsSubtotal = computed(() =>
   ticketBreakdown.value.reduce((sum, t) => sum + t.price, 0)
 )
 
-const showStudentVerificationWarning = computed(() => {
-  const hasSweetbox = store.selectedSeats.some(s => s.seatType === 'SWEETBOX');
-  const hasRestrictedTicket = store.audienceAssignment.some(code => ['U22', 'CHILD', 'SENIOR'].includes(code));
-  return hasSweetbox && hasRestrictedTicket;
-})
 
 const formattedSeatSummary = computed(() => {
   const normalCount = store.selectedSeats.filter(s => s.seatType !== 'SWEETBOX').length;
@@ -1893,10 +1888,6 @@ const proceedToPayment = async () => {
             {{ isPaying ? 'Đang xử lý...' : 'Xác nhận thanh toán' }}
           </button>
         </div>
-      </div>
-      <div v-if="showStudentVerificationWarning" class="mt-4 bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 flex gap-3 text-orange-400">
-        <span class="material-symbols-outlined text-base mt-0.5 shrink-0">info</span>
-        <p class="text-[11px] font-medium leading-relaxed">Lưu ý: Cả 2 người xem ghế Sweetbox bắt buộc xuất trình Thẻ HSSV/CCCD chính chủ khi soát vé.</p>
       </div>
     </aside>
     </div>
