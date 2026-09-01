@@ -737,6 +737,43 @@ const minOrderValueError = computed(() => {
   return ''
 })
 
+// Lỗi "Ngày hết hạn" theo thời gian thực
+const expiryError = computed(() => {
+  const v = newVoucher.value
+  if (!v.expiry) return ''
+  const effStart = v.startDate || todayStr.value
+  if (v.expiry <= effStart) return 'Ngày hết hạn phải sau ngày bắt đầu.'
+  if (v.expiry < todayStr.value) return 'Ngày hết hạn phải từ hôm nay trở đi.'
+  return ''
+})
+
+// Lỗi "Số điểm đổi" theo thời gian thực khi bật đổi điểm
+const pointsError = computed(() => {
+  const v = newVoucher.value
+  if (!v.allowPointExchange) return ''
+  if (v.pointsRequired != null && v.pointsRequired !== '') {
+    const pr = Number(v.pointsRequired)
+    if (Number.isNaN(pr) || pr <= 0) return 'Số điểm đổi phải lớn hơn 0 pts.'
+  }
+  return ''
+})
+
+// Báo lỗi inline khi người dùng rời ô Mã code (blur)
+const onCodeBlur = () => {
+  const c = (newVoucher.value.code || '').trim()
+  if (c && c.length < 3) {
+    voucherErrors.value = { ...voucherErrors.value, code: 'Mã code phải dài từ 3 đến 15 ký tự.' }
+  }
+}
+
+// Báo lỗi inline khi người dùng rời ô Tiêu đề (blur)
+const onTitleBlur = () => {
+  const t = (newVoucher.value.title || '').trim()
+  if (t && t.length < 5) {
+    voucherErrors.value = { ...voucherErrors.value, title: `Tiêu đề phải từ 5 đến 100 ký tự (hiện có ${t.length} ký tự).` }
+  }
+}
+
 // ---- (3) RÀNG BUỘC CHÉO (phản ứng ngay khi đổi loại/giá trị) ----
 // Loại "Tiền cố định": trần Giảm tối đa & Đơn tối thiểu tự động lấy theo giá trị giảm
 const isFixed = computed(() => newVoucher.value.type === 'FIXED_AMOUNT')
@@ -1675,8 +1712,9 @@ onUnmounted(() => {
                   <span v-else class="text-neutral-500 font-medium">Tắt</span>
                 </div>
                 <div class="p-3 flex items-center justify-between">
-                  <span class="text-neutral-300 font-medium">Cộng dồn mã khác:</span>
-                  <span class="font-semibold text-white">{{ detailTarget.isStackable ? 'Có' : 'Không' }}</span>
+                  <span class="text-neutral-300 font-medium">Chế độ hiển thị:</span>
+                  <span v-if="detailTarget.isHidden" class="px-2 py-0.5 rounded-sm bg-purple-500/15 text-purple-300 font-bold border border-purple-500/30 text-[11px]">Riêng tư</span>
+                  <span v-else class="font-semibold text-emerald-400">Công khai</span>
                 </div>
                 <div v-if="!detailTarget.allowPointRedemption" class="p-3 flex items-center justify-between">
                   <span class="text-neutral-300 font-medium">Email chiến dịch:</span>
@@ -1703,18 +1741,20 @@ onUnmounted(() => {
               <!-- Mã Code -->
               <div class="space-y-1">
                 <label class="text-xs font-medium text-neutral-300">Mã code (Tự tạo)</label>
-                <input v-model="newVoucher.code" @input="onCodeInput" maxlength="15" data-field="code" autocomplete="off" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-semibold text-white focus:border-primary focus:bg-white/[0.07] outline-none font-mono uppercase tracking-wider transition-colors placeholder:text-neutral-500" :class="voucherErrors.code ? 'border-red-500' : 'border-white/10'" placeholder="VD: SUMMER2026" />
-                <p v-if="voucherErrors.code" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.code }}</p>
-                <p v-else class="text-[10px] text-neutral-400">
-                  Chỉ chữ &amp; số, không dấu
-                </p>
+                <input v-model="newVoucher.code" @input="onCodeInput" @blur="onCodeBlur" maxlength="15" data-field="code" autocomplete="off" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-semibold text-white focus:border-primary focus:bg-white/[0.07] outline-none font-mono uppercase tracking-wider transition-colors placeholder:text-neutral-500" :class="voucherErrors.code ? 'border-red-500' : 'border-white/10'" placeholder="VD: SUMMER2026" />
+                <div class="min-h-[16px] flex items-center">
+                  <p v-if="voucherErrors.code" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.code }}</p>
+                  <p v-else class="text-[10px] text-neutral-400 leading-tight">Chỉ chữ &amp; số, không dấu (3–15 ký tự)</p>
+                </div>
               </div>
 
               <!-- Tiêu đề chiến dịch -->
               <div class="space-y-1">
                 <label class="text-xs font-medium text-neutral-300">Tiêu đề chiến dịch</label>
-                <input v-model="newVoucher.title" @input="clearVErr('title')" maxlength="100" data-field="title" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="voucherErrors.title ? 'border-red-500' : 'border-white/10'" placeholder="VD: Khuyến mãi hè rực rỡ" />
-                <p v-if="voucherErrors.title" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.title }}</p>
+                <input v-model="newVoucher.title" @input="clearVErr('title')" @blur="onTitleBlur" maxlength="100" data-field="title" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="voucherErrors.title ? 'border-red-500' : 'border-white/10'" placeholder="VD: Khuyến mãi hè rực rỡ" />
+                <div class="min-h-[16px] flex items-center">
+                  <p v-if="voucherErrors.title" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.title }}</p>
+                </div>
               </div>
 
               <!-- Mô tả ngắn -->
@@ -1724,11 +1764,13 @@ onUnmounted(() => {
                   <span class="text-[10px] text-neutral-400">{{ (newVoucher.description || '').length }}/255</span>
                 </div>
                 <textarea v-model="newVoucher.description" @input="clearVErr('description')" rows="2" maxlength="255" data-field="description" class="w-full bg-white/[0.04] border p-2.5 rounded-lg text-xs font-normal text-white focus:border-primary focus:bg-white/[0.07] outline-none resize-none transition-colors placeholder:text-neutral-500" :class="voucherErrors.description ? 'border-red-500' : 'border-white/10'" placeholder="Mô tả chi tiết voucher..."></textarea>
-                <p v-if="voucherErrors.description" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.description }}</p>
+                <div class="min-h-[16px] flex items-center">
+                  <p v-if="voucherErrors.description" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.description }}</p>
+                </div>
               </div>
 
               <!-- Loại giảm & Giá trị giảm -->
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-3 items-start">
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Loại giảm giá</label>
                   <CustomSelect 
@@ -1736,16 +1778,19 @@ onUnmounted(() => {
                     :options="discountTypeOptions" 
                     customClass="w-full h-10 px-3 rounded-lg text-xs border-white/10 bg-white/[0.04] text-white font-medium" 
                   />
+                  <div class="min-h-[16px]"></div>
                 </div>
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Giá trị giảm {{ newVoucher.type === 'PERCENTAGE' ? '(%)' : '(VNĐ)' }}</label>
                   <input :value="discountValueDisplay" @input="onDiscountValueInput" type="text" inputmode="numeric" data-field="value" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="(voucherErrors.value || discountValueError || pctLimitWarn) ? 'border-red-500' : 'border-white/10'" :placeholder="newVoucher.type === 'PERCENTAGE' ? '1 - 100' : 'VD: 20.000'" />
-                  <p v-if="voucherErrors.value || discountValueError || pctLimitWarn" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.value || discountValueError || pctLimitWarn }}</p>
+                  <div class="min-h-[16px] flex items-center">
+                    <p v-if="voucherErrors.value || discountValueError || pctLimitWarn" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.value || discountValueError || pctLimitWarn }}</p>
+                  </div>
                 </div>
               </div>
 
               <!-- Ngày bắt đầu & Ngày hết hạn -->
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-3 items-start">
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Ngày bắt đầu</label>
                   <template v-if="editStartLocked">
@@ -1753,18 +1798,24 @@ onUnmounted(() => {
                       <span class="material-symbols-outlined text-xs">lock</span>
                       {{ newVoucher.startDate ? new Date(newVoucher.startDate).toLocaleDateString('vi-VN') : 'Áp dụng ngay' }}
                     </div>
-                    <p class="text-[10px] text-neutral-400">Đang chạy (không sửa).</p>
+                    <div class="min-h-[16px] flex items-center">
+                      <p class="text-[10px] text-neutral-400 leading-tight">Đang chạy (không sửa).</p>
+                    </div>
                   </template>
                   <template v-else>
                     <input v-model="newVoucher.startDate" @input="clearVErr('startDate')" type="date" :min="todayStr" data-field="startDate" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors" :class="voucherErrors.startDate ? 'border-red-500' : 'border-white/10'" />
-                    <p v-if="voucherErrors.startDate" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.startDate }}</p>
-                    <p v-else class="text-[10px] text-neutral-400">Bỏ trống = áp dụng ngay.</p>
+                    <div class="min-h-[16px] flex items-center">
+                      <p v-if="voucherErrors.startDate" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.startDate }}</p>
+                      <p v-else class="text-[10px] text-neutral-400 leading-tight">Bỏ trống = áp dụng ngay.</p>
+                    </div>
                   </template>
                 </div>
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Ngày hết hạn</label>
-                  <input v-model="newVoucher.expiry" @input="clearVErr('expiry')" type="date" :min="endMinStr" data-field="expiry" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors" :class="voucherErrors.expiry ? 'border-red-500' : 'border-white/10'" />
-                  <p v-if="voucherErrors.expiry" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.expiry }}</p>
+                  <input v-model="newVoucher.expiry" @input="clearVErr('expiry')" type="date" :min="endMinStr" data-field="expiry" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors" :class="(voucherErrors.expiry || expiryError) ? 'border-red-500' : 'border-white/10'" />
+                  <div class="min-h-[16px] flex items-center">
+                    <p v-if="voucherErrors.expiry || expiryError" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.expiry || expiryError }}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1777,33 +1828,44 @@ onUnmounted(() => {
               </div>
 
               <!-- Đơn tối thiểu & Giới hạn lượt dùng -->
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-3 items-start">
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Đơn tối thiểu (VNĐ)</label>
                   <input :value="fmtThousand(newVoucher.minOrderValue)" @input="onMoneyInput($event, 'minOrderValue')" type="text" inputmode="numeric" data-field="minOrderValue" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="(voucherErrors.minOrderValue || minOrderValueError) ? 'border-red-500' : 'border-white/10'" :placeholder="isFixed ? (newVoucher.value ? `Tối thiểu ${fmtThousand(newVoucher.value)}đ` : 'Tối thiểu = giá trị giảm') : '0 = không yêu cầu'" />
-                  <p v-if="voucherErrors.minOrderValue || minOrderValueError" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.minOrderValue || minOrderValueError }}</p>
-                  <p v-else-if="isFixed && newVoucher.value" class="text-[10px] text-neutral-400">Tự điền = giá trị giảm (≥ {{ fmtThousand(newVoucher.value) }}đ).</p>
+                  <div class="min-h-[16px] flex items-center">
+                    <p v-if="voucherErrors.minOrderValue || minOrderValueError" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.minOrderValue || minOrderValueError }}</p>
+                    <p v-else-if="isFixed && newVoucher.value" class="text-[10px] text-neutral-400 leading-tight">Tự điền = giá trị giảm (≥ {{ fmtThousand(newVoucher.value) }}đ).</p>
+                    <p v-else class="text-[10px] text-neutral-400 leading-tight">0 = không yêu cầu đơn tối thiểu.</p>
+                  </div>
                 </div>
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Giới hạn lượt dùng</label>
                   <input :value="fmtThousand(newVoucher.usageLimit)" @input="onMoneyInput($event, 'usageLimit')" type="text" inputmode="numeric" data-field="usageLimit" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="voucherErrors.usageLimit ? 'border-red-500' : 'border-white/10'" placeholder="0 = không giới hạn" />
-                  <p v-if="voucherErrors.usageLimit" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.usageLimit }}</p>
+                  <div class="min-h-[16px] flex items-center">
+                    <p v-if="voucherErrors.usageLimit" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.usageLimit }}</p>
+                    <p v-else class="text-[10px] text-neutral-400 leading-tight">0 = không giới hạn lượt dùng.</p>
+                  </div>
                 </div>
               </div>
 
               <!-- Số vé tối đa được giảm & Giảm tối đa -->
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-3 items-start">
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Số vé tối đa / đơn</label>
                   <input :value="newVoucher.maxTicketQuantity ?? ''" @input="onIntInput($event, 'maxTicketQuantity')" type="text" inputmode="numeric" data-field="maxTicketQuantity" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="(voucherErrors.maxTicketQuantity || maxTicketError) ? 'border-red-500' : 'border-white/10'" :placeholder="`0 = toàn bộ (tối đa ${maxTicketsPerBooking})`" />
-                  <p v-if="voucherErrors.maxTicketQuantity || maxTicketError" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.maxTicketQuantity || maxTicketError }}</p>
-                  <p v-else class="text-[10px] text-neutral-400">0 = toàn bộ vé; Tối đa {{ maxTicketsPerBooking }} vé/đơn.</p>
+                  <div class="min-h-[16px] flex items-center">
+                    <p v-if="voucherErrors.maxTicketQuantity || maxTicketError" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.maxTicketQuantity || maxTicketError }}</p>
+                    <p v-else class="text-[10px] text-neutral-400 leading-tight">0 = toàn bộ vé; Tối đa {{ maxTicketsPerBooking }} vé/đơn.</p>
+                  </div>
                 </div>
                 <div class="space-y-1">
                   <label class="text-xs font-medium text-neutral-300">Giảm tối đa (VNĐ)</label>
                   <input :value="fmtThousand(newVoucher.maxDiscountAmount)" @input="onMoneyInput($event, 'maxDiscountAmount')" :disabled="isFixed" type="text" inputmode="numeric" data-field="maxDiscountAmount" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors placeholder:text-neutral-500" :class="voucherErrors.maxDiscountAmount ? 'border-red-500' : 'border-white/10'" placeholder="0 = không giới hạn" />
-                  <p v-if="voucherErrors.maxDiscountAmount" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.maxDiscountAmount }}</p>
-                  <p v-else-if="isFixed" class="text-[10px] text-amber-400/80">Tự khóa = giá trị giảm.</p>
+                  <div class="min-h-[16px] flex items-center">
+                    <p v-if="voucherErrors.maxDiscountAmount" class="text-[10.5px] text-red-400 font-medium leading-tight">{{ voucherErrors.maxDiscountAmount }}</p>
+                    <p v-else-if="isFixed" class="text-[10px] text-amber-400/80 leading-tight">Tự khóa = giá trị giảm.</p>
+                    <p v-else class="text-[10px] text-neutral-400 leading-tight">Bắt buộc &gt; 0 đối với mã giảm %.</p>
+                  </div>
                 </div>
               </div>
 
@@ -1852,7 +1914,7 @@ onUnmounted(() => {
                     </label>
                     <div v-if="filteredMoviesList.length === 0" class="px-2 py-1.5 text-xs text-neutral-400 italic text-center">Không tìm thấy phim</div>
                   </div>
-                  <p v-if="voucherErrors.selectedMovieIds" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.selectedMovieIds }}</p>
+                  <p v-if="voucherErrors.selectedMovieIds" class="text-[10.5px] text-red-400 font-medium leading-tight pt-0.5">{{ voucherErrors.selectedMovieIds }}</p>
                 </div>
               </div>
 
@@ -1860,6 +1922,7 @@ onUnmounted(() => {
               <div class="space-y-1">
                 <label class="text-xs font-medium text-neutral-300">Đối tượng áp dụng</label>
                 <CustomSelect v-model="newVoucher.customerEligibility" :options="eligibilityOptions" customClass="w-full h-10 px-3 rounded-lg text-xs border-white/10 bg-white/[0.04] text-white font-medium" />
+                <div class="min-h-[16px]"></div>
               </div>
 
               <!-- Cài đặt nâng cao (Unified Settings Box) -->
@@ -1889,14 +1952,16 @@ onUnmounted(() => {
                     <div class="flex items-center justify-between gap-3">
                       <span class="text-xs font-medium text-neutral-300">Số điểm cần để đổi 1 voucher:</span>
                       <div class="relative w-36">
-                        <input :value="newVoucher.pointsRequired ?? ''" @input="onIntInput($event, 'pointsRequired')" type="text" inputmode="numeric" data-field="pointsRequired" class="w-full h-8 bg-white/[0.04] border px-3 rounded-lg text-xs font-bold text-white focus:border-primary outline-none text-right pr-9 transition-colors placeholder:text-neutral-500" :class="voucherErrors.pointsRequired ? 'border-red-500' : 'border-white/10'" placeholder="50" />
+                        <input :value="newVoucher.pointsRequired ?? ''" @input="onIntInput($event, 'pointsRequired')" type="text" inputmode="numeric" data-field="pointsRequired" class="w-full h-8 bg-white/[0.04] border px-3 rounded-lg text-xs font-bold text-white focus:border-primary outline-none text-right pr-9 transition-colors placeholder:text-neutral-500" :class="(voucherErrors.pointsRequired || pointsError) ? 'border-red-500' : 'border-white/10'" placeholder="50" />
                         <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary pointer-events-none">pts</span>
                       </div>
                     </div>
-                    <p v-if="voucherErrors.pointsRequired" class="text-[10px] text-red-400 font-medium text-right">{{ voucherErrors.pointsRequired }}</p>
-                    <p v-else class="text-[10px] text-neutral-400">
-                      Khách đổi điểm trong Ví voucher để nhận mã ưu đãi.
-                    </p>
+                    <div class="min-h-[16px] flex items-center justify-end">
+                      <p v-if="voucherErrors.pointsRequired || pointsError" class="text-[10.5px] text-red-400 font-medium text-right leading-tight">{{ voucherErrors.pointsRequired || pointsError }}</p>
+                      <p v-else class="text-[10px] text-neutral-400 text-right leading-tight">
+                        Khách đổi điểm trong Ví voucher để nhận mã ưu đãi.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
