@@ -1447,242 +1447,269 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Voucher Modal Form -->
-    <div v-if="isVoucherDrawerOpen" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <!-- Voucher Modal Form (Sleek Minimalist 2-Column Layout) -->
+    <div v-if="isVoucherDrawerOpen" class="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-5">
       <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="isVoucherDrawerOpen = false"></div>
+      <div class="absolute inset-0 bg-black/75 backdrop-blur-md" @click="isVoucherDrawerOpen = false"></div>
 
       <!-- Modal Panel -->
-      <div class="relative w-full max-w-lg max-h-[90vh] bg-surface-container-low rounded-2xl overflow-hidden shadow-2xl flex flex-col border border-outline-variant/20 animate-in fade-in zoom-in-95 duration-200">
+      <div class="relative w-full max-w-4xl lg:max-w-5xl max-h-[92vh] bg-[#141416] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <!-- Modal Header -->
-        <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
-          <div>
-            <h3 class="font-headline font-black uppercase italic text-primary text-xl">{{ editingVoucherId ? 'Cập nhật Voucher' : 'Tạo Voucher' }}</h3>
-            <p class="text-xs text-on-surface-variant mt-1 uppercase tracking-widest font-bold">{{ editingVoucherId ? 'Chỉnh sửa mã giảm giá' : 'Thêm mã giảm giá mới' }}</p>
+        <div class="px-6 py-3.5 border-b border-white/10 flex items-center justify-between flex-shrink-0 bg-white/[0.02]">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-primary text-xl">confirmation_number</span>
+            <h3 class="text-sm sm:text-base font-bold uppercase text-white tracking-wide">
+              {{ editingVoucherId ? 'Cập nhật voucher' : 'Tạo mã giảm giá mới' }}
+            </h3>
           </div>
-          <button @click="isVoucherDrawerOpen = false" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="isVoucherDrawerOpen = false" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors">
+            <span class="material-symbols-outlined text-lg">close</span>
           </button>
         </div>
         
-        <!-- Modal Body -->
-        <div ref="voucherBodyRef" class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-custom" @click="movieDropdownOpen = false">
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mã Code (Tự tạo)</label>
-            <input v-model="newVoucher.code" @input="onCodeInput" maxlength="20" data-field="code" autocomplete="off" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none font-mono uppercase tracking-widest" :class="voucherErrors.code ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: SUMMER2026" />
-            <p v-if="voucherErrors.code" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.code }}</p>
-            <p v-else class="text-[10px] text-on-surface-variant/60 flex items-center gap-1">
-              <span class="material-symbols-outlined text-[13px]">keyboard</span>
-              Chỉ chữ &amp; số, không dấu. Nếu đang bật gõ tiếng Việt (Unikey/EVKey), hãy tắt khi nhập mã.
-            </p>
-          </div>
+        <!-- Modal Body (Sleek 2 Columns) -->
+        <div ref="voucherBodyRef" class="flex-1 overflow-y-auto p-5 sm:p-6 scrollbar-custom" @click="movieDropdownOpen = false">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- CỘT TRÁI: Thông tin cơ bản & Mức giảm (col-span-6) -->
+            <div class="lg:col-span-6 space-y-3.5">
+              <div class="flex items-center gap-1.5 pb-1.5 border-b border-white/10 text-primary text-xs font-semibold">
+                <span class="material-symbols-outlined text-base">edit_note</span>
+                <span>Thông tin cơ bản &amp; Mức giảm</span>
+              </div>
 
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tiêu đề chiến dịch</label>
-            <input v-model="newVoucher.title" @input="clearVErr('title')" maxlength="100" data-field="title" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.title ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: Khuyến mãi hè rực rỡ" />
-            <p v-if="voucherErrors.title" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.title }}</p>
-          </div>
+              <!-- Mã Code -->
+              <div class="space-y-1">
+                <label class="text-xs font-medium text-neutral-300">Mã code (Tự tạo)</label>
+                <input v-model="newVoucher.code" @input="onCodeInput" maxlength="20" data-field="code" autocomplete="off" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-semibold text-white focus:border-primary focus:bg-white/[0.07] outline-none font-mono uppercase tracking-wider transition-colors placeholder:text-neutral-500" :class="voucherErrors.code ? 'border-red-500' : 'border-white/10'" placeholder="VD: SUMMER2026" />
+                <p v-if="voucherErrors.code" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.code }}</p>
+                <p v-else class="text-[10px] text-neutral-400">
+                  Chỉ chữ &amp; số, không dấu
+                </p>
+              </div>
 
-          <div class="space-y-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mô tả ngắn</label>
-            <textarea v-model="newVoucher.description" @input="clearVErr('description')" rows="2" maxlength="255" data-field="description" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-medium text-on-surface focus:border-primary outline-none resize-none" :class="voucherErrors.description ? 'border-red-500' : 'border-outline-variant/20'" placeholder="Mô tả chi tiết voucher..."></textarea>
-            <div class="flex justify-between">
-              <p v-if="voucherErrors.description" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.description }}</p>
-              <span class="text-[10px] text-on-surface-variant/60 ml-auto">{{ (newVoucher.description || '').length }}/255</span>
-            </div>
-          </div>
+              <!-- Tiêu đề chiến dịch -->
+              <div class="space-y-1">
+                <label class="text-xs font-medium text-neutral-300">Tiêu đề chiến dịch</label>
+                <input v-model="newVoucher.title" @input="clearVErr('title')" maxlength="100" data-field="title" class="w-full h-10 bg-white/[0.04] border px-3.5 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="voucherErrors.title ? 'border-red-500' : 'border-white/10'" placeholder="VD: Khuyến mãi hè rực rỡ" />
+                <p v-if="voucherErrors.title" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.title }}</p>
+              </div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Loại giảm giá</label>
-              <CustomSelect 
-                v-model="newVoucher.type" 
-                :options="discountTypeOptions" 
-                customClass="w-full p-4 rounded-xl text-sm border-outline-variant/20" 
-              />
-            </div>
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giá trị giảm {{ newVoucher.type === 'PERCENTAGE' ? '(%)' : '(VNĐ)' }}</label>
-              <input :value="discountValueDisplay" @input="onDiscountValueInput" type="text" inputmode="numeric" data-field="value" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.value || discountValueError || pctLimitWarn) ? 'border-red-500' : 'border-outline-variant/20'" :placeholder="newVoucher.type === 'PERCENTAGE' ? '1 - 100' : 'VD: 20.000'" />
-              <p v-if="voucherErrors.value || discountValueError || pctLimitWarn" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.value || discountValueError || pctLimitWarn }}</p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <!-- Ngày bắt đầu (khóa khi voucher đang chạy) -->
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày bắt đầu</label>
-              <template v-if="editStartLocked">
-                <div class="w-full bg-surface-container-highest/50 border border-outline-variant/20 p-4 rounded-xl text-sm font-bold text-on-surface-variant/70 flex items-center gap-2 cursor-not-allowed">
-                  <span class="material-symbols-outlined text-sm">lock</span>
-                  {{ newVoucher.startDate ? new Date(newVoucher.startDate).toLocaleDateString('vi-VN') : 'Áp dụng ngay' }}
+              <!-- Mô tả ngắn -->
+              <div class="space-y-1">
+                <div class="flex justify-between items-center">
+                  <label class="text-xs font-medium text-neutral-300">Mô tả ngắn</label>
+                  <span class="text-[10px] text-neutral-400">{{ (newVoucher.description || '').length }}/255</span>
                 </div>
-                <p class="text-[10px] text-on-surface-variant/60">Đang chạy — không sửa được.</p>
-              </template>
-              <template v-else>
-                <input v-model="newVoucher.startDate" @input="clearVErr('startDate')" type="date" :min="todayStr" data-field="startDate" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.startDate ? 'border-red-500' : 'border-outline-variant/20'" />
-                <p v-if="voucherErrors.startDate" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.startDate }}</p>
-                <p v-else class="text-[10px] text-on-surface-variant/60">Trống = áp dụng ngay.</p>
-              </template>
-            </div>
-            <!-- Ngày hết hạn -->
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Ngày hết hạn</label>
-              <input v-model="newVoucher.expiry" @input="clearVErr('expiry')" type="date" :min="endMinStr" data-field="expiry" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.expiry ? 'border-red-500' : 'border-outline-variant/20'" />
-              <p v-if="voucherErrors.expiry" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.expiry }}</p>
-            </div>
-          </div>
-
-          <!-- Điều kiện áp dụng nâng cao -->
-          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-            <p class="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm">rule</span> Điều kiện áp dụng
-            </p>
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đơn tối thiểu (VNĐ)</label>
-                <input :value="fmtThousand(newVoucher.minOrderValue)" @input="onMoneyInput($event, 'minOrderValue')" type="text" inputmode="numeric" data-field="minOrderValue" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.minOrderValue || minOrderValueError) ? 'border-red-500' : 'border-outline-variant/20'" :placeholder="isFixed ? (newVoucher.value ? `Tối thiểu ${fmtThousand(newVoucher.value)}đ` : 'Tối thiểu = giá trị giảm') : '0 = không yêu cầu'" />
-                <p v-if="voucherErrors.minOrderValue || minOrderValueError" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.minOrderValue || minOrderValueError }}</p>
-                <p v-else-if="isFixed && newVoucher.value" class="text-[10px] text-on-surface-variant/70">Tự điền = giá trị giảm (tối thiểu {{ fmtThousand(newVoucher.value) }}đ, tối đa 999.999.999đ).</p>
-              </div>
-              <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giới hạn lượt dùng</label>
-                <input :value="fmtThousand(newVoucher.usageLimit)" @input="onMoneyInput($event, 'usageLimit')" type="text" inputmode="numeric" data-field="usageLimit" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.usageLimit ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
-                <p v-if="voucherErrors.usageLimit" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.usageLimit }}</p>
-              </div>
-              <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số vé tối đa được giảm / đơn</label>
-                <input :value="newVoucher.maxTicketQuantity ?? ''" @input="onIntInput($event, 'maxTicketQuantity')" type="text" inputmode="numeric" data-field="maxTicketQuantity" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="(voucherErrors.maxTicketQuantity || maxTicketError) ? 'border-red-500' : 'border-outline-variant/20'" :placeholder="`0 = toàn bộ vé (tối đa ${maxTicketsPerBooking} vé)`" />
-                <p v-if="voucherErrors.maxTicketQuantity || maxTicketError" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.maxTicketQuantity || maxTicketError }}</p>
-                <p v-else class="text-[10px] text-on-surface-variant/70">Nhập 0 để giảm toàn bộ vé trong đơn; Tối đa {{ maxTicketsPerBooking }} vé (theo cấu hình rạp).</p>
-              </div>
-              <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Giảm tối đa (VNĐ)</label>
-                <input :value="fmtThousand(newVoucher.maxDiscountAmount)" @input="onMoneyInput($event, 'maxDiscountAmount')" :disabled="isFixed" type="text" inputmode="numeric" data-field="maxDiscountAmount" class="w-full bg-surface-container-highest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none disabled:opacity-50 disabled:cursor-not-allowed" :class="voucherErrors.maxDiscountAmount ? 'border-red-500' : 'border-outline-variant/20'" placeholder="0 = không giới hạn" />
-                <p v-if="voucherErrors.maxDiscountAmount" class="text-[10px] text-red-400 font-bold">{{ voucherErrors.maxDiscountAmount }}</p>
-                <p v-else-if="isFixed" class="text-[10px] text-amber-400/80">Tự khoá = giá trị giảm (mã tiền cố định).</p>
-              </div>
-            </div>
-            <!-- Áp dụng theo phim: Radio Toàn bộ / Phim được chọn kèm checkbox -->
-            <div class="space-y-3">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block">Áp dụng theo phim</label>
-              <div class="flex gap-8">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" v-model="newVoucher.movieMode" value="all" class="accent-primary">
-                  <span class="text-xs font-bold uppercase">Toàn bộ phim</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" v-model="newVoucher.movieMode" value="specific" class="accent-primary">
-                  <span class="text-xs font-bold uppercase">Phim được chọn</span>
-                </label>
+                <textarea v-model="newVoucher.description" @input="clearVErr('description')" rows="2" maxlength="255" data-field="description" class="w-full bg-white/[0.04] border p-2.5 rounded-lg text-xs font-normal text-white focus:border-primary focus:bg-white/[0.07] outline-none resize-none transition-colors placeholder:text-neutral-500" :class="voucherErrors.description ? 'border-red-500' : 'border-white/10'" placeholder="Mô tả chi tiết voucher..."></textarea>
+                <p v-if="voucherErrors.description" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.description }}</p>
               </div>
 
-              <div v-if="newVoucher.movieMode === 'specific'" class="mt-2 p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10 space-y-3 animate-in fade-in slide-in-from-top-2">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-[10px] font-bold text-primary uppercase tracking-wider">
-                    {{ newVoucher.selectedMovieIds.length > 0 ? `Đã chọn ${newVoucher.selectedMovieIds.length} phim` : 'Chưa chọn phim nào (chọn bên dưới)' }}
-                  </span>
-                  <div class="flex items-center gap-2">
-                    <button type="button" @click="newVoucher.selectedMovieIds = moviesList.map(m => m.id)" class="text-[10px] font-bold text-primary hover:underline">Chọn tất cả</button>
-                    <span class="text-outline-variant/40">·</span>
-                    <button type="button" @click="newVoucher.selectedMovieIds = []" class="text-[10px] font-bold text-on-surface-variant hover:text-red-400">Bỏ chọn</button>
+              <!-- Loại giảm & Giá trị giảm -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Loại giảm giá</label>
+                  <CustomSelect 
+                    v-model="newVoucher.type" 
+                    :options="discountTypeOptions" 
+                    customClass="w-full h-10 px-3 rounded-lg text-xs border-white/10 bg-white/[0.04] text-white font-medium" 
+                  />
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Giá trị giảm {{ newVoucher.type === 'PERCENTAGE' ? '(%)' : '(VNĐ)' }}</label>
+                  <input :value="discountValueDisplay" @input="onDiscountValueInput" type="text" inputmode="numeric" data-field="value" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="(voucherErrors.value || discountValueError || pctLimitWarn) ? 'border-red-500' : 'border-white/10'" :placeholder="newVoucher.type === 'PERCENTAGE' ? '1 - 100' : 'VD: 20.000'" />
+                  <p v-if="voucherErrors.value || discountValueError || pctLimitWarn" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.value || discountValueError || pctLimitWarn }}</p>
+                </div>
+              </div>
+
+              <!-- Ngày bắt đầu & Ngày hết hạn -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Ngày bắt đầu</label>
+                  <template v-if="editStartLocked">
+                    <div class="w-full h-10 bg-white/[0.02] border border-white/10 px-3 rounded-lg text-xs font-medium text-neutral-400 flex items-center gap-2 cursor-not-allowed">
+                      <span class="material-symbols-outlined text-xs">lock</span>
+                      {{ newVoucher.startDate ? new Date(newVoucher.startDate).toLocaleDateString('vi-VN') : 'Áp dụng ngay' }}
+                    </div>
+                    <p class="text-[10px] text-neutral-400">Đang chạy (không sửa).</p>
+                  </template>
+                  <template v-else>
+                    <input v-model="newVoucher.startDate" @input="clearVErr('startDate')" type="date" :min="todayStr" data-field="startDate" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors" :class="voucherErrors.startDate ? 'border-red-500' : 'border-white/10'" />
+                    <p v-if="voucherErrors.startDate" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.startDate }}</p>
+                    <p v-else class="text-[10px] text-neutral-400">Bỏ trống = áp dụng ngay.</p>
+                  </template>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Ngày hết hạn</label>
+                  <input v-model="newVoucher.expiry" @input="clearVErr('expiry')" type="date" :min="endMinStr" data-field="expiry" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors" :class="voucherErrors.expiry ? 'border-red-500' : 'border-white/10'" />
+                  <p v-if="voucherErrors.expiry" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.expiry }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- CỘT PHẢI: Hạn mức, Điều kiện & Cài đặt nâng cao (col-span-6) -->
+            <div class="lg:col-span-6 space-y-3.5">
+              <div class="flex items-center gap-1.5 pb-1.5 border-b border-white/10 text-primary text-xs font-semibold">
+                <span class="material-symbols-outlined text-base">tune</span>
+                <span>Điều kiện &amp; Cấu hình áp dụng</span>
+              </div>
+
+              <!-- Đơn tối thiểu & Giới hạn lượt dùng -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Đơn tối thiểu (VNĐ)</label>
+                  <input :value="fmtThousand(newVoucher.minOrderValue)" @input="onMoneyInput($event, 'minOrderValue')" type="text" inputmode="numeric" data-field="minOrderValue" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="(voucherErrors.minOrderValue || minOrderValueError) ? 'border-red-500' : 'border-white/10'" :placeholder="isFixed ? (newVoucher.value ? `Tối thiểu ${fmtThousand(newVoucher.value)}đ` : 'Tối thiểu = giá trị giảm') : '0 = không yêu cầu'" />
+                  <p v-if="voucherErrors.minOrderValue || minOrderValueError" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.minOrderValue || minOrderValueError }}</p>
+                  <p v-else-if="isFixed && newVoucher.value" class="text-[10px] text-neutral-400">Tự điền = giá trị giảm (≥ {{ fmtThousand(newVoucher.value) }}đ).</p>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Giới hạn lượt dùng</label>
+                  <input :value="fmtThousand(newVoucher.usageLimit)" @input="onMoneyInput($event, 'usageLimit')" type="text" inputmode="numeric" data-field="usageLimit" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="voucherErrors.usageLimit ? 'border-red-500' : 'border-white/10'" placeholder="0 = không giới hạn" />
+                  <p v-if="voucherErrors.usageLimit" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.usageLimit }}</p>
+                </div>
+              </div>
+
+              <!-- Số vé tối đa được giảm & Giảm tối đa -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Số vé tối đa / đơn</label>
+                  <input :value="newVoucher.maxTicketQuantity ?? ''" @input="onIntInput($event, 'maxTicketQuantity')" type="text" inputmode="numeric" data-field="maxTicketQuantity" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none transition-colors placeholder:text-neutral-500" :class="(voucherErrors.maxTicketQuantity || maxTicketError) ? 'border-red-500' : 'border-white/10'" :placeholder="`0 = toàn bộ (tối đa ${maxTicketsPerBooking})`" />
+                  <p v-if="voucherErrors.maxTicketQuantity || maxTicketError" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.maxTicketQuantity || maxTicketError }}</p>
+                  <p v-else class="text-[10px] text-neutral-400">0 = toàn bộ vé; Tối đa {{ maxTicketsPerBooking }} vé/đơn.</p>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-neutral-300">Giảm tối đa (VNĐ)</label>
+                  <input :value="fmtThousand(newVoucher.maxDiscountAmount)" @input="onMoneyInput($event, 'maxDiscountAmount')" :disabled="isFixed" type="text" inputmode="numeric" data-field="maxDiscountAmount" class="w-full h-10 bg-white/[0.04] border px-3 rounded-lg text-xs font-medium text-white focus:border-primary focus:bg-white/[0.07] outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors placeholder:text-neutral-500" :class="voucherErrors.maxDiscountAmount ? 'border-red-500' : 'border-white/10'" placeholder="0 = không giới hạn" />
+                  <p v-if="voucherErrors.maxDiscountAmount" class="text-[10px] text-red-400 font-medium">{{ voucherErrors.maxDiscountAmount }}</p>
+                  <p v-else-if="isFixed" class="text-[10px] text-amber-400/80">Tự khóa = giá trị giảm.</p>
+                </div>
+              </div>
+
+              <!-- Áp dụng theo phim -->
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-neutral-300 block">Áp dụng theo phim</label>
+                <div class="p-0.5 bg-white/[0.04] rounded-lg border border-white/10 flex gap-1 h-9 items-center">
+                  <button 
+                    type="button" 
+                    @click="newVoucher.movieMode = 'all'" 
+                    :class="newVoucher.movieMode === 'all' ? 'bg-primary text-black font-semibold shadow-sm' : 'text-neutral-400 hover:text-white'"
+                    class="flex-1 h-8 text-xs font-medium rounded-md transition-colors text-center flex items-center justify-center"
+                  >
+                    Toàn bộ phim
+                  </button>
+                  <button 
+                    type="button" 
+                    @click="newVoucher.movieMode = 'specific'" 
+                    :class="newVoucher.movieMode === 'specific' ? 'bg-primary text-black font-semibold shadow-sm' : 'text-neutral-400 hover:text-white'"
+                    class="flex-1 h-8 text-xs font-medium rounded-md transition-colors text-center flex items-center justify-center"
+                  >
+                    Phim được chọn
+                  </button>
+                </div>
+
+                <div v-if="newVoucher.movieMode === 'specific'" class="p-2.5 bg-white/[0.02] rounded-lg border border-white/10 space-y-2 animate-in fade-in slide-in-from-top-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-medium text-primary">
+                      {{ newVoucher.selectedMovieIds.length > 0 ? `Đã chọn ${newVoucher.selectedMovieIds.length} phim` : 'Chưa chọn phim nào' }}
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <button type="button" @click="newVoucher.selectedMovieIds = moviesList.map(m => m.id)" class="text-xs font-medium text-primary hover:underline">Chọn tất cả</button>
+                      <span class="text-white/20">·</span>
+                      <button type="button" @click="newVoucher.selectedMovieIds = []" class="text-xs font-medium text-neutral-400 hover:text-red-400">Bỏ chọn</button>
+                    </div>
+                  </div>
+                  <div class="relative">
+                    <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">search</span>
+                    <input v-model="movieSearch" type="text" placeholder="Tìm tên phim..."
+                      class="w-full h-8 bg-white/[0.04] border border-white/10 pl-8 pr-2.5 rounded-md text-xs text-white focus:border-primary outline-none placeholder:text-neutral-500" />
+                  </div>
+                  <div class="flex flex-col gap-1 max-h-32 overflow-y-auto scrollbar-custom">
+                    <label v-for="m in filteredMoviesList" :key="m.id" class="flex items-center gap-2 cursor-pointer p-1 hover:bg-white/5 rounded transition-colors">
+                      <input type="checkbox" :value="m.id" v-model="newVoucher.selectedMovieIds" class="accent-primary rounded shrink-0">
+                      <span class="text-xs font-medium text-neutral-200 truncate">{{ m.title }}</span>
+                    </label>
+                    <div v-if="filteredMoviesList.length === 0" class="px-2 py-1.5 text-xs text-neutral-400 italic text-center">Không tìm thấy phim</div>
                   </div>
                 </div>
-                <div class="relative">
-                  <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">search</span>
-                  <input v-model="movieSearch" type="text" placeholder="Tìm tên phim áp dụng..."
-                    class="w-full bg-surface-container-lowest border border-outline-variant/20 pl-10 pr-3 py-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none" />
-                </div>
-                <div class="flex flex-col gap-1 max-h-52 overflow-y-auto scrollbar-custom">
-                  <label v-for="m in filteredMoviesList" :key="m.id" class="flex items-center gap-2.5 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-colors">
-                    <input type="checkbox" :value="m.id" v-model="newVoucher.selectedMovieIds" class="accent-primary rounded-sm shrink-0">
-                    <span class="text-xs font-bold text-on-surface truncate">{{ m.title }}</span>
-                  </label>
-                  <div v-if="filteredMoviesList.length === 0" class="px-2 py-3 text-xs text-on-surface-variant/60 italic text-center">Không tìm thấy phim</div>
-                </div>
               </div>
-            </div>
-            <div class="space-y-2">
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đối tượng áp dụng</label>
-              <CustomSelect v-model="newVoucher.customerEligibility" :options="eligibilityOptions" customClass="w-full p-4 rounded-xl text-sm border-outline-variant/20" />
-            </div>
-          </div>
 
-          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-            <div class="bg-surface-container-highest rounded-xl border border-outline-variant/10 overflow-hidden transition-all duration-300">
-              <div class="flex items-center justify-between p-4">
-                <div>
-                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Áp dụng đổi bằng điểm</p>
-                  <p class="text-[10px] text-on-surface-variant mt-1 font-bold">Nếu tắt, người dùng nhập trực tiếp mã (Code) để sử dụng</p>
-                </div>
-                <button @click="newVoucher.allowPointExchange = !newVoucher.allowPointExchange" :class="newVoucher.allowPointExchange ? 'bg-green-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
-                  <span :class="newVoucher.allowPointExchange ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
-                </button>
+              <!-- Đối tượng áp dụng -->
+              <div class="space-y-1">
+                <label class="text-xs font-medium text-neutral-300">Đối tượng áp dụng</label>
+                <CustomSelect v-model="newVoucher.customerEligibility" :options="eligibilityOptions" customClass="w-full h-10 px-3 rounded-lg text-xs border-white/10 bg-white/[0.04] text-white font-medium" />
               </div>
-              
-              <div v-if="newVoucher.allowPointExchange" class="p-4 pt-2 border-t border-outline-variant/5 animate-in fade-in slide-in-from-top-2 space-y-3">
-                <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <span class="material-symbols-outlined text-amber-400 text-base shrink-0">warning</span>
-                  <p class="text-[10px] text-amber-300/90 font-bold leading-relaxed">Khi BẬT: khách chỉ nhận mã bằng cách <b>đổi điểm</b> và mã <b>KHÔNG</b> nhập trực tiếp ở trang đặt vé được. Muốn khách nhập mã để dùng ngay thì <b>TẮT</b> mục này.</p>
+
+              <!-- Cài đặt nâng cao (Unified Settings Box) -->
+              <div class="rounded-xl bg-white/[0.02] border border-white/10 divide-y divide-white/10 overflow-hidden">
+                <!-- Toggle Đổi điểm -->
+                <div class="p-3 space-y-2.5 transition-colors">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="pr-1 space-y-1">
+                      <p class="text-xs font-medium text-white leading-snug">Áp dụng đổi bằng điểm</p>
+                      <p class="text-[10.5px] text-neutral-400 leading-normal">Nếu tắt, người dùng nhập trực tiếp mã (Code) để sử dụng</p>
+                    </div>
+                    <button 
+                      type="button" 
+                      @click="newVoucher.allowPointExchange = !newVoucher.allowPointExchange" 
+                      :class="newVoucher.allowPointExchange ? 'bg-primary' : 'bg-white/15'" 
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                    >
+                      <span 
+                        :class="newVoucher.allowPointExchange ? 'translate-x-4 bg-black' : 'translate-x-0 bg-neutral-300'" 
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full shadow ring-0 transition duration-200 ease-in-out"
+                      ></span>
+                    </button>
+                  </div>
+                  
+                  <!-- Khung nhập điểm tinh gọn khi bật đổi điểm -->
+                  <div v-if="newVoucher.allowPointExchange" class="pt-2 border-t border-white/5 space-y-1.5 animate-in fade-in">
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-xs font-medium text-neutral-300">Số điểm cần để đổi 1 voucher:</span>
+                      <div class="relative w-36">
+                        <input :value="newVoucher.pointsRequired ?? ''" @input="onIntInput($event, 'pointsRequired')" type="text" inputmode="numeric" data-field="pointsRequired" class="w-full h-8 bg-white/[0.04] border px-3 rounded-lg text-xs font-bold text-white focus:border-primary outline-none text-right pr-9 transition-colors placeholder:text-neutral-500" :class="voucherErrors.pointsRequired ? 'border-red-500' : 'border-white/10'" placeholder="50" />
+                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary pointer-events-none">pts</span>
+                      </div>
+                    </div>
+                    <p v-if="voucherErrors.pointsRequired" class="text-[10px] text-red-400 font-medium text-right">{{ voucherErrors.pointsRequired }}</p>
+                    <p v-else class="text-[10px] text-neutral-400">
+                      Khách đổi điểm trong Ví voucher để nhận mã ưu đãi.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 block">Số điểm cần đổi</label>
-                  <input :value="newVoucher.pointsRequired ?? ''" @input="onIntInput($event, 'pointsRequired')" type="text" inputmode="numeric" data-field="pointsRequired" class="w-full bg-surface-container-lowest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.pointsRequired ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: 50" />
-                  <p v-if="voucherErrors.pointsRequired" class="text-[10px] text-red-400 font-bold mt-1">{{ voucherErrors.pointsRequired }}</p>
+
+                <!-- Toggle Voucher Riêng tư -->
+                <div class="p-3 flex items-center justify-between gap-3">
+                  <div class="pr-1 space-y-1">
+                    <p class="text-xs font-medium text-white leading-snug">Voucher riêng tư (Không công khai)</p>
+                    <p class="text-[10.5px] text-neutral-400 leading-normal">Ẩn khỏi trang Khuyến mãi công khai. Khách có mã vẫn nhập được.</p>
+                  </div>
+                  <button 
+                    type="button" 
+                    @click="newVoucher.isHidden = !newVoucher.isHidden" 
+                    :class="newVoucher.isHidden ? 'bg-primary' : 'bg-white/15'" 
+                    class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                  >
+                    <span 
+                      :class="newVoucher.isHidden ? 'translate-x-4 bg-black' : 'translate-x-0 bg-neutral-300'" 
+                      class="pointer-events-none inline-block h-4 w-4 transform rounded-full shadow ring-0 transition duration-200 ease-in-out"
+                    ></span>
+                  </button>
                 </div>
               </div>
+
             </div>
 
-            <!-- Toggle Voucher Kín -->
-            <div class="bg-surface-container-highest rounded-xl border border-outline-variant/10 overflow-hidden transition-all duration-300">
-              <div class="flex items-center justify-between p-4">
-                <div class="pr-3">
-                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Voucher riêng tư (Không công khai)</p>
-                  <p class="text-[10px] text-on-surface-variant mt-1 font-bold leading-relaxed">
-                    Nếu bật, voucher sẽ không hiển thị trên trang Khuyến mãi công khai. Khách có mã vẫn có thể nhập để lưu vào ví hoặc dùng khi đặt vé.
-                  </p>
-                </div>
-                <button type="button" @click="newVoucher.isHidden = !newVoucher.isHidden" :class="newVoucher.isHidden ? 'bg-purple-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
-                  <span :class="newVoucher.isHidden ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-3">Cụm rạp áp dụng</label>
-            <div class="flex gap-8">
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" v-model="newVoucher.cinemaMode" value="all" class="accent-primary">
-                <span class="text-xs font-bold uppercase">Toàn hệ thống</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" v-model="newVoucher.cinemaMode" value="specific" class="accent-primary">
-                <span class="text-xs font-bold uppercase">Cụm rạp riêng</span>
-              </label>
-            </div>
-            
-            <div v-if="newVoucher.cinemaMode === 'specific'" class="mt-2 p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10 space-y-2">
-              <div class="relative">
-                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">search</span>
-                <input v-model="cinemaSearch" type="text" placeholder="Tìm theo tên rạp..."
-                  class="w-full bg-surface-container-lowest border border-outline-variant/20 pl-10 pr-3 py-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none" />
-              </div>
-              <div class="flex flex-col gap-1 max-h-52 overflow-y-auto scrollbar-custom">
-                <label v-for="cinema in filteredCinemasList" :key="cinema.id" class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white/5 rounded transition-colors">
-                  <input type="checkbox" :value="cinema.id" v-model="newVoucher.selectedCinemas" class="accent-primary">
-                  <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{{ cinema.name }}</span>
-                </label>
-                <div v-if="filteredCinemasList.length === 0" class="px-2 py-3 text-xs text-on-surface-variant/60 italic text-center">Không tìm thấy rạp</div>
-              </div>
-            </div>
           </div>
         </div>
 
-        <!-- Drawer Footer -->
-        <div class="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex gap-4">
-          <button @click="isVoucherDrawerOpen = false" class="flex-1 px-6 py-4 rounded-xl border border-outline-variant/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">Hủy bỏ</button>
-          <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError || !!maxTicketError || !!minOrderValueError" class="flex-1 px-6 py-4 rounded-xl bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-primary/20 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:hover:scale-100">{{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}</button>
+        <!-- Modal Footer -->
+        <div class="px-6 py-3 border-t border-white/10 flex justify-end gap-2.5 flex-shrink-0 bg-white/[0.02]">
+          <button @click="isVoucherDrawerOpen = false" class="px-5 py-2 rounded-lg text-neutral-300 hover:text-white hover:bg-white/5 font-medium text-xs transition-colors">
+            Hủy bỏ
+          </button>
+          <button @click="handleSaveVoucher" :disabled="isSavingVoucher || !!discountValueError || !!maxTicketError || !!minOrderValueError" class="px-5 py-2 rounded-lg bg-primary text-black font-semibold text-xs hover:bg-primary-fixed-dim transition-colors shadow-md shadow-primary/10 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed">
+            {{ isSavingVoucher ? 'Đang lưu...' : 'Lưu Voucher' }}
+          </button>
         </div>
       </div>
     </div>
