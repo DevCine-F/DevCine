@@ -116,23 +116,23 @@ public class VoucherService {
      * Lý do KHÔNG đủ điều kiện theo ĐỐI TƯỢNG áp dụng (null nếu đủ). Dùng chung cho apply/claim,
      * preview và (gián tiếp) đặt vé: NEW_CUSTOMER (chưa từng mua vé) & TIER_* (hạng tối thiểu).
      */
-    private String eligibilityReason(Integer customerId, Customer customer, String elig) {
+    public String eligibilityReason(Integer customerId, Customer customer, String elig) {
         if (elig == null || elig.equalsIgnoreCase("ALL")) return null;
         if ("NEW_CUSTOMER".equalsIgnoreCase(elig)) {
-            if (bookingRepository.countConfirmedByCustomer(customerId) > 0) {
-                return "Mã chỉ dành cho khách hàng mới (chưa từng mua vé).";
+            if (customerId != null && bookingRepository.countConfirmedByCustomer(customerId) > 0) {
+                return "Chỉ dành cho khách hàng mới";
             }
         } else if (elig.startsWith("TIER_")) {
             String requiredTier = elig.substring(5); // SILVER | GOLD | PLATINUM
             int lifetime = customer != null && customer.getLifetimePoints() != null ? customer.getLifetimePoints() : 0;
             if (loyaltyService.tierRank(loyaltyService.tierFor(lifetime)) < loyaltyService.tierRank(requiredTier)) {
-                return "Mã chỉ dành cho khách hàng hạng " + loyaltyService.tierLabelVi(requiredTier) + " trở lên.";
+                return "Chỉ dành cho thành viên " + loyaltyService.tierLabelVi(requiredTier) + " trở lên";
             }
         }
         return null;
     }
 
-    private String eligibilityReason(Integer customerId, Customer customer, Promotion promo) {
+    public String eligibilityReason(Integer customerId, Customer customer, Promotion promo) {
         return eligibilityReason(customerId, customer, promo != null ? promo.getCustomerEligibility() : "ALL");
     }
 

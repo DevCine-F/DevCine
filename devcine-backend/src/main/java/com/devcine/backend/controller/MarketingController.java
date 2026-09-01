@@ -29,6 +29,8 @@ public class MarketingController {
     private final PromotionRepository promotionRepository;
     private final VoucherRepository voucherRepository;
     private final CustomerRepository customerRepository;
+    private final com.devcine.backend.repository.BookingRepository bookingRepository;
+    private final com.devcine.backend.service.LoyaltyService loyaltyService;
     private final com.devcine.backend.service.VoucherService voucherService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -52,30 +54,59 @@ public class MarketingController {
     }
 
     /**
-     * Danh sách khuyến mãi công khai cho trang Khuyến mãi phía khách — CHỈ gồm các ưu đãi
-     * admin cho phép đổi bằng điểm. Ưu đãi không bật đổi-điểm là "mã bí mật", khách phải tự
-     * nhập mã để lưu (không hiển thị công khai).
+     * Danh sách khuyến mãi công khai cho trang Khuyến mãi phía khách kèm đầy đủ thông số
+     * snapshot (phim áp dụng, đơn tối thiểu, trần giảm, số vé, đối tượng và lý do không đủ điều kiện).
      */
     @GetMapping("/promotions/active")
-    public ResponseEntity<?> getActivePromotions() {
+    public ResponseEntity<?> getActivePromotions(@RequestParam(required = false) Integer customerId) {
         LocalDateTime now = LocalDateTime.now();
-        // Trả mọi promotion đang trong thời gian áp dụng và đang kích hoạt (isActive != false)
+        Integer resolvedCustomerId = customerId != null ? customerId : com.devcine.backend.util.SecurityUtils.getCurrentUserId();
+        com.devcine.backend.entity.Customer customer = resolvedCustomerId != null
+                ? customerRepository.findById(resolvedCustomerId).orElse(null)
+                : null;
+
         List<Map<String, Object>> result = promotionRepository.findAll().stream()
                 .filter(p -> p.getCode() != null && !p.getCode().isBlank())
                 .filter(p -> !Boolean.FALSE.equals(p.getIsActive()))
                 .filter(p -> (p.getStartDate() == null || !p.getStartDate().isAfter(now))
                         && (p.getEndDate() == null || !p.getEndDate().isBefore(now)))
-                .map(p -> Map.<String, Object>of(
-                        "id", p.getId(),
-                        "code", p.getCode() != null ? p.getCode() : "",
-                        "name", p.getName() != null ? p.getName() : "",
-                        "discountType", p.getDiscountType() != null ? p.getDiscountType() : "",
-                        "discountValue", p.getDiscountValue() != null ? p.getDiscountValue() : 0,
-                        "startDate", p.getStartDate() != null ? p.getStartDate().toString() : "",
-                        "endDate", p.getEndDate() != null ? p.getEndDate().toString() : "",
-                        "pointsRequired", p.getPointsRequired() != null ? p.getPointsRequired() : 0,
-                        "allowPointRedemption", Boolean.TRUE.equals(p.getAllowPointRedemption())
-                ))
+                .map(p -> {
+                    Integer movieId = p.getApplicableMovieId();
+                    String movieTitle = movieId != null ? voucherService.getMovieTitleById(movieId) : null;
+                    boolean exhausted = p.getUsageLimit() != null && p.getUsageLimit() > 0
+                            && p.getUsedCount() != null && p.getUsedCount() >= p.getUsageLimit();
+
+                    String ineligibilityReason = null;
+                    if (resolvedCustomerId != null) {
+                        ineligibilityReason = voucherService.eligibilityReason(resolvedCustomerId, customer, p.getCustomerEligibility());
+                    }
+
+                    boolean saved = resolvedCustomerId != null && voucherRepository.existsByCustomerAndPromotion(resolvedCustomerId, p.getId());
+
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("id", p.getId());
+                    m.put("code", p.getCode() != null ? p.getCode() : "");
+                    m.put("name", p.getName() != null ? p.getName() : "");
+                    m.put("description", p.getDescription() != null ? p.getDescription() : "");
+                    m.put("discountType", p.getDiscountType() != null ? p.getDiscountType() : "");
+                    m.put("discountValue", p.getDiscountValue() != null ? p.getDiscountValue() : 0);
+                    m.put("minOrderValue", p.getMinOrderValue() != null ? p.getMinOrderValue() : BigDecimal.ZERO);
+                    m.put("maxDiscountAmount", p.getMaxDiscountAmount() != null ? p.getMaxDiscountAmount() : BigDecimal.ZERO);
+                    m.put("maxTicketQuantity", p.getMaxTicketQuantity() != null ? p.getMaxTicketQuantity() : 0);
+                    m.put("applicableMovieId", movieId);
+                    m.put("applicableMovieTitle", movieTitle != null ? movieTitle : "");
+                    m.put("customerEligibility", p.getCustomerEligibility() != null ? p.getCustomerEligibility() : "ALL");
+                    m.put("usageLimit", p.getUsageLimit() != null ? p.getUsageLimit() : 0);
+                    m.put("usedCount", p.getUsedCount() != null ? p.getUsedCount() : 0);
+                    m.put("exhausted", exhausted);
+                    m.put("saved", saved);
+                    m.put("ineligibilityReason", ineligibilityReason);
+                    m.put("startDate", p.getStartDate() != null ? p.getStartDate().toString() : "");
+                    m.put("endDate", p.getEndDate() != null ? p.getEndDate().toString() : "");
+                    m.put("pointsRequired", p.getPointsRequired() != null ? p.getPointsRequired() : 0);
+                    m.put("allowPointRedemption", Boolean.TRUE.equals(p.getAllowPointRedemption()));
+                    return m;
+                })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.ok(result));
     }

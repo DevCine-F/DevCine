@@ -272,7 +272,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading && activeTab !== 'redeem'" class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+    <div v-if="isLoading && activeTab !== 'redeem'" class="grid grid-cols-1 gap-4 sm:gap-5">
       <div v-for="i in 2" :key="i" class="h-36 bg-surface-container-low rounded-xl animate-pulse border border-white/5"></div>
     </div>
 
@@ -339,8 +339,8 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Danh sách voucher -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+      <!-- Danh sách voucher (1 hàng 1 thẻ full-width) -->
+      <div class="grid grid-cols-1 gap-4 sm:gap-5">
       <div 
         v-for="voucher in filteredActiveVouchers" 
         :key="voucher.id" 
@@ -375,25 +375,20 @@ onUnmounted(() => {
           </div>
           <p class="text-xs sm:text-sm text-on-surface-variant mb-2.5 flex-grow">{{ voucher.description }}</p>
 
-          <!-- Badges điều kiện áp dụng (Snapshot) -->
-          <div v-if="voucher.applicableMovieTitle || voucher.minOrderValue > 0 || voucher.maxDiscountAmount > 0 || voucher.maxTicketQuantity > 0" class="flex flex-wrap gap-1.5 mb-3.5">
-            <span v-if="voucher.applicableMovieTitle" class="inline-flex items-center bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded">
-              Chỉ áp dụng phim: {{ voucher.applicableMovieTitle }}
+          <!-- Thông tin điều kiện áp dụng (Tối giản, cùng hệ màu tinh tế) -->
+          <div v-if="voucher.applicableMovieTitle || voucher.minOrderValue > 0 || voucher.maxDiscountAmount > 0 || voucher.maxTicketQuantity > 0" class="flex flex-wrap gap-2 mb-3">
+            <span v-if="voucher.applicableMovieTitle" class="inline-flex items-center bg-white/5 text-neutral-300 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Phim: {{ voucher.applicableMovieTitle }}
             </span>
-            <span v-if="voucher.minOrderValue > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
-              Đơn tối thiểu: {{ voucher.minOrderValue.toLocaleString('vi-VN') }}đ
+            <span v-if="voucher.minOrderValue > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Đơn từ {{ voucher.minOrderValue.toLocaleString('vi-VN') }}đ
             </span>
-            <span v-if="voucher.maxDiscountAmount > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
-              Giảm tối đa: {{ voucher.maxDiscountAmount.toLocaleString('vi-VN') }}đ
+            <span v-if="voucher.maxDiscountAmount > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Tối đa {{ voucher.maxDiscountAmount.toLocaleString('vi-VN') }}đ
             </span>
-            <span v-if="voucher.maxTicketQuantity > 0" class="inline-flex items-center gap-1 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-medium px-2 py-0.5 rounded">
-              Tối đa: {{ voucher.maxTicketQuantity }} vé
+            <span v-if="voucher.maxTicketQuantity > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Tối đa {{ voucher.maxTicketQuantity }} vé
             </span>
-          </div>
-
-          <!-- Thông báo hết lượt dùng toàn hệ thống -->
-          <div v-if="voucher.isExhausted" class="mb-3.5 px-3 py-1.5 rounded-sm bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
-            Mã ưu đãi đã hết lượt sử dụng trên toàn hệ thống.
           </div>
 
           <div class="flex justify-between items-center mt-auto pt-3 sm:pt-4 border-t border-white/5 gap-2">
@@ -401,12 +396,17 @@ onUnmounted(() => {
               <p class="text-[8px] sm:text-[9px] uppercase tracking-widest text-neutral-500 mb-0.5">Ngày hết hạn</p>
               <p class="text-xs font-bold" :class="voucher.isExhausted ? 'text-neutral-400' : 'text-error'">{{ voucher.expiry }}</p>
             </div>
-            <button v-if="!voucher.isExhausted" @click="handleUseVoucher(voucher.id)" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm shrink-0">
-              Dùng ngay
-            </button>
-            <span v-else class="inline-flex items-center gap-1 bg-neutral-800/80 text-neutral-400 border border-neutral-700 text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-sm shrink-0 select-none">
-              Hết lượt dùng
-            </span>
+            <div class="flex items-center gap-2.5">
+              <span v-if="voucher.isExhausted" class="text-[11px] text-neutral-400 hidden sm:inline">
+                Đã hết lượt sử dụng toàn hệ thống
+              </span>
+              <button v-if="!voucher.isExhausted" @click="handleUseVoucher(voucher.id)" class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-primary-fixed-dim transition-colors rounded-sm shrink-0 shadow-sm">
+                Dùng ngay
+              </button>
+              <span v-else class="inline-flex items-center bg-neutral-800 text-neutral-400 border border-neutral-700/80 text-[10px] font-bold uppercase tracking-widest px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-sm shrink-0 select-none">
+                Hết lượt dùng
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -427,7 +427,7 @@ onUnmounted(() => {
     <!-- Tab 2: Redeem with points -->
     <div v-else-if="activeTab === 'redeem'">
       <!-- Loading -->
-      <div v-if="isLoadingRedeem" class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+      <div v-if="isLoadingRedeem" class="grid grid-cols-1 gap-4 sm:gap-5">
         <div v-for="i in 2" :key="i" class="h-36 bg-surface-container-low rounded-xl animate-pulse border border-white/5"></div>
       </div>
 
@@ -438,7 +438,7 @@ onUnmounted(() => {
       </div>
 
       <!-- List -->
-      <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+      <div v-else class="grid grid-cols-1 gap-4 sm:gap-5">
         <div v-for="promo in redeemable" :key="promo.id" class="relative bg-surface-container-low rounded-xl flex overflow-hidden border border-white/5 hover:border-primary-container/30 transition-all shadow-xl">
           <div class="w-20 sm:w-24 md:w-32 bg-amber-500/10 flex flex-col items-center justify-center border-r border-dashed border-white/20 p-3 sm:p-4 shrink-0">
             <span class="material-symbols-outlined text-3xl sm:text-4xl text-amber-400 mb-1 sm:mb-2" style="font-variation-settings: 'FILL' 1;">stars</span>

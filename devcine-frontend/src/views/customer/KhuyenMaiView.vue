@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { promotionApi, voucherApi, promoArticleApi } from '@/api/customer/index'
+import { promotionApi, voucherApi, promoArticleApi, bookingApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { useConfirmStore } from '@/stores/confirm'
@@ -17,6 +17,7 @@ const promotions = ref([])
 const isLoading = ref(false)
 const savingId = ref(null)
 const savedIds = ref(new Set())
+const hasConfirmedBookings = ref(false)
 
 // Tin khuyến mãi (nội dung biên tập)
 const articles = ref([])
@@ -29,84 +30,54 @@ const fetchArticles = async () => {
     const { data } = await promoArticleApi.getActive()
     articles.value = Array.isArray(data) ? data : (data.data ?? [])
   } catch (e) {
-    console.error('Không tải được tin khuyến mãi', e)
+    console.error('Lỗi bài viết', e)
   } finally {
     isLoadingArticles.value = false
   }
 }
 
-const formatArticleDate = (iso) => {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('vi-VN')
-}
-
-// ===== Phân trang riêng cho từng khu — mỗi trang 2 dòng (3 cột × 2 = 6 mục) =====
-const PER_PAGE = 6
-const articlePage = ref(1)
-const promoPage = ref(1)
-
-const articleTotalPages = computed(() => Math.max(1, Math.ceil(articles.value.length / PER_PAGE)))
-const promoTotalPages = computed(() => Math.max(1, Math.ceil(promotions.value.length / PER_PAGE)))
-
-const pagedArticles = computed(() => {
-  const start = (articlePage.value - 1) * PER_PAGE
-  return articles.value.slice(start, start + PER_PAGE)
-})
-const pagedPromotions = computed(() => {
-  const start = (promoPage.value - 1) * PER_PAGE
-  return promotions.value.slice(start, start + PER_PAGE)
-})
-
-// Giữ nút vừa bấm ở nguyên vị trí trên màn hình sau khi lưới đổi chiều cao → không bị nhảy/cuộn trang
-const keepAnchored = (evt, apply) => {
-  const el = evt?.currentTarget
-  const before = el ? el.getBoundingClientRect().top : null
-  apply()
-  nextTick(() => {
-    if (el && before != null) {
-      const delta = el.getBoundingClientRect().top - before
-      if (delta) window.scrollBy(0, delta)
-    }
-  })
-}
-
-const goArticlePage = (n, evt) => {
-  if (n < 1 || n > articleTotalPages.value || n === articlePage.value) return
-  keepAnchored(evt, () => { articlePage.value = n })
-}
-const goPromoPage = (n, evt) => {
-  if (n < 1 || n > promoTotalPages.value || n === promoPage.value) return
-  keepAnchored(evt, () => { promoPage.value = n })
-}
-
 const fetchPromotions = async () => {
   isLoading.value = true
   try {
-    const { data } = await promotionApi.getActive()
-    promotions.value = data.data ?? data
+    const { data } = await promotionApi.getActive(authStore.user?.id)
+    const list = data?.data ?? data ?? []
+    promotions.value = list
+    const newSaved = new Set()
+    list.forEach(p => {
+      if (p.saved) newSaved.add(p.id)
+    })
+    savedIds.value = newSaved
   } catch (e) {
-    toast.error(friendlyError(e, 'Không tải được danh sách khuyến mãi.'))
+    showToast(friendlyError(e, 'Không tải được danh sách khuyến mãi.'), 'error')
   } finally {
     isLoading.value = false
   }
 }
 
-// Đánh dấu sẵn các mã user đã lưu từ trước (match theo code) để hiện "Đã lưu"
-const markAlreadySaved = async () => {
-  if (!authStore.isAuthenticated || !authStore.user?.id) return
-  try {
-    const { data } = await voucherApi.getAllVouchers(authStore.user.id)
-    const list = data.data ?? data
-    const ownedCodes = new Set(list.map(v => (v.code || '').toUpperCase()))
-    promotions.value.forEach(p => {
-      if (p.code && ownedCodes.has(p.code.toUpperCase())) savedIds.value.add(p.id)
-    })
-  } catch (e) {
-    console.error('Không tải được voucher đã lưu', e)
-  }
+const isPointPromo = (p) => p && p.allowPointRedemption && Number(p.pointsRequired) > 0
+
+const getIneligibilityReason = (promo) => {
+  if (promo.ineligibilityReason) return promo.ineligibilityReason
+  return null
 }
 
-const isPointPromo = (p) => p.allowPointRedemption && Number(p.pointsRequired) > 0
+const getPromoStatusBadge = (promo) => {
+  if (promo.exhausted) {
+    return { label: 'Hết lượt lưu', class: 'bg-neutral-800/90 text-neutral-400 border border-neutral-700' }
+  }
+  if (isPointPromo(promo)) {
+    return { label: 'Đổi bằng điểm', class: 'bg-amber-500/20 text-amber-300 border border-amber-500/30' }
+  }
+  const isNewCust = promo.customerEligibility === 'NEW_CUSTOMER' || 
+    (promo.name && promo.name.toLowerCase().includes('khách hàng mới'))
+  if (isNewCust) {
+    return { label: 'Khách hàng mới', class: 'bg-primary-container/20 text-primary-container border border-primary-container/30' }
+  }
+  if (promo.customerEligibility && promo.customerEligibility.startsWith('TIER_')) {
+    return { label: 'Hạng ' + promo.customerEligibility.substring(5), class: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' }
+  }
+  return { label: 'Đang diễn ra', class: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' }
+}
 
 const formatValue = (p) => {
   if (p.discountType === 'PERCENTAGE') return `Giảm ${Number(p.discountValue)}%`
@@ -164,10 +135,53 @@ const claimCode = async (p) => {
   }
 }
 
-onMounted(async () => {
+const formatArticleDate = (iso) => {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('vi-VN')
+}
+
+// ===== Phân trang riêng cho từng khu — mỗi trang 2 dòng (3 cột × 2 = 6 mục) =====
+const PER_PAGE = 6
+const articlePage = ref(1)
+const promoPage = ref(1)
+
+const articleTotalPages = computed(() => Math.max(1, Math.ceil(articles.value.length / PER_PAGE)))
+const promoTotalPages = computed(() => Math.max(1, Math.ceil(promotions.value.length / PER_PAGE)))
+
+const pagedArticles = computed(() => {
+  const start = (articlePage.value - 1) * PER_PAGE
+  return articles.value.slice(start, start + PER_PAGE)
+})
+const pagedPromotions = computed(() => {
+  const start = (promoPage.value - 1) * PER_PAGE
+  return promotions.value.slice(start, start + PER_PAGE)
+})
+
+// Giữ nút vừa bấm ở nguyên vị trí trên màn hình sau khi lưới đổi chiều cao → không bị nhảy/cuộn trang
+const keepAnchored = (evt, apply) => {
+  const el = evt?.currentTarget
+  const before = el ? el.getBoundingClientRect().top : null
+  apply()
+  nextTick(() => {
+    if (el && before != null) {
+      const delta = el.getBoundingClientRect().top - before
+      if (delta) window.scrollBy(0, delta)
+    }
+  })
+}
+
+const goArticlePage = (n, evt) => {
+  if (n < 1 || n > articleTotalPages.value || n === articlePage.value) return
+  keepAnchored(evt, () => { articlePage.value = n })
+}
+const goPromoPage = (n, evt) => {
+  if (n < 1 || n > promoTotalPages.value || n === promoPage.value) return
+  keepAnchored(evt, () => { promoPage.value = n })
+}
+
+onMounted(() => {
   fetchArticles()
-  await fetchPromotions()
-  await markAlreadySaved()
+  fetchPromotions()
 })
 </script>
 
@@ -199,40 +213,41 @@ onMounted(async () => {
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
-        <article v-for="article in pagedArticles" :key="article.id"
-                 class="group bg-surface-container-low rounded-2xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/40 transition-all duration-300">
-          <!-- Ảnh -->
-          <div class="aspect-[16/10] relative overflow-hidden bg-surface-container-high">
-            <img v-if="article.imageUrl" :src="article.imageUrl" :alt="article.title"
-                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-            <div v-else class="w-full h-full flex items-center justify-center">
-              <span class="material-symbols-outlined text-4xl sm:text-5xl text-outline-variant">image</span>
+        <article v-for="item in pagedArticles" :key="item.id"
+                 class="group bg-surface-container-low rounded-2xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300 hover:-translate-y-1">
+          <div class="aspect-video relative overflow-hidden bg-surface-container-high">
+            <img v-if="item.bannerUrl" :src="item.bannerUrl" :alt="item.title"
+                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            <div v-else class="w-full h-full flex items-center justify-center text-outline-variant">
+              <span class="material-symbols-outlined text-4xl sm:text-5xl">image</span>
             </div>
-            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
-            <div class="absolute top-3 left-3 bg-primary-container text-on-primary px-2.5 sm:px-3 py-1 font-bold text-[9px] sm:text-[10px] uppercase tracking-widest rounded-sm">Ưu đãi</div>
+            <div class="absolute inset-0 editorial-gradient opacity-60"></div>
+            <span class="absolute top-3 left-3 sm:top-4 sm:left-4 bg-surface-container-highest/80 backdrop-blur-md text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 rounded-full uppercase tracking-wider text-primary-container">
+              {{ item.category || 'Tin tức' }}
+            </span>
           </div>
 
-          <!-- Nội dung -->
-          <div class="p-4 sm:p-6 flex flex-col flex-grow">
-            <h3 class="text-base sm:text-lg font-headline font-bold text-on-surface uppercase italic leading-snug mb-2 line-clamp-2">{{ article.title }}</h3>
-            <p class="text-on-surface-variant text-xs sm:text-sm leading-relaxed mb-4 flex-grow line-clamp-3">{{ article.description }}</p>
-            <div class="flex items-center justify-between gap-3 pt-2 border-t border-outline-variant/10">
-              <span v-if="article.endDate" class="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                Đến {{ formatArticleDate(article.endDate) }}
-              </span>
-              <span v-else></span>
-              <RouterLink :to="`/khuyen-mai/${article.id}`"
-                      class="shrink-0 flex items-center gap-1.5 bg-primary-container/10 border border-primary-container/30 text-primary-container font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-primary-container/20 transition-all">
-                Xem chi tiết
-                <span class="material-symbols-outlined text-sm">arrow_forward</span>
-              </RouterLink>
-            </div>
+          <div class="p-4 sm:p-6 md:p-8 flex flex-col flex-grow">
+            <time class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mb-2 sm:mb-3 block">
+              {{ formatArticleDate(item.publishedAt) }}
+            </time>
+            <h3 class="text-base sm:text-xl font-headline font-bold text-on-surface group-hover:text-primary-container transition-colors line-clamp-2 mb-2 sm:mb-3">
+              {{ item.title }}
+            </h3>
+            <p class="text-on-surface-variant text-xs sm:text-sm line-clamp-2 leading-relaxed mb-4 sm:mb-6 flex-grow">
+              {{ item.summary }}
+            </p>
+            <RouterLink :to="`/khuyen-mai/${item.slug || item.id}`"
+                        class="inline-flex items-center gap-2 text-primary-container font-bold text-xs sm:text-sm uppercase tracking-wider group/link mt-auto">
+              Xem chi tiết
+              <span class="material-symbols-outlined text-base sm:text-lg group-hover/link:translate-x-1 transition-transform">arrow_forward</span>
+            </RouterLink>
           </div>
         </article>
       </div>
 
-      <!-- Phân trang khu Tin khuyến mãi -->
-      <nav v-if="articleTotalPages > 1" class="flex justify-center items-center gap-1.5 sm:gap-2 mt-8 sm:mt-10">
+      <!-- Phân trang khu Tin tức -->
+      <nav v-if="!isLoadingArticles && articleTotalPages > 1" class="flex justify-center items-center gap-1.5 sm:gap-2 mt-8 sm:mt-10">
         <button @click="goArticlePage(articlePage - 1, $event)" :disabled="articlePage === 1"
                 class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border border-outline-variant/20 text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
           <span class="material-symbols-outlined text-base sm:text-lg">chevron_left</span>
@@ -250,7 +265,7 @@ onMounted(async () => {
     </section>
 
     <!-- Tiêu đề khu voucher -->
-    <h2 v-if="articles.length > 0" class="text-2xl sm:text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-6 sm:mb-8">Mã ưu đãi & Voucher</h2>
+    <h2 class="text-2xl sm:text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-6 sm:mb-8">Mã ưu đãi & Voucher</h2>
 
     <!-- Promotions Grid -->
     <!-- Loading -->
@@ -268,44 +283,82 @@ onMounted(async () => {
     <!-- Danh sách khuyến mãi đang chạy -->
     <section v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
       <div v-for="promo in pagedPromotions" :key="promo.id"
-           class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary-container/30 transition-all duration-300">
+           :class="[
+             'group bg-surface-container-low rounded-xl overflow-hidden flex flex-col border transition-all duration-300 shadow-lg',
+             promo.exhausted ? 'opacity-60 border-outline-variant/10' : 'border-outline-variant/10 hover:border-primary-container/30'
+           ]">
         <div class="h-32 sm:h-40 relative bg-gradient-to-br from-primary-container/20 to-surface-container-high flex items-center justify-center">
           <span class="text-2xl sm:text-4xl font-headline font-extrabold text-primary-container">{{ formatValue(promo) }}</span>
-          <div class="absolute top-0 left-0 bg-error-container text-on-error-container px-2.5 sm:px-3 py-1 font-bold text-[9px] sm:text-[10px] uppercase tracking-widest">Đang áp dụng</div>
+          <div :class="['absolute top-3 left-3 px-2.5 py-0.5 rounded-sm font-bold text-[9px] sm:text-[10px] uppercase tracking-widest backdrop-blur-md', getPromoStatusBadge(promo).class]">
+            {{ getPromoStatusBadge(promo).label }}
+          </div>
         </div>
         <div class="p-4 sm:p-6 md:p-8 flex flex-col flex-grow">
-          <div class="flex items-center justify-between mb-3 gap-2">
+          <div class="flex items-center justify-between mb-2 gap-2">
             <h3 class="text-base sm:text-lg font-headline font-bold text-on-surface truncate">{{ promo.name || 'Ưu đãi đặc biệt' }}</h3>
-            <span v-if="promo.pointsRequired > 0" class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 sm:py-1 rounded shrink-0">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
+            <span v-if="promo.pointsRequired > 0" class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded shrink-0">{{ Number(promo.pointsRequired).toLocaleString('vi-VN') }} điểm</span>
           </div>
-          <p class="text-on-surface-variant text-xs sm:text-sm leading-relaxed mb-4 sm:mb-6 flex-grow">
-            {{ formatValue(promo) }} khi đặt vé tại DevCine.
-            {{ isPointPromo(promo) ? 'Đổi bằng điểm tích luỹ.' : 'Lưu mã để dùng khi thanh toán.' }}
-            {{ formatEnd(promo.endDate) }}.
+          <p class="text-on-surface-variant text-xs sm:text-sm leading-relaxed mb-3 flex-grow">
+            {{ promo.description || `${formatValue(promo)} khi đặt vé tại DevCine. ${isPointPromo(promo) ? 'Đổi bằng điểm tích luỹ.' : 'Lưu mã để dùng khi thanh toán.'} ${formatEnd(promo.endDate)}.` }}
           </p>
 
-          <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between gap-3">
-            <button type="button" disabled
-                    class="self-start flex items-center gap-1.5 sm:gap-2 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg cursor-default">
-              <span class="material-symbols-outlined text-sm">{{ isPointPromo(promo) ? 'redeem' : 'check_circle' }}</span>
+          <!-- Badges điều kiện áp dụng (Snapshot chuẩn) -->
+          <div v-if="promo.applicableMovieTitle || Number(promo.minOrderValue) > 0 || Number(promo.maxDiscountAmount) > 0 || Number(promo.maxTicketQuantity) > 0" class="flex flex-wrap gap-2 mb-4">
+            <span v-if="promo.applicableMovieTitle" class="inline-flex items-center bg-white/5 text-neutral-300 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Phim: {{ promo.applicableMovieTitle }}
+            </span>
+            <span v-if="Number(promo.minOrderValue) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Đơn từ {{ Number(promo.minOrderValue).toLocaleString('vi-VN') }}đ
+            </span>
+            <span v-if="Number(promo.maxDiscountAmount) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Tối đa {{ Number(promo.maxDiscountAmount).toLocaleString('vi-VN') }}đ
+            </span>
+            <span v-if="Number(promo.maxTicketQuantity) > 0" class="inline-flex items-center bg-white/5 text-neutral-400 border border-white/10 text-[10px] font-medium px-2.5 py-1 rounded">
+              Tối đa {{ promo.maxTicketQuantity }} vé
+            </span>
+          </div>
+
+          <!-- Khu vực trạng thái / hành động -->
+          <div v-if="savedIds.has(promo.id)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
+            <span class="inline-flex items-center gap-1.5 bg-green-500/10 border border-green-500/30 text-green-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3 py-1.5 rounded-sm select-none">
+              <span class="material-symbols-outlined text-sm">check_circle</span>
               {{ isPointPromo(promo) ? 'Đã đổi' : 'Đã lưu' }}
-            </button>
-            <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-[10px] sm:text-xs uppercase tracking-widest hover:opacity-80 shrink-0">Ưu đãi của tôi →</RouterLink>
+            </span>
+            <RouterLink to="/profile/vouchers" class="text-primary-container font-bold text-[10px] sm:text-xs uppercase tracking-widest hover:underline shrink-0">
+              Ưu đãi của tôi →
+            </RouterLink>
+          </div>
+
+          <div v-else-if="promo.exhausted" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
+            <span class="inline-flex items-center bg-neutral-800 text-neutral-400 border border-neutral-700 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3 py-1.5 rounded-sm select-none">
+              Hết lượt lưu
+            </span>
+            <span class="text-[11px] text-neutral-500">Đã hết suất hệ thống</span>
+          </div>
+
+          <div v-else-if="getIneligibilityReason(promo)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
+            <span class="inline-flex items-center bg-amber-500/10 border border-amber-500/20 text-amber-400 font-medium text-[11px] px-3 py-1.5 rounded-sm select-none">
+              {{ getIneligibilityReason(promo) }}
+            </span>
           </div>
 
           <!-- Nút đổi điểm -->
-          <button v-else-if="isPointPromo(promo)" @click="redeemPoints(promo)" :disabled="savingId === promo.id"
-                  class="self-start flex items-center gap-1.5 sm:gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg hover:bg-amber-500/20 transition-all disabled:opacity-60">
-            <span class="material-symbols-outlined text-sm">redeem</span>
-            {{ savingId === promo.id ? 'Đang đổi...' : `Đổi ${Number(promo.pointsRequired).toLocaleString('vi-VN')} điểm` }}
-          </button>
+          <div v-else-if="isPointPromo(promo)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
+            <button @click="redeemPoints(promo)" :disabled="savingId === promo.id"
+                    class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest px-4 py-2 rounded-sm hover:bg-amber-500/20 transition-all disabled:opacity-60">
+              <span class="material-symbols-outlined text-sm">redeem</span>
+              {{ savingId === promo.id ? 'Đang đổi...' : `Đổi ${Number(promo.pointsRequired).toLocaleString('vi-VN')} điểm` }}
+            </button>
+          </div>
 
           <!-- Nút lưu mã -->
-          <button v-else @click="claimCode(promo)" :disabled="savingId === promo.id"
-                  class="self-start flex items-center gap-1.5 sm:gap-2 bg-primary-container text-on-primary font-bold text-[10px] sm:text-xs uppercase tracking-widest px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg hover:brightness-110 transition-all disabled:opacity-60">
-            <span class="material-symbols-outlined text-sm">bookmark_add</span>
-            {{ savingId === promo.id ? 'Đang lưu...' : 'Lưu mã' }}
-          </button>
+          <div v-else class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5">
+            <button @click="claimCode(promo)" :disabled="savingId === promo.id"
+                    class="flex items-center gap-1.5 bg-primary-container text-on-primary font-bold text-[10px] sm:text-xs uppercase tracking-widest px-4 py-2 rounded-sm hover:bg-primary-fixed-dim transition-all disabled:opacity-60 shadow-sm">
+              <span class="material-symbols-outlined text-sm">bookmark_add</span>
+              {{ savingId === promo.id ? 'Đang lưu...' : 'Lưu mã' }}
+            </button>
+          </div>
         </div>
       </div>
     </section>

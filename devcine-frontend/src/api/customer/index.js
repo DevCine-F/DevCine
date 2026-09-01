@@ -67,7 +67,7 @@ export const reviewApi = {
 };
 
 export const promotionApi = {
-  getActive: () => api.get('/marketing/promotions/active'),
+  getActive: (customerId) => api.get('/marketing/promotions/active', { params: customerId ? { customerId } : {} }),
 };
 
 export const promoArticleApi = {
