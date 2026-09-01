@@ -1522,6 +1522,23 @@ const checkMemberCard = async () => {
 }
 const clearMember = () => { member.value = null; cardNumberInput.value = ''; cardError.value = ''; clearVoucherState() }
 
+const formatMemberPhone = (p) => {
+  if (!p) return ''
+  const clean = String(p).replace(/\D/g, '')
+  if (clean.length === 10) {
+    return `${clean.slice(0, 4)} ${clean.slice(4, 7)} ${clean.slice(7)}`
+  }
+  return p
+}
+
+const getTierBadgeClass = (tier) => {
+  const t = String(tier || '').toUpperCase()
+  if (t === 'DIAMOND') return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+  if (t === 'GOLD') return 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+  if (t === 'SILVER') return 'bg-slate-400/20 text-slate-200 border-slate-400/40'
+  return 'bg-primary/20 text-primary border-primary/30'
+}
+
 // ===== Voucher / khuyến mãi tại quầy =====
 const voucherEvals = ref({})
 const isVoucherEvalsReady = ref(false)
@@ -2690,21 +2707,68 @@ onUnmounted(() => {
             </div>
 
             <div class="space-y-6">
-              <div class="bg-primary/5 border border-primary/20 p-8 rounded-3xl space-y-4">
-                <p class="text-[10px] font-black text-primary uppercase tracking-widest">Thành viên (tùy chọn — để tích điểm)</p>
-                <div v-if="!member" class="space-y-3">
-                  <input v-model="cardNumberInput" type="tel" inputmode="numeric" placeholder="Số điện thoại khách hàng..." class="w-full bg-surface-container-high border border-outline-variant/10 rounded-2xl py-3 px-5 text-on-surface text-sm font-bold outline-none focus:border-primary/50" />
-                  <p v-if="cardError" class="text-xs text-red-400 font-bold">{{ cardError }}</p>
-                  <AppButton variant="primary" class="w-full" @click="checkMemberCard" :disabled="isCheckingCard">{{ isCheckingCard ? 'Đang kiểm tra...' : 'Kiểm tra' }}</AppButton>
+              <!-- Khối Thành viên DevCine: Thẻ Mini 2 Cột tối ưu diện tích -->
+              <div class="bg-primary/5 border border-primary/20 p-5 rounded-3xl space-y-3">
+                <div class="flex items-center justify-between">
+                  <p class="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">badge</span>
+                    {{ member ? 'Thành viên' : 'Thành viên (tùy chọn — để tích điểm)' }}
+                  </p>
+                  <button v-if="member" @click="clearMember" type="button" class="text-[10px] text-on-surface-variant hover:text-red-400 font-bold flex items-center gap-1 transition-colors px-2 py-0.5 rounded-lg hover:bg-white/5 cursor-pointer uppercase tracking-wider">
+                    <span class="material-symbols-outlined text-xs">close</span> Bỏ thẻ
+                  </button>
                 </div>
-                <div v-else class="space-y-2 text-on-surface">
-                  <div class="flex justify-between items-center">
-                    <p class="text-sm font-black uppercase">{{ member.fullName }}</p>
-                    <span class="px-2 py-1 bg-primary text-on-primary text-[8px] font-black rounded uppercase">{{ member.membershipTier }}</span>
+
+                <!-- Khi chưa tra cứu thẻ -->
+                <div v-if="!member" class="space-y-2.5">
+                  <div class="flex gap-2">
+                    <input 
+                      v-model="cardNumberInput" 
+                      type="tel" 
+                      inputmode="numeric" 
+                      placeholder="Số điện thoại khách hàng..." 
+                      @keydown.enter.prevent="checkMemberCard"
+                      class="flex-1 bg-surface-container-high border border-outline-variant/15 rounded-2xl py-2.5 px-4 text-on-surface text-xs font-bold outline-none focus:border-primary/50" 
+                    />
+                    <button 
+                      type="button"
+                      :disabled="isCheckingCard || !cardNumberInput.trim()" 
+                      @click="checkMemberCard"
+                      class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-2xl hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                    >
+                      {{ isCheckingCard ? '...' : 'Kiểm tra' }}
+                    </button>
                   </div>
-                  <p v-if="member.phone" class="text-xs text-on-surface-variant">SĐT: <span class="font-bold">{{ member.phone }}</span></p>
-                  <p class="text-xs text-on-surface-variant">Điểm tích lũy: <span class="text-primary font-bold">{{ fmt(member.loyaltyPoints) }}</span></p>
-                  <button @click="clearMember" class="text-[10px] text-on-surface-variant hover:text-red-400 font-bold uppercase">Bỏ thẻ</button>
+                  <p v-if="cardError" class="text-xs text-red-400 font-bold">{{ cardError }}</p>
+                </div>
+
+                <!-- Khi đã tra cứu thành công: Thẻ Mini 2 Cột -->
+                <div v-else class="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-surface-container/70 border border-outline-variant/20">
+                  <!-- Cột Trái: Avatar + Tên + SĐT -->
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-9 h-9 rounded-xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center shrink-0">
+                      <span class="material-symbols-outlined text-lg">person</span>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs sm:text-sm font-black uppercase text-on-surface truncate">{{ member.fullName }}</p>
+                      <p v-if="member.phone" class="text-[11px] text-on-surface-variant font-mono">{{ formatMemberPhone(member.phone) }}</p>
+                    </div>
+                  </div>
+
+                  <!-- Cột Phải: Hạng thẻ + Điểm tích lũy -->
+                  <div class="text-right shrink-0">
+                    <div class="flex items-center justify-end gap-1.5 mb-0.5">
+                      <span 
+                        class="px-2 py-0.5 text-[8.5px] font-black rounded uppercase tracking-wider border shadow-sm"
+                        :class="getTierBadgeClass(member.membershipTier)"
+                      >
+                        {{ member.membershipTier || 'STANDARD' }}
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant">
+                      Điểm: <span class="text-primary font-black text-xs sm:text-sm">{{ fmt(member.loyaltyPoints) }}</span>
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -2758,7 +2822,7 @@ onUnmounted(() => {
                     </div>
                     <div class="min-w-0">
                       <p class="text-xs font-bold text-on-surface group-hover:text-primary transition-colors">
-                        {{ ownedVouchers.length > 0 ? `Chọn voucher khuyến mãi (${eligibleVouchers.length} khả dụng)` : 'Chọn hoặc nhập mã voucher' }}
+                        Chọn voucher khuyến mãi
                       </p>
                       <p class="text-[10px] text-on-surface-variant/70">Bấm để xem danh sách hoặc nhập mã code</p>
                     </div>
@@ -3661,22 +3725,10 @@ onUnmounted(() => {
                       <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface font-semibold line-clamp-1">
                         {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
                       </p>
-                      <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80 flex-wrap">
-                        <span v-if="formatPromoMovieLabel(v)" class="text-amber-300 font-medium" :title="voucherEvals[v.id]?.applicableMovieTitle">
-                          {{ formatPromoMovieLabel(v) }}
-                        </span>
-                        <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
-                          Đơn từ {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
-                        </span>
-                        <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
-                          Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
-                        </span>
-                        <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
-                          Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
-                        </span>
-                        <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
+                      <div v-if="formatPromoMovieLabel(v)" class="text-[11px] text-amber-300 font-medium truncate" :title="voucherEvals[v.id]?.applicableMovieTitle">
+                        {{ formatPromoMovieLabel(v) }}
                       </div>
-                      <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-[11px] text-green-400 font-bold pt-0.5">
+                      <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-xs text-green-400 font-black pt-0.5">
                         Tiết kiệm {{ fmt(voucherEvals[v.id].discountAmount) }}đ
                       </p>
                     </div>
@@ -3755,12 +3807,6 @@ onUnmounted(() => {
                         </span>
                         <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                           Đơn tối thiểu {{ fmt(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue) }}đ
-                        </span>
-                        <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
-                          Tối đa {{ fmt(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount) }}đ
-                        </span>
-                        <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
-                          Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
                         </span>
                         <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
                       </div>

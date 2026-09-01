@@ -1686,22 +1686,10 @@ const proceedToPayment = async () => {
                     <p v-if="v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title" class="text-xs text-on-surface font-semibold line-clamp-1">
                       {{ v.promotion?.name || v.promotion?.title || voucherEvals[v.id]?.title }}
                     </p>
-                    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/80 flex-wrap">
-                      <span v-if="formatPromoMovieLabel(v)" class="text-amber-300 font-medium" :title="voucherEvals[v.id]?.applicableMovieTitle">
-                        {{ formatPromoMovieLabel(v) }}
-                      </span>
-                      <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
-                        Đơn từ {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
-                      </span>
-                      <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
-                        Tối đa {{ Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount).toLocaleString('vi-VN') }}đ
-                      </span>
-                      <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
-                        Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
-                      </span>
-                      <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
+                    <div v-if="formatPromoMovieLabel(v)" class="text-[11px] text-amber-300 font-medium truncate" :title="voucherEvals[v.id]?.applicableMovieTitle">
+                      {{ formatPromoMovieLabel(v) }}
                     </div>
-                    <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-[11px] text-green-400 font-bold pt-0.5">
+                    <p v-if="voucherEvals[v.id]?.discountAmount > 0" class="text-xs text-green-400 font-black pt-0.5">
                       Tiết kiệm {{ Number(voucherEvals[v.id].discountAmount).toLocaleString('vi-VN') }}đ
                     </p>
                   </div>
@@ -1764,12 +1752,6 @@ const proceedToPayment = async () => {
                       </span>
                       <span v-if="Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue || 0) > 0">
                         Đơn tối thiểu {{ Number(voucherEvals[v.id]?.minOrderValue || v.promotion?.minOrderValue).toLocaleString('vi-VN') }}đ
-                      </span>
-                      <span v-if="Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount || 0) > 0">
-                        Tối đa {{ Number(voucherEvals[v.id]?.maxDiscountAmount || v.promotion?.maxDiscountAmount).toLocaleString('vi-VN') }}đ
-                      </span>
-                      <span v-if="Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity || 0) > 0">
-                        Tối đa {{ Number(voucherEvals[v.id]?.maxTicketQuantity || v.promotion?.maxTicketQuantity) }} vé
                       </span>
                       <span>HSD: {{ formatVoucherDate(v.validUntil || voucherEvals[v.id]?.validUntil) }}</span>
                     </div>
