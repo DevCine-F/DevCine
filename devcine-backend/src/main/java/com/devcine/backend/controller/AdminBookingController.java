@@ -59,119 +59,16 @@ public class AdminBookingController {
         // hasFnb: "" (tất cả) | "YES" (có F&B) | "NO" (chỉ vé)
         String hasFnbFilter = hasFnb == null ? "" : hasFnb.trim().toUpperCase();
 
-        // 1. Lấy danh sách Bookings (Vé & Vé+F&B)
-        Page<Booking> bookingResult = bookingRepository.searchForAdmin(
+        Page<com.devcine.backend.dto.AdminBookingSummaryProjection> pagedResult = bookingRepository.searchUnifiedForAdmin(
                 q.trim(), status.trim().toUpperCase(), method.trim().toUpperCase(), cinemaId,
-                fromDt, toDt, hasFnbFilter, PageRequest.of(0, 2000));
-
-        List<Integer> bookingIds = bookingResult.getContent().stream().map(Booking::getId).collect(Collectors.toList());
-        Map<Integer, Long> seatCounts = new HashMap<>();
-        Map<Integer, Long> fnbCounts = new HashMap<>();
-        if (!bookingIds.isEmpty()) {
-            for (Object[] row : bookingRepository.countSeatsByBookingIds(bookingIds)) {
-                seatCounts.put((Integer) row[0], (Long) row[1]);
-            }
-            for (Object[] row : bookingFnbRepository.countFnbByBookingIds(bookingIds)) {
-                fnbCounts.put((Integer) row[0], (Long) row[1]);
-            }
-        }
-
-        List<Map<String, Object>> allRows = new java.util.ArrayList<>();
-
-        // Map Bookings
-        for (Booking b : bookingResult.getContent()) {
-            boolean hasCustomer = b.getCustomer() != null && b.getCustomer().getUser() != null;
-            Map<String, Object> m = new HashMap<>();
-            m.put("bookingId", b.getId());
-            m.put("bookingCode", nn(b.getBookingCode()));
-            m.put("isConcession", false);
-            m.put("orderType", "TICKET");
-            m.put("status", nn(b.getStatus()));
-            m.put("paymentMethod", nn(b.getPaymentMethod()));
-            m.put("totalPrice", b.getTotalPrice());
-            m.put("finalPrice", b.getFinalPrice());
-            m.put("createdAt", b.getCreatedAt() != null ? b.getCreatedAt().toString() : null);
-            m.put("createdAtRaw", b.getCreatedAt() != null ? b.getCreatedAt() : MIN_DATE);
-            m.put("customerName", hasCustomer ? b.getCustomer().getUser().getFullName() : "Khách tại quầy");
-            String channelVal = b.getChannel() != null && !b.getChannel().isBlank()
-                    ? ("ONLINE".equalsIgnoreCase(b.getChannel()) ? "Online" : "Quầy (POS)")
-                    : channelOf(b.getPaymentMethod());
-            m.put("channel", channelVal);
-            m.put("movieTitle", b.getShowtime().getMovie().getTitle());
-            m.put("roomName", b.getShowtime().getRoom().getName());
-            m.put("showtimeStart", b.getShowtime().getStartTime().toString());
-            m.put("seatCount", seatCounts.getOrDefault(b.getId(), 0L));
-            long fnbCount = fnbCounts.getOrDefault(b.getId(), 0L);
-            m.put("fnbItemCount", fnbCount);
-            m.put("hasFnb", fnbCount > 0);
-            allRows.add(m);
-        }
-
-        // 2. Lấy danh sách ConcessionSale (Bán nhanh F&B độc lập) nếu không lọc "chỉ vé"
-        if (!hasFnbFilter.equals("NO")) {
-            String concessionStatus = status.trim().toUpperCase();
-            if ("CONFIRMED".equals(concessionStatus)) {
-                concessionStatus = "COMPLETED";
-            }
-            List<com.devcine.backend.entity.ConcessionSale> concessionList = concessionSaleRepository.searchForAdmin(
-                    q.trim(), concessionStatus, method.trim().toUpperCase(), cinemaId,
-                    fromDt, toDt);
-
-            List<Integer> saleIds = concessionList.stream().map(com.devcine.backend.entity.ConcessionSale::getId).collect(Collectors.toList());
-            Map<Integer, Long> concessionItemCounts = new HashMap<>();
-            if (!saleIds.isEmpty()) {
-                for (Object[] row : concessionSaleItemRepository.countItemsBySaleIds(saleIds)) {
-                    concessionItemCounts.put((Integer) row[0], ((Number) row[1]).longValue());
-                }
-            }
-
-            for (com.devcine.backend.entity.ConcessionSale s : concessionList) {
-                boolean hasCustomer = s.getCustomer() != null && s.getCustomer().getUser() != null;
-                Map<String, Object> m = new HashMap<>();
-                m.put("bookingId", s.getId());
-                m.put("bookingCode", nn(s.getSaleCode()));
-                m.put("isConcession", true);
-                m.put("orderType", "CONCESSION");
-                m.put("status", nn(s.getStatus()));
-                m.put("paymentMethod", nn(s.getPaymentMethod()));
-                m.put("totalPrice", s.getTotalPrice());
-                m.put("finalPrice", s.getTotalPrice());
-                m.put("createdAt", s.getCreatedAt() != null ? s.getCreatedAt().toString() : null);
-                m.put("createdAtRaw", s.getCreatedAt() != null ? s.getCreatedAt() : MIN_DATE);
-                m.put("customerName", hasCustomer ? s.getCustomer().getUser().getFullName() : "Khách tại quầy");
-                m.put("channel", "Quầy (POS)");
-                m.put("movieTitle", "Bán nhanh bắp nước (F&B)");
-                m.put("roomName", s.getCinema() != null ? s.getCinema().getName() : "Quầy Concession");
-                m.put("showtimeStart", null);
-                m.put("seatCount", 0L);
-                long fnbCount = concessionItemCounts.getOrDefault(s.getId(), 1L);
-                m.put("fnbItemCount", fnbCount);
-                m.put("hasFnb", true);
-                allRows.add(m);
-            }
-        }
-
-        // 3. Sắp xếp đơn mới nhất lên đầu tiên theo thời gian tạo
-        allRows.sort((a, b) -> ((LocalDateTime) b.get("createdAtRaw")).compareTo((LocalDateTime) a.get("createdAtRaw")));
-
-        // 4. Phân trang
-        int totalElements = allRows.size();
-        int fromIndex = Math.min(page * size, totalElements);
-        int toIndex = Math.min(fromIndex + size, totalElements);
-        List<Map<String, Object>> pagedContent = allRows.subList(fromIndex, toIndex);
-        int totalPages = totalElements == 0 ? 1 : (int) Math.ceil((double) totalElements / size);
-
-        // Xoá trường phụ createdAtRaw trước khi trả về FE
-        for (Map<String, Object> row : pagedContent) {
-            row.remove("createdAtRaw");
-        }
+                fromDt, toDt, hasFnbFilter, PageRequest.of(page, size));
 
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "content", pagedContent,
-                "page", page,
-                "size", size,
-                "totalElements", totalElements,
-                "totalPages", totalPages
+                "content", pagedResult.getContent(),
+                "page", pagedResult.getNumber(),
+                "size", pagedResult.getSize(),
+                "totalElements", pagedResult.getTotalElements(),
+                "totalPages", pagedResult.getTotalPages() == 0 ? 1 : pagedResult.getTotalPages()
         )));
     }
 

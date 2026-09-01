@@ -226,6 +226,153 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
                                  @Param("hasFnb") String hasFnb,
                                  Pageable pageable);
 
+    @Query(value = "SELECT * FROM (" +
+           "  SELECT " +
+           "    b.id AS booking_id, " +
+           "    b.booking_code AS booking_code, " +
+           "    FALSE AS is_concession, " +
+           "    'TICKET' AS order_type, " +
+           "    b.status AS status, " +
+           "    b.payment_method AS payment_method, " +
+           "    b.total_price AS total_price, " +
+           "    b.final_price AS final_price, " +
+           "    b.created_at AS created_at, " +
+           "    COALESCE(u.full_name, 'Khách tại quầy') AS customer_name, " +
+           "    CASE " +
+           "      WHEN b.channel IS NOT NULL AND b.channel <> '' THEN " +
+           "        (CASE WHEN UPPER(b.channel) = 'ONLINE' THEN 'Online' ELSE 'Quầy (POS)' END) " +
+           "      WHEN UPPER(b.payment_method) IN ('CASH', 'CARD') THEN 'Quầy (POS)' " +
+           "      WHEN UPPER(b.payment_method) IN ('TRANSFER', 'VIETQR', 'VNPAY') THEN 'Online' " +
+           "      ELSE COALESCE(b.payment_method, '—') " +
+           "    END AS channel, " +
+           "    m.title AS movie_title, " +
+           "    r.name AS room_name, " +
+           "    to_char(s.start_time, 'YYYY-MM-DD\"T\"HH24:MI:SS') AS showtime_start, " +
+           "    (SELECT COUNT(*) FROM booking_seats bs WHERE bs.booking_id = b.id) AS seat_count, " +
+           "    (SELECT COUNT(*) FROM booking_fnbs bf WHERE bf.booking_id = b.id) AS fnb_item_count, " +
+           "    (EXISTS (SELECT 1 FROM booking_fnbs bf WHERE bf.booking_id = b.id)) AS has_fnb " +
+           "  FROM bookings b " +
+           "  JOIN showtimes s ON b.showtime_id = s.id " +
+           "  JOIN movies m ON s.movie_id = m.id " +
+           "  JOIN rooms r ON s.room_id = r.id " +
+           "  LEFT JOIN customers c ON b.customer_id = c.user_id " +
+           "  LEFT JOIN users u ON c.user_id = u.id " +
+           "  WHERE b.created_at BETWEEN :from AND :to " +
+           "    AND (:cinemaId IS NULL OR r.cinema_id = :cinemaId) " +
+           "    AND (" +
+           "      :status = '' " +
+           "      OR (:status = 'HOLD' AND b.status IN ('HOLD', 'PENDING_PAYMENT', 'PAYING')) " +
+           "      OR b.status = :status" +
+           "    ) " +
+           "    AND (:method = '' OR b.payment_method = :method) " +
+           "    AND (" +
+           "      :q = '' " +
+           "      OR LOWER(b.booking_code) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.full_name) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')" +
+           "    ) " +
+           "    AND (" +
+           "      :hasFnb = '' " +
+           "      OR (:hasFnb = 'YES' AND EXISTS (SELECT 1 FROM booking_fnbs bf WHERE bf.booking_id = b.id)) " +
+           "      OR (:hasFnb = 'NO' AND NOT EXISTS (SELECT 1 FROM booking_fnbs bf WHERE bf.booking_id = b.id))" +
+           "    ) " +
+           "  UNION ALL " +
+           "  SELECT " +
+           "    cs.id AS booking_id, " +
+           "    cs.sale_code AS booking_code, " +
+           "    TRUE AS is_concession, " +
+           "    'CONCESSION' AS order_type, " +
+           "    cs.status AS status, " +
+           "    cs.payment_method AS payment_method, " +
+           "    cs.total_price AS total_price, " +
+           "    cs.total_price AS final_price, " +
+           "    cs.created_at AS created_at, " +
+           "    COALESCE(u.full_name, 'Khách tại quầy') AS customer_name, " +
+           "    'Quầy (POS)' AS channel, " +
+           "    'Bán nhanh bắp nước (F&B)' AS movie_title, " +
+           "    COALESCE(cin.name, 'Quầy Concession') AS room_name, " +
+           "    NULL::text AS showtime_start, " +
+           "    0::bigint AS seat_count, " +
+           "    COALESCE((SELECT SUM(csi.quantity) FROM concession_sale_items csi WHERE csi.sale_id = cs.id), 1)::bigint AS fnb_item_count, " +
+           "    TRUE AS has_fnb " +
+           "  FROM concession_sales cs " +
+           "  LEFT JOIN cinemas cin ON cs.cinema_id = cin.id " +
+           "  LEFT JOIN customers c ON cs.customer_id = c.user_id " +
+           "  LEFT JOIN users u ON c.user_id = u.id " +
+           "  WHERE :hasFnb <> 'NO' " +
+           "    AND cs.created_at BETWEEN :from AND :to " +
+           "    AND (:cinemaId IS NULL OR cs.cinema_id = :cinemaId) " +
+           "    AND (" +
+           "      :status = '' " +
+           "      OR (:status = 'CONFIRMED' AND cs.status = 'COMPLETED') " +
+           "      OR cs.status = :status" +
+           "    ) " +
+           "    AND (:method = '' OR cs.payment_method = :method) " +
+           "    AND (" +
+           "      :q = '' " +
+           "      OR LOWER(cs.sale_code) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.full_name) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')" +
+           "    ) " +
+           ") combined_orders ORDER BY created_at DESC",
+           countQuery = "SELECT COUNT(*) FROM (" +
+           "  SELECT b.id " +
+           "  FROM bookings b " +
+           "  JOIN showtimes s ON b.showtime_id = s.id " +
+           "  JOIN rooms r ON s.room_id = r.id " +
+           "  LEFT JOIN customers c ON b.customer_id = c.user_id " +
+           "  LEFT JOIN users u ON c.user_id = u.id " +
+           "  WHERE b.created_at BETWEEN :from AND :to " +
+           "    AND (:cinemaId IS NULL OR r.cinema_id = :cinemaId) " +
+           "    AND (" +
+           "      :status = '' " +
+           "      OR (:status = 'HOLD' AND b.status IN ('HOLD', 'PENDING_PAYMENT', 'PAYING')) " +
+           "      OR b.status = :status" +
+           "    ) " +
+           "    AND (:method = '' OR b.payment_method = :method) " +
+           "    AND (" +
+           "      :q = '' " +
+           "      OR LOWER(b.booking_code) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.full_name) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')" +
+           "    ) " +
+           "    AND (" +
+           "      :hasFnb = '' " +
+           "      OR (:hasFnb = 'YES' AND EXISTS (SELECT 1 FROM booking_fnbs bf WHERE bf.booking_id = b.id)) " +
+           "      OR (:hasFnb = 'NO' AND NOT EXISTS (SELECT 1 FROM booking_fnbs bf WHERE bf.booking_id = b.id))" +
+           "    ) " +
+           "  UNION ALL " +
+           "  SELECT cs.id " +
+           "  FROM concession_sales cs " +
+           "  LEFT JOIN customers c ON cs.customer_id = c.user_id " +
+           "  LEFT JOIN users u ON c.user_id = u.id " +
+           "  WHERE :hasFnb <> 'NO' " +
+           "    AND cs.created_at BETWEEN :from AND :to " +
+           "    AND (:cinemaId IS NULL OR cs.cinema_id = :cinemaId) " +
+           "    AND (" +
+           "      :status = '' " +
+           "      OR (:status = 'CONFIRMED' AND cs.status = 'COMPLETED') " +
+           "      OR cs.status = :status" +
+           "    ) " +
+           "    AND (:method = '' OR cs.payment_method = :method) " +
+           "    AND (" +
+           "      :q = '' " +
+           "      OR LOWER(cs.sale_code) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.full_name) LIKE CONCAT('%', LOWER(:q), '%') " +
+           "      OR LOWER(u.username) LIKE CONCAT('%', LOWER(:q), '%')" +
+           "    ) " +
+           ") combined_count",
+           nativeQuery = true)
+    Page<com.devcine.backend.dto.AdminBookingSummaryProjection> searchUnifiedForAdmin(
+            @Param("q") String q,
+            @Param("status") String status,
+            @Param("method") String method,
+            @Param("cinemaId") Integer cinemaId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("hasFnb") String hasFnb,
+            Pageable pageable);
+
     @Query("SELECT b FROM Booking b " +
            "LEFT JOIN FETCH b.showtime s " +
            "LEFT JOIN FETCH s.movie " +
