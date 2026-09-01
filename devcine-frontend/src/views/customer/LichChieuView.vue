@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { showtimeApi } from '@/api/customer'
@@ -233,9 +233,21 @@ const filteredCinemas = computed(() => {
 const selectedCinema = computed(() => availableCinemas.value.find(c => c.id === selectedCinemaId.value) || null)
 
 // Chọn rạp -> Tải ngay lịch chiếu của riêng rạp đó (nhẹ & nhanh <50ms)
-const selectCinema = async (id) => {
+const selectCinema = async (id, preserveDate = false) => {
   selectedCinemaId.value = id
-  selectedDate.value = todayStr
+  if (!preserveDate || !selectedDate.value) {
+    selectedDate.value = availableDates.value[0]?.dateStr || ''
+  }
+
+  // Đồng bộ lên URL query
+  router.replace({
+    query: {
+      ...route.query,
+      cinemaId: id,
+      date: selectedDate.value
+    }
+  })
+
   cinemaShowtimes.value = []
   loadingShowtimes.value = true
   try {
@@ -248,10 +260,74 @@ const selectCinema = async (id) => {
   }
 }
 
+const handleDateChange = (dateStr) => {
+  selectedDate.value = dateStr
+  if (selectedCinemaId.value) {
+    router.replace({
+      query: {
+        ...route.query,
+        cinemaId: selectedCinemaId.value,
+        date: dateStr
+      }
+    })
+  }
+}
+
 const changeCinema = () => {
   selectedCinemaId.value = null
   cinemaShowtimes.value = []
+  router.replace({
+    query: {
+      ...route.query,
+      cinemaId: undefined,
+      cinema: undefined,
+      date: undefined
+    }
+  })
 }
+
+const isSyncingRoute = ref(false)
+
+const syncStateFromRoute = async () => {
+  if (isSyncingRoute.value) return
+  isSyncingRoute.value = true
+  try {
+    const queryCinemaId = route.query.cinemaId || route.query.cinema
+    const queryDate = route.query.date
+
+    if (queryDate && availableDates.value.some(d => d.dateStr === queryDate)) {
+      selectedDate.value = queryDate
+    }
+
+    if (queryCinemaId) {
+      if (selectedCinemaId.value && String(selectedCinemaId.value) === String(queryCinemaId)) {
+        return
+      }
+      const match = cinemaList.value.find(c => String(c.id) === String(queryCinemaId))
+      if (match) {
+        await selectCinema(match.id, true)
+      } else {
+        await selectCinema(Number(queryCinemaId) || queryCinemaId, true)
+      }
+    } else if (selectedCinemaId.value) {
+      selectedCinemaId.value = null
+      cinemaShowtimes.value = []
+    }
+  } finally {
+    isSyncingRoute.value = false
+  }
+}
+
+watch(
+  () => [route.query.cinemaId, route.query.cinema, route.query.date],
+  async ([newCinemaId, newCinema, newDate], [oldCinemaId, oldCinema, oldDate]) => {
+    const currentId = newCinemaId || newCinema
+    const prevId = oldCinemaId || oldCinema
+    if (currentId !== prevId || newDate !== oldDate) {
+      await syncStateFromRoute()
+    }
+  }
+)
 
 const goToBooking = (st) => {
   const d = toDate(st.startTime)
@@ -277,14 +353,7 @@ const loadInitialCinemas = async () => {
     const list = res.data || []
     cinemaList.value = list
 
-    // Nếu URL có sẵn query ?cinema=ID, tự động chọn rạp đó
-    const queryCinemaId = route.query.cinema || route.query.cinemaId
-    if (queryCinemaId) {
-      const match = list.find(c => String(c.id) === String(queryCinemaId))
-      if (match) {
-        selectCinema(match.id)
-      }
-    }
+    await syncStateFromRoute()
   } catch (e) {
     loadError.value = true
     toast.error(friendlyError(e, 'Không tải được danh sách rạp.'))
@@ -436,7 +505,7 @@ onUnmounted(() => {
 
       <!-- Dải ngày -->
       <div class="flex justify-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar mb-8 sm:mb-10 px-1 py-2 touch-pan-x">
-        <button v-for="d in availableDates" :key="d.dateStr" @click="selectedDate = d.dateStr"
+        <button v-for="d in availableDates" :key="d.dateStr" @click="handleDateChange(d.dateStr)"
           :class="selectedDate === d.dateStr
             ? 'bg-gradient-to-b from-[#f5c518] to-[#e0a000] text-black border-transparent shadow-lg shadow-[#f5c518]/25 scale-105'
             : 'bg-surface-container-high/50 text-on-surface-variant border-outline-variant/20 hover:border-[#f5c518]/50 hover:text-on-surface hover:-translate-y-0.5'"
