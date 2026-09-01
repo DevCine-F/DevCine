@@ -8,6 +8,13 @@ import { Client } from '@stomp/stompjs'
  *  - select(seatId): gửi lệnh giữ ghế. Server trả SELECT_OK (giữ được) hoặc SELECT_DENIED (quầy khác đã giữ).
  *  - Khi một máy giữ/nhả/bán ghế, server broadcast tới mọi máy đang xem suất đó → cập nhật `othersLocked`.
  *
+ * Chỉ giữ lại các Realtime trạng thái an toàn:
+ *  - SEAT_LOCKED / SEAT_SOLD / SEAT_RELEASED: Chống 2 người đặt trùng 1 ghế.
+ *  - SEAT_MAINTENANCE: Gỡ ghế nếu Admin đưa ghế vào bảo trì khẩn cấp (tránh khách ngồi ghế hỏng).
+ *  - SHOWTIME_CANCELLED: Chuyển hướng nếu suất chiếu bị hủy khẩn cấp.
+ *
+ * Tuyệt đối KHÔNG có realtime đổi giá, đổi F&B, đổi voucher hay cấu hình giữa phiên.
+ *
  * @param {Object} opts
  * @param {string} [opts.by]          Nhãn hiển thị máy này (vd "Quầy POS", "Khách online").
  * @param {Function} [opts.onDenied]  (seatId) → ghế bị quầy khác chiếm trước (để revert UI + toast).
@@ -15,16 +22,11 @@ import { Client } from '@stomp/stompjs'
  * @param {Function} [opts.onReleased] (seatIds) → ghế vừa được nhả (hết hạn/huỷ) — cập nhật status sang AVAILABLE.
  * @param {Function} [opts.onHeld]    (seatIds) → ghế vừa bị giữ bởi quầy khác — cập nhật status sang HOLD.
  * @param {Function} [opts.onChange]  () → trạng thái khóa của người khác vừa đổi (để ép re-render nếu cần).
- * @param {Function} [opts.onFnbUpdate] (ev) → sự kiện cập nhật F&B real-time từ admin.
  * @param {Function} [opts.onMaintenance] (seatIds, status) → ghế chuyển sang bảo trì hoặc mở lại.
- * @param {Function} [opts.onPricingUpdate] (ev) → bảng giá vé nền được admin cập nhật.
- * @param {Function} [opts.onShowtimeCancelled] (ev) → suất chiếu bị hủy.
- * @param {Function} [opts.onShowtimeUpdated] (ev) → suất chiếu được cập nhật thông tin.
- * @param {Function} [opts.onVoucherUpdate] (ev) → sự kiện voucher / khuyến mãi thay đổi từ admin.
- * @param {Function} [opts.onSettingsUpdate] (ev) → cấu hình hệ thống (VietQR, giữ chỗ) thay đổi từ admin.
- * @param {Function} [opts.onScheduleUpdate] (ev) → sự kiện lịch chiếu (tạo/sửa/xóa suất chiếu) từ admin.
+ * @param {Function} [opts.onShowtimeCancelled] (ev) → suất chiếu bị hủy khẩn cấp.
+ * @param {Function} [opts.onScheduleUpdate] (ev) → sự kiện lịch chiếu (tạo/sửa/xóa suất chiếu) cho màn hình lịch chiếu công cộng ngoài rạp.
  */
-export function useSeatRealtime({ by = 'Quầy khác', isMySeat, onDenied, onSold, onReleased, onHeld, onChange, onFnbUpdate, onMaintenance, onPricingUpdate, onShowtimeCancelled, onShowtimeUpdated, onVoucherUpdate, onSettingsUpdate, onScheduleUpdate } = {}) {
+export function useSeatRealtime({ by = 'Quầy khác', isMySeat, onDenied, onSold, onReleased, onHeld, onChange, onMaintenance, onShowtimeCancelled, onScheduleUpdate } = {}) {
   const connected = ref(false)
   const othersLocked = ref(new Set()) // seatId đang bị NGƯỜI KHÁC giữ/bán → disable trên UI máy này
   const mySeats = new Set()           // seatId chính máy này đang giữ → bỏ qua echo broadcast của mình
@@ -73,41 +75,15 @@ export function useSeatRealtime({ by = 'Quầy khác', isMySeat, onDenied, onSol
           subs.push(client.subscribe('/user/queue/seat-sync', (msg) => handleSync(JSON.parse(msg.body))))
           client.publish({ destination: `/app/showtime/${showtimeId}/sync`, body: '{}' })
         }
-        // Đồng bộ cập nhật thực đơn F&B real-time (toàn hệ thống)
-        subs.push(client.subscribe('/topic/fnb-updates', (msg) => {
-          try {
-            const ev = JSON.parse(msg.body)
-            onFnbUpdate?.(ev)
-          } catch (_) {}
-        }))
-        // Đồng bộ cập nhật bảng giá vé nền real-time
-        subs.push(client.subscribe('/topic/pricing-updates', (msg) => {
-          try {
-            const ev = JSON.parse(msg.body)
-            onPricingUpdate?.(ev)
-          } catch (_) {}
-        }))
-        // Đồng bộ cập nhật voucher/khuyến mãi real-time
-        subs.push(client.subscribe('/topic/voucher-updates', (msg) => {
-          try {
-            const ev = JSON.parse(msg.body)
-            onVoucherUpdate?.(ev)
-          } catch (_) {}
-        }))
-        // Đồng bộ cập nhật cấu hình hệ thống & VietQR real-time
-        subs.push(client.subscribe('/topic/settings-updates', (msg) => {
-          try {
-            const ev = JSON.parse(msg.body)
-            onSettingsUpdate?.(ev)
-          } catch (_) {}
-        }))
-        // Đồng bộ lịch chiếu công cộng real-time
-        subs.push(client.subscribe('/topic/showtimes-schedule', (msg) => {
-          try {
-            const ev = JSON.parse(msg.body)
-            onScheduleUpdate?.(ev)
-          } catch (_) {}
-        }))
+        // Đồng bộ lịch chiếu công cộng real-time (chỉ dành cho các màn hình xem lịch chiếu ngoài rạp)
+        if (typeof onScheduleUpdate === 'function') {
+          subs.push(client.subscribe('/topic/showtimes-schedule', (msg) => {
+            try {
+              const ev = JSON.parse(msg.body)
+              onScheduleUpdate?.(ev)
+            } catch (_) {}
+          }))
+        }
       },
       onWebSocketClose: () => { connected.value = false },
     })
@@ -138,8 +114,6 @@ export function useSeatRealtime({ by = 'Quầy khác', isMySeat, onDenied, onSol
       onMaintenance?.(ids, ev.status || 'MAINTENANCE')
     } else if (ev.type === 'SHOWTIME_CANCELLED') {
       onShowtimeCancelled?.(ev)
-    } else if (ev.type === 'SHOWTIME_UPDATED') {
-      onShowtimeUpdated?.(ev)
     }
   }
 

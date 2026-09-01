@@ -211,19 +211,14 @@ const setTicketCount = (code, delta) => {
   assignTicketCountsToSeats()
 }
 
-// Vào bước 3 (xác nhận vé) → đồng bộ counter + snapshot bảng giá vé
+// Vào bước 3 (xác nhận vé) → đồng bộ counter vé
 watch(currentStep, (step) => {
   if (step === 3) {
     syncTicketCountsFromSeats()
-    // ── Snapshot giá vé tại thời điểm Thu ngân xác nhận loại vé ──
-    // Từ đây, mọi sự kiện onPricingUpdate từ Admin không ảnh hưởng đến tổng tiền đơn này.
-    if (!lockedPriceTable.value) {
-      lockedPriceTable.value = JSON.parse(JSON.stringify(priceTable.value))
-    }
   }
   if (step === 4) {
     // ── Snapshot giá catalog F&B khi Thu ngân vào bước chọn combo ──
-    // Từ đây, mọi sự kiện onFnbUpdate không đổi giá hiển thị trên card catalog.
+    // Đóng băng giá hiển thị trên card catalog trong suốt phiên.
     if (!lockedCombosPrices.value) {
       const priceMap = {}
       combos.value.forEach(c => { priceMap[c.id] = Number(c.price) })
@@ -324,7 +319,10 @@ const reconcilePosCombos = () => {
 
   for (const c of selectedCombos.value) {
     const currentItem = availableMap.get(c.id)
-    if (!currentItem || currentItem.isActive === false || currentItem.isDeleted) {
+    // Snapshot F&B: Chỉ gỡ món bị xoá cứng khỏi hệ thống (isDeleted = true).
+    // Món bị Admin ẩn (isActive = false) sau khi Thu ngân đã chọn vẫn được giữ nguyên trong đơn.
+    // Quy tắc: snapshot đóng băng trạng thái tại thời điểm bấm chọn — phiên kế tiếp mới áp dụng thay đổi.
+    if (!currentItem || currentItem.isDeleted === true) {
       removedNames.push(c.name || 'Món')
     } else {
       // ── Snapshot guard: chỉ cập nhật metadata hiển thị (tên), KHÔNG ghi đè giá đã snapshot ──
@@ -416,59 +414,11 @@ const seatRealtime = useSeatRealtime({
       }
     }
   },
-  // Đồng bộ bảng giá vé nền (luôn cập nhật priceTable live để phiên kế tiếp dùng đúng giá)
-  // ── Snapshot guard: nếu Thu ngân đã lock giá (đang từ Bước 3 trở đi), KHÔNG override và KHÔNG toast ──
-  // lockedPriceTable GIỮ NGUYÊN — giá vé đã được đóng băng cho phiên hiện tại.
-  onPricingUpdate: async () => {
-    if (selectedShowtime.value) {
-      try {
-        const { data } = await ticketingApi.getSeats(selectedShowtime.value.id)
-        captureSeatMeta(data) // cập nhật priceTable nền (cho phiên tiếp theo)
-        // Chỉ báo cập nhật khi chưa lock (Thu ngân chưa vào bước xác nhận vé)
-        if (!lockedPriceTable.value) {
-          showToast('Bảng giá vé vừa được cập nhật.', 'info')
-        }
-      } catch (_) {}
-    }
-  },
-  // Suất chiếu bị hủy
+  // Suất chiếu bị hủy khẩn cấp
   onShowtimeCancelled: () => {
     showToast('Suất chiếu này vừa bị hủy hoặc thay đổi lịch.', 'error')
     resetPOS()
   },
-  // Suất chiếu được cập nhật
-  onShowtimeUpdated: async () => {
-    showToast('Thông tin suất chiếu vừa được cập nhật.', 'info')
-    if (selectedShowtime.value) {
-      try {
-        const { data } = await ticketingApi.getSeats(selectedShowtime.value.id)
-        seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
-        captureSeatMeta(data)
-      } catch (_) {}
-    }
-  },
-  // Đồng bộ thực đơn F&B real-time từ Admin
-  onFnbUpdate: async () => {
-    await reloadPosCombos()
-    const removed = reconcilePosCombos()
-    if (removed.length > 0) {
-      showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi đơn hàng.`, 'error')
-    }
-    // Nếu đang mở popup chọn vị của món
-    if (isFnbModalOpen.value && editingFnbItem.value) {
-      const updated = (combos.value || []).find(i => i.id === editingFnbItem.value.id && i.isActive !== false && !i.isDeleted)
-      if (!updated) {
-        isFnbModalOpen.value = false
-        editingFnbItem.value = null
-        editingFnbIndex.value = -1
-        showToast('Món đang chọn vị vừa tạm ngưng phục vụ.', 'error')
-      } else {
-        editingFnbItem.value = updated
-      }
-    }
-  },
-  onVoucherUpdate: () => {},
-  onSettingsUpdate: () => {},
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
 
@@ -496,6 +446,7 @@ const holdCurrentOrder = async () => {
         posTerminalId: posStore.getPosTerminalId(),
         showtimeId: selectedShowtime.value.id,
         seatIds: selectedSeats.value.map(s => s.seatId),
+        seatSelections: buildSeatSelections(),
         customerId: member.value ? member.value.customerId : null,
         fnbs: selectedCombos.value.map(c => ({
           fnbItemId: c.id,
@@ -560,14 +511,21 @@ const performRestore = async (o) => {
       const lostCombos = [];
       for (const combo of (o.combos || [])) {
         const item = availableMap.get(combo.id || combo.fnbItemId);
-        if (item && (item.is_available || item.isAvailable)) {
+        // Snapshot F&B: Chỉ gỡ món bị xóa cứng (isDeleted=true) khi restore đơn chờ.
+        // Món bị ẩn (isActive=false) vẫn giữ nguyên theo snapshot đơn đã giữ.
+        if (item && item.isDeleted !== true) {
+          // Backfill snapshotPrice nếu đơn cũ chưa có
+          if (combo.snapshotPrice == null) combo.snapshotPrice = combo.price;
           validCombos.push(combo);
+        } else if (!item) {
+          lostCombos.push(combo.name);
         } else {
+          // item tồn tại nhưng isDeleted=true
           lostCombos.push(combo.name);
         }
       }
       if (lostCombos.length > 0) {
-        showToast(`Món ${lostCombos.join(', ')} đã tạm hết và được xóa khỏi đơn giữ.`, 'error');
+        showToast(`Món ${lostCombos.join(', ')} đã bị xóa khỏi hệ thống và không thể khôi phục vào đơn.`, 'error');
       }
       o.combos = validCombos;
     }
@@ -622,6 +580,10 @@ const performRestore = async (o) => {
     const { data } = await ticketingApi.getSeats(o.showtime.id)
     seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
     captureSeatMeta(data)
+    // ── Snapshot bảng giá vé khi khôi phục đơn chờ ──
+    if (priceTable.value && Object.keys(priceTable.value).length > 0) {
+      lockedPriceTable.value = JSON.parse(JSON.stringify(priceTable.value))
+    }
     
     const byId = new Map(seatData.value.seats.map(s => [s.seatId, s]))
     const restored = []; const lost = []
@@ -998,6 +960,7 @@ const processConcessionPayment = async (method) => {
         itemId: c.id,
         fnbItemId: c.id,
         quantity: c.quantity,
+        clientPrice: c.snapshotPrice ?? c.price, // ── Gửi giá đã lock để Backend verify ──
         options: c.options || []
       })),
       customerId: member.value ? member.value.customerId : null,
@@ -1010,18 +973,8 @@ const processConcessionPayment = async (method) => {
     fnbStep.value = 3
     printConcessionInvoice()
   } catch (err) {
-    const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || ''
-    if (errMsg.includes('ngưng bán') || errMsg.includes('không tồn tại')) {
-      await reloadPosCombos()
-      const removed = reconcilePosCombos()
-      if (removed.length > 0) {
-        showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ nên đã được gỡ khỏi đơn. Vui lòng kiểm tra lại.`, 'error')
-        showCashModal.value = false
-        showQrModal.value = false
-        fnbStep.value = 1
-        return
-      }
-    }
+    // Snapshot F&B: Không reload/reconcile khi thanh toán lỗi để bảo toàn snapshot giá.
+    // Lỗi thực sự (món bị xóa cứng khỏi DB) sẽ hiển thị thông báo lỗi rõ ràng.
     if (err.response?.status === 400 && err.response?.data?.message) {
       showToast(err.response.data.message, 'error')
     } else {
@@ -1047,9 +1000,10 @@ const printConcessionInvoice = () => {
     fnbs: selectedCombos.value.map(c => ({
       name: c.name,
       quantity: c.quantity,
-      price: c.price,
+      // ── Snapshot: in hóa đơn theo giá lock tại thời điểm chọn, không phải giá live ──
+      price: c.snapshotPrice ?? c.price,
       surchargePrice: c.surchargePrice || 0,
-      lineTotal: (Number(c.price || 0) + Number(c.surchargePrice || 0)) * Number(c.quantity || 1),
+      lineTotal: (Number(c.snapshotPrice ?? c.price) + Number(c.surchargePrice || 0)) * Number(c.quantity || 1),
       options: c.options || []
     })),
     fnbDiscount: 0,
@@ -1129,6 +1083,11 @@ const selectShowtime = async (st) => {
     const { data } = await ticketingApi.getSeats(st.id)
     seatData.value = data.seats ? data : { matrixRow: 9, matrixCol: 10, seats: Array.isArray(data) ? data : [] }
     captureSeatMeta(data)
+    // ── Snapshot bảng giá vé NGAY TỪ ĐẦU PHIÊN (khi nạp sơ đồ ghế) ──
+    // Bảng giá này là nguồn sự thật duy nhất tính tiền trong suốt phiên.
+    if (priceTable.value && Object.keys(priceTable.value).length > 0) {
+      lockedPriceTable.value = JSON.parse(JSON.stringify(priceTable.value))
+    }
     startSeatPolling()
   } catch (err) {
     showToast('Không tải được sơ đồ ghế.', 'error')
@@ -1222,7 +1181,8 @@ const isOptionsEqual = (a, b) => optionsKey(a) === optionsKey(b)
 // 1 combo (id) có thể đẻ nhiều dòng (nhiều bộ vị) → gom lại để hiển thị trên card menu.
 const fnbLinesOf = (cbId) => selectedCombos.value.filter(c => c.id === cbId)
 const fnbQtyOf = (cbId) => fnbLinesOf(cbId).reduce((s, c) => s + c.quantity, 0)
-const fnbLineTotal = (cbId) => fnbLinesOf(cbId).reduce((s, c) => s + (c.price + (c.surchargePrice || 0)) * c.quantity, 0)
+// ── Snapshot guard: dùng snapshotPrice để tổng hiển thị trên card menu khớp giá đã lock ──
+const fnbLineTotal = (cbId) => fnbLinesOf(cbId).reduce((s, c) => s + ((c.snapshotPrice ?? c.price) + (c.surchargePrice || 0)) * c.quantity, 0)
 
 const openFnbModal = (cb) => {
   editingFnbItem.value = cb
@@ -1573,15 +1533,23 @@ const selectedOwnedVoucher = computed(() =>
   ownedVouchers.value.find(v => v.code === voucherCodeInput.value) || null)
 const selectVoucher = (v) => { voucherCodeInput.value = v.code; showVoucherDropdown.value = false }
 
-// Tạo danh sách gán vé chuẩn hóa gửi backend (ghế Sweetbox sinh đủ 2 phần tử ticketType)
+// Tạo danh sách gán vé chuẩn hóa gửi backend kèm unitPrice snapshot (ghế Sweetbox sinh đủ 2 phần tử ticketType)
 const buildSeatSelections = () => {
+  const activeTable = lockedPriceTable.value ?? priceTable.value
   return selectedSeats.value.flatMap(s => {
     const cap = seatCapacity(s)
     const types = (s.ticketTypes && s.ticketTypes.length > 0) ? s.ticketTypes : [s.ticketType || 'ADULT']
-    return Array.from({ length: cap }, (_, i) => ({
-      seatId: s.seatId,
-      ticketType: types[i] || types[0] || 'ADULT'
-    }))
+    const byType = activeTable[s.seatType]
+    return Array.from({ length: cap }, (_, i) => {
+      const t = types[i] || types[0] || 'ADULT'
+      const p = byType ? byType[t] : null
+      const unitPrice = Number(p != null ? p : (s.price || 0))
+      return {
+        seatId: s.seatId,
+        ticketType: t,
+        unitPrice: unitPrice
+      }
+    })
   })
 }
 
@@ -1642,18 +1610,8 @@ const processPayment = async (method) => {
     currentStep.value = 6
     printInvoice()
   } catch (err) {
-    const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || ''
-    if (errMsg.includes('ngưng bán') || errMsg.includes('không tồn tại')) {
-      await reloadPosCombos()
-      const removed = reconcilePosCombos()
-      if (removed.length > 0) {
-        showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ nên đã được gỡ khỏi đơn. Vui lòng kiểm tra lại.`, 'error')
-        showCashModal.value = false
-        showQrModal.value = false
-        currentStep.value = 4
-        return
-      }
-    }
+    // Snapshot F&B: Không reload/reconcile khi thanh toán lỗi để bảo toàn snapshot giá.
+    // Lỗi thực sự (món bị xóa cứng khỏi DB) sẽ hiển thị thông báo lỗi rõ ràng.
     if (err.response?.status === 422 && err.response?.data?.message) {
       outOfStockMessage.value = err.response.data.message
       showOutOfStockModal.value = true
@@ -1692,7 +1650,9 @@ const printInvoice = () => {
     seats: selectedSeats.value.flatMap(s => {
       const cap = seatCapacity(s)
       const types = (s.ticketTypes && s.ticketTypes.length > 0) ? s.ticketTypes : [s.ticketType || 'ADULT']
-      const byType = priceTable.value[s.seatType]
+      // ── Snapshot: in hóa đơn theo bảng giá đã lock tại Bước 3, không phải giá live ──
+      const activeTable = lockedPriceTable.value ?? priceTable.value
+      const byType = activeTable[s.seatType]
       return Array.from({ length: cap }, (_, i) => {
         const t = types[i] || types[0] || 'ADULT'
         const p = byType ? byType[t] : null
@@ -1707,9 +1667,10 @@ const printInvoice = () => {
     fnbs: selectedCombos.value.map(c => ({
       name: c.name,
       quantity: c.quantity,
-      price: c.price,
+      // ── Snapshot: in hóa đơn theo giá lock tại thời điểm chọn, không phải giá live ──
+      price: c.snapshotPrice ?? c.price,
       surchargePrice: c.surchargePrice || 0,
-      lineTotal: (Number(c.price || 0) + Number(c.surchargePrice || 0)) * Number(c.quantity || 1),
+      lineTotal: (Number(c.snapshotPrice ?? c.price) + Number(c.surchargePrice || 0)) * Number(c.quantity || 1),
       options: c.options || []
     })),
     ticketDiscount: discount,
@@ -2067,25 +2028,9 @@ const loadSettings = async () => {
   await loadBankInfo()
 }
 
-watch(currentStep, async (step) => {
-  if (step === 4 && saleMode.value === 'TICKET') {
-    await reloadPosCombos()
-    const removed = reconcilePosCombos()
-    if (removed.length > 0) {
-      showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi đơn hàng.`, 'error')
-    }
-  }
-})
-
-watch(saleMode, async (mode) => {
-  if (mode === 'FNB') {
-    await reloadPosCombos()
-    const removed = reconcilePosCombos()
-    if (removed.length > 0) {
-      showToast(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ và đã được gỡ khỏi đơn hàng.`, 'error')
-    }
-  }
-})
+// Snapshot Rule: Bỏ toàn bộ watcher reload F&B giữa phiên.
+// Thực đơn được nạp lúc mở POS, giá đóng băng tại thời điểm bấm chọn.
+// Phiên mới sau khi thanh toán hoặc hủy mới nạp dữ liệu mới.
 
 onMounted(() => {
   nowTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
@@ -2695,7 +2640,7 @@ onUnmounted(() => {
                     </span>
                   </div>
                 </div>
-                <span class="font-medium text-on-surface-variant">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+                <span class="font-medium text-on-surface-variant">{{ fmt(((c.snapshotPrice ?? c.price) + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
               </div>
             </div>
 
@@ -2844,7 +2789,7 @@ onUnmounted(() => {
                 <div v-for="(c, ci) in selectedCombos" :key="ci" class="border-b border-outline-variant/10 pb-3">
                   <div class="flex justify-between text-xs font-bold text-on-surface-variant uppercase">
                     <span>{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
-                    <span class="text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+                    <span class="text-on-surface">{{ fmt(((c.snapshotPrice ?? c.price) + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
                   </div>
                   <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface mt-1.5 space-y-1.5 leading-normal ml-2">
                     <div v-for="opt in c.options" :key="opt.optionItemId">
@@ -2927,7 +2872,7 @@ onUnmounted(() => {
                       </span>
                     </div>
                   </div>
-                  <span class="font-bold text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+                  <span class="font-bold text-on-surface">{{ fmt(((c.snapshotPrice ?? c.price) + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
                 </div>
               </div>
 
@@ -3114,7 +3059,7 @@ onUnmounted(() => {
               <div v-for="(c, ci) in selectedCombos" :key="ci" class="mb-2">
                 <div class="flex justify-between text-xs font-semibold">
                   <span class="text-on-surface-variant">{{ c.name }} <span class="text-on-surface-variant/60">x{{ c.quantity }}</span></span>
-                  <span class="text-on-surface">{{ fmt((c.price + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
+                  <span class="text-on-surface">{{ fmt(((c.snapshotPrice ?? c.price) + (c.surchargePrice || 0)) * c.quantity) }}đ</span>
                 </div>
                 <div v-if="c.options && c.options.length" class="text-[10px] text-on-surface mt-1 space-y-1 leading-normal ml-2">
                   <div v-for="opt in c.options" :key="opt.optionItemId">

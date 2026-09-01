@@ -72,22 +72,14 @@ const seatRealtime = useSeatRealtime({
       }
     }
   },
-  onPricingUpdate: async () => {
-    await store.fetchSeats()
-    toast.info('Bảng giá vé vừa được cập nhật.')
-  },
+  // Bỏ toàn bộ realtime đổi giá (pricing/fnb/showtime/settings) trong phiên đặt vé.
+  // Nguyên tắc Snapshot: Mọi thông tin giá vé, F&B, voucher... được đóng băng từ đầu phiên,
+  // tuyệt đối không cập nhật ngầm làm đổi tiền của khách đang đặt vé.
   onShowtimeCancelled: () => {
     toast.error('Suất chiếu này vừa bị hủy hoặc thay đổi lịch. Đang quay lại trang lịch chiếu...')
     setTimeout(() => {
       router.replace('/lich-chieu')
     }, 2000)
-  },
-  onShowtimeUpdated: () => {
-    toast.info('Thông tin suất chiếu vừa được cập nhật.')
-    store.fetchSeats()
-  },
-  onSettingsUpdate: async () => {
-    await loadSettingsConfig()
   },
 })
 const isSeatLockedByOthers = (seat) => !!seat && seatRealtime.isLockedByOthers(seat.seatId)
@@ -1239,17 +1231,8 @@ const proceedToPayment = async () => {
     }
   } else {
     held.value = false
-    await store.fetchFnbs()
-    const removed = store.reconcileSelectedFnbs()
-    if (removed.length > 0) {
-      toast.warning(`Món ${removed.join(', ')} vừa tạm ngưng phục vụ nên đã được gỡ khỏi lựa chọn. Vui lòng kiểm tra lại.`)
-      currentStep.value = 2
-    } else {
-      // store.lastHoldError là message backend → chuẩn hoá sang tiếng Việt, không lộ chuỗi kỹ thuật
-      toast.error(friendlyError(store.lastHoldError, 'Giữ ghế thất bại, vui lòng thử lại.'))
-    }
-    // Làm mới sơ đồ ghế để cập nhật trạng thái mới nhất
-    await store.fetchSeats()
+    // store.lastHoldError là message backend → chuẩn hoá sang tiếng Việt, không lộ chuỗi kỹ thuật
+    toast.error(friendlyError(store.lastHoldError, 'Giữ ghế thất bại, vui lòng thử lại.'))
   }
 }
 

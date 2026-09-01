@@ -34,9 +34,21 @@ public class PosPendingOrderController {
             Staff soldBy = currentStaffOrNull();
             String posTerminalId = (String) body.get("posTerminalId");
             
+            // Loại vé/đối tượng theo từng ghế kèm đơn giá snapshot
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> selRaw = (List<Map<String, Object>>) body.get("seatSelections");
+            List<com.devcine.backend.dto.request.SeatSelectionDTO> seatSelections = selRaw == null ? null : selRaw.stream()
+                    .map(m -> com.devcine.backend.dto.request.SeatSelectionDTO.builder()
+                            .seatId(Integer.parseInt(m.get("seatId").toString()))
+                            .ticketType(m.get("ticketType") != null ? m.get("ticketType").toString() : "ADULT")
+                            .unitPrice(m.get("unitPrice") != null ? new java.math.BigDecimal(m.get("unitPrice").toString()) : null)
+                            .build())
+                    .toList();
+
             com.devcine.backend.dto.request.BookingRequestDTO req = com.devcine.backend.dto.request.BookingRequestDTO.builder()
                     .showtimeId(Integer.parseInt(body.get("showtimeId").toString()))
                     .seatIds((List<Integer>) body.get("seatIds"))
+                    .seatSelections(seatSelections)
                     .customerId(body.get("customerId") != null ? Integer.parseInt(body.get("customerId").toString()) : null)
                     .paymentMethod("POS_HOLD") // Initially POS_HOLD
                     .build();
@@ -57,6 +69,7 @@ public class PosPendingOrderController {
                     return com.devcine.backend.dto.request.FnbSelectionDTO.builder()
                             .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
                             .quantity(Integer.parseInt(m.get("quantity").toString()))
+                            .clientPrice(m.get("clientPrice") != null ? new java.math.BigDecimal(m.get("clientPrice").toString()) : null)
                             .options(options)
                             .build();
                 }).toList();

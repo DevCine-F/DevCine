@@ -175,6 +175,7 @@ public class TicketingController {
                         return FnbSelectionDTO.builder()
                                 .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
                                 .quantity(Integer.parseInt(m.get("quantity").toString()))
+                                .clientPrice(m.get("clientPrice") != null ? new java.math.BigDecimal(m.get("clientPrice").toString()) : null)
                                 .options(options)
                                 .build();
                     })
@@ -287,6 +288,7 @@ public class TicketingController {
                     .map(m -> FnbSelectionDTO.builder()
                             .fnbItemId(m.getItemId())
                             .quantity(m.getQuantity())
+                            .clientPrice(m.getClientPrice())
                             .options(m.getOptions())
                             .build())
                     .collect(Collectors.toList());
@@ -349,6 +351,7 @@ public class TicketingController {
                         return FnbSelectionDTO.builder()
                                 .fnbItemId(Integer.parseInt(m.get("fnbItemId").toString()))
                                 .quantity(Integer.parseInt(m.get("quantity").toString()))
+                                .clientPrice(m.get("clientPrice") != null ? new java.math.BigDecimal(m.get("clientPrice").toString()) : null)
                                 .options(options)
                                 .build();
                     })

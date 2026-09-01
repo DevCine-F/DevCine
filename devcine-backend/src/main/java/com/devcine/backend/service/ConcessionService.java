@@ -77,12 +77,12 @@ public class ConcessionService {
         List<ConcessionSaleItem> rows = new ArrayList<>();
         for (FnbSelectionDTO dto : items) {
             FnbItem item = fnbMap.get(dto.getFnbItemId());
-            // Re-validate lúc checkout: chặn món đã ngưng bán / đã xoá (giỏ hàng kẹt).
-            if (item == null || Boolean.TRUE.equals(item.getIsDeleted())
-                    || Boolean.FALSE.equals(item.getIsActive())) {
+            // Snapshot F&B: Chỉ chặn món bị xoá cứng khỏi hệ thống (isDeleted = true).
+            // Món bị Admin ẩn (isActive = false) sau khi nhân viên đã chọn vẫn được snapshot cho mua trọn vẹn phiên đó.
+            if (item == null || Boolean.TRUE.equals(item.getIsDeleted())) {
                 throw new RuntimeException("Món '"
                         + (item != null ? item.getName() : "#" + dto.getFnbItemId())
-                        + "' đã ngưng bán hoặc không tồn tại.");
+                        + "' không tồn tại.");
             }
             int qty = dto.getQuantity() == null ? 0 : dto.getQuantity();
             if (qty < 1 || qty > MAX_QTY_PER_ITEM) {

@@ -123,9 +123,11 @@ export const useBookingStore = defineStore('booking', {
       const updatedFnbs = [];
 
       for (const sel of this.selectedFnbs) {
-        const currentItem = (this.availableFnbs || []).find(i => i.id === sel.fnbItem.id && i.isActive !== false && !i.isDeleted);
+        // Snapshot F&B: Chỉ gỡ món bị xoá cứng khỏi hệ thống (isDeleted = true).
+        // Món bị Admin ẩn (isActive = false) sau khi khách đã chọn vẫn được giữ nguyên trong đơn theo snapshot.
+        const currentItem = (this.availableFnbs || []).find(i => i.id === sel.fnbItem.id && !i.isDeleted);
         if (!currentItem) {
-          // Món đã tạm ngưng phục vụ hoặc bị xóa → gỡ khỏi giỏ
+          // Món bị xóa khỏi hệ thống → gỡ khỏi giỏ
           removedItems.push(sel.fnbItem.name || 'Món');
         } else {
           // ── Cập nhật metadata (tên, ảnh, slots...) nhưng GIỮ NGUYÊN snapshotPrice ──

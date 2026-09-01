@@ -349,12 +349,12 @@ public class BookingService {
             java.util.List<BookingFnb> bookingFnbs = new java.util.ArrayList<>();
             for (FnbSelectionDTO fnbDTO : request.getFnbs()) {
                 FnbItem item = fnbMap.get(fnbDTO.getFnbItemId());
-                // Re-validate lúc checkout: chặn món đã ngưng bán / đã xoá (giỏ hàng kẹt).
-                if (item == null || Boolean.TRUE.equals(item.getIsDeleted())
-                        || Boolean.FALSE.equals(item.getIsActive())) {
+                // Snapshot F&B: Chỉ chặn món bị xoá cứng khỏi hệ thống (isDeleted = true).
+                // Món bị Admin ẩn (isActive = false) sau khi khách đã chọn vẫn được snapshot cho mua trọn vẹn phiên đó.
+                if (item == null || Boolean.TRUE.equals(item.getIsDeleted())) {
                     throw new RuntimeException("Món '"
                             + (item != null ? item.getName() : "#" + fnbDTO.getFnbItemId())
-                            + "' đã ngưng bán hoặc không tồn tại.");
+                            + "' không tồn tại.");
                 }
 
                 int qty = fnbDTO.getQuantity() == null ? 0 : fnbDTO.getQuantity();
@@ -387,11 +387,15 @@ public class BookingService {
                 if (fnbPrice == null) {
                     BigDecimal dbPrice = item.getPrice(); // giá hiện tại trong DB
                     if (fnbDTO.getClientPrice() != null && fnbDTO.getClientPrice().compareTo(BigDecimal.ZERO) > 0) {
-                        // Price Lock at Selection: dùng min(clientPrice, dbPrice)
-                        // - Admin tăng giá sau khi khách lock → clientPrice < dbPrice → tôn trọng snapshot của khách
-                        // - Admin giảm giá → dbPrice < clientPrice → khách được hưởng giá thấp hơn
-                        // - Không dùng threshold % vì gây hỏng snapshot khi admin thay đổi giá lớn
-                        fnbPrice = fnbDTO.getClientPrice().min(dbPrice).add(lineSurcharge);
+                        // Price Lock at Selection: tôn trọng tuyệt đối giá khách đã chốt ở FE.
+                        // CGV/Lotte Cinema logic: snapshot giá lúc chọn là bất biến — admin thay đổi sau không ảnh hưởng.
+                        // Chống giả mạo: chỉ từ chối nếu clientPrice vô lý (> 50 triệu VND/món)
+                        BigDecimal MAX_ITEM_PRICE = new BigDecimal("50000000");
+                        BigDecimal lockedPrice = fnbDTO.getClientPrice();
+                        if (lockedPrice.compareTo(MAX_ITEM_PRICE) > 0) {
+                            lockedPrice = dbPrice; // fallback nếu clientPrice bị inflate bất thường
+                        }
+                        fnbPrice = lockedPrice.add(lineSurcharge);
                     } else {
                         // Không có clientPrice → fallback DB price (backward-compatible với POS/API cũ)
                         fnbPrice = dbPrice.add(lineSurcharge);
