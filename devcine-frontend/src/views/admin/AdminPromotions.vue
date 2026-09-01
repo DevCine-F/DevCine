@@ -1164,7 +1164,7 @@ onUnmounted(() => {
 
             <div class="relative flex items-center justify-between mb-2 gap-1.5">
               <span v-if="promo.isHidden" class="inline-flex items-center text-[7.5px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30 leading-none">
-                Kín
+                Riêng tư
               </span>
               <span v-else class="inline-flex items-center text-[7.5px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/25 leading-none">
                 Công khai
@@ -1539,7 +1539,7 @@ onUnmounted(() => {
             <div class="bg-surface-container-highest rounded-xl border border-outline-variant/10 overflow-hidden transition-all duration-300">
               <div class="flex items-center justify-between p-4">
                 <div class="pr-3">
-                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Voucher kín (Không công khai)</p>
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Voucher riêng tư (Không công khai)</p>
                   <p class="text-[10px] text-on-surface-variant mt-1 font-bold leading-relaxed">
                     Nếu bật, voucher sẽ không hiển thị trên trang Khuyến mãi công khai. Khách có mã vẫn có thể nhập để lưu vào ví hoặc dùng khi đặt vé.
                   </p>
@@ -1833,7 +1833,7 @@ onUnmounted(() => {
               </div>
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Hình thức hiển thị</span>
-                <span class="text-sm font-bold" :class="detailTarget.isHidden ? 'text-purple-400' : 'text-sky-400'">{{ detailTarget.isHidden ? 'Voucher kín (Không công khai)' : 'Công khai toàn hệ thống' }}</span>
+                <span class="text-sm font-bold" :class="detailTarget.isHidden ? 'text-purple-400' : 'text-sky-400'">{{ detailTarget.isHidden ? 'Riêng tư (Không công khai)' : 'Công khai toàn hệ thống' }}</span>
               </div>
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Cộng dồn với mã khác</span>
