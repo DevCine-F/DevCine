@@ -233,61 +233,11 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant italic truncate">{{ workplaceLabel }}</span>
         </div>
         
-        <div class="flex items-center gap-3 sm:gap-6">
-          <!-- Theme Toggle -->
-          <button @click="toggleTheme" class="relative p-2 hover:bg-white/5 rounded-full transition-colors cursor-pointer flex items-center">
-            <span class="material-symbols-outlined text-on-surface-variant group-hover:text-white transition-colors">
-              {{ isLightMode ? 'dark_mode' : 'light_mode' }}
-            </span>
-          </button>
-
-          <!-- Notification Bell -->
-          <div class="relative group">
-            <button class="relative p-2 hover:bg-white/5 rounded-full transition-colors cursor-pointer flex items-center">
-              <span class="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface transition-colors">notifications</span>
-              <!-- Red Badge -->
-              <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse border border-surface"></span>
-            </button>
-            
-            <!-- Notification Dropdown -->
-            <div class="absolute right-0 mt-2 w-72 sm:w-80 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_10px_40px_-10px_var(--shadow-color)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
-               <div class="p-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
-                  <span class="text-xs font-black uppercase tracking-widest text-on-surface">Thông báo</span>
-                  <span class="text-[9px] text-primary hover:underline cursor-pointer uppercase tracking-wider">Đánh dấu đã đọc</span>
-               </div>
-               <div class="max-h-80 overflow-y-auto">
-                  <div class="p-4 border-b border-outline-variant/5 hover:bg-white/5 transition-colors cursor-pointer flex gap-3 group/item">
-                     <span class="material-symbols-outlined text-red-400 text-lg flex-shrink-0 group-hover/item:scale-110 transition-transform">warning</span>
-                     <div>
-                        <p class="text-[10px] font-bold text-on-surface leading-tight uppercase">Cảnh báo xung đột giờ chiếu</p>
-                        <p class="text-[9px] text-on-surface-variant mt-1.5 leading-relaxed">Phòng Superplex 01 đang bị trùng lịch giữa Oppenheimer và Avatar 2.</p>
-                        <p class="text-[8px] text-on-surface-variant/50 mt-2 font-bold italic">Vừa xong</p>
-                     </div>
-                  </div>
-                  <div class="p-4 border-b border-outline-variant/5 hover:bg-white/5 transition-colors cursor-pointer flex gap-3 group/item">
-                     <span class="material-symbols-outlined text-green-400 text-lg flex-shrink-0 group-hover/item:scale-110 transition-transform">trending_up</span>
-                     <div>
-                        <p class="text-[10px] font-bold text-on-surface leading-tight">Doanh thu đạt mốc 1 Tỷ VND</p>
-                        <p class="text-[9px] text-on-surface-variant mt-1.5 leading-relaxed">Doanh thu hôm nay đã vượt mốc 100,000,000 VNĐ.</p>
-                        <p class="text-[8px] text-on-surface-variant/50 mt-2 font-bold italic">2 giờ trước</p>
-                     </div>
-                  </div>
-                  <div class="p-4 hover:bg-white/5 transition-colors cursor-pointer flex gap-3 group/item">
-                     <span class="material-symbols-outlined text-blue-400 text-lg flex-shrink-0 group-hover/item:scale-110 transition-transform">support_agent</span>
-                     <div>
-                        <p class="text-[10px] font-bold text-on-surface leading-tight">Yêu cầu hỗ trợ mới từ KH</p>
-                        <p class="text-[9px] text-on-surface-variant mt-1.5 leading-relaxed">Có 5 yêu cầu hoàn vé mới cần được duyệt gấp.</p>
-                        <p class="text-[8px] text-on-surface-variant/50 mt-2 font-bold italic">5 giờ trước</p>
-                     </div>
-                  </div>
-               </div>
-            </div>
-          </div>
-
+        <div class="flex items-center">
           <!-- Account Area -->
           <div class="relative" ref="accountMenuRef">
             <button @click="isAccountOpen = !isAccountOpen"
-                    class="flex items-center gap-2 sm:gap-3 pl-3 sm:pl-6 border-l border-outline-variant/10 cursor-pointer hover:opacity-80 transition-opacity">
+                    class="flex items-center gap-2 sm:gap-3 cursor-pointer hover:opacity-80 transition-opacity">
               <div class="text-right hidden md:block">
                  <p class="text-[10px] font-black text-on-surface uppercase tracking-wider">{{ displayName }}</p>
                  <p class="text-[8px] text-primary uppercase tracking-widest italic font-bold">{{ accountRole }}</p>
