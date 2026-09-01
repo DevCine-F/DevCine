@@ -232,6 +232,14 @@ public class TicketingController {
 
             bookingService.completePayment(booking.getId(), paymentMethod);
 
+            // Vé bán tại quầy POS đã được in trực tiếp cho khách lúc thanh toán -> cập nhật printedAt và printedBy
+            LocalDateTime now = LocalDateTime.now();
+            booking.setPrintedAt(now);
+            if (soldBy != null) {
+                booking.setPrintedBy(soldBy);
+            }
+            bookingRepository.save(booking);
+
             // Vé đã được sinh trong completePayment — lấy QR + nhãn ghế để in hoá đơn/soát vé tại cổng
             List<Map<String, Object>> tickets = ticketRepository.findAllByBookingIdWithSeat(booking.getId())
                     .stream()

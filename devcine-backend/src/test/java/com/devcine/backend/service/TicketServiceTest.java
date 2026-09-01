@@ -104,6 +104,7 @@ class TicketServiceTest {
         // Phim 120 phút, bắt đầu từ 30 phút trước -> đang chiếu, còn 90 phút
         Booking booking = createSampleBooking(LocalDateTime.now().minusMinutes(30), 120);
         when(bookingRepository.findByBookingCodeForPrint("BK-001")).thenReturn(Optional.of(booking));
+        when(ticketRepository.findAllByBookingId(booking.getId())).thenReturn(Collections.emptyList());
         when(bookingSeatRepository.findAllByBookingIdWithSeat(booking.getId())).thenReturn(Collections.emptyList());
         when(bookingFnbRepository.findByBookingIdWithFnb(booking.getId())).thenReturn(Collections.emptyList());
 

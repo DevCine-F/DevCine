@@ -64,6 +64,21 @@ public class TicketController {
     }
 
     /**
+     * Soát vé vào cổng cho đơn hàng (đã có vé giấy) -> đánh dấu check-in vào phòng, KHÔNG in lại vé giấy.
+     */
+    @PostMapping("/checkin")
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN','MANAGER')")
+    public ResponseEntity<?> checkInBooking(@RequestParam("code") String code) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(ticketService.checkInByBookingCode(code)));
+        } catch (AccessDeniedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
+        }
+    }
+
+    /**
      * VẤN ĐỀ 2 FIX: Quét / check-in từng vé đơn lẻ qua mã QR vé (TICK_...).
      * Tự động từ chối nếu vé đã bị thu hồi do đổi chỗ sang ghế khác.
      */

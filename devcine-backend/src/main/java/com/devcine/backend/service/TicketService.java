@@ -83,22 +83,41 @@ public class TicketService {
         }
     }
 
+    /**
+     * Tra cứu đơn hàng theo mã đặt vé (booking_code) hoặc mã QR vé đơn lẻ (DEVCINE-T-...).
+     */
+    private Booking findBookingByCodeOrQr(String code) {
+        if (code == null || code.isBlank()) {
+            throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
+        }
+        String clean = code.trim();
+        java.util.Optional<Booking> opt = bookingRepository.findByBookingCodeForPrint(clean);
+        if (opt.isPresent()) {
+            return opt.get();
+        }
+        java.util.Optional<Ticket> ticketOpt = ticketRepository.findByQrCodeWithDetails(clean);
+        if (ticketOpt.isPresent() && ticketOpt.get().getBookingSeat() != null
+                && ticketOpt.get().getBookingSeat().getBooking() != null) {
+            String bCode = ticketOpt.get().getBookingSeat().getBooking().getBookingCode();
+            return bookingRepository.findByBookingCodeForPrint(bCode)
+                    .orElse(ticketOpt.get().getBookingSeat().getBooking());
+        }
+        throw new RuntimeException("Không tìm thấy đơn đặt vé với mã: " + clean);
+    }
+
     @Transactional(readOnly = true)
     public List<Ticket> getTicketsByBooking(Integer bookingId) {
         return ticketRepository.findAllByBookingId(bookingId);
     }
 
     /**
-     * Quét/tra cứu mã đặt vé để XÁC MINH đơn (chưa in). Trả chi tiết đơn để hiển thị
-     * "Quét thành công"; KHÔNG đánh dấu đã in. Đơn đã in trước đó → báo lỗi chống trùng.
+     * Quét/tra cứu mã đặt vé để XÁC MINH đơn.
+     * Trả chi tiết đơn và các cờ alreadyPrinted, isCheckedIn.
+     * Nếu đơn đã check-in toàn bộ trước đó -> ném lỗi cảnh báo mốc giờ check-in (chống gian lận).
      */
     @Transactional(readOnly = true)
     public BookingPrintResponse lookupByBookingCode(String bookingCode) {
-        if (bookingCode == null || bookingCode.isBlank()) {
-            throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
-        }
-        Booking booking = bookingRepository.findByBookingCodeForPrint(bookingCode.trim())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn đặt vé với mã: " + bookingCode));
+        Booking booking = findBookingByCodeOrQr(bookingCode);
 
         // Cách ly cụm rạp: chỉ soát/tra cứu vé của cơ sở mình.
         SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
@@ -107,29 +126,80 @@ public class TicketService {
         assertMovieNotEnded(booking.getShowtime());
 
         if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
-            throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để in vé.");
+            throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để kiểm soát vé.");
         }
-        if (booking.getPrintedAt() != null) {
-            throw new RuntimeException("Mã đặt vé này đã được in thành vé giấy trước đó vào lúc: "
-                    + booking.getPrintedAt().format(TIME_FMT));
+
+        List<Ticket> tickets = ticketRepository.findAllByBookingId(booking.getId());
+        boolean allCheckedIn = !tickets.isEmpty() && tickets.stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getIsRevoked()))
+                .allMatch(t -> Boolean.TRUE.equals(t.getIsCheckedIn()));
+
+        if (allCheckedIn) {
+            LocalDateTime checkedInAt = tickets.stream()
+                    .map(Ticket::getCheckInTime)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+            throw new RuntimeException("Mã đặt vé này đã được check-in vào lúc: "
+                    + (checkedInAt != null ? checkedInAt.format(TIME_FMT) : "trước đó") + ".");
         }
+
         return buildResponse(booking);
     }
 
     /**
-     * Quét QR/nhập mã đặt vé tại quầy → in toàn bộ vé giấy cho đơn.
-     * <p>Chỉ đơn đã thanh toán (CONFIRMED) & CHƯA in mới được in. Quét lại đơn
-     * đã in → báo lỗi (chống in trùng). Quản lý trạng thái ở cấp Đơn hàng
-     * ({@link Booking#getPrintedAt()}); đồng thời đánh dấu các vé đã check-in
-     * để đồng bộ với báo cáo tiến độ.
+     * Soát vé vào cổng cho đơn hàng đã in vé giấy (POS hoặc Online đã in vé).
+     * Đánh dấu toàn bộ vé trong đơn là isCheckedIn = true mà KHÔNG in lại vé giấy K80.
+     */
+    @Transactional
+    public BookingPrintResponse checkInByBookingCode(String bookingCode) {
+        Booking booking = findBookingByCodeOrQr(bookingCode);
+
+        SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
+        assertMovieNotEnded(booking.getShowtime());
+
+        if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
+            throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để check-in.");
+        }
+
+        List<Ticket> tickets = ticketRepository.findAllByBookingId(booking.getId());
+        boolean allCheckedIn = !tickets.isEmpty() && tickets.stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getIsRevoked()))
+                .allMatch(t -> Boolean.TRUE.equals(t.getIsCheckedIn()));
+
+        if (allCheckedIn) {
+            LocalDateTime checkedInAt = tickets.stream()
+                    .map(Ticket::getCheckInTime)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+            throw new RuntimeException("Mã đặt vé này đã được check-in vào lúc: "
+                    + (checkedInAt != null ? checkedInAt.format(TIME_FMT) : "trước đó") + ".");
+        }
+
+        Staff staff = currentStaffOrNull();
+        LocalDateTime now = LocalDateTime.now();
+        for (Ticket t : tickets) {
+            if (Boolean.TRUE.equals(t.getIsRevoked())) continue;
+            if (!Boolean.TRUE.equals(t.getIsCheckedIn())) {
+                t.setIsCheckedIn(true);
+                t.setCheckInTime(now);
+                if (staff != null) {
+                    t.setCheckedInBy(staff);
+                }
+            }
+        }
+        ticketRepository.saveAll(tickets);
+
+        return buildResponse(booking);
+    }
+
+    /**
+     * Quét QR/nhập mã đặt vé tại quầy → in toàn bộ vé giấy cho đơn & đánh dấu đã in + check-in.
      */
     @Transactional
     public BookingPrintResponse printByBookingCode(String bookingCode) {
-        if (bookingCode == null || bookingCode.isBlank()) {
-            throw new RuntimeException("Vui lòng cung cấp mã đặt vé.");
-        }
-        Booking booking = bookingRepository.findByBookingCodeForPrint(bookingCode.trim())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn đặt vé với mã: " + bookingCode));
+        Booking booking = findBookingByCodeOrQr(bookingCode);
 
         // Cách ly cụm rạp: chỉ in/soát vé của cơ sở mình.
         SecurityUtils.assertCinemaAccess(cinemaIdOf(booking));
@@ -142,17 +212,15 @@ public class TicketService {
         if (!"CONFIRMED".equalsIgnoreCase(booking.getStatus())) {
             throw new RuntimeException("Đơn chưa thanh toán hoặc không hợp lệ để in vé.");
         }
-        if (booking.getPrintedAt() != null) {
-            throw new RuntimeException("Mã đặt vé này đã được in thành vé giấy trước đó vào lúc: "
-                    + booking.getPrintedAt().format(TIME_FMT));
-        }
 
         LocalDateTime now = LocalDateTime.now();
-        booking.setPrintedAt(now);
-        if (staff != null) {
-            booking.setPrintedBy(staff);
+        if (booking.getPrintedAt() == null) {
+            booking.setPrintedAt(now);
+            if (staff != null) {
+                booking.setPrintedBy(staff);
+            }
+            bookingRepository.save(booking);
         }
-        bookingRepository.save(booking);
 
         // Đồng bộ trạng thái vé từng ghế (giữ báo cáo tiến độ check-in nhất quán).
         List<Ticket> tickets = ticketRepository.findAllByBookingId(booking.getId());
@@ -311,6 +379,12 @@ public class TicketService {
         String memberName = booking.getCustomer() != null && booking.getCustomer().getUser() != null
                 ? booking.getCustomer().getUser().getFullName() : null;
 
+        List<Ticket> tickets = ticketRepository.findAllByBookingId(booking.getId());
+        boolean isCheckedIn = !tickets.isEmpty() && tickets.stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getIsRevoked()))
+                .allMatch(t -> Boolean.TRUE.equals(t.getIsCheckedIn()));
+        boolean alreadyPrinted = booking.getPrintedAt() != null;
+
         Staff staff = currentStaffOrNull();
         String cashierName = (booking.getPrintedBy() != null && booking.getPrintedBy().getUser() != null)
                 ? booking.getPrintedBy().getUser().getFullName()
@@ -336,7 +410,9 @@ public class TicketService {
                 fnbLines,
                 booking.getPrintedAt(),
                 cashierName,
-                requiresStudentVerification);
+                requiresStudentVerification,
+                isCheckedIn,
+                alreadyPrinted);
     }
 
     /**

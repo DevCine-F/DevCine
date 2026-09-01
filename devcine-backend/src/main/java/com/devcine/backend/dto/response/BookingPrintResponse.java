@@ -28,7 +28,9 @@ public record BookingPrintResponse(
         List<FnbLine> fnbs,
         LocalDateTime printedAt,
         String cashierName,
-        boolean requiresStudentVerification
+        boolean requiresStudentVerification,
+        boolean isCheckedIn,
+        boolean alreadyPrinted
 ) {
     /** Một ghế trong đơn: nhãn ghế, loại đối tượng và giá đã chốt. */
     public record SeatLine(String seatLabel, String ticketType, BigDecimal price) {}

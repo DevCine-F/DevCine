@@ -4,6 +4,24 @@ Mọi thay đổi quan trọng được ghi nhận tại đây. AI Agent cập n
 
 ---
 
+## [1.7.0] — 2026-09-01
+
+### Fixed & Standardized — Chuẩn hoá Luồng In Vé POS & Phân Tách Nghiệp Vụ Soát Vé Vào Cổng (POS Ticket Printing & Gate Check-in Differentiation)
+- **POS Checkout Synchronization (`TicketingController.java`):**
+  - Tự động gán `booking.setPrintedAt(now)` và `booking.setPrintedBy(soldBy)` vào CSDL ngay khi thu ngân thanh toán đơn hàng thành công tại quầy POS, ghi nhận chính xác việc vé giấy K80 đã được in trao tay khách tại quầy.
+- **Backend Gate Check-in Endpoint (`TicketService.java`, `TicketController.java`, `BookingPrintResponse.java`):**
+  - Bổ sung trường `isCheckedIn` và `alreadyPrinted` trong `BookingPrintResponse`.
+  - Hỗ trợ tra cứu linh hoạt theo cả mã đơn `bookingCode` và mã QR vé đơn lẻ (`DEVCINE-T-...`).
+  - Thêm endpoint `POST /api/tickets/checkin`: Thực hiện soát vé vào cổng cho các đơn đã in vé giấy (`isCheckedIn = true`, `checkInTime = now`), tuyệt đối không kích hoạt hay can thiệp vào lệnh in lại vé giấy K80.
+  - Chống gian lận: Tự động chặn và trả lỗi cảnh báo khi quét lại mã đơn hàng đã check-in toàn bộ trước đó.
+- **Frontend Kiểm Soát Vé Thông Minh (`TicketCheckIn.vue`):**
+  - Tự động phân tách 2 kịch bản khi quét mã QR:
+    - **Vé đã có vé giấy (Đơn POS hoặc Online đã lấy giấy):** Chuyển sang chế độ `GATE_CHECKIN`, hiển thị banner xanh *"Check-in Thành Công! Quý khách vào phòng chiếu"*, hoàn toàn không đếm ngược in vé và không bật popup in K80.
+    - **Vé Online chưa in giấy:** Chuyển sang chế độ `PRINT_REQUIRED`, đếm ngược 3s tự động mở cửa sổ in vé giấy K80.
+  - Tinh gọn giao diện: Loại bỏ nút in lại vé thừa thãi, chỉ giữ lại nút bấm "Quay lại màn hình quét" để thao tác nhanh.
+
+---
+
 ## [1.6.9] — 2026-09-01
 
 ### Enhanced & Redesigned — Nâng cấp Giao diện Chi tiết Hoá đơn Quản trị & Tinh gọn Nhãn Trạng thái (Admin Booking Modal & Status Decluttering)

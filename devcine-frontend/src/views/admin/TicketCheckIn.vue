@@ -220,16 +220,38 @@ const handleCheckIn = async (code) => {
       params: { code: code.trim() }
     })
 
-    checkInResult.value = {
-      success: true,
-      message: 'Đơn hợp lệ — đang chuyển sang in vé...',
-      data: response.data,
-      printed: false
+    const bookingData = response.data
+
+    if (bookingData.alreadyPrinted) {
+      // ĐƠN ĐÃ CÓ VÉ GIẤY (Đơn POS hoặc Online đã in vé giấy trước đó):
+      // Thực hiện Soát vé vào cổng (Check-in) -> Cập nhật isCheckedIn = true
+      const checkInRes = await api.post('/tickets/checkin', null, {
+        params: { code: bookingData.bookingCode }
+      })
+
+      checkInResult.value = {
+        success: true,
+        actionType: 'GATE_CHECKIN',
+        message: 'Vé hợp lệ — Quý khách vào phòng chiếu.',
+        data: checkInRes.data,
+        printed: true
+      }
+      playBeep('success')
+    } else {
+      // ĐƠN ONLINE CHƯA IN VÉ GIẤY:
+      // Chuyển sang đếm ngược tự động in vé giấy K80
+      checkInResult.value = {
+        success: true,
+        actionType: 'PRINT_REQUIRED',
+        message: 'Đơn hợp lệ — đang chuyển sang in vé...',
+        data: bookingData,
+        printed: false
+      }
+      playBeep('success')
+      startPrintCountdown()
     }
-    playBeep('success')
-    startPrintCountdown()
   } catch (error) {
-    const errorMsg = friendlyError(error, 'Đã xảy ra lỗi khi quét vé.')
+    const errorMsg = friendlyError(error, 'Đã xảy ra lỗi khi kiểm soát vé.')
     checkInResult.value = {
       success: false,
       message: errorMsg,
@@ -242,7 +264,7 @@ const handleCheckIn = async (code) => {
   }
 }
 
-// Bước 2: tự động gọi hoặc bấm in ngay → đánh dấu đã in + mở cửa sổ in vé giấy K80
+// Bước 2: In vé giấy K80 (khi đơn Online chưa in vé hoặc khi nhân viên bấm in lại)
 const doPrint = async () => {
   stopPrintCountdown()
   const booking = checkInResult.value?.data
@@ -254,6 +276,7 @@ const doPrint = async () => {
     })
     checkInResult.value = {
       success: true,
+      actionType: 'PRINT_REQUIRED',
       message: 'Đã in vé cho toàn bộ đơn!',
       data: response.data,
       printed: true
@@ -307,8 +330,9 @@ const triggerMockCheckIn = (status = 'success') => {
     if (status === 'success') {
       checkInResult.value = {
         success: true,
-        message: 'Đơn hợp lệ — đang chuyển sang in vé... (Dữ liệu giả lập)',
-        printed: false,
+        actionType: 'GATE_CHECKIN',
+        message: 'Vé hợp lệ — Quý khách vào phòng chiếu. (Dữ liệu giả lập)',
+        printed: true,
         data: {
           bookingCode: '0AA550BA-0',
           movieTitle: 'Godzilla x Kong: Đế Chế Mới (T13)',
@@ -326,16 +350,17 @@ const triggerMockCheckIn = (status = 'success') => {
           totalPrice: 289000,
           finalPrice: 289000,
           discount: 0,
-          printedAt: null,
-          requiresStudentVerification: true
+          printedAt: '2026-07-10T15:30:00',
+          requiresStudentVerification: true,
+          isCheckedIn: true,
+          alreadyPrinted: true
         }
       }
       playBeep('success')
-      startPrintCountdown()
     } else {
       checkInResult.value = {
         success: false,
-        message: 'Mã đặt vé này đã được in thành vé giấy trước đó vào lúc: 15:30 10/07/2026',
+        message: 'Mã đặt vé này đã được check-in vào lúc: 15:30 10/07/2026',
         data: null
       }
       playBeep('error')
@@ -406,12 +431,14 @@ onUnmounted(() => {
         <!-- Success Banner -->
         <div v-if="checkInResult.success" class="flex flex-col items-center text-center space-y-4">
           <div class="w-20 h-20 rounded-full flex items-center justify-center shadow-lg"
-               :class="checkInResult.printed ? 'bg-green-500/10 text-green-400 border border-green-500/20 shadow-green-500/10' : 'bg-primary/10 text-primary border border-primary/20 shadow-primary/10'">
-            <span class="material-symbols-outlined text-5xl animate-bounce">{{ checkInResult.printed ? 'print' : 'check_circle' }}</span>
+               :class="checkInResult.actionType === 'GATE_CHECKIN' ? 'bg-green-500/10 text-green-400 border border-green-500/20 shadow-green-500/10' : (checkInResult.printed ? 'bg-green-500/10 text-green-400 border border-green-500/20 shadow-green-500/10' : 'bg-primary/10 text-primary border border-primary/20 shadow-primary/10')">
+            <span class="material-symbols-outlined text-5xl animate-bounce">
+              {{ checkInResult.actionType === 'GATE_CHECKIN' ? 'verified' : (checkInResult.printed ? 'print' : 'check_circle') }}
+            </span>
           </div>
           <div>
-            <h2 class="text-2xl font-black uppercase italic" :class="checkInResult.printed ? 'text-green-400' : 'text-primary'">
-              {{ checkInResult.printed ? 'Đã In Vé!' : 'Quét Thành Công' }}
+            <h2 class="text-2xl font-black uppercase italic" :class="checkInResult.actionType === 'GATE_CHECKIN' || checkInResult.printed ? 'text-green-400' : 'text-primary'">
+              {{ checkInResult.actionType === 'GATE_CHECKIN' ? 'Check-in Thành Công!' : (checkInResult.printed ? 'Đã In Vé!' : 'Quét Thành Công') }}
             </h2>
             <p class="text-xs text-on-surface-variant mt-1">{{ checkInResult.message }}</p>
           </div>
@@ -458,14 +485,14 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div v-if="checkInResult.printed" class="border-t border-outline-variant/10 pt-3 flex justify-between items-center text-[10px] text-on-surface-variant/70 italic">
-              <span>Đã in lúc:</span>
+            <div v-if="checkInResult.data.printedAt" class="border-t border-outline-variant/10 pt-3 flex justify-between items-center text-[10px] text-on-surface-variant/70 italic">
+              <span>Đã in vé lúc:</span>
               <span>{{ formatDateTime(checkInResult.data.printedAt) }}</span>
             </div>
           </div>
 
-          <!-- Chưa in: Khối đếm ngược 3s tự động in vé -->
-          <div v-if="!checkInResult.printed" class="w-full max-w-md bg-primary/10 border border-primary/25 rounded-2xl p-5 text-center space-y-3 shadow-inner">
+          <!-- TH1: Đơn Online chưa in: Khối đếm ngược 3s tự động in vé -->
+          <div v-if="checkInResult.actionType === 'PRINT_REQUIRED' && !checkInResult.printed" class="w-full max-w-md bg-primary/10 border border-primary/25 rounded-2xl p-5 text-center space-y-3 shadow-inner">
             <div class="flex items-center justify-center gap-2.5 text-primary font-black text-sm">
               <span class="material-symbols-outlined animate-spin text-xl">progress_activity</span>
               <span class="tracking-wide">Tự động chuyển sang in vé trong: {{ printCountdown }}s</span>
@@ -484,7 +511,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Đã in: Nút quay lại màn hình quét -->
+          <!-- TH2: Đã check-in hoặc đã in xong: Nút quay lại màn hình quét -->
           <div v-else class="pt-2 w-full max-w-md">
             <button @click="resetScanner" class="w-full bg-primary text-on-primary font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
               <span class="material-symbols-outlined text-lg">qr_code_scanner</span>
