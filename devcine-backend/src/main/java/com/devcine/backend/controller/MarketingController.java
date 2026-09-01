@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
@@ -68,11 +69,15 @@ public class MarketingController {
         List<Map<String, Object>> result = promotionRepository.findAll().stream()
                 .filter(p -> p.getCode() != null && !p.getCode().isBlank())
                 .filter(p -> !Boolean.FALSE.equals(p.getIsActive()))
+                .filter(p -> !Boolean.TRUE.equals(p.getIsHidden())) // Voucher kín: không công khai trên trang khuyến mãi
                 .filter(p -> (p.getStartDate() == null || !p.getStartDate().isAfter(now))
                         && (p.getEndDate() == null || !p.getEndDate().isBefore(now)))
                 .map(p -> {
+                    String movieTitles = voucherService.getMovieTitles(p);
                     Integer movieId = p.getApplicableMovieId();
-                    String movieTitle = movieId != null ? voucherService.getMovieTitleById(movieId) : null;
+                    if (movieTitles == null && movieId != null) {
+                        movieTitles = voucherService.getMovieTitleById(movieId);
+                    }
                     boolean exhausted = p.getUsageLimit() != null && p.getUsageLimit() > 0
                             && p.getUsedCount() != null && p.getUsedCount() >= p.getUsageLimit();
 
@@ -94,7 +99,8 @@ public class MarketingController {
                     m.put("maxDiscountAmount", p.getMaxDiscountAmount() != null ? p.getMaxDiscountAmount() : BigDecimal.ZERO);
                     m.put("maxTicketQuantity", p.getMaxTicketQuantity() != null ? p.getMaxTicketQuantity() : 0);
                     m.put("applicableMovieId", movieId);
-                    m.put("applicableMovieTitle", movieTitle != null ? movieTitle : "");
+                    m.put("applicableMovieIds", p.getApplicableMovieIds());
+                    m.put("applicableMovieTitle", movieTitles != null ? movieTitles : "");
                     m.put("customerEligibility", p.getCustomerEligibility() != null ? p.getCustomerEligibility() : "ALL");
                     m.put("usageLimit", p.getUsageLimit() != null ? p.getUsageLimit() : 0);
                     m.put("usedCount", p.getUsedCount() != null ? p.getUsedCount() : 0);
@@ -105,6 +111,7 @@ public class MarketingController {
                     m.put("endDate", p.getEndDate() != null ? p.getEndDate().toString() : "");
                     m.put("pointsRequired", p.getPointsRequired() != null ? p.getPointsRequired() : 0);
                     m.put("allowPointRedemption", Boolean.TRUE.equals(p.getAllowPointRedemption()));
+                    m.put("isHidden", Boolean.TRUE.equals(p.getIsHidden()));
                     return m;
                 })
                 .collect(Collectors.toList());
@@ -136,6 +143,36 @@ public class MarketingController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    private String extractMovieIdsCsv(Object rawIds, Object rawSingleId) {
+        if (rawIds instanceof List<?> list) {
+            List<String> valid = list.stream().filter(Objects::nonNull)
+                    .map(Object::toString).map(String::trim).filter(s -> !s.isEmpty()).toList();
+            return valid.isEmpty() ? null : String.join(",", valid);
+        }
+        if (rawIds != null && !rawIds.toString().isBlank()) {
+            return rawIds.toString().trim();
+        }
+        if (rawSingleId != null && !rawSingleId.toString().isBlank()) {
+            return rawSingleId.toString().trim();
+        }
+        return null;
+    }
+
+    private Integer extractPrimaryMovieId(String movieIdsCsv, Object rawSingleId) {
+        if (movieIdsCsv != null && !movieIdsCsv.isBlank()) {
+            String first = movieIdsCsv.split(",")[0].trim();
+            try {
+                return Integer.parseInt(first);
+            } catch (NumberFormatException ignored) {}
+        }
+        if (rawSingleId != null && !rawSingleId.toString().isBlank()) {
+            try {
+                return Integer.parseInt(rawSingleId.toString().trim());
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
+    }
+
     @PostMapping("/promotions")
     @PreAuthorize("@perm.can('promotions','add')")
     public ResponseEntity<?> createPromotion(@RequestBody Map<String, Object> body) {
@@ -157,6 +194,9 @@ public class MarketingController {
             if (endDt != null && !endDt.toLocalDate().isAfter(startDt != null ? startDt.toLocalDate() : today)) {
                 return ResponseEntity.badRequest().body(ApiResponse.fail("Ngày hết hạn phải sau ngày bắt đầu."));
             }
+            String movieIdsCsv = extractMovieIdsCsv(body.get("applicableMovieIds"), body.get("applicableMovieId"));
+            Integer primaryMovieId = extractPrimaryMovieId(movieIdsCsv, body.get("applicableMovieId"));
+
             Promotion promo = Promotion.builder()
                     .code(code)
                     .name((String) body.get("name"))
@@ -169,8 +209,9 @@ public class MarketingController {
                     .pointsRequired(body.get("pointsRequired") != null ? Integer.parseInt(body.get("pointsRequired").toString()) : 0)
                     .allowPointRedemption(Boolean.parseBoolean(body.getOrDefault("allowPointRedemption", false).toString()))
                     .minOrderValue(body.get("minOrderValue") != null ? new BigDecimal(body.get("minOrderValue").toString()) : BigDecimal.ZERO)
-                    .applicableMovieId(body.get("applicableMovieId") != null && !body.get("applicableMovieId").toString().isBlank()
-                            ? Integer.parseInt(body.get("applicableMovieId").toString()) : null)
+                    .applicableMovieId(primaryMovieId)
+                    .applicableMovieIds(movieIdsCsv)
+                    .isHidden(Boolean.parseBoolean(body.getOrDefault("isHidden", false).toString()))
                     .customerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL")
                     .usageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0)
                     .maxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0)
@@ -232,8 +273,16 @@ public class MarketingController {
             if (body.containsKey("pointsRequired")) promo.setPointsRequired(body.get("pointsRequired") != null ? Integer.parseInt(body.get("pointsRequired").toString()) : 0);
             if (body.containsKey("allowPointRedemption")) promo.setAllowPointRedemption(Boolean.parseBoolean(body.get("allowPointRedemption").toString()));
             if (body.containsKey("minOrderValue")) promo.setMinOrderValue(body.get("minOrderValue") != null ? new BigDecimal(body.get("minOrderValue").toString()) : BigDecimal.ZERO);
-            if (body.containsKey("applicableMovieId")) promo.setApplicableMovieId(body.get("applicableMovieId") != null && !body.get("applicableMovieId").toString().isBlank()
-                    ? Integer.parseInt(body.get("applicableMovieId").toString()) : null);
+            
+            if (body.containsKey("applicableMovieIds") || body.containsKey("applicableMovieId")) {
+                String movieIdsCsv = extractMovieIdsCsv(body.get("applicableMovieIds"), body.get("applicableMovieId"));
+                Integer primaryMovieId = extractPrimaryMovieId(movieIdsCsv, body.get("applicableMovieId"));
+                promo.setApplicableMovieIds(movieIdsCsv);
+                promo.setApplicableMovieId(primaryMovieId);
+            }
+            if (body.containsKey("isHidden")) {
+                promo.setIsHidden(Boolean.parseBoolean(body.get("isHidden").toString()));
+            }
             if (body.containsKey("customerEligibility")) promo.setCustomerEligibility(body.get("customerEligibility") != null ? body.get("customerEligibility").toString() : "ALL");
             if (body.containsKey("usageLimit")) promo.setUsageLimit(body.get("usageLimit") != null ? Integer.parseInt(body.get("usageLimit").toString()) : 0);
             if (body.containsKey("maxTicketQuantity")) promo.setMaxTicketQuantity(body.get("maxTicketQuantity") != null ? Integer.parseInt(body.get("maxTicketQuantity").toString()) : 0);

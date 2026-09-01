@@ -88,8 +88,12 @@ public class VoucherController {
 
                     Integer applicableMovieId = v.effectiveApplicableMovieId();
                     String movieTitle = v.effectiveApplicableMovieTitle();
-                    if (movieTitle == null && applicableMovieId != null) {
-                        movieTitle = voucherService.getMovieTitleById(applicableMovieId);
+                    if (movieTitle == null) {
+                        if (applicableMovieId != null) {
+                            movieTitle = voucherService.getMovieTitleById(applicableMovieId);
+                        } else if (v.getPromotion() != null) {
+                            movieTitle = voucherService.getMovieTitles(v.getPromotion());
+                        }
                     }
 
                     Map<String, Object> map = new java.util.HashMap<>();
@@ -103,6 +107,7 @@ public class VoucherController {
                     map.put("maxDiscountAmount", v.effectiveMaxDiscountAmount() != null ? v.effectiveMaxDiscountAmount() : BigDecimal.ZERO);
                     map.put("maxTicketQuantity", v.effectiveMaxTicketQuantity() != null ? v.effectiveMaxTicketQuantity() : 0);
                     map.put("applicableMovieId", applicableMovieId);
+                    map.put("applicableMovieIds", v.effectiveApplicableMovieIds());
                     map.put("applicableMovieTitle", movieTitle != null ? movieTitle : "");
                     map.put("validUntil", v.getValidUntil() != null ? v.getValidUntil().toString() : "");
                     map.put("usedAt", v.getUsedAt() != null ? v.getUsedAt().toString() : "");
@@ -124,8 +129,12 @@ public class VoucherController {
         voucherService.ensureSnapshotPublic(voucher);
         Integer applicableMovieId = voucher.effectiveApplicableMovieId();
         String movieTitle = voucher.effectiveApplicableMovieTitle();
-        if (movieTitle == null && applicableMovieId != null) {
-            movieTitle = voucherService.getMovieTitleById(applicableMovieId);
+        if (movieTitle == null) {
+            if (applicableMovieId != null) {
+                movieTitle = voucherService.getMovieTitleById(applicableMovieId);
+            } else if (voucher.getPromotion() != null) {
+                movieTitle = voucherService.getMovieTitles(voucher.getPromotion());
+            }
         }
 
         Map<String, Object> map = new java.util.HashMap<>();
@@ -136,6 +145,7 @@ public class VoucherController {
         map.put("discountValue", voucher.effectiveDiscountValue());
         map.put("minOrderValue", voucher.effectiveMinOrderValue());
         map.put("applicableMovieId", applicableMovieId);
+        map.put("applicableMovieIds", voucher.effectiveApplicableMovieIds());
         map.put("applicableMovieTitle", movieTitle != null ? movieTitle : "");
         map.put("validUntil", voucher.getValidUntil().toString());
 
@@ -169,17 +179,24 @@ public class VoucherController {
                 : owned ? "ALREADY_OWNED"
                 : "OK";
 
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "found", true,
-                "claimable", claimable,
-                "reason", reason,
-                "exhausted", exhausted,
-                "code", promo.getCode() != null ? promo.getCode() : "",
-                "name", promo.getName() != null ? promo.getName() : "",
-                "discountType", promo.getDiscountType() != null ? promo.getDiscountType() : "",
-                "discountValue", promo.getDiscountValue() != null ? promo.getDiscountValue() : 0,
-                "endDate", promo.getEndDate() != null ? promo.getEndDate().toString() : ""
-        )));
+        String movieTitle = voucherService.getMovieTitles(promo);
+        if (movieTitle == null && promo.getApplicableMovieId() != null) {
+            movieTitle = voucherService.getMovieTitleById(promo.getApplicableMovieId());
+        }
+
+        Map<String, Object> data = new java.util.HashMap<>();
+        data.put("found", true);
+        data.put("claimable", claimable);
+        data.put("reason", reason);
+        data.put("exhausted", exhausted);
+        data.put("code", promo.getCode() != null ? promo.getCode() : "");
+        data.put("name", promo.getName() != null ? promo.getName() : "");
+        data.put("discountType", promo.getDiscountType() != null ? promo.getDiscountType() : "");
+        data.put("discountValue", promo.getDiscountValue() != null ? promo.getDiscountValue() : 0);
+        data.put("endDate", promo.getEndDate() != null ? promo.getEndDate().toString() : "");
+        data.put("applicableMovieTitle", movieTitle != null ? movieTitle : "");
+        data.put("applicableMovieIds", promo.getApplicableMovieIds());
+        return ResponseEntity.ok(ApiResponse.ok(data));
     }
 
     /** Bước thanh toán: áp dụng voucher theo mã (tự lưu nếu hợp lệ mà chưa có), trả về để áp dụng. */

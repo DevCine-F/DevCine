@@ -107,4 +107,39 @@ public class Promotion {
     @Column(name = "campaign_sent_count", columnDefinition = "integer not null default 0")
     @Builder.Default
     private Integer campaignSentCount = 0;
+
+    /** Ẩn voucher khỏi trang khuyến mãi công khai (chỉ ai có mã mới nhập để sử dụng / lưu vào ví). */
+    @Column(name = "is_hidden", columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean isHidden = false;
+
+    /** Danh sách ID phim áp dụng (ngăn cách bằng dấu phẩy, vd "1,3,7"). Null/rỗng = áp dụng mọi phim. */
+    @Column(name = "applicable_movie_ids", length = 500)
+    private String applicableMovieIds;
+
+    /** Lấy danh sách ID các phim áp dụng (tương thích cả applicableMovieIds mới và applicableMovieId cũ). */
+    public java.util.List<Integer> getApplicableMovieIdList() {
+        java.util.List<Integer> list = new java.util.ArrayList<>();
+        if (applicableMovieIds != null && !applicableMovieIds.isBlank()) {
+            for (String part : applicableMovieIds.split(",")) {
+                String trimmed = part.trim();
+                if (!trimmed.isEmpty()) {
+                    try {
+                        list.add(Integer.parseInt(trimmed));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        } else if (applicableMovieId != null) {
+            list.add(applicableMovieId);
+        }
+        return list;
+    }
+
+    /** Kiểm tra xem 1 phim có nằm trong phạm vi áp dụng của ưu đãi không. */
+    public boolean isMovieApplicable(Integer movieId) {
+        if (movieId == null) return true;
+        java.util.List<Integer> list = getApplicableMovieIdList();
+        if (list.isEmpty()) return true; // rỗng = áp dụng mọi phim
+        return list.contains(movieId);
+    }
 }

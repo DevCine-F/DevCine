@@ -71,13 +71,21 @@ public class Voucher {
     @Column(name = "min_order_value_snapshot", precision = 15, scale = 2)
     private BigDecimal minOrderValueSnapshot;
 
-    /** ID phim áp dụng snapshot (null = áp dụng mọi phim) */
+    /** ID phim áp dụng snapshot (null = áp dụng mọi phim) - cho dữ liệu cũ 1 phim */
     @Column(name = "applicable_movie_id_snapshot")
     private Integer applicableMovieIdSnapshot;
 
-    /** Tên phim áp dụng snapshot (đóng băng tên phim tại thời điểm phát) */
+    /** Tên phim áp dụng snapshot (đóng băng tên phim tại thời điểm phát) - cho dữ liệu cũ 1 phim */
     @Column(name = "applicable_movie_title_snapshot", length = 255)
     private String applicableMovieTitleSnapshot;
+
+    /** Danh sách ID phim áp dụng snapshot (CSV, vd "1,3,7") */
+    @Column(name = "applicable_movie_ids_snapshot", length = 500)
+    private String applicableMovieIdsSnapshot;
+
+    /** Danh sách tên các phim áp dụng snapshot (vd "Conan, Doraemon") */
+    @Column(name = "applicable_movie_titles_snapshot", length = 1000)
+    private String applicableMovieTitlesSnapshot;
 
     /** Đối tượng áp dụng snapshot: ALL | NEW_CUSTOMER | TIER_SILVER | ... */
     @Column(name = "customer_eligibility_snapshot", length = 20)
@@ -85,10 +93,14 @@ public class Voucher {
 
     /** Copy toàn bộ thông số từ Promotion vào snapshot — gọi khi tạo voucher. */
     public void snapshotFrom(Promotion promo) {
-        snapshotFrom(promo, null);
+        snapshotFrom(promo, null, null);
     }
 
     public void snapshotFrom(Promotion promo, String movieTitle) {
+        snapshotFrom(promo, movieTitle, null);
+    }
+
+    public void snapshotFrom(Promotion promo, String movieTitles, String movieIds) {
         if (promo == null) return;
         this.titleSnapshot = promo.getName();
         this.descriptionSnapshot = promo.getDescription();
@@ -98,7 +110,9 @@ public class Voucher {
         this.maxTicketQuantitySnapshot = promo.getMaxTicketQuantity();
         this.minOrderValueSnapshot = promo.getMinOrderValue();
         this.applicableMovieIdSnapshot = promo.getApplicableMovieId();
-        this.applicableMovieTitleSnapshot = movieTitle;
+        this.applicableMovieTitleSnapshot = movieTitles;
+        this.applicableMovieIdsSnapshot = (movieIds != null && !movieIds.isBlank()) ? movieIds : promo.getApplicableMovieIds();
+        this.applicableMovieTitlesSnapshot = movieTitles;
         this.customerEligibilitySnapshot = promo.getCustomerEligibility();
     }
 
@@ -139,9 +153,52 @@ public class Voucher {
     }
 
     public String effectiveApplicableMovieTitle() {
-        return (applicableMovieTitleSnapshot != null && !applicableMovieTitleSnapshot.isBlank())
-                ? applicableMovieTitleSnapshot
-                : null;
+        if (applicableMovieTitlesSnapshot != null && !applicableMovieTitlesSnapshot.isBlank()) {
+            return applicableMovieTitlesSnapshot;
+        }
+        if (applicableMovieTitleSnapshot != null && !applicableMovieTitleSnapshot.isBlank()) {
+            return applicableMovieTitleSnapshot;
+        }
+        return null;
+    }
+
+    public String effectiveApplicableMovieIds() {
+        if (applicableMovieIdsSnapshot != null && !applicableMovieIdsSnapshot.isBlank()) {
+            return applicableMovieIdsSnapshot;
+        }
+        if (promotion != null && promotion.getApplicableMovieIds() != null && !promotion.getApplicableMovieIds().isBlank()) {
+            return promotion.getApplicableMovieIds();
+        }
+        if (applicableMovieIdSnapshot != null) {
+            return String.valueOf(applicableMovieIdSnapshot);
+        }
+        if (promotion != null && promotion.getApplicableMovieId() != null) {
+            return String.valueOf(promotion.getApplicableMovieId());
+        }
+        return null;
+    }
+
+    public java.util.List<Integer> effectiveApplicableMovieIdList() {
+        java.util.List<Integer> list = new java.util.ArrayList<>();
+        String ids = effectiveApplicableMovieIds();
+        if (ids != null && !ids.isBlank()) {
+            for (String part : ids.split(",")) {
+                String trimmed = part.trim();
+                if (!trimmed.isEmpty()) {
+                    try {
+                        list.add(Integer.parseInt(trimmed));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        return list;
+    }
+
+    public boolean isMovieApplicable(Integer movieId) {
+        if (movieId == null) return true;
+        java.util.List<Integer> list = effectiveApplicableMovieIdList();
+        if (list.isEmpty()) return true; // rỗng = áp dụng mọi phim
+        return list.contains(movieId);
     }
 
     public String effectiveCustomerEligibility() {

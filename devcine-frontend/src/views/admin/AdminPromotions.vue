@@ -455,7 +455,11 @@ const newVoucher = ref({
   startDate: '',
   expiry: '',
   minOrderValue: null,
+  movieMode: 'all', // 'all' | 'specific'
+  selectedMovieIds: [],
   applicableMovieId: '',
+  applicableMovieIds: '',
+  isHidden: false,
   customerEligibility: 'ALL',
   usageLimit: null,
   maxTicketQuantity: null,
@@ -464,7 +468,7 @@ const newVoucher = ref({
   selectedCinemas: []
 })
 
-// Combobox "Áp dụng theo phim": tìm kiếm + chọn (thay <select> native lệch màu nền)
+// Combobox & bộ chọn "Áp dụng theo phim"
 const movieDropdownOpen = ref(false)
 const movieSearch = ref('')
 const cinemaSearch = ref('')
@@ -479,15 +483,15 @@ const filteredCinemasList = computed(() => {
   return cinemasList.value.filter(c => (c.name || '').toLowerCase().includes(q))
 })
 const selectedMovieTitle = computed(() => {
-  if (!newVoucher.value.applicableMovieId) return 'Tất cả phim'
-  const m = moviesList.value.find(x => x.id === newVoucher.value.applicableMovieId)
-  return m ? m.title : 'Tất cả phim'
+  if (newVoucher.value.movieMode === 'all' || !newVoucher.value.selectedMovieIds.length) return 'Tất cả phim'
+  const count = newVoucher.value.selectedMovieIds.length
+  if (count === 1) {
+    const m = moviesList.value.find(x => x.id === newVoucher.value.selectedMovieIds[0])
+    return m ? m.title : '1 phim đã chọn'
+  }
+  return `${count} phim đã chọn`
 })
-const selectMovieForVoucher = (id) => {
-  newVoucher.value.applicableMovieId = id
-  movieDropdownOpen.value = false
-  movieSearch.value = ''
-}
+
 // Ngày tối thiểu cho ô Hết hạn = NGÀY SAU ngày bắt đầu (hoặc sau hôm nay nếu chưa chọn) → ép end > start
 const endMinStr = computed(() => {
   const base = newVoucher.value.startDate || todayStr.value
@@ -503,7 +507,29 @@ const editStartLocked = ref(false)
 const openVoucherDrawer = () => {
   editingVoucherId.value = null
   editStartLocked.value = false
-  newVoucher.value = { code: '', type: 'PERCENTAGE', value: null, allowPointExchange: false, pointsRequired: null, title: '', description: '', startDate: '', expiry: '', minOrderValue: null, applicableMovieId: '', customerEligibility: 'ALL', usageLimit: 0, maxTicketQuantity: 0, maxDiscountAmount: null, cinemaMode: 'all', selectedCinemas: [] }
+  newVoucher.value = {
+    code: '',
+    type: 'PERCENTAGE',
+    value: null,
+    allowPointExchange: false,
+    pointsRequired: null,
+    title: '',
+    description: '',
+    startDate: '',
+    expiry: '',
+    minOrderValue: null,
+    movieMode: 'all',
+    selectedMovieIds: [],
+    applicableMovieId: '',
+    applicableMovieIds: '',
+    isHidden: false,
+    customerEligibility: 'ALL',
+    usageLimit: 0,
+    maxTicketQuantity: 0,
+    maxDiscountAmount: null,
+    cinemaMode: 'all',
+    selectedCinemas: []
+  }
   voucherErrors.value = {}
   pctLimitWarn.value = ''
   movieDropdownOpen.value = false; movieSearch.value = ''; cinemaSearch.value = ''
@@ -513,6 +539,15 @@ const openVoucherDrawer = () => {
 // Mở drawer ở chế độ chỉnh sửa, đổ dữ liệu promotion thật vào form
 const openEditVoucher = (promo) => {
   editingVoucherId.value = promo.id
+  const movieIdsList = []
+  if (promo.applicableMovieIds) {
+    String(promo.applicableMovieIds).split(',').map(x => Number(x.trim())).filter(Boolean).forEach(id => {
+      if (!movieIdsList.includes(id)) movieIdsList.push(id)
+    })
+  } else if (promo.applicableMovieId) {
+    movieIdsList.push(Number(promo.applicableMovieId))
+  }
+
   newVoucher.value = {
     code: promo.code || '',
     type: promo.discountType || 'PERCENTAGE',
@@ -524,7 +559,11 @@ const openEditVoucher = (promo) => {
     startDate: promo.startDate ? String(promo.startDate).slice(0, 10) : '',
     expiry: promo.endDate ? String(promo.endDate).slice(0, 10) : '',
     minOrderValue: promo.minOrderValue != null ? Number(promo.minOrderValue) : 0,
+    movieMode: movieIdsList.length > 0 ? 'specific' : 'all',
+    selectedMovieIds: movieIdsList,
     applicableMovieId: promo.applicableMovieId != null ? promo.applicableMovieId : '',
+    applicableMovieIds: promo.applicableMovieIds || '',
+    isHidden: !!promo.isHidden,
     customerEligibility: promo.customerEligibility || 'ALL',
     usageLimit: promo.usageLimit != null ? Number(promo.usageLimit) : 0,
     maxTicketQuantity: promo.maxTicketQuantity != null ? Number(promo.maxTicketQuantity) : 0,
@@ -812,6 +851,7 @@ const handleSaveVoucher = async () => {
   }
   isSavingVoucher.value = true
   try {
+    const selectedIds = newVoucher.value.movieMode === 'specific' ? newVoucher.value.selectedMovieIds : []
     const payload = {
       code: newVoucher.value.code.trim().toUpperCase(),
       name: newVoucher.value.title.trim(),
@@ -822,7 +862,9 @@ const handleSaveVoucher = async () => {
       allowPointRedemption: !!newVoucher.value.allowPointExchange,
       pointsRequired: newVoucher.value.allowPointExchange ? Number(newVoucher.value.pointsRequired || 0) : 0,
       minOrderValue: Number(newVoucher.value.minOrderValue || 0),
-      applicableMovieId: newVoucher.value.applicableMovieId || null,
+      applicableMovieIds: selectedIds.length > 0 ? selectedIds.join(',') : null,
+      applicableMovieId: selectedIds.length > 0 ? selectedIds[0] : null,
+      isHidden: !!newVoucher.value.isHidden,
       customerEligibility: newVoucher.value.customerEligibility || 'ALL',
       usageLimit: Number(newVoucher.value.usageLimit || 0),
       maxTicketQuantity: Number(newVoucher.value.maxTicketQuantity || 0),
@@ -847,8 +889,9 @@ const handleSaveVoucher = async () => {
     if (err.response?.status === 409) {
       voucherErrors.value = { ...voucherErrors.value, code: friendlyError(err, 'Mã code đã tồn tại.') }
       focusFirstVoucherError()
+    } else {
+      showToast(friendlyError(err, 'Lưu voucher thất bại.'), 'error')
     }
-    showToast(friendlyError(err, 'Lưu voucher thất bại.'), 'error')
   } finally {
     isSavingVoucher.value = false
   }
@@ -883,7 +926,7 @@ const confirmDeleteVoucher = async () => {
     deleteTarget.value = null
     await fetchMarketingData()
   } catch (err) {
-    showToast(friendlyError(err, 'Xoá thất bại.'), 'error')
+    showToast(friendlyError(err, 'Xoá voucher thất bại.'), 'error')
   } finally {
     isDeleting.value = false
   }
@@ -894,6 +937,25 @@ const emailTarget = ref(null)        // promotion đang chờ xác nhận gửi 
 const isSendingCampaign = ref(false)
 const eligibilityLabel = (val) => eligibilityOptions.find(o => o.value === val)?.label || 'Mọi khách hàng'
 const movieTitleById = (id) => id ? (moviesList.value.find(m => m.id === id)?.title || 'Tất cả phim') : 'Tất cả phim'
+const movieTitleByPromo = (p) => {
+  if (!p) return 'Tất cả phim'
+  if (p.applicableMovieTitle && p.applicableMovieTitle.trim()) {
+    return p.applicableMovieTitle
+  }
+  if (p.applicableMovieIds) {
+    const ids = String(p.applicableMovieIds).split(',').map(x => Number(x.trim())).filter(Boolean)
+    if (ids.length > 0) {
+      const titles = ids.map(id => moviesList.value.find(m => m.id === id)?.title).filter(Boolean)
+      if (titles.length > 0) return titles.join(', ')
+    }
+  }
+  if (p.applicableMovieId) {
+    const m = moviesList.value.find(m => m.id === p.applicableMovieId)
+    return m ? m.title : 'Phim #' + p.applicableMovieId
+  }
+  return 'Tất cả phim'
+}
+
 // Tình trạng sử dụng voucher: %, màu theo mức dùng, số còn lại — cho thanh đo ở view chi tiết
 const usageInfo = (promo) => {
   const used = Number(promo?.usedCount || 0)
@@ -1017,6 +1079,8 @@ const fetchMarketingData = async () => {
       maxTicketQuantity: p.maxTicketQuantity,
       maxDiscountAmount: p.maxDiscountAmount,
       applicableMovieId: p.applicableMovieId,
+      applicableMovieIds: p.applicableMovieIds,
+      isHidden: !!p.isHidden,
       customerEligibility: p.customerEligibility,
       usageLimit: p.usageLimit,
       usedCount: p.usedCount,
@@ -1098,11 +1162,15 @@ onUnmounted(() => {
           <div class="relative px-5 pt-4 pb-4 bg-gradient-to-br from-primary/10 to-transparent cursor-pointer" @click="openDetail(promo)" title="Bấm để xem chi tiết">
             <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[80px] leading-none text-primary/[0.07] select-none pointer-events-none">local_activity</span>
 
-            <div class="relative flex items-center justify-between mb-2">
-              <span class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
-                <span class="material-symbols-outlined text-xs">sell</span> Voucher
+            <div class="relative flex items-center justify-between mb-2 gap-1.5">
+              <span v-if="promo.isHidden" class="inline-flex items-center text-[7.5px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30 leading-none">
+                Kín
               </span>
-              <span :class="promoStatus(promo) === 'active' ? 'bg-green-500/15 text-green-400' : promoStatus(promo) === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'" class="shrink-0 inline-flex items-center gap-1 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest">
+              <span v-else class="inline-flex items-center text-[7.5px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/25 leading-none">
+                Công khai
+              </span>
+
+              <span :class="promoStatus(promo) === 'active' ? 'bg-green-500/15 text-green-400' : promoStatus(promo) === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'" class="shrink-0 inline-flex items-center gap-1 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest leading-none">
                 <span v-if="promoStatus(promo) === 'active'" class="w-1 h-1 rounded-full bg-green-400 animate-pulse"></span>
                 <span v-else-if="promoStatus(promo) === 'paused'" class="w-1 h-1 rounded-full bg-amber-400"></span>
                 {{ promoStatus(promo) === 'active' ? 'Đang chạy' : promoStatus(promo) === 'paused' ? 'Tạm dừng' : 'Hết hạn' }}
@@ -1397,27 +1465,42 @@ onUnmounted(() => {
                 <p v-else-if="isFixed" class="text-[10px] text-amber-400/80">Tự khoá = giá trị giảm (mã tiền cố định).</p>
               </div>
             </div>
-            <div class="space-y-2 relative" @click.stop>
-              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Áp dụng theo phim</label>
-              <button type="button" @click="movieDropdownOpen = !movieDropdownOpen"
-                class="w-full bg-surface-container-highest border border-outline-variant/20 p-4 rounded-xl text-sm font-bold focus:border-primary outline-none flex items-center justify-between text-left"
-                :class="movieDropdownOpen ? 'border-primary' : ''">
-                <span :class="newVoucher.applicableMovieId ? 'text-on-surface' : 'text-on-surface-variant/70'">{{ selectedMovieTitle }}</span>
-                <span class="material-symbols-outlined text-lg text-on-surface-variant transition-transform" :class="{ 'rotate-180': movieDropdownOpen }">expand_more</span>
-              </button>
-              <div v-if="movieDropdownOpen" class="absolute z-20 left-0 right-0 top-full mt-2 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl overflow-hidden">
-                <div class="p-2 border-b border-outline-variant/10">
-                  <input v-model="movieSearch" type="text" placeholder="Tìm tên phim..." autofocus
-                    class="w-full bg-surface-container-lowest border border-outline-variant/20 px-3 py-2 rounded-lg text-sm text-on-surface focus:border-primary outline-none" />
+            <!-- Áp dụng theo phim: Radio Toàn bộ / Phim được chọn kèm checkbox -->
+            <div class="space-y-3">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block">Áp dụng theo phim</label>
+              <div class="flex gap-8">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" v-model="newVoucher.movieMode" value="all" class="accent-primary">
+                  <span class="text-xs font-bold uppercase">Toàn bộ phim</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" v-model="newVoucher.movieMode" value="specific" class="accent-primary">
+                  <span class="text-xs font-bold uppercase">Phim được chọn</span>
+                </label>
+              </div>
+
+              <div v-if="newVoucher.movieMode === 'specific'" class="mt-2 p-4 bg-surface-container-highest rounded-xl border border-outline-variant/10 space-y-3 animate-in fade-in slide-in-from-top-2">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[10px] font-bold text-primary uppercase tracking-wider">
+                    {{ newVoucher.selectedMovieIds.length > 0 ? `Đã chọn ${newVoucher.selectedMovieIds.length} phim` : 'Chưa chọn phim nào (chọn bên dưới)' }}
+                  </span>
+                  <div class="flex items-center gap-2">
+                    <button type="button" @click="newVoucher.selectedMovieIds = moviesList.map(m => m.id)" class="text-[10px] font-bold text-primary hover:underline">Chọn tất cả</button>
+                    <span class="text-outline-variant/40">·</span>
+                    <button type="button" @click="newVoucher.selectedMovieIds = []" class="text-[10px] font-bold text-on-surface-variant hover:text-red-400">Bỏ chọn</button>
+                  </div>
                 </div>
-                <div class="max-h-56 overflow-y-auto py-1 scrollbar-custom">
-                  <button type="button" @click="selectMovieForVoucher('')"
-                    class="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
-                    :class="!newVoucher.applicableMovieId ? 'text-primary font-bold' : 'text-on-surface-variant'">Tất cả phim</button>
-                  <button v-for="m in filteredMoviesList" :key="m.id" type="button" @click="selectMovieForVoucher(m.id)"
-                    class="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors truncate block"
-                    :class="newVoucher.applicableMovieId === m.id ? 'text-primary font-bold' : 'text-on-surface-variant'">{{ m.title }}</button>
-                  <div v-if="filteredMoviesList.length === 0" class="px-4 py-3 text-sm text-on-surface-variant/60 italic text-center">Không tìm thấy phim</div>
+                <div class="relative">
+                  <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-lg pointer-events-none">search</span>
+                  <input v-model="movieSearch" type="text" placeholder="Tìm tên phim áp dụng..."
+                    class="w-full bg-surface-container-lowest border border-outline-variant/20 pl-10 pr-3 py-2.5 rounded-lg text-sm text-on-surface focus:border-primary outline-none" />
+                </div>
+                <div class="flex flex-col gap-1 max-h-52 overflow-y-auto scrollbar-custom">
+                  <label v-for="m in filteredMoviesList" :key="m.id" class="flex items-center gap-2.5 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-colors">
+                    <input type="checkbox" :value="m.id" v-model="newVoucher.selectedMovieIds" class="accent-primary rounded-sm shrink-0">
+                    <span class="text-xs font-bold text-on-surface truncate">{{ m.title }}</span>
+                  </label>
+                  <div v-if="filteredMoviesList.length === 0" class="px-2 py-3 text-xs text-on-surface-variant/60 italic text-center">Không tìm thấy phim</div>
                 </div>
               </div>
             </div>
@@ -1449,6 +1532,21 @@ onUnmounted(() => {
                   <input :value="newVoucher.pointsRequired ?? ''" @input="onIntInput($event, 'pointsRequired')" type="text" inputmode="numeric" data-field="pointsRequired" class="w-full bg-surface-container-lowest border p-4 rounded-xl text-sm font-bold text-on-surface focus:border-primary outline-none" :class="voucherErrors.pointsRequired ? 'border-red-500' : 'border-outline-variant/20'" placeholder="VD: 50" />
                   <p v-if="voucherErrors.pointsRequired" class="text-[10px] text-red-400 font-bold mt-1">{{ voucherErrors.pointsRequired }}</p>
                 </div>
+              </div>
+            </div>
+
+            <!-- Toggle Voucher Kín -->
+            <div class="bg-surface-container-highest rounded-xl border border-outline-variant/10 overflow-hidden transition-all duration-300">
+              <div class="flex items-center justify-between p-4">
+                <div class="pr-3">
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Voucher kín (Không công khai)</p>
+                  <p class="text-[10px] text-on-surface-variant mt-1 font-bold leading-relaxed">
+                    Nếu bật, voucher sẽ không hiển thị trên trang Khuyến mãi công khai. Khách có mã vẫn có thể nhập để lưu vào ví hoặc dùng khi đặt vé.
+                  </p>
+                </div>
+                <button type="button" @click="newVoucher.isHidden = !newVoucher.isHidden" :class="newVoucher.isHidden ? 'bg-purple-500' : 'bg-surface-container-high'" class="relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none shrink-0">
+                  <span :class="newVoucher.isHidden ? 'translate-x-5 bg-white' : 'translate-x-0 bg-on-surface-variant'" class="inline-block w-4 h-4 transform rounded-full transition-transform duration-300 shadow-md absolute top-0.5 left-0.5"></span>
+                </button>
               </div>
             </div>
           </div>
@@ -1731,7 +1829,11 @@ onUnmounted(() => {
               </div>
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 shrink-0">Áp dụng theo phim</span>
-                <span class="text-sm font-bold text-on-surface truncate text-right" :title="movieTitleById(detailTarget.applicableMovieId)">{{ movieTitleById(detailTarget.applicableMovieId) }}</span>
+                <span class="text-sm font-bold text-on-surface truncate text-right" :title="movieTitleByPromo(detailTarget)">{{ movieTitleByPromo(detailTarget) }}</span>
+              </div>
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Hình thức hiển thị</span>
+                <span class="text-sm font-bold" :class="detailTarget.isHidden ? 'text-purple-400' : 'text-sky-400'">{{ detailTarget.isHidden ? 'Voucher kín (Không công khai)' : 'Công khai toàn hệ thống' }}</span>
               </div>
               <div class="flex justify-between items-center gap-3">
                 <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Cộng dồn với mã khác</span>
