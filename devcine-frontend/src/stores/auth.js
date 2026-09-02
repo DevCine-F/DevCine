@@ -77,6 +77,28 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('role');
       localStorage.removeItem('permissions');
       localStorage.removeItem('mustChangePassword');
+    },
+    updateUser(partialUser) {
+      if (!this.user) return;
+      this.user = { ...this.user, ...partialUser };
+      localStorage.setItem('user', JSON.stringify(this.user));
+    },
+    async fetchProfile() {
+      if (!this.isAuthenticated || !this.user?.id) return;
+      try {
+        const { data } = await api.get(`/auth/profile/${this.user.id}`);
+        const profile = data?.data || data;
+        if (profile) {
+          this.updateUser({
+            fullName: profile.fullName || this.user.fullName,
+            email: profile.email || this.user.email,
+            phone: profile.phone || this.user.phone,
+            avatarUrl: profile.avatarUrl || '',
+          });
+        }
+      } catch (err) {
+        // im lặng nếu không nạp được profile ngầm
+      }
     }
   }
 })

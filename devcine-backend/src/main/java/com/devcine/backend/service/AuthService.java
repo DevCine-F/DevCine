@@ -77,6 +77,7 @@ public class AuthService {
                 "username", user.getUsername(),
                 "email", user.getEmail(),
                 "fullName", user.getFullName(),
+                "avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
                 "phone", user.getPhone() != null ? user.getPhone() : "",
                 "role", user.getRole().getName()
         );
@@ -128,6 +129,7 @@ public class AuthService {
         userMap.put("username", user.getUsername());
         userMap.put("email", user.getEmail());
         userMap.put("fullName", user.getFullName());
+        userMap.put("avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
         userMap.put("role", role);
         userMap.put("mustChangePassword", Boolean.TRUE.equals(user.getMustChangePassword()));
         userMap.put("cinemaId", cinemaId);

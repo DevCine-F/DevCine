@@ -52,6 +52,7 @@ onMounted(() => {
   // Nạp lại quyền mỗi khi vào layout (F5) để phản ánh ngay thay đổi ma trận quyền do admin cập nhật;
   // ADMIN toàn quyền nên fetchPermissions tự bỏ qua gọi API.
   authStore.fetchPermissions(true).catch(() => {})
+  authStore.fetchProfile().catch(() => {})
   document.addEventListener('mousedown', onClickOutsideAccount)
 })
 onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAccount))
@@ -242,8 +243,9 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
                  <p class="text-[10px] font-black text-on-surface uppercase tracking-wider">{{ displayName }}</p>
                  <p class="text-[8px] text-primary uppercase tracking-widest italic font-bold">{{ accountRole }}</p>
               </div>
-              <div class="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                 <span class="material-symbols-outlined text-primary text-sm">shield_person</span>
+              <div class="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center overflow-hidden shrink-0">
+                 <img v-if="authStore.user?.avatarUrl" :src="authStore.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover rounded-full" />
+                 <span v-else class="material-symbols-outlined text-primary text-sm">shield_person</span>
               </div>
               <span class="material-symbols-outlined text-on-surface-variant text-base transition-transform duration-200" :class="{ 'rotate-180': isAccountOpen }">expand_more</span>
             </button>
@@ -252,8 +254,9 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
             <transition name="dropdown">
               <div v-if="isAccountOpen" class="absolute right-0 mt-3 w-60 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_10px_40px_-10px_var(--shadow-color)] z-[110] overflow-hidden">
                 <div class="p-4 border-b border-outline-variant/10 bg-surface-container-lowest flex items-center gap-3">
-                  <div class="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
-                    <span class="material-symbols-outlined text-primary text-base">shield_person</span>
+                  <div class="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <img v-if="authStore.user?.avatarUrl" :src="authStore.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover rounded-full" />
+                    <span v-else class="material-symbols-outlined text-primary text-base">shield_person</span>
                   </div>
                   <div class="min-w-0">
                     <p class="text-xs font-black text-on-surface truncate">{{ displayName }}</p>

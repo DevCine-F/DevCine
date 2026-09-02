@@ -98,8 +98,7 @@ const handleSaveAvatar = async () => {
       customer.value = updated
       editForm.value.avatarUrl = updated.avatarUrl || ''
       if (authStore.user) {
-        authStore.user.avatarUrl = updated.avatarUrl || ''
-        localStorage.setItem('user', JSON.stringify(authStore.user))
+        authStore.updateUser({ avatarUrl: updated.avatarUrl || '' })
       }
       toast.success(newAvatar ? 'Cập nhật ảnh đại diện thành công!' : 'Đã đặt về ảnh đại diện mặc định!')
       isAvatarModalOpen.value = false
@@ -145,6 +144,12 @@ const fetchProfile = async () => {
       phone: data.phone || '',
       dob: data.dob || '',
       avatarUrl: data.avatarUrl || ''
+    }
+    if (authStore.user) {
+      authStore.updateUser({
+        avatarUrl: data.avatarUrl || '',
+        fullName: data.fullName || authStore.user.fullName
+      })
     }
   } catch (err) {
     console.error('Failed to fetch profile', err)
@@ -195,11 +200,12 @@ const handleSaveProfile = async () => {
       avatarUrl: updated.avatarUrl || ''
     }
     if (authStore.user) {
-      if (updated.fullName) authStore.user.fullName = updated.fullName
-      if (updated.email) authStore.user.email = updated.email
-      if (updated.phone) authStore.user.phone = updated.phone
-      authStore.user.avatarUrl = updated.avatarUrl || ''
-      localStorage.setItem('user', JSON.stringify(authStore.user))
+      authStore.updateUser({
+        fullName: updated.fullName || authStore.user.fullName,
+        email: updated.email || authStore.user.email,
+        phone: updated.phone || authStore.user.phone,
+        avatarUrl: updated.avatarUrl || ''
+      })
     }
     isEditing.value = false
     toast.success('Cập nhật hồ sơ thành công.')

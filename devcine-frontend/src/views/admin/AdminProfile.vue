@@ -1,16 +1,21 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import api from '@/api/axios'
 import { authApi } from '@/api/customer/index'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { prepareImageForUpload } from '@/utils/imageUpload'
 
 const toast = useToastStore()
-
 const authStore = useAuthStore()
 
 const isLoading = ref(true)
 const profile = ref(null)
+
+// Avatar upload state
+const fileInputRef = ref(null)
+const isUploadingAvatar = ref(false)
 
 // Form thông tin
 const infoForm = reactive({ fullName: '', email: '', phone: '' })
@@ -21,7 +26,6 @@ const pwForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' 
 const isSavingPw = ref(false)
 const showOld = ref(false)
 const showNew = ref(false)
-
 
 const roleLabel = computed(() => {
   const r = (profile.value?.role || authStore.role || '').toUpperCase()
@@ -49,10 +53,63 @@ const loadProfile = async () => {
     infoForm.fullName = profile.value.fullName || ''
     infoForm.email = profile.value.email || ''
     infoForm.phone = profile.value.phone || ''
+    if (profile.value) {
+      authStore.updateUser({
+        fullName: profile.value.fullName,
+        email: profile.value.email,
+        phone: profile.value.phone,
+        avatarUrl: profile.value.avatarUrl || ''
+      })
+    }
   } catch (err) {
     toast.error(friendlyError(err, 'Không tải được thông tin tài khoản.'))
   } finally {
     isLoading.value = false
+  }
+}
+
+const triggerAvatarUpload = () => {
+  fileInputRef.value?.click()
+}
+
+const handleAvatarFileChange = async (event) => {
+  const file = event.target?.files?.[0]
+  if (!file) return
+  try {
+    const prepared = await prepareImageForUpload(file, {
+      types: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
+      maxMB: 5
+    })
+    isUploadingAvatar.value = true
+    const fd = new FormData()
+    fd.append('file', prepared)
+    const { data } = await api.post('/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    const uploadedUrl = data?.data?.url || data?.url || (typeof data?.data === 'string' ? data.data : '')
+    if (!uploadedUrl) throw new Error('Không nhận được đường dẫn ảnh từ máy chủ.')
+
+    const res = await authApi.updateProfile({
+      userId: authStore.user.id,
+      fullName: infoForm.fullName.trim() || profile.value.fullName,
+      email: infoForm.email.trim() || profile.value.email,
+      phone: infoForm.phone.trim() || profile.value.phone,
+      avatarUrl: uploadedUrl
+    })
+    profile.value = res.data?.data ?? res.data
+    authStore.updateUser({
+      fullName: profile.value.fullName,
+      email: profile.value.email,
+      phone: profile.value.phone,
+      avatarUrl: uploadedUrl
+    })
+    toast.success('Cập nhật ảnh đại diện thành công!')
+  } catch (err) {
+    console.error('Upload avatar error', err)
+    toast.error(friendlyError(err, 'Tải ảnh đại diện thất bại.'))
+  } finally {
+    isUploadingAvatar.value = false
+    if (event.target) event.target.value = ''
   }
 }
 
@@ -64,13 +121,17 @@ const handleSaveInfo = async () => {
       userId: authStore.user.id,
       fullName: infoForm.fullName.trim(),
       email: infoForm.email.trim(),
-      phone: infoForm.phone.trim()
+      phone: infoForm.phone.trim(),
+      avatarUrl: profile.value?.avatarUrl || ''
     })
     profile.value = data.data ?? data
-    // Đồng bộ tên hiển thị trên topbar
-    const u = { ...authStore.user, fullName: profile.value.fullName, email: profile.value.email }
-    authStore.user = u
-    localStorage.setItem('user', JSON.stringify(u))
+    // Đồng bộ tên hiển thị trên topbar và authStore
+    authStore.updateUser({
+      fullName: profile.value.fullName,
+      email: profile.value.email,
+      phone: profile.value.phone,
+      avatarUrl: profile.value.avatarUrl || ''
+    })
     toast.success('Cập nhật thông tin thành công!')
   } catch (err) {
     toast.error(friendlyError(err, 'Cập nhật thất bại.'))
@@ -115,9 +176,33 @@ onMounted(loadProfile)
       <!-- Account overview -->
       <section class="bg-surface-container-low border border-outline-variant/10 rounded-lg p-8">
         <div class="flex flex-col md:flex-row md:items-center gap-6">
-          <div class="w-20 h-20 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-            <span class="text-3xl font-black text-primary">{{ initials }}</span>
+          <!-- Avatar Container with hover effect to change avatar -->
+          <div 
+            @click="triggerAvatarUpload"
+            class="relative w-20 h-20 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0 overflow-hidden group cursor-pointer select-none transition-all hover:border-primary/60 shadow-lg"
+            title="Bấm để đổi ảnh đại diện"
+          >
+            <img v-if="profile?.avatarUrl" :src="profile.avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
+            <span v-else class="text-3xl font-black text-primary">{{ initials }}</span>
+
+            <!-- Hover overlay -->
+            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 text-white">
+              <span class="material-symbols-outlined text-xl text-primary">photo_camera</span>
+              <span class="text-[8px] font-bold uppercase tracking-wider">Đổi ảnh</span>
+            </div>
+
+            <!-- Uploading spinner -->
+            <div v-if="isUploadingAvatar" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 gap-1">
+              <span class="material-symbols-outlined text-primary text-xl animate-spin">progress_activity</span>
+            </div>
           </div>
+          <input 
+            type="file" 
+            ref="fileInputRef" 
+            accept="image/jpeg,image/jpg,image/png,image/webp" 
+            class="hidden" 
+            @change="handleAvatarFileChange" 
+          />
           <div class="flex-grow min-w-0">
             <div class="flex items-center gap-3 flex-wrap">
               <h2 class="text-2xl font-black text-on-surface">{{ profile?.fullName || profile?.username }}</h2>

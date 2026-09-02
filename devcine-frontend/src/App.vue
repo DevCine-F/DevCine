@@ -42,8 +42,18 @@ function scheduleExpiry() {
   }
 }
 
-watch(() => auth.token, scheduleExpiry)
-onMounted(scheduleExpiry)
+watch(() => auth.token, () => {
+  scheduleExpiry()
+  if (auth.isAuthenticated) {
+    auth.fetchProfile()
+  }
+})
+onMounted(() => {
+  scheduleExpiry()
+  if (auth.isAuthenticated) {
+    auth.fetchProfile()
+  }
+})
 onUnmounted(() => { if (expiryTimer) clearTimeout(expiryTimer) })
 </script>
 

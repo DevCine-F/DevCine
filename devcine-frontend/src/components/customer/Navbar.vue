@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import logo from '../../assets/images/Logo_DevCine_Ngang_XoaNen.png'
@@ -8,6 +8,12 @@ const router = useRouter()
 const route = useRoute()
 const isMobileMenuOpen = ref(false)
 const authStore = useAuthStore()
+
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    authStore.fetchProfile()
+  }
+})
 
 // Tự động đóng mobile menu khi chuyển trang
 watch(() => route.fullPath, () => {
@@ -65,8 +71,9 @@ const handleLogout = () => {
         <!-- Auth State -->
         <div v-if="authStore.isAuthenticated" class="flex items-center pl-1 sm:pl-2">
           <div class="group relative flex items-center gap-2 sm:gap-3 bg-white/5 hover:bg-white/10 border border-white/10 px-2.5 sm:px-4 py-1.5 rounded-full transition-all duration-300 cursor-pointer">
-            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-[#f5c518] to-[#ffda5c] flex items-center justify-center text-black shrink-0">
-              <span class="material-symbols-outlined text-sm font-bold">person</span>
+            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-[#f5c518] to-[#ffda5c] flex items-center justify-center text-black shrink-0 overflow-hidden">
+              <img v-if="authStore.user?.avatarUrl" :src="authStore.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover rounded-full" />
+              <span v-else class="material-symbols-outlined text-sm font-bold">person</span>
             </div>
             <div class="hidden sm:flex flex-col">
               <span class="text-[10px] text-neutral-500 font-bold uppercase tracking-widest leading-none mb-0.5">DevCine User</span>
@@ -78,7 +85,10 @@ const handleLogout = () => {
             <!-- Hover Dropdown Menu -->
             <div class="absolute top-full right-0 mt-2 w-48 bg-neutral-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-2 group-hover:translate-y-0 shadow-2xl shadow-black z-[100]">
               <router-link to="/profile" class="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
-                <span class="material-symbols-outlined text-lg text-neutral-400">account_circle</span>
+                <div class="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center shrink-0">
+                  <img v-if="authStore.user?.avatarUrl" :src="authStore.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover rounded-full" />
+                  <span v-else class="material-symbols-outlined text-lg text-neutral-400">account_circle</span>
+                </div>
                 <span class="text-xs font-bold">Tài khoản</span>
               </router-link>
               <div class="h-[1px] bg-white/5"></div>
@@ -187,8 +197,9 @@ const handleLogout = () => {
         <div class="p-4 border-t border-white/10 bg-black/40">
           <div v-if="authStore.isAuthenticated" class="space-y-3">
             <router-link to="/profile" @click="isMobileMenuOpen = false" class="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-[#f5c518] to-[#ffda5c] flex items-center justify-center text-black shrink-0">
-                <span class="material-symbols-outlined text-lg font-bold">person</span>
+              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-[#f5c518] to-[#ffda5c] flex items-center justify-center text-black shrink-0 overflow-hidden">
+                <img v-if="authStore.user?.avatarUrl" :src="authStore.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover rounded-full" />
+                <span v-else class="material-symbols-outlined text-lg font-bold">person</span>
               </div>
               <div class="flex-grow min-w-0">
                 <p class="text-xs font-bold text-white truncate">{{ authStore.user?.fullName || authStore.user?.username || 'Thành viên' }}</p>
