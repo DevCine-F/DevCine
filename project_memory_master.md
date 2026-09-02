@@ -381,4 +381,13 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
   - Khi khách hàng thêm/bớt F&B hoặc áp dụng/đổi Voucher, Backend `BookingService.java` nhận diện và cập nhật đơn hiện tại trong cùng một transaction mà không gây xung đột đơn, không làm mất ghế và bảo toàn mốc thời gian đếm ngược `expiresAt` ban đầu.
   - Triệt tiêu 100% lỗi xuất hiện Toast đỏ *"Một số ghế vừa được người khác đặt"* khi khách hàng thao tác chậm hoặc dừng lâu giữa các bước.
 
+### 28. Tạm Thời Vô Hiệu Hóa Đổi Giao Diện & Thông Báo Khách Hàng (Customer Theme Toggle & Notifications Invalidation)
+- **Tạm thời vô hiệu hóa & Ẩn khỏi UI:**
+  - Hai chức năng "Chuyển đổi giao diện Sáng/Tối" (`useTheme` / `toggleTheme`) và "Hệ thống Thông báo Khách hàng" (`useNotificationStore` / `isNotifModalOpen` / `/notifications`) được tạm thời VÔ HIỆU HÓA HOÀN TOÀN và ẩn khỏi Header Navbar của giao diện khách hàng (`Navbar.vue`).
+  - Đánh dấu là tính năng tạm thời vô hiệu hóa, không sử dụng trong giai đoạn hiện tại (coi như không có).
+- **Tối ưu Thanh Điều Hướng (Navbar):**
+  - Gỡ bỏ icon đổi theme và icon chuông thông báo, dọn dẹp các watchers/store calls không sử dụng khi render trang.
+  - Toàn bộ giao diện khách hàng vận hành theo Dark theme chuẩn rạp chiếu phim, thanh công cụ tinh gọn chỉ giữ lại icon Tìm kiếm (`search`) và khu vực đăng nhập / thông tin tài khoản người dùng.
+
+
 

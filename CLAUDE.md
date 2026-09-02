@@ -95,6 +95,8 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
   + ADMIN: Toàn quyền toàn hệ thống.
   + UI AdminPermissions: Tái cấu trúc 4 tab trực quan, tích hợp Toast thông báo (`useToastStore` / `AppToast.vue`).
 
+**Tạm thời VÔ HIỆU HÓA — Đổi giao diện Sáng/Tối & Thông báo Khách hàng (02/09/2026):** Ẩn hoàn toàn nút chuyển theme (`useTheme`) và chuông thông báo (`useNotificationStore`/`NotificationView`) khỏi `Navbar.vue`. Đánh dấu là chức năng tạm thời vô hiệu hóa, không sử dụng trong giai đoạn này (coi như không có); toàn bộ giao diện khách hàng chạy Dark theme mặc định chuẩn rạp chiếu phim.
+
 **Còn lại:**
 - 8 cảnh báo Dependabot (đụng `pom.xml`/`package.json` → báo cáo trước khi sửa)
 - Nhánh fail-closed của dashboard chưa có tình huống thật để test (chưa có tài khoản MANAGER nào thiếu cơ sở)

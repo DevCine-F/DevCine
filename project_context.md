@@ -17,6 +17,7 @@
 > - **Tối ưu Lịch sử Đặt vé Khách hàng** (01/09): API `GET /api/customer/bookings/history` (`BookingController.java`) chỉ lấy đơn `CONFIRMED`/`COMPLETED` (`findConfirmedByCustomerIdWithDetails`), loại bỏ đơn rác `HOLD`/`CANCELLED`/`EXPIRED` khỏi màn hình khách nhưng bảo toàn 100% trên Database và Admin.
 > - **Đồng bộ Hiển thị Vé & In lại Ghế đôi Sweetbox** (01/09): Tự động bóc tách chuỗi loại vé ghép (`ADULT,ADULT`) trong `BookingSeat` tại Modal Chi tiết hoá đơn (`AdminBookings.vue`) và Lịch sử khách hàng (`BookingHistoryView.vue`), hiển thị đúng số lượng vé `Sweetbox - Người lớn x2` và tiêu đề tổng số vé `Vé xem phim (N vé)`; áp dụng `flatMap` trong `buildInv` để khi In lại vé K80 (`invoiceTemplate.js`) sinh đủ 3 vé khớp 100% với mẫu in trực tiếp từ POS.
 > - **Cơ chế Giữ chỗ CSDL Sớm & Cập nhật Liền mạch (Early DB Hold & Mutation Flow)** (02/09): Kích hoạt giữ chỗ CSDL ngay khi khách bấm "Tiếp tục" rời Bước 1 Chọn ghế (`BookingView.vue`), bảo vệ 100% độc quyền ghế trong suốt thời gian chọn bắp nước và voucher; tái dùng `heldBookingId` trong `stores/booking.js` để cập nhật đơn mượt mà, triệt tiêu hoàn toàn lỗi Toast "ghế vừa được người khác đặt".
+> - **Tạm thời vô hiệu hóa Đổi giao diện Sáng/Tối & Thông báo Khách hàng** (02/09): Ẩn hoàn toàn nút chuyển theme (`useTheme`) và chuông thông báo (`useNotificationStore`/`NotificationView`) khỏi `Navbar.vue`. Đánh dấu là chức năng tạm thời vô hiệu hóa, không sử dụng trong giai đoạn này (coi như không có); toàn bộ giao diện khách hàng chạy Dark theme mặc định chuẩn rạp chiếu phim.
 
 ---
 
