@@ -54,7 +54,8 @@ instance.interceptors.response.use(
         handling401 = true;
         try {
           const { useToastStore } = await import('@/stores/toast');
-          useToastStore().error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
+          const serverMsg = error.response?.data?.message || error.response?.data?.error;
+          useToastStore().error(serverMsg || 'Phiên đăng nhập đã hết hạn hoặc tài khoản bị tạm khóa. Vui lòng đăng nhập lại.');
         } catch (_) { /* ignore */ }
         try {
           const { default: router } = await import('@/routers');

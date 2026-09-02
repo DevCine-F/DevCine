@@ -32,6 +32,8 @@ public class CustomerController {
     private final ConcessionSaleRepository concessionSaleRepository;
     private final VoucherRepository voucherRepository;
     private final PasswordResetService passwordResetService;
+    private final com.devcine.backend.service.PosHoldService posHoldService;
+    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     // ===== Security helpers =====
 
@@ -568,6 +570,32 @@ public class CustomerController {
                         : "Tài khoản bị tạm khóa bởi Quản trị viên.";
                 customer.setLockReason(reason);
                 customer.setLockedAt(LocalDateTime.now());
+
+                // 1. Tự động giải phóng các đơn giữ chỗ (HOLD) đang diễn ra của khách
+                try {
+                    List<Booking> activeHolds = bookingRepository.findActiveHoldsByCustomerId(id);
+                    if (activeHolds != null) {
+                        for (Booking hold : activeHolds) {
+                            posHoldService.releaseHold(hold.getId(), true);
+                        }
+                    }
+                } catch (Exception ex) {
+                    log.warn("Lỗi khi tự động giải phóng đơn giữ chỗ của khách hàng bị khóa ID {}: {}", id, ex.getMessage());
+                }
+
+                // 2. Phát sự kiện WebSocket Kick tức thì đến kênh riêng của user
+                try {
+                    String dest = "/topic/customer/" + id + "/status";
+                    Object payload = Map.of(
+                            "type", "ACCOUNT_LOCKED",
+                            "userId", id,
+                            "reason", reason,
+                            "timestamp", LocalDateTime.now().toString()
+                    );
+                    messagingTemplate.convertAndSend(dest, payload);
+                } catch (Exception ex) {
+                    log.warn("Lỗi khi gửi WebSocket kick khách hàng bị khóa ID {}: {}", id, ex.getMessage());
+                }
             } else {
                 // Mở khóa tài khoản
                 customer.setLockReason(null);

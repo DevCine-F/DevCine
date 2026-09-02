@@ -1,6 +1,7 @@
 <script setup>
 import { RouterView, useRouter } from 'vue-router'
 import { watch, onMounted, onUnmounted } from 'vue'
+import { Client } from '@stomp/stompjs'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 
@@ -9,6 +10,54 @@ const auth = useAuthStore()
 const toast = useToastStore()
 const router = useRouter()
 let expiryTimer = null
+
+// ===== Lắng nghe trạng thái tài khoản thời gian thực (Kick tức thì khi bị khóa) =====
+let statusClient = null
+let statusSub = null
+
+const wsUrl = () =>
+  (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'
+
+function syncStatusListener() {
+  const customerId = auth.user?.id || auth.user?.userId
+  if (!auth.isAuthenticated || !customerId) {
+    if (statusSub) {
+      try { statusSub.unsubscribe() } catch (_) {}
+      statusSub = null
+    }
+    if (statusClient) {
+      try { statusClient.deactivate() } catch (_) {}
+      statusClient = null
+    }
+    return
+  }
+
+  if (!statusClient) {
+    statusClient = new Client({
+      brokerURL: wsUrl(),
+      reconnectDelay: 5000,
+      onConnect: () => {
+        if (statusSub) {
+          try { statusSub.unsubscribe() } catch (_) {}
+          statusSub = null
+        }
+        statusSub = statusClient.subscribe(`/topic/customer/${customerId}/status`, (msg) => {
+          try {
+            const ev = JSON.parse(msg.body)
+            if (ev && ev.type === 'ACCOUNT_LOCKED') {
+              const reason = ev.reason || 'Tài khoản bị tạm khóa bởi Quản trị viên.'
+              auth.logout()
+              toast.error(`Tài khoản của bạn đã bị tạm khóa: ${reason}. Vui lòng liên hệ CSKH.`)
+              router.push('/login')
+            }
+          } catch (_) {}
+        })
+      },
+      onWebSocketClose: () => {}
+    })
+    statusClient.activate()
+  }
+}
 
 // Giải mã trường exp (giây) trong payload JWT -> mốc hết hạn (ms)
 function tokenExpiryMs(token) {
@@ -47,14 +96,32 @@ watch(() => auth.token, () => {
   if (auth.isAuthenticated) {
     auth.fetchProfile()
   }
+  syncStatusListener()
 })
+
+watch(() => auth.user, () => {
+  syncStatusListener()
+}, { deep: true })
+
 onMounted(() => {
   scheduleExpiry()
   if (auth.isAuthenticated) {
     auth.fetchProfile()
   }
+  syncStatusListener()
 })
-onUnmounted(() => { if (expiryTimer) clearTimeout(expiryTimer) })
+
+onUnmounted(() => {
+  if (expiryTimer) clearTimeout(expiryTimer)
+  if (statusSub) {
+    try { statusSub.unsubscribe() } catch (_) {}
+    statusSub = null
+  }
+  if (statusClient) {
+    try { statusClient.deactivate() } catch (_) {}
+    statusClient = null
+  }
+})
 </script>
 
 <template>
