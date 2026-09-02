@@ -83,51 +83,59 @@ public class DataSeeder {
             roleRepository.findByName("CUSTOMER").orElseGet(()
                     -> roleRepository.save(Role.builder().name("CUSTOMER").build()));
 
-            // ===== PERMISSION MATRIX V8 =====
-            // Đặt lại MỘT LẦN qua cờ PERMISSION_MATRIX_V8.
-            // V8:
-            // - MANAGER: được phân quyền cinemas (view, edit) để chỉnh sửa thông tin rạp/phòng/sơ đồ ghế thuộc quyền quản lý.
-            // - ADMIN: toàn quyền mọi tính năng bao gồm cinemas (view, add, edit, delete).
-            // - STAFF: tinh gọn tối đa CHỈ có pos_ticketing (view, add).
-            boolean permissionMatrixV8 = systemSettingRepository.findById("PERMISSION_MATRIX_V8").isPresent();
-            if (!permissionMatrixV8 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
+            // ===== PERMISSION MATRIX V9 =====
+            // Đặt lại MỘT LẦN qua cờ PERMISSION_MATRIX_V9.
+            // V9: Phân quyền theo chuẩn 18 Tab Menu Sidebar.
+            // - MANAGER: được cấp các phân hệ vận hành, phim, danh mục, cụm rạp, F&B, nhân sự.
+            // - ADMIN: toàn quyền mọi tính năng.
+            // - STAFF: cấp quyền Bán vé (POS) và Kiểm soát vé (ticket_checkin).
+            boolean permissionMatrixV9 = systemSettingRepository.findById("PERMISSION_MATRIX_V9").isPresent();
+            if (!permissionMatrixV9 || adminRole.getPermissionsMatrix() == null || adminRole.getPermissionsMatrix().isBlank()) {
                 adminRole.setPermissionsMatrix("{"
-                        + "\"dashboard_stats\":[\"view\",\"export\"],"
+                        + "\"dashboard_stats\":[\"view\"],"
+                        + "\"pos_ticketing\":[\"view\",\"add\"],"
+                        + "\"ticket_checkin\":[\"view\"],"
+                        + "\"bookings\":[\"view\"],"
                         + "\"movies\":[\"view\",\"add\",\"edit\",\"delete\"],"
+                        + "\"movie_categories\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"schedules\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"banners\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"promotions\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"pricing\":[\"view\",\"edit\"],"
                         + "\"cinemas\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"staff_management\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"pos_ticketing\":[\"view\",\"add\"],"
                         + "\"fnb_menu\":[\"view\",\"add\",\"edit\",\"delete\"],"
-                        + "\"bookings\":[\"view\"],"
+                        + "\"pricing\":[\"view\",\"edit\"],"
+                        + "\"promotions\":[\"view\",\"add\",\"edit\",\"delete\"],"
                         + "\"customers\":[\"view\",\"edit\"],"
+                        + "\"staff_management\":[\"view\",\"add\",\"edit\"],"
+                        + "\"roles\":[\"manage\"],"
                         + "\"audit_logs\":[\"view\"],"
                         + "\"settings\":[\"view\",\"edit\"]}");
                 roleRepository.save(adminRole);
             }
-            if (!permissionMatrixV8 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
+            if (!permissionMatrixV9 || staffRole.getPermissionsMatrix() == null || staffRole.getPermissionsMatrix().isBlank()) {
                 staffRole.setPermissionsMatrix("{"
-                        + "\"pos_ticketing\":[\"view\",\"add\"]}");
+                        + "\"pos_ticketing\":[\"view\",\"add\"],"
+                        + "\"ticket_checkin\":[\"view\"]}");
                 roleRepository.save(staffRole);
             }
-            if (!permissionMatrixV8 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
+            if (!permissionMatrixV9 || managerRole.getPermissionsMatrix() == null || managerRole.getPermissionsMatrix().isBlank()) {
                 managerRole.setPermissionsMatrix("{"
                         + "\"dashboard_stats\":[\"view\"],"
                         + "\"pos_ticketing\":[\"view\",\"add\"],"
+                        + "\"ticket_checkin\":[\"view\"],"
                         + "\"bookings\":[\"view\"],"
+                        + "\"movies\":[\"view\",\"add\",\"edit\"],"
+                        + "\"movie_categories\":[\"view\",\"add\",\"edit\"],"
                         + "\"schedules\":[\"view\",\"add\",\"edit\"],"
-                        + "\"customers\":[\"view\",\"edit\"],"
                         + "\"cinemas\":[\"view\",\"edit\"],"
+                        + "\"fnb_menu\":[\"view\",\"add\",\"edit\"],"
+                        + "\"customers\":[\"view\",\"edit\"],"
                         + "\"staff_management\":[\"view\",\"add\",\"edit\"]}");
                 roleRepository.save(managerRole);
             }
-            if (!permissionMatrixV8) {
+            if (!permissionMatrixV9) {
                 systemSettingRepository.save(SystemSetting.builder()
-                        .settingKey("PERMISSION_MATRIX_V8").settingValue("true").build());
-                System.out.println("[DataSeeder] Đã áp dụng Permission Matrix V8.");
+                        .settingKey("PERMISSION_MATRIX_V9").settingValue("true").build());
+                System.out.println("[DataSeeder] Đã áp dụng Permission Matrix V9 chuẩn 18 Tab.");
             }
 
             // ===== TÀI KHOẢN ADMIN (bắt buộc để đăng nhập lần đầu) =====

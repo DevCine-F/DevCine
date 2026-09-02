@@ -6,12 +6,219 @@ import { friendlyError } from '@/utils/friendlyError'
 
 const toast = useToastStore()
 
-// --- DỮ LIỆU CẤU TRÚC ---
-// Vai trò được nạp động từ backend (id là số, kèm ma trận quyền hiện tại)
+// --- DỮ LIỆU CẤU TRÚC 18 TAB SIDEBAR ---
+const sidebarGroups = ref([
+  {
+    id: 'operations',
+    name: 'Tổng quan & Vận hành',
+    icon: 'space_dashboard',
+    tabs: [
+      {
+        id: 'dashboard_stats',
+        name: 'Tổng quan (Dashboard)',
+        icon: 'dashboard',
+        desc: 'Xem báo cáo doanh thu & số liệu thống kê tổng hợp',
+        actions: ['view'],
+        labels: { view: 'Xem báo cáo' }
+      },
+      {
+        id: 'pos_ticketing',
+        name: 'Bán vé (POS)',
+        icon: 'confirmation_number',
+        desc: 'Bán vé tại quầy, chọn ghế, F&B, voucher & thanh toán',
+        actions: ['view', 'add'],
+        labels: { view: 'Vào quầy POS', add: 'Bán vé & Thu tiền' }
+      },
+      {
+        id: 'ticket_checkin',
+        name: 'Kiểm soát vé',
+        icon: 'qr_code_scanner',
+        desc: 'Quét mã QR vé / đơn đặt vé để soát khách vào phòng chiếu',
+        actions: ['view'],
+        labels: { view: 'Quét & Soát vé' }
+      },
+      {
+        id: 'bookings',
+        name: 'Hoá đơn',
+        icon: 'receipt_long',
+        desc: 'Tra cứu danh sách hoá đơn và xem chi tiết giao dịch',
+        actions: ['view'],
+        labels: { view: 'Xem hoá đơn' }
+      }
+    ]
+  },
+  {
+    id: 'content',
+    name: 'Phim & Nội dung',
+    icon: 'movie_filter',
+    tabs: [
+      {
+        id: 'movies',
+        name: 'Quản lý phim',
+        icon: 'movie',
+        desc: 'Danh sách phim, thông tin chi tiết và điều phối lịch chiếu',
+        actions: ['view', 'add', 'edit', 'delete'],
+        labels: { view: 'Xem danh sách', add: 'Thêm phim', edit: 'Sửa phim & Suất', delete: 'Xoá phim' }
+      },
+      {
+        id: 'movie_categories',
+        name: 'Danh mục phim',
+        icon: 'category',
+        desc: 'Quản lý Thể loại phim, Định dạng chiếu (2D/3D) và Độ tuổi',
+        actions: ['view', 'add', 'edit', 'delete'],
+        labels: { view: 'Xem danh mục', add: 'Thêm danh mục', edit: 'Sửa danh mục', delete: 'Xoá danh mục' }
+      },
+      {
+        id: 'banners',
+        name: 'Quản lý Banner',
+        icon: 'view_carousel',
+        desc: 'Cấu hình banner slider trang chủ và thứ tự hiển thị',
+        actions: ['view', 'add', 'edit', 'delete'],
+        labels: { view: 'Xem banner', add: 'Thêm banner', edit: 'Sửa banner', delete: 'Xoá banner' }
+      }
+    ]
+  },
+  {
+    id: 'infrastructure',
+    name: 'Rạp & Hạ tầng',
+    icon: 'domain',
+    tabs: [
+      {
+        id: 'cinemas',
+        name: 'Cụm rạp & Phòng chiếu',
+        icon: 'theater_comedy',
+        desc: 'Quản lý cụm rạp, phòng chiếu và thiết lập sơ đồ ghế',
+        actions: ['view', 'add', 'edit', 'delete'],
+        labels: { view: 'Xem rạp & ghế', add: 'Thêm rạp/phòng', edit: 'Sửa rạp & ghế', delete: 'Xoá rạp/phòng' }
+      },
+      {
+        id: 'fnb_menu',
+        name: 'Thực đơn F&B / Combo',
+        icon: 'fastfood',
+        desc: 'Quản lý thực đơn bắp rang, nước uống và các gói combo',
+        actions: ['view', 'add', 'edit', 'delete'],
+        labels: { view: 'Xem thực đơn', add: 'Thêm món', edit: 'Sửa món & Giá', delete: 'Xoá món' }
+      }
+    ]
+  },
+  {
+    id: 'business',
+    name: 'Kinh doanh & Khách hàng',
+    icon: 'storefront',
+    tabs: [
+      {
+        id: 'pricing',
+        name: 'Quản lý giá',
+        icon: 'payments',
+        desc: 'Cấu hình bảng giá vé gốc theo đối tượng, ngày và phụ thu ghế/suất',
+        actions: ['view', 'edit'],
+        labels: { view: 'Xem bảng giá', edit: 'Chỉnh sửa giá' }
+      },
+      {
+        id: 'promotions',
+        name: 'Khuyến mãi',
+        icon: 'loyalty',
+        desc: 'Quản lý mã giảm giá voucher và bài viết tin tức ưu đãi',
+        actions: ['view', 'add', 'edit', 'delete'],
+        labels: { view: 'Xem khuyến mãi', add: 'Tạo voucher', edit: 'Sửa voucher', delete: 'Xoá voucher' }
+      },
+      {
+        id: 'customers',
+        name: 'Khách hàng',
+        icon: 'groups',
+        desc: 'Quản lý danh sách thành viên, khóa tài khoản và reset mật khẩu',
+        actions: ['view', 'edit'],
+        labels: { view: 'Xem danh sách', edit: 'Sửa & Khoá TK' }
+      },
+      {
+        id: 'admin_reviews',
+        name: 'Đánh giá phim',
+        icon: 'reviews',
+        desc: 'Kiểm duyệt và quản lý bình luận đánh giá của khán giả',
+        adminOnly: true,
+        actions: []
+      },
+      {
+        id: 'admin_faqs',
+        name: 'Câu hỏi (FAQ)',
+        icon: 'quiz',
+        desc: 'Quản lý bộ câu hỏi thường gặp trợ giúp khách hàng',
+        adminOnly: true,
+        actions: []
+      }
+    ]
+  },
+  {
+    id: 'hr',
+    name: 'Nhân sự',
+    icon: 'badge',
+    tabs: [
+      {
+        id: 'staff_management',
+        name: 'Nhân viên',
+        icon: 'group',
+        desc: 'Quản lý danh sách nhân sự rạp, tài khoản và thông tin công tác',
+        actions: ['view', 'add', 'edit'],
+        labels: { view: 'Xem nhân viên', add: 'Thêm nhân viên', edit: 'Sửa & Đổi trạng thái' }
+      }
+    ]
+  },
+  {
+    id: 'system',
+    name: 'Hệ thống',
+    icon: 'tune',
+    tabs: [
+      {
+        id: 'roles',
+        name: 'Phân quyền',
+        icon: 'admin_panel_settings',
+        desc: 'Thiết lập ma trận quyền hạn truy cập cho từng nhóm vai trò',
+        actions: ['manage'],
+        labels: { manage: 'Quản trị phân quyền' }
+      },
+      {
+        id: 'audit_logs',
+        name: 'Nhật ký',
+        icon: 'manage_search',
+        desc: 'Tra cứu lịch sử hoạt động và nhật ký thao tác toàn hệ thống',
+        actions: ['view'],
+        labels: { view: 'Xem nhật ký' }
+      },
+      {
+        id: 'settings',
+        name: 'Cài đặt',
+        icon: 'settings',
+        desc: 'Cấu hình tham số rạp, tài khoản VietQR và thời gian giữ chỗ',
+        actions: ['view', 'edit'],
+        labels: { view: 'Xem cài đặt', edit: 'Đổi cài đặt' }
+      }
+    ]
+  }
+])
+
+// Danh sách phẳng tất cả các tab (dùng cho lookup và tính toán)
+const allTabs = computed(() => {
+  const list = []
+  sidebarGroups.value.forEach(g => {
+    g.tabs.forEach(t => list.push({ ...t, groupName: g.name }))
+  })
+  return list
+})
+
+// --- TRẠNG THÁI (STATE) ---
 const roles = ref([])
 const staffUsers = ref([])
-const configMode = ref('role')
+const configMode = ref('role') // 'role' | 'user'
+const activeRole = ref(null)
 const activeUserId = ref(null)
+const isLoading = ref(false)
+const isSaving = ref(false)
+const saveMessage = ref('')
+
+// Ma trận quyền: roleId -> featureId -> array of actions
+const permissions = ref({})
+
+// Cấu hình quyền riêng cho nhân viên
 const userPermissionConfig = ref({
   role: 'STAFF',
   basePermissions: {},
@@ -19,93 +226,6 @@ const userPermissionConfig = ref({
   deny: {},
   effectivePermissions: {}
 })
-
-const modules = ref([
-  { id: 'operations', name: 'Vận hành & Quầy vé' },
-  { id: 'content', name: 'Nội dung & Sản phẩm' },
-  { id: 'business', name: 'Kinh doanh & Khách hàng' },
-  { id: 'system', name: 'Hệ thống & Nhân sự' }
-])
-
-// Action khớp CHÍNH XÁC với những gì backend enforce (@perm.can('<feature>','<action>')).
-// 'view' luôn giữ vì nó gate menu/route ở frontend (dù GET công khai). Các write-action chỉ liệt kê
-// khi thực sự có endpoint kiểm tra — tránh checkbox "chết".
-const features = ref([
-  // ===== VẬN HÀNH & QUẦY VÉ =====
-  { id: 'dashboard_stats', moduleId: 'operations', name: 'Báo cáo doanh thu & Thống kê', actions: ['view'],
-    labels: { view: 'Xem báo cáo doanh thu & thống kê' } },
-
-  // POS bán vé = tạo đơn (không có sửa/xóa vé; đổi vé/hủy chỗ đi qua luồng sự cố)
-  { id: 'pos_ticketing', moduleId: 'operations', name: 'Bán vé (POS) & Kiểm soát vé', actions: ['view', 'add'],
-    labels: { view: 'Vào quầy POS & kiểm soát vé QR', add: 'Bán vé, bắp nước combo & thanh toán' } },
-  // Quản lý hóa đơn: xem danh sách/chi tiết (STAFF chỉ thấy đơn của mình)
-  { id: 'bookings', moduleId: 'operations', name: 'Quản lý & Tra cứu hóa đơn', actions: ['view'],
-    labels: { view: 'Xem danh sách / chi tiết hóa đơn' } },
-  // Tạm ẩn phân hệ Xử lý sự cố ghế khỏi ma trận phân quyền
-  // { id: 'incident_handling', moduleId: 'operations', name: 'Xử lý sự cố ghế & Đổi ghế', actions: ['view', 'handle'],
-  //   labels: { view: 'Tra cứu vé & lịch sử sự cố', handle: 'Đổi ghế / hủy chỗ / khóa ghế hỏng & phát đền bù' } },
-
-  // ===== NỘI DUNG & SẢN PHẨM =====
-  { id: 'movies', moduleId: 'content', name: 'Quản lý phim & Danh mục phân loại', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem danh sách phim & danh mục', add: 'Thêm phim & danh mục (thể loại/định dạng/độ tuổi)', edit: 'Sửa thông tin phim & danh mục', delete: 'Xoá / ẩn phim & danh mục' } },
-  { id: 'schedules', moduleId: 'content', name: 'Điều phối lịch chiếu phim', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem lịch chiếu', add: 'Tạo suất chiếu', edit: 'Sửa suất chiếu', delete: 'Xoá suất chiếu' } },
-  { id: 'banners', moduleId: 'content', name: 'Quản lý Banner quảng cáo', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem banner', add: 'Thêm banner', edit: 'Sửa banner & thứ tự', delete: 'Xoá banner' } },
-  { id: 'fnb_menu', moduleId: 'content', name: 'Thực đơn F&B (món & combo)', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem toàn bộ thực đơn', add: 'Thêm món / combo', edit: 'Sửa món — tên, GIÁ, ảnh, tùy chọn', delete: 'Xoá món khỏi thực đơn' } },
-
-  // ===== KINH DOANH & KHÁCH HÀNG =====
-  { id: 'pricing', moduleId: 'business', name: 'Cấu hình giá vé & Bảng giá', actions: ['view', 'edit'],
-    labels: { view: 'Xem bảng giá vé', edit: 'Chỉnh cấu hình giá & phụ thu' } },
-  { id: 'promotions', moduleId: 'business', name: 'Chương trình khuyến mãi & Voucher', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem khuyến mãi & bài viết', add: 'Tạo khuyến mãi / voucher', edit: 'Sửa khuyến mãi & bài viết', delete: 'Xoá khuyến mãi' } },
-  // Khách hàng: xem danh sách/chi tiết, sửa họ tên, ngày sinh, khóa/mở khóa & gửi reset mật khẩu
-  { id: 'customers', moduleId: 'business', name: 'Quản lý hồ sơ khách hàng', actions: ['view', 'edit'],
-    labels: { view: 'Xem danh sách, đơn hàng, điểm & voucher', edit: 'Sửa họ tên, ngày sinh, khóa tài khoản & gửi reset mật khẩu' } },
-
-  // ===== HỆ THỐNG & NHÂN SỰ =====
-  { id: 'cinemas', moduleId: 'system', name: 'Hệ thống cụm rạp & Sơ đồ ghế', actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem cụm rạp & sơ đồ ghế', add: 'Thêm cụm rạp mới', edit: 'Sửa thông tin cụm rạp & phòng chiếu', delete: 'Xoá / đóng cụm rạp' } },
-  { id: 'staff_management', moduleId: 'system', name: 'Quản lý nhân sự', actions: ['view', 'add', 'edit'],
-    labels: { view: 'Xem danh sách nhân sự', add: 'Thêm nhân viên mới', edit: 'Sửa thông tin & đổi trạng thái nhân viên' } },
-  { id: 'settings', moduleId: 'system', name: 'Cài đặt hệ thống', actions: ['view', 'edit'],
-    labels: { view: 'Xem cài đặt hệ thống', edit: 'Đổi cài đặt hệ thống' } },
-  // Nhật ký hệ thống: chỉ xem lịch sử thao tác (ghi log là tự động; ADMIN-scope)
-  { id: 'audit_logs', moduleId: 'system', name: 'Nhật ký hệ thống (Audit Logs)', actions: ['view'],
-    labels: { view: 'Xem nhật ký thao tác hệ thống' } },
-])
-
-// Nhãn action theo ngữ cảnh feature (mô tả đúng việc), fallback về nhãn chung nếu feature chưa khai báo
-const actionLabel = (feature, action) => feature?.labels?.[action] || actionLabels[action] || action
-
-const actionLabels = {
-  view: 'Xem (View)',
-  add: 'Thêm mới (Add)',
-  edit: 'Chỉnh sửa (Edit)',
-  delete: 'Xoá (Delete)',
-  export: 'Xuất File (Export)',
-  handle: 'Xử lý (Handle)'
-}
-
-const actionLabelsShort = {
-  view: 'Xem',
-  add: 'Thêm',
-  edit: 'Sửa',
-  delete: 'Xoá',
-  export: 'Xuất',
-  handle: 'Xử lý'
-}
-
-// --- TRẠNG THÁI (STATE) ---
-const activeRole = ref(null)   // id (số) của vai trò đang chọn
-const activeModule = ref('operations')
-const isLoading = ref(false)
-const isSaving = ref(false)
-const saveMessage = ref('')
-
-// permissions Matrix: roleId -> featureId -> array of actions
-const permissions = ref({})
 
 const activeRoleData = computed(() => roles.value.find(r => r.id === activeRole.value) || null)
 const isAdminRole = computed(() => (activeRoleData.value?.name || '').toUpperCase() === 'ADMIN')
@@ -117,16 +237,17 @@ const activeScopeName = computed(() => {
   return activeRoleData.value?.name || 'Chưa chọn vai trò'
 })
 
+// --- API FETCHING ---
 const fetchRoles = async () => {
   isLoading.value = true
   try {
     const { data } = await rolePermissionApi.getRoles()
     const list = data.data ?? data
-    // Bỏ vai trò CUSTOMER + sắp xếp theo thứ tự cấp bậc: ADMIN → MANAGER → STAFF
     const ROLE_ORDER = { ADMIN: 0, MANAGER: 1, STAFF: 2 }
     roles.value = list
       .filter(r => (r.name || '').toUpperCase() !== 'CUSTOMER')
       .sort((a, b) => (ROLE_ORDER[(a.name || '').toUpperCase()] ?? 99) - (ROLE_ORDER[(b.name || '').toUpperCase()] ?? 99))
+    
     const matrix = {}
     roles.value.forEach(r => {
       matrix[r.id] = r.permissions || {}
@@ -188,11 +309,7 @@ watch(configMode, (mode) => {
   if (mode === 'user') fetchUserPermissionConfig()
 })
 
-// --- LOGIC HELPER ---
-const currentModuleFeatures = computed(() => {
-  return features.value.filter(f => f.moduleId === activeModule.value)
-})
-
+// --- MATRIX & PERMISSION HELPERS ---
 const getRolePerms = () => {
   if (!permissions.value[activeRole.value]) {
     permissions.value[activeRole.value] = {}
@@ -232,6 +349,7 @@ const rebuildUserEffectivePermissions = () => {
   userPermissionConfig.value.effectivePermissions = effective
 }
 
+// Kiểm tra quyền đang bật
 const hasAction = (featureId, action) => {
   if (isUserMode.value) {
     return matrixHas(userPermissionConfig.value.effectivePermissions, featureId, action)
@@ -241,136 +359,185 @@ const hasAction = (featureId, action) => {
   return perms[featureId]?.includes(action) || false
 }
 
-const getSelectedCount = (feature) => {
-  return feature.actions.filter(action => hasAction(feature.id, action)).length
+// Kiểm tra xem tab đó có quyền "Xem / Truy cập" hay không
+const hasView = (tab) => {
+  if (tab.adminOnly) return isAdminRole.value
+  const viewAction = tab.actions.includes('view') ? 'view' : (tab.actions.includes('manage') ? 'manage' : tab.actions[0])
+  if (!viewAction) return false
+  return hasAction(tab.id, viewAction)
 }
 
-const isFeatureAll = (feature) => {
-  return getSelectedCount(feature) === feature.actions.length && feature.actions.length > 0
+// Kiểm tra số lượng action đã chọn trên tab
+const getSelectedCount = (tab) => {
+  if (tab.adminOnly) return isAdminRole.value ? 1 : 0
+  return tab.actions.filter(action => hasAction(tab.id, action)).length
 }
 
-const isFeaturePartial = (feature) => {
-  const count = getSelectedCount(feature)
-  return count > 0 && count < feature.actions.length
+const isTabAll = (tab) => {
+  if (tab.adminOnly) return isAdminRole.value
+  return tab.actions.length > 0 && getSelectedCount(tab) === tab.actions.length
 }
 
+const isTabPartial = (tab) => {
+  if (tab.adminOnly) return false
+  const count = getSelectedCount(tab)
+  return count > 0 && count < tab.actions.length
+}
+
+// Trạng thái nhóm: All / Partial / None
+const isGroupAll = (group) => {
+  const nonAdminTabs = group.tabs.filter(t => !t.adminOnly)
+  if (nonAdminTabs.length === 0) return true
+  return nonAdminTabs.every(t => isTabAll(t))
+}
+
+const isGroupPartial = (group) => {
+  const nonAdminTabs = group.tabs.filter(t => !t.adminOnly)
+  const anyChecked = nonAdminTabs.some(t => getSelectedCount(t) > 0)
+  return anyChecked && !isGroupAll(group)
+}
+
+// User Override Status Label
 const getUserOverrideEffect = (featureId, action) => {
   if (matrixHas(userPermissionConfig.value.deny, featureId, action)) return 'DENY'
   if (matrixHas(userPermissionConfig.value.allow, featureId, action)) return 'ALLOW'
   return 'INHERIT'
 }
 
-const effectLabel = (featureId, action) => {
-  const effect = getUserOverrideEffect(featureId, action)
-  if (effect === 'ALLOW') return 'Riêng'
-  if (effect === 'DENY') return 'Chặn'
-  return matrixHas(userPermissionConfig.value.basePermissions, featureId, action) ? 'Kế thừa' : 'Không cấp'
-}
-
-const selectedPermissionsSummary = computed(() => {
-  const summary = []
-  
-  features.value.forEach(feature => {
-    const selectedActions = feature.actions.filter(action => hasAction(feature.id, action))
-    if (selectedActions && selectedActions.length > 0) {
-      const actionNames = selectedActions.map(a => actionLabelsShort[a] || a)
-      summary.push({
-        name: feature.name,
-        actions: actionNames.join(', ')
-      })
-    }
-  })
-  
-  return summary
-})
-
-// --- HÀNH ĐỘNG (ACTIONS) ---
-const toggleAction = (feature, action) => {
+// --- LOGIC TƯƠNG TÁC THÔNG MINH ---
+// 1. Toggle 1 action lẻ (có tự động ràng buộc quyền View cha - con)
+const toggleAction = (tab, action) => {
   if (isAdminRole.value && !isUserMode.value) return
+  if (tab.adminOnly) return
+
+  const viewAction = tab.actions.includes('view') ? 'view' : (tab.actions.includes('manage') ? 'manage' : null)
+  const isCurrentlyActive = hasAction(tab.id, action)
+
   if (isUserMode.value) {
     const allow = userPermissionConfig.value.allow
     const deny = userPermissionConfig.value.deny
-    if (hasAction(feature.id, action)) {
-      removeMatrixAction(allow, feature.id, action)
-      addMatrixAction(deny, feature.id, action)
+
+    if (isCurrentlyActive) {
+      // Đang bật -> Tắt
+      removeMatrixAction(allow, tab.id, action)
+      addMatrixAction(deny, tab.id, action)
+
+      // Nếu tắt quyền XEM -> Tự động tắt luôn toàn bộ các quyền khác của tab
+      if (action === viewAction) {
+        tab.actions.forEach(act => {
+          removeMatrixAction(allow, tab.id, act)
+          addMatrixAction(deny, tab.id, act)
+        })
+      }
     } else {
-      removeMatrixAction(deny, feature.id, action)
-      addMatrixAction(allow, feature.id, action)
+      // Đang tắt -> Bật
+      removeMatrixAction(deny, tab.id, action)
+      addMatrixAction(allow, tab.id, action)
+
+      // Nếu bật bất kỳ quyền nào (Thêm/Sửa/Xóa) -> Tự động bật luôn quyền XEM
+      if (viewAction && action !== viewAction) {
+        removeMatrixAction(deny, tab.id, viewAction)
+        addMatrixAction(allow, tab.id, viewAction)
+      }
     }
     rebuildUserEffectivePermissions()
     return
   }
+
+  // Chế độ Vai trò (Role Mode)
   const perms = getRolePerms()
-  if (!perms[feature.id]) perms[feature.id] = []
-  
-  if (perms[feature.id].includes(action)) {
-    perms[feature.id] = perms[feature.id].filter(a => a !== action)
+  if (!perms[tab.id]) perms[tab.id] = []
+
+  if (isCurrentlyActive) {
+    // Tắt action
+    perms[tab.id] = perms[tab.id].filter(a => a !== action)
+    // Nếu tắt quyền XEM -> Tự động xóa toàn bộ quyền CRUD của tab đó
+    if (action === viewAction) {
+      perms[tab.id] = []
+    }
   } else {
-    perms[feature.id].push(action)
+    // Bật action
+    if (!perms[tab.id].includes(action)) perms[tab.id].push(action)
+    // Nếu bật CRUD khác -> Tự động cấp quyền XEM
+    if (viewAction && action !== viewAction && !perms[tab.id].includes(viewAction)) {
+      perms[tab.id].push(viewAction)
+    }
   }
 }
 
-const toggleFeatureAll = (feature) => {
+// 2. Toggle Tất cả quyền của 1 Tab (Row Toggle)
+const toggleTabAll = (tab) => {
   if (isAdminRole.value && !isUserMode.value) return
+  if (tab.adminOnly) return
+
+  const allActive = isTabAll(tab)
+
   if (isUserMode.value) {
     const allow = userPermissionConfig.value.allow
     const deny = userPermissionConfig.value.deny
-    if (isFeatureAll(feature)) {
-      feature.actions.forEach(action => {
-        removeMatrixAction(allow, feature.id, action)
-        addMatrixAction(deny, feature.id, action)
+
+    if (allActive) {
+      tab.actions.forEach(action => {
+        removeMatrixAction(allow, tab.id, action)
+        addMatrixAction(deny, tab.id, action)
       })
     } else {
-      feature.actions.forEach(action => {
-        removeMatrixAction(deny, feature.id, action)
-        addMatrixAction(allow, feature.id, action)
+      tab.actions.forEach(action => {
+        removeMatrixAction(deny, tab.id, action)
+        addMatrixAction(allow, tab.id, action)
       })
     }
     rebuildUserEffectivePermissions()
     return
   }
+
   const perms = getRolePerms()
-  if (isFeatureAll(feature)) {
-    perms[feature.id] = []
+  if (allActive) {
+    perms[tab.id] = []
   } else {
-    perms[feature.id] = [...feature.actions]
+    perms[tab.id] = [...tab.actions]
   }
 }
 
-const clearCurrentModule = () => {
+// 3. Toggle Tất cả quyền trong 1 Nhóm Sidebar (Group Toggle)
+const toggleGroup = (group, enable) => {
   if (isAdminRole.value && !isUserMode.value) return
-  if (isUserMode.value) {
-    currentModuleFeatures.value.forEach(feature => {
-      feature.actions.forEach(action => {
-        removeMatrixAction(userPermissionConfig.value.allow, feature.id, action)
-        addMatrixAction(userPermissionConfig.value.deny, feature.id, action)
+
+  group.tabs.forEach(tab => {
+    if (tab.adminOnly) return
+    if (isUserMode.value) {
+      const allow = userPermissionConfig.value.allow
+      const deny = userPermissionConfig.value.deny
+      tab.actions.forEach(action => {
+        if (enable) {
+          removeMatrixAction(deny, tab.id, action)
+          addMatrixAction(allow, tab.id, action)
+        } else {
+          removeMatrixAction(allow, tab.id, action)
+          addMatrixAction(deny, tab.id, action)
+        }
       })
-    })
-    rebuildUserEffectivePermissions()
-    return
-  }
-  const perms = getRolePerms()
-  currentModuleFeatures.value.forEach(f => {
-    perms[f.id] = []
+    } else {
+      const perms = getRolePerms()
+      perms[tab.id] = enable ? [...tab.actions] : []
+    }
   })
+
+  if (isUserMode.value) {
+    rebuildUserEffectivePermissions()
+  }
 }
 
+// 4. Bỏ toàn bộ quyền hệ thống
 const clearAllPermissions = () => {
   if (isAdminRole.value && !isUserMode.value) return
-  if (isUserMode.value) {
-    features.value.forEach(feature => {
-      feature.actions.forEach(action => {
-        removeMatrixAction(userPermissionConfig.value.allow, feature.id, action)
-        addMatrixAction(userPermissionConfig.value.deny, feature.id, action)
-      })
-    })
-    rebuildUserEffectivePermissions()
-    return
-  }
-  const perms = getRolePerms()
-  features.value.forEach(f => {
-    perms[f.id] = []
-  })
+  sidebarGroups.value.forEach(group => toggleGroup(group, false))
+}
+
+// 5. Cấp toàn bộ quyền (Select All All)
+const grantAllPermissions = () => {
+  if (isAdminRole.value && !isUserMode.value) return
+  sidebarGroups.value.forEach(group => toggleGroup(group, true))
 }
 
 const resetUserOverrides = () => {
@@ -381,25 +548,39 @@ const resetUserOverrides = () => {
   toast.success('Đã đặt lại quyền theo vai trò mặc định.')
 }
 
-const compactMatrix = (matrix) => {
-  const payload = {}
-  Object.keys(matrix || {}).forEach(k => {
-    if (Array.isArray(matrix[k]) && matrix[k].length > 0) payload[k] = matrix[k]
-  })
-  return payload
-}
+// --- TÍNH TOÁN TỔNG KẾT QUYỀN ĐÃ CẤP ---
+const totalGrantedTabs = computed(() => {
+  return allTabs.value.filter(tab => hasView(tab)).length
+})
 
-// Chỉ giữ những feature/action còn được định nghĩa (khớp backend enforce) → khi lưu sẽ dọn luôn
-// các action "chết" cũ còn sót trong DB.
-const sanitizeRoleMatrix = (matrix) => {
-  const allowed = {}
-  features.value.forEach(f => { allowed[f.id] = new Set(f.actions) })
+const selectedPermissionsSummary = computed(() => {
+  const summary = []
+  allTabs.value.forEach(tab => {
+    if (tab.adminOnly) return
+    const activeActions = tab.actions.filter(a => hasAction(tab.id, a))
+    if (activeActions.length > 0) {
+      summary.push({
+        name: tab.name,
+        count: `${activeActions.length}/${tab.actions.length}`
+      })
+    }
+  })
+  return summary
+})
+
+// --- LƯU THAY ĐỔI VÀO CSDL ---
+const sanitizeMatrix = (matrix) => {
   const payload = {}
-  Object.keys(matrix || {}).forEach(fid => {
-    const allow = allowed[fid]
-    if (!allow) return
-    const acts = (matrix[fid] || []).filter(a => allow.has(a))
-    if (acts.length) payload[fid] = acts
+  allTabs.value.forEach(tab => {
+    if (tab.adminOnly) return
+    const actions = (matrix[tab.id] || []).filter(a => tab.actions.includes(a))
+    if (actions.length > 0) {
+      payload[tab.id] = actions
+      // Đồng bộ ngầm schedules theo movies để backend ShowtimeController chạy hoàn hảo
+      if (tab.id === 'movies') {
+        payload['schedules'] = actions
+      }
+    }
   })
   return payload
 }
@@ -411,8 +592,8 @@ const saveChanges = async () => {
     saveMessage.value = ''
     try {
       await rolePermissionApi.updateUserOverrides(activeUserId.value, {
-        allow: compactMatrix(userPermissionConfig.value.allow),
-        deny: compactMatrix(userPermissionConfig.value.deny)
+        allow: sanitizeMatrix(userPermissionConfig.value.allow),
+        deny: sanitizeMatrix(userPermissionConfig.value.deny)
       })
       await fetchUserPermissionConfig()
       const msg = `Đã lưu cấu hình phân quyền cho ${activeUserData.value?.fullName || 'nhân viên'}.`
@@ -436,12 +617,12 @@ const saveChanges = async () => {
     setTimeout(() => { saveMessage.value = '' }, 3000)
     return
   }
+
   isSaving.value = true
   saveMessage.value = ''
   try {
     const matrix = permissions.value[activeRole.value] || {}
-    // Gửi ma trận đã làm sạch: chỉ feature/action hợp lệ (dọn luôn action chết cũ trong DB)
-    const payload = sanitizeRoleMatrix(matrix)
+    const payload = sanitizeMatrix(matrix)
     await rolePermissionApi.updatePermissions(activeRole.value, payload)
     const roleName = roles.value.find(r => r.id === activeRole.value)?.name || 'vai trò'
     const msg = `Đã lưu phân quyền cho vai trò ${roleName} thành công!`
@@ -458,176 +639,358 @@ const saveChanges = async () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full relative bg-surface-container-lowest">
+  <div class="flex flex-col h-full relative bg-surface-container-lowest text-on-surface">
     
-    <!-- Vùng Nội dung chính (Scrollable) -->
-    <div class="flex-1 overflow-y-auto p-10 pb-32">
+    <!-- VÙNG NỘI DUNG CUỘN CHÍNH -->
+    <div class="flex-1 overflow-y-auto p-6 lg:p-10 pb-36">
       
-      <!-- HEADER -->
-      <header class="mb-10 text-on-surface">
-        <h1 class="text-3xl font-extrabold tracking-tight font-headline uppercase">Phân quyền Hệ thống</h1>
-        <p class="text-on-surface-variant text-sm mt-1">Quản lý và thiết lập quyền truy cập cho từng nhóm vai trò hệ thống</p>
-      </header>
+      <!-- HEADER CHÍNH -->
+      <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/10 pb-6">
+        <div>
+          <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight font-headline uppercase">Phân Quyền Hệ Thống</h1>
+          <p class="text-on-surface-variant text-xs lg:text-sm mt-1">Thiết lập quyền truy cập và thao tác theo từng tab chức năng trên thanh điều hướng</p>
+        </div>
 
-      <section v-if="!isUserMode" class="mb-12">
-        <h2 class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] mb-4">1. Chọn Vai trò</h2>
-        <div class="flex flex-wrap gap-4">
+        <!-- Chuyển đổi chế độ: Theo Vai Trò <-> Theo Nhân Viên -->
+        <div class="inline-flex bg-surface-container-low p-1 rounded-sm border border-outline-variant/20 shrink-0">
           <button 
-            v-for="role in roles" 
-            :key="role.id"
-            @click="activeRole = role.id"
-            class="px-8 py-4 rounded-full font-bold text-sm uppercase tracking-widest transition-all duration-300 shadow-sm border border-outline-variant/10"
-            :class="activeRole === role.id 
-              ? 'bg-primary text-on-primary shadow-[0_4px_20px_-5px_rgba(245,197,24,0.4)] scale-105 border-transparent' 
-              : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high hover:border-outline-variant/30'">
-            {{ role.name }}
+            @click="configMode = 'role'"
+            class="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-2"
+            :class="!isUserMode ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'">
+            <span class="material-symbols-outlined text-sm">groups</span>
+            Theo Vai Trò
+          </button>
+          <button 
+            @click="configMode = 'user'"
+            class="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-2"
+            :class="isUserMode ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'">
+            <span class="material-symbols-outlined text-sm">person</span>
+            Nhân Viên Riêng
           </button>
         </div>
-      </section>
+      </header>
 
-      <!-- CẤP 2: TABS PHÂN HỆ -->
-      <section class="mb-8">
-         <div v-if="isUserMode" class="grid md:grid-cols-[minmax(260px,420px)_1fr] gap-5 items-stretch mb-8">
-          <select
-            v-model="activeUserId"
-            class="bg-surface-container-low border border-outline-variant/20 rounded-xl px-5 py-4 text-sm font-bold text-on-surface focus:outline-none focus:border-primary">
-            <option v-for="staff in staffUsers" :key="staff.id" :value="staff.id">
-              {{ staff.fullName }} - {{ staff.username }}
-            </option>
-          </select>
-          <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl px-5 py-4">
-            <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Quyền riêng từng người</p>
-            <p class="text-sm text-on-surface mt-1">
-              {{ activeUserData?.fullName || 'Chưa chọn nhân viên' }} kế thừa role {{ userPermissionConfig.role || 'STAFF' }}.
-              Tick để cấp/chặn riêng, hoặc đặt lại để dùng đúng quyền theo vai trò.
-            </p>
+      <!-- KHỐI CHỌN VAI TRÒ HOẶC NHÂN VIÊN -->
+      <section class="mb-8 bg-surface-container-low border border-outline-variant/10 rounded-sm p-6 shadow-sm">
+        
+        <!-- Chế độ 1: Chọn Vai Trò -->
+        <div v-if="!isUserMode">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <h2 class="text-xs font-extrabold uppercase tracking-widest text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined text-base">shield_person</span>
+              1. Chọn Vai Trò Cần Phân Quyền
+            </h2>
+            <div class="flex items-center gap-3">
+              <button 
+                @click="grantAllPermissions" 
+                :disabled="isAdminRole"
+                class="px-3 py-1.5 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-sm uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">select_all</span>
+                Chọn Tất Cả
+              </button>
+              <button 
+                @click="clearAllPermissions" 
+                :disabled="isAdminRole"
+                class="px-3 py-1.5 text-[11px] font-bold text-red-400 bg-red-400/10 hover:bg-red-400/20 rounded-sm uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">block</span>
+                Bỏ Toàn Bộ
+              </button>
+            </div>
           </div>
-         </div>
 
-         <div class="flex border-b border-outline-variant/20 overflow-x-auto hide-scrollbar">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button 
-              v-for="mod in modules" 
-              :key="mod.id"
-              @click="activeModule = mod.id"
-              class="px-8 py-5 font-bold text-xs uppercase tracking-widest relative whitespace-nowrap transition-colors"
-              :class="activeModule === mod.id ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'">
-              {{ mod.name }}
-              
-              <!-- Indicator line -->
-              <div v-if="activeModule === mod.id" 
-                   class="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full shadow-[0_0_10px_rgba(245,197,24,0.5)] animate-in slide-in-from-bottom-2 duration-300">
+              v-for="role in roles" 
+              :key="role.id"
+              @click="activeRole = role.id"
+              class="p-4 rounded-sm border text-left transition-all duration-200 flex items-center justify-between group"
+              :class="activeRole === role.id 
+                ? 'bg-primary/10 border-primary text-primary shadow-[0_0_15px_rgba(245,197,24,0.15)]' 
+                : 'bg-surface-container-lowest border-outline-variant/20 hover:border-outline-variant/50 text-on-surface'">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-sm flex items-center justify-center font-black text-sm"
+                     :class="activeRole === role.id ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant'">
+                  {{ role.name.charAt(0) }}
+                </div>
+                <div>
+                  <h3 class="font-extrabold text-sm uppercase tracking-wider">{{ role.name }}</h3>
+                  <p class="text-[10px] text-on-surface-variant">
+                    {{ role.name === 'ADMIN' ? 'Toàn quyền hệ thống' : (role.name === 'MANAGER' ? 'Quản lý cơ sở' : 'Nhân viên trực quầy') }}
+                  </p>
+                </div>
               </div>
+              <span class="material-symbols-outlined text-lg"
+                    :class="activeRole === role.id ? 'text-primary' : 'text-on-surface-variant/30 group-hover:text-on-surface-variant'">
+                {{ activeRole === role.id ? 'radio_button_checked' : 'radio_button_unchecked' }}
+              </span>
             </button>
-         </div>
+          </div>
+        </div>
+
+        <!-- Chế độ 2: Chọn Nhân Viên Riêng -->
+        <div v-else class="grid md:grid-cols-[minmax(280px,400px)_1fr] gap-6 items-center">
+          <div>
+            <label class="text-[11px] font-extrabold uppercase tracking-widest text-primary mb-2 block flex items-center gap-2">
+              <span class="material-symbols-outlined text-base">person_search</span>
+              Chọn Nhân Viên (Staff) Cần Cấu Hình Riêng:
+            </label>
+            <select
+              v-model="activeUserId"
+              class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-4 py-3 text-sm font-bold text-on-surface focus:outline-none focus:border-primary">
+              <option v-for="staff in staffUsers" :key="staff.id" :value="staff.id">
+                {{ staff.fullName }} ({{ staff.username }})
+              </option>
+            </select>
+          </div>
+
+          <div class="bg-surface-container-lowest border border-outline-variant/10 rounded-sm p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Quy Tắc Kế Thừa Quyền</p>
+              <p class="text-xs text-on-surface mt-1">
+                Nhân viên <strong class="text-primary">{{ activeUserData?.fullName || 'STAFF' }}</strong> mặc định kế thừa vai trò <span class="bg-primary/20 text-primary px-1.5 py-0.5 rounded-sm font-bold">{{ userPermissionConfig.role || 'STAFF' }}</span>.
+                Bạn có thể tick để cấp thêm hoặc chặn riêng quyền.
+              </p>
+            </div>
+            <button 
+              @click="resetUserOverrides" 
+              class="px-4 py-2 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-sm uppercase tracking-wider transition-colors shrink-0 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">restart_alt</span>
+              Đặt Lại Mặc Định
+            </button>
+          </div>
+        </div>
+
       </section>
 
-      <!-- CẤP 3: CHI TIẾT HÀNH ĐỘNG (CHECKBOXES) -->
+      <!-- BẢNG MA TRẬN PHÂN QUYỀN 18 TAB SIDEBAR -->
       <section class="space-y-6">
         
-        <!-- Action Bar cho Tab hiện tại -->
-        <div class="flex justify-between items-center mb-2">
-           <h2 class="text-xs font-bold text-on-surface uppercase tracking-widest">
-             Chi tiết phân quyền: <span class="text-primary">{{ modules.find(m => m.id === activeModule)?.name }}</span>
-           </h2>
-           <div class="flex flex-wrap justify-end gap-3">
-             <button @click="clearCurrentModule" :disabled="isAdminRole && !isUserMode" class="text-[10px] text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-               <span class="material-symbols-outlined text-sm">clear_all</span>
-               Bỏ tất cả trong Tab này
-             </button>
-             <button @click="clearAllPermissions" :disabled="isAdminRole && !isUserMode" class="text-[10px] text-red-300 hover:text-red-200 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-               <span class="material-symbols-outlined text-sm">block</span>
-               Bỏ toàn bộ quyền
-             </button>
-             <button v-if="isUserMode" @click="resetUserOverrides" class="text-[10px] text-primary hover:text-yellow-200 bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full uppercase tracking-widest font-bold flex items-center gap-2 transition-colors">
-               <span class="material-symbols-outlined text-sm">restart_alt</span>
-               Đặt lại theo vai trò
-             </button>
-           </div>
-        </div>
+        <div v-for="group in sidebarGroups" :key="group.id" class="bg-surface-container-low border border-outline-variant/10 rounded-sm overflow-hidden shadow-sm">
+          
+          <!-- GROUP HEADER -->
+          <div class="bg-surface-container px-6 py-4 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary text-xl">{{ group.icon }}</span>
+              <h2 class="text-sm font-extrabold uppercase tracking-widest text-on-surface">{{ group.name }}</h2>
+              <span class="text-[10px] font-bold text-on-surface-variant bg-surface-container-highest px-2.5 py-0.5 rounded-sm">
+                {{ group.tabs.length }} Tab
+              </span>
+            </div>
 
-        <!-- Khối Features (Cards) -->
-        <div v-if="currentModuleFeatures.length === 0" class="p-10 text-center text-on-surface-variant bg-surface-container-low rounded-xl border border-outline-variant/10">
-           Chưa có tính năng nào trong phân hệ này.
-        </div>
-        
-        <div v-for="feature in currentModuleFeatures" :key="feature.id" class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-           <!-- Parent Header -->
-           <div class="flex justify-between items-center mb-6 pb-4 border-b border-outline-variant/10">
-              <div class="flex items-center gap-4">
-                 <button @click="toggleFeatureAll(feature)" :disabled="isAdminRole && !isUserMode" class="flex items-center justify-center transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:hover:scale-100"
-                         :class="isFeatureAll(feature) ? 'text-primary' : 'text-on-surface-variant'">
-                    <span class="material-symbols-outlined text-3xl">
-                      {{ isFeatureAll(feature) ? 'check_box' : (isFeaturePartial(feature) ? 'indeterminate_check_box' : 'check_box_outline_blank') }}
-                    </span>
-                 </button>
-                 <div>
-                    <h3 class="font-bold text-sm text-on-surface uppercase tracking-wide">{{ feature.name }}</h3>
-                 </div>
-              </div>
-              <div class="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full"
-                   :class="getSelectedCount(feature) > 0 ? 'bg-primary/20 text-primary' : 'bg-surface-container-highest text-on-surface-variant'">
-                Đã chọn: {{ getSelectedCount(feature) }} / {{ feature.actions.length }}
-              </div>
-           </div>
+            <!-- Nút chọn nhanh nhóm -->
+            <div class="flex items-center gap-2">
+              <button 
+                @click="toggleGroup(group, true)" 
+                :disabled="isAdminRole && !isUserMode"
+                class="px-2.5 py-1 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-sm uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Chọn Cả Nhóm
+              </button>
+              <button 
+                @click="toggleGroup(group, false)" 
+                :disabled="isAdminRole && !isUserMode"
+                class="px-2.5 py-1 text-[10px] font-bold text-on-surface-variant hover:text-red-400 bg-surface-container-highest hover:bg-red-400/10 rounded-sm uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Bỏ Cả Nhóm
+              </button>
+            </div>
+          </div>
 
-           <!-- Children Actions -->
-           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-6 gap-x-4">
-              <div v-for="action in feature.actions" :key="action" 
-                   class="flex items-center gap-3 group"
-                   :class="(isAdminRole && !isUserMode) ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'"
-                   @click="toggleAction(feature, action)">
-                 
-                 <span class="material-symbols-outlined text-[20px] transition-all group-hover:text-primary group-hover:scale-110"
-                       :class="hasAction(feature.id, action) ? 'text-primary' : 'text-on-surface-variant/40'">
-                   {{ hasAction(feature.id, action) ? 'check_box' : 'check_box_outline_blank' }}
-                 </span>
-                 <span class="text-[10px] font-semibold uppercase tracking-wider transition-colors group-hover:text-on-surface"
-                       :class="hasAction(feature.id, action) ? 'text-on-surface' : 'text-on-surface-variant'">
-                   {{ actionLabel(feature, action) }}
-                 </span>
-                 <span v-if="isUserMode" class="text-[9px] font-black uppercase tracking-widest"
-                       :class="getUserOverrideEffect(feature.id, action) === 'DENY' ? 'text-red-300' : (getUserOverrideEffect(feature.id, action) === 'ALLOW' ? 'text-primary' : 'text-on-surface-variant/50')">
-                   {{ effectLabel(feature.id, action) }}
-                 </span>
-              </div>
-           </div>
+          <!-- BẢNG CÁC TAB TRONG NHÓM -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-outline-variant/10 bg-surface-container-lowest/50 text-[10px] font-extrabold uppercase tracking-[0.15em] text-on-surface-variant">
+                  <th class="py-3 px-6 w-[34%]">Tên Mục / Tab Sidebar</th>
+                  <th class="py-3 px-4 w-[14%] text-center">Xem / Truy Cập</th>
+                  <th class="py-3 px-4 w-[14%] text-center">Thêm Mới</th>
+                  <th class="py-3 px-4 w-[14%] text-center">Chỉnh Sửa</th>
+                  <th class="py-3 px-4 w-[14%] text-center">Xoá</th>
+                  <th class="py-3 px-4 w-[10%] text-center">Chọn Nhanh</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/5 text-sm">
+                
+                <tr 
+                  v-for="tab in group.tabs" 
+                  :key="tab.id"
+                  class="hover:bg-surface-container-high/40 transition-colors"
+                  :class="hasView(tab) ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest/40 opacity-80'">
+                  
+                  <!-- CỘT 1: TÊN TAB & MÔ TẢ -->
+                  <td class="py-4 px-6">
+                    <div class="flex items-start gap-3.5">
+                      <div class="w-8 h-8 rounded-sm flex items-center justify-center shrink-0 mt-0.5"
+                           :class="hasView(tab) ? 'bg-primary/20 text-primary' : 'bg-surface-container-highest text-on-surface-variant/50'">
+                        <span class="material-symbols-outlined text-lg">{{ tab.icon }}</span>
+                      </div>
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <span class="font-extrabold text-xs lg:text-sm uppercase tracking-wide"
+                                :class="hasView(tab) ? 'text-on-surface' : 'text-on-surface-variant'">
+                            {{ tab.name }}
+                          </span>
+                          <span v-if="tab.adminOnly" class="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                            Chỉ Admin
+                          </span>
+                        </div>
+                        <p class="text-[11px] text-on-surface-variant mt-0.5 leading-snug">{{ tab.desc }}</p>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- CỘT 2: XEM / TRUY CẬP (VIEW) -->
+                  <td class="py-4 px-4 text-center">
+                    <div v-if="tab.adminOnly" class="text-on-surface-variant/40 text-xs italic">Cố định</div>
+                    <div v-else-if="tab.actions.includes('view') || tab.actions.includes('manage')" class="flex flex-col items-center justify-center">
+                      <button 
+                        @click="toggleAction(tab, tab.actions.includes('view') ? 'view' : 'manage')"
+                        :disabled="isAdminRole && !isUserMode"
+                        class="p-1.5 rounded-sm transition-all flex items-center justify-center group"
+                        :class="(isAdminRole && !isUserMode) ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:bg-primary/10'">
+                        <span class="material-symbols-outlined text-2xl transition-transform group-hover:scale-110"
+                              :class="hasAction(tab.id, tab.actions.includes('view') ? 'view' : 'manage') ? 'text-primary' : 'text-on-surface-variant/30'">
+                          {{ hasAction(tab.id, tab.actions.includes('view') ? 'view' : 'manage') ? 'check_box' : 'check_box_outline_blank' }}
+                        </span>
+                      </button>
+                      <span class="text-[9px] font-bold uppercase tracking-wider mt-0.5"
+                            :class="hasAction(tab.id, tab.actions.includes('view') ? 'view' : 'manage') ? 'text-on-surface' : 'text-on-surface-variant/40'">
+                        {{ tab.labels?.view || tab.labels?.manage || 'Xem' }}
+                      </span>
+                    </div>
+                    <div v-else class="text-on-surface-variant/20 text-xs">-</div>
+                  </td>
+
+                  <!-- CỘT 3: THÊM MỚI (ADD) -->
+                  <td class="py-4 px-4 text-center">
+                    <div v-if="tab.actions.includes('add')" class="flex flex-col items-center justify-center">
+                      <button 
+                        @click="toggleAction(tab, 'add')"
+                        :disabled="(isAdminRole && !isUserMode) || (!isUserMode && !hasView(tab))"
+                        class="p-1.5 rounded-sm transition-all flex items-center justify-center group"
+                        :class="((isAdminRole && !isUserMode) || (!isUserMode && !hasView(tab))) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-primary/10'">
+                        <span class="material-symbols-outlined text-2xl transition-transform group-hover:scale-110"
+                              :class="hasAction(tab.id, 'add') ? 'text-primary' : 'text-on-surface-variant/30'">
+                          {{ hasAction(tab.id, 'add') ? 'check_box' : 'check_box_outline_blank' }}
+                        </span>
+                      </button>
+                      <span class="text-[9px] font-bold uppercase tracking-wider mt-0.5"
+                            :class="hasAction(tab.id, 'add') ? 'text-on-surface' : 'text-on-surface-variant/40'">
+                        {{ tab.labels?.add || 'Thêm' }}
+                      </span>
+                    </div>
+                    <div v-else class="text-on-surface-variant/20 text-xs">-</div>
+                  </td>
+
+                  <!-- CỘT 4: CHỈNH SỬA (EDIT) -->
+                  <td class="py-4 px-4 text-center">
+                    <div v-if="tab.actions.includes('edit')" class="flex flex-col items-center justify-center">
+                      <button 
+                        @click="toggleAction(tab, 'edit')"
+                        :disabled="(isAdminRole && !isUserMode) || (!isUserMode && !hasView(tab))"
+                        class="p-1.5 rounded-sm transition-all flex items-center justify-center group"
+                        :class="((isAdminRole && !isUserMode) || (!isUserMode && !hasView(tab))) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-primary/10'">
+                        <span class="material-symbols-outlined text-2xl transition-transform group-hover:scale-110"
+                              :class="hasAction(tab.id, 'edit') ? 'text-primary' : 'text-on-surface-variant/30'">
+                          {{ hasAction(tab.id, 'edit') ? 'check_box' : 'check_box_outline_blank' }}
+                        </span>
+                      </button>
+                      <span class="text-[9px] font-bold uppercase tracking-wider mt-0.5"
+                            :class="hasAction(tab.id, 'edit') ? 'text-on-surface' : 'text-on-surface-variant/40'">
+                        {{ tab.labels?.edit || 'Sửa' }}
+                      </span>
+                    </div>
+                    <div v-else class="text-on-surface-variant/20 text-xs">-</div>
+                  </td>
+
+                  <!-- CỘT 5: XOÁ (DELETE) -->
+                  <td class="py-4 px-4 text-center">
+                    <div v-if="tab.actions.includes('delete')" class="flex flex-col items-center justify-center">
+                      <button 
+                        @click="toggleAction(tab, 'delete')"
+                        :disabled="(isAdminRole && !isUserMode) || (!isUserMode && !hasView(tab))"
+                        class="p-1.5 rounded-sm transition-all flex items-center justify-center group"
+                        :class="((isAdminRole && !isUserMode) || (!isUserMode && !hasView(tab))) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-primary/10'">
+                        <span class="material-symbols-outlined text-2xl transition-transform group-hover:scale-110"
+                              :class="hasAction(tab.id, 'delete') ? 'text-primary' : 'text-on-surface-variant/30'">
+                          {{ hasAction(tab.id, 'delete') ? 'check_box' : 'check_box_outline_blank' }}
+                        </span>
+                      </button>
+                      <span class="text-[9px] font-bold uppercase tracking-wider mt-0.5"
+                            :class="hasAction(tab.id, 'delete') ? 'text-on-surface' : 'text-on-surface-variant/40'">
+                        {{ tab.labels?.delete || 'Xoá' }}
+                      </span>
+                    </div>
+                    <div v-else class="text-on-surface-variant/20 text-xs">-</div>
+                  </td>
+
+                  <!-- CỘT 6: CHỌN NHANH (ALL ROW TOGGLE) -->
+                  <td class="py-4 px-4 text-center">
+                    <div v-if="!tab.adminOnly" class="flex items-center justify-center">
+                      <button 
+                        @click="toggleTabAll(tab)"
+                        :disabled="isAdminRole && !isUserMode"
+                        class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border transition-all"
+                        :class="isTabAll(tab) 
+                          ? 'bg-primary/20 text-primary border-primary/40 hover:bg-primary/30' 
+                          : (getSelectedCount(tab) > 0 ? 'bg-primary/10 text-primary border-primary/20' : 'bg-surface-container-high text-on-surface-variant border-transparent hover:text-on-surface')">
+                        {{ isTabAll(tab) ? 'Tất cả' : (getSelectedCount(tab) > 0 ? `${getSelectedCount(tab)}/${tab.actions.length}` : 'Chọn') }}
+                      </button>
+                    </div>
+                    <div v-else class="text-on-surface-variant/20 text-xs">-</div>
+                  </td>
+
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
         </div>
 
       </section>
+
     </div>
 
-    <!-- CẤP 4: TÓM TẮT QUYỀN (SUMMARY FOOTER) -->
-    <div class="absolute bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-md border-t border-outline-variant/10 p-6 px-10 flex flex-col md:flex-row justify-between items-center gap-6 z-40 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)]">
+    <!-- FOOTER CỐ ĐỊNH Ở ĐÁY (SUMMARY & SAVE ACTION) -->
+    <div class="absolute bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-md border-t border-outline-variant/10 p-4 lg:p-6 px-6 lg:px-10 flex flex-col md:flex-row justify-between items-center gap-4 z-40 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)]">
       
-      <!-- Summary Stats -->
+      <!-- Thông tin tóm tắt -->
       <div class="flex items-center gap-6 flex-1 min-w-0 overflow-hidden w-full">
-         <div class="flex items-center gap-4 text-on-surface border-r border-outline-variant/10 pr-6 shrink-0">
-            <span class="material-symbols-outlined text-4xl text-primary opacity-80">admin_panel_settings</span>
-            <div>
-               <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">Vai trò đang sửa</p>
-               <p class="text-sm font-extrabold uppercase tracking-widest text-primary">{{ activeScopeName }}</p>
-            </div>
-         </div>
-         
-         <div class="flex gap-3 overflow-x-auto hide-scrollbar flex-1 min-w-0">
-            <div v-if="selectedPermissionsSummary.length === 0" class="text-xs text-on-surface-variant italic py-2">
-              Chưa có quyền nào được cấp.
-            </div>
-            <div v-for="(item, index) in selectedPermissionsSummary" :key="index" class="flex flex-col bg-surface-container-high px-4 py-2.5 rounded-lg border border-outline-variant/5 shrink-0">
-               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface">{{ item.name }}</span>
-               <span class="text-[9px] font-bold uppercase tracking-widest text-primary mt-1 opacity-90">{{ item.actions }}</span>
-            </div>
-         </div>
+        <div class="flex items-center gap-3.5 text-on-surface border-r border-outline-variant/10 pr-6 shrink-0">
+          <span class="material-symbols-outlined text-3xl text-primary opacity-90">admin_panel_settings</span>
+          <div>
+            <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">Đang thiết lập cho</p>
+            <p class="text-sm font-extrabold uppercase tracking-widest text-primary">{{ activeScopeName }}</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 overflow-x-auto hide-scrollbar flex-1 min-w-0">
+          <div class="flex items-center gap-2 bg-surface-container-high px-3.5 py-2 rounded-sm border border-outline-variant/10 shrink-0">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Đã cấp quyền xem:</span>
+            <span class="text-xs font-black text-primary">{{ totalGrantedTabs }} / 18 Tab</span>
+          </div>
+
+          <div v-if="selectedPermissionsSummary.length === 0" class="text-xs text-on-surface-variant italic">
+            Chưa có quyền nào được cấp.
+          </div>
+          <div v-for="(item, index) in selectedPermissionsSummary" :key="index" class="flex items-center gap-1.5 bg-surface-container-high px-3 py-1.5 rounded-sm border border-outline-variant/5 shrink-0">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface">{{ item.name }}</span>
+            <span class="text-[9px] font-extrabold text-primary bg-primary/20 px-1.5 py-0.2 rounded-sm">{{ item.count }}</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Action Button -->
-      <div class="flex flex-col items-end gap-2 w-full md:w-auto shrink-0">
-        <span v-if="saveMessage" class="text-[10px] font-bold uppercase tracking-widest text-primary">{{ saveMessage }}</span>
-        <button @click="saveChanges" :disabled="isSaving || (!isUserMode && (activeRole === null || isAdminRole)) || (isUserMode && !activeUserId)" class="w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed">
-           {{ (!isUserMode && isAdminRole) ? 'ADMIN toàn quyền' : (isSaving ? 'Đang lưu...' : 'Lưu Thay Đổi') }}
-           <span class="material-symbols-outlined text-sm">{{ (!isUserMode && isAdminRole) ? 'admin_panel_settings' : (isSaving ? 'autorenew' : 'save') }}</span>
+      <!-- Nút Lưu Thay Đổi -->
+      <div class="flex items-center gap-3 w-full md:w-auto shrink-0 justify-end">
+        <span v-if="saveMessage" class="text-[11px] font-bold uppercase tracking-wider text-primary">{{ saveMessage }}</span>
+        <button 
+          @click="saveChanges" 
+          :disabled="isSaving || (!isUserMode && (activeRole === null || isAdminRole)) || (isUserMode && !activeUserId)" 
+          class="w-full md:w-auto px-8 py-3.5 bg-primary text-on-primary font-black text-xs uppercase tracking-[0.2em] rounded-sm shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:brightness-110 hover:shadow-[0_0_30px_rgba(245,197,24,0.5)] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+          {{ (!isUserMode && isAdminRole) ? 'ADMIN TOÀN QUYỀN' : (isSaving ? 'Đang lưu...' : 'LƯU THAY ĐỔI') }}
+          <span class="material-symbols-outlined text-base">{{ (!isUserMode && isAdminRole) ? 'shield' : (isSaving ? 'autorenew' : 'save') }}</span>
         </button>
       </div>
+
     </div>
 
   </div>

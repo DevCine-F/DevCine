@@ -86,7 +86,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
 
       <nav class="flex-grow px-4 pb-6 space-y-1.5 overflow-y-auto">
         <!-- ===== TỔNG QUAN & VẬN HÀNH ===== -->
-        <div v-if="canShowAny(['dashboard_stats', 'pos_ticketing', 'bookings'])" class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
+        <div v-if="canShowAny(['dashboard_stats', 'pos_ticketing', 'ticket_checkin', 'bookings'])" class="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Tổng quan & Vận hành</div>
 
         <router-link v-if="canShow('dashboard_stats')" to="/admin/dashboard" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
@@ -98,7 +98,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
           <span class="font-semibold text-sm">Bán vé (POS)</span>
         </router-link>
 
-        <router-link v-if="canShow('pos_ticketing')" to="/admin/check-in" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('ticket_checkin')" to="/admin/check-in" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">qr_code_scanner</span>
           <span class="font-semibold text-sm">Kiểm soát vé</span>
         </router-link>
@@ -116,14 +116,14 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideAc
         -->
 
         <!-- ===== PHIM & NỘI DUNG ===== -->
-        <div v-if="canShowAny(['movies', 'banners'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Phim & Nội dung</div>
+        <div v-if="canShowAny(['movies', 'movie_categories', 'banners'])" class="pt-6 text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em] px-4 mb-4">Phim & Nội dung</div>
 
         <router-link v-if="canShow('movies')" to="/admin/movies" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">movie</span>
           <span class="font-semibold text-sm">Quản lý phim</span>
         </router-link>
 
-        <router-link v-if="canShow('movies')" to="/admin/categories" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
+        <router-link v-if="canShow('movie_categories')" to="/admin/categories" class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-white/5 transition-all group" active-class="active-nav">
           <span class="material-symbols-outlined group-hover:text-primary transition-colors">category</span>
           <span class="font-semibold text-sm">Danh mục phim</span>
         </router-link>

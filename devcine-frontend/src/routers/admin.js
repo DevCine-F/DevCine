@@ -64,7 +64,7 @@ export default [
       {
         path: 'categories',
         name: 'admin-movie-categories',
-        meta: { permission: { feature: 'movies', action: 'view' } },
+        meta: { permission: { feature: 'movie_categories', action: 'view' } },
         component: () => import('../views/admin/MovieCategoryManager.vue')
       },
       {
@@ -100,7 +100,7 @@ export default [
       {
         path: 'check-in',
         name: 'admin-check-in',
-        meta: { permission: { feature: 'pos_ticketing', action: 'view' } },
+        meta: { permission: { feature: 'ticket_checkin', action: 'view' } },
         component: () => import('../views/admin/TicketCheckIn.vue')
       },
       /*
