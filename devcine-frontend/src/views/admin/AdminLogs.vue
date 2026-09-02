@@ -9,31 +9,62 @@ const searchQuery = ref('')
 const filterType = ref('all')
 const logs = ref([])
 const isLoading = ref(false)
-const currentPage = ref(0)
+const currentPage = ref(1)
 const totalPages = ref(1)
+const totalElements = ref(0)
+const pageSize = ref(10)
+const pageSizeDropdownOpen = ref(false)
+const PAGE_SIZE_OPTIONS = [10, 20, 50]
 
 const fetchLogs = async () => {
   isLoading.value = true
   try {
-    const params = { page: currentPage.value, size: 20 }
+    const params = {
+      page: Math.max(0, currentPage.value - 1),
+      size: pageSize.value
+    }
     if (filterType.value !== 'all') params.action = filterType.value
     const { data } = await auditLogApi.getLogs(params)
     const result = data.data ?? data
     if (result.content) {
       logs.value = result.content
-      totalPages.value = result.totalPages ?? 1
+      totalPages.value = Math.max(1, result.totalPages ?? 1)
+      totalElements.value = result.totalElements ?? result.content.length
+      if (currentPage.value > totalPages.value) {
+        currentPage.value = totalPages.value
+      }
     } else {
       logs.value = Array.isArray(result) ? result : []
+      totalPages.value = 1
+      totalElements.value = logs.value.length
     }
   } catch (e) {
     logs.value = []
+    totalElements.value = 0
+    totalPages.value = 1
     toast.error(friendlyError(e, 'Không tải được nhật ký hoạt động.'))
   } finally {
     isLoading.value = false
   }
 }
 
-watch(filterType, () => { currentPage.value = 0; fetchLogs() })
+const changePageSize = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+  pageSizeDropdownOpen.value = false
+  fetchLogs()
+}
+
+const goToPage = (page) => {
+  if (page < 1 || page > totalPages.value || page === currentPage.value) return
+  currentPage.value = page
+  fetchLogs()
+}
+
+watch(filterType, () => {
+  currentPage.value = 1
+  fetchLogs()
+})
 
 const filteredLogs = computed(() => {
   if (!searchQuery.value) return logs.value
@@ -76,6 +107,48 @@ const formatTimestamp = (iso) => {
   }
 }
 
+const exportCsv = () => {
+  if (filteredLogs.value.length === 0) {
+    toast.info('Không có dữ liệu phù hợp để xuất.')
+    return
+  }
+
+  const header = [
+    'Mã nhật ký',
+    'Thời gian',
+    'Tác nhân',
+    'Vai trò',
+    'Hành động',
+    'Bảng / Đối tượng',
+    'Chi tiết',
+    'IP'
+  ]
+
+  const lines = filteredLogs.value.map(l => {
+    const ts = formatTimestamp(l.createdAt ?? l.timestamp)
+    return [
+      `#${l.logId ?? l.id ?? ''}`,
+      `${ts.time} ${ts.date}`,
+      l.performedBy ?? l.actor ?? 'system',
+      l.userRole ?? l.role ?? 'SYSTEM',
+      getActionLabel((l.action ?? '').toUpperCase()),
+      l.entityType ?? l.target ?? '',
+      l.description ?? l.detail ?? '',
+      l.ipAddress ?? ''
+    ].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
+  })
+
+  const csv = '\uFEFF' + [header.join(','), ...lines].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `nhat-ky-he-thong-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('Xuất nhật ký hệ thống thành công!')
+}
+
 onMounted(fetchLogs)
 </script>
 
@@ -87,7 +160,7 @@ onMounted(fetchLogs)
         <h1 class="text-3xl font-black text-on-surface tracking-tighter uppercase italic">Nhật ký <span class="text-primary">Hệ thống</span></h1>
         <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">Truy vết thao tác & Cảnh báo an ninh</p>
       </div>
-      <button class="px-6 py-3 bg-surface-container-high hover:bg-white/10 text-on-surface font-bold text-xs uppercase tracking-widest rounded transition-colors flex items-center gap-2 border border-outline-variant/20">
+      <button @click="exportCsv" class="px-6 py-3 bg-surface-container-high hover:bg-white/10 text-on-surface font-bold text-xs uppercase tracking-widest rounded transition-colors flex items-center gap-2 border border-outline-variant/20">
          <span class="material-symbols-outlined text-sm">download</span> Xuất báo cáo CSV
       </button>
     </div>
@@ -180,12 +253,105 @@ onMounted(fetchLogs)
          </template>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-center gap-4 p-4 border-t border-outline-variant/10 bg-surface-container-high flex-shrink-0">
-        <button @click="currentPage--; fetchLogs()" :disabled="currentPage === 0" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-surface-container-highest rounded disabled:opacity-40 hover:bg-white/10 transition-colors">Trước</button>
-        <span class="text-xs text-on-surface-variant font-mono">Trang {{ currentPage + 1 }} / {{ totalPages }}</span>
-        <button @click="currentPage++; fetchLogs()" :disabled="currentPage >= totalPages - 1" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-surface-container-highest rounded disabled:opacity-40 hover:bg-white/10 transition-colors">Tiếp</button>
+      <!-- Pagination & Footer với Custom Page Size Dropdown -->
+      <div class="p-4 bg-surface-container-highest/30 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-outline-variant/10 flex-shrink-0">
+        <!-- Page size selector & Summary text -->
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span>Hiển thị:</span>
+
+            <!-- Custom Page Size Dropdown -->
+            <div class="relative">
+              <button
+                type="button"
+                @click="pageSizeDropdownOpen = !pageSizeDropdownOpen"
+                class="h-8 bg-surface-container-highest border rounded-lg px-2.5 text-xs font-bold font-mono text-on-surface outline-none cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
+                :class="pageSizeDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+              >
+                <span>{{ pageSize }}</span>
+                <span class="material-symbols-outlined text-sm text-on-surface-variant transition-transform duration-200" :class="{ 'rotate-180': pageSizeDropdownOpen }">expand_more</span>
+              </button>
+
+              <div v-if="pageSizeDropdownOpen" class="fixed inset-0 z-[55]" @click="pageSizeDropdownOpen = false"></div>
+
+              <transition name="fade">
+                <div v-if="pageSizeDropdownOpen" class="absolute bottom-full left-0 mb-1.5 w-24 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
+                  <button
+                    v-for="size in PAGE_SIZE_OPTIONS"
+                    :key="size"
+                    type="button"
+                    @click="changePageSize(size)"
+                    class="w-full flex items-center justify-between px-3 py-2 text-xs font-mono transition-colors"
+                    :class="pageSize === size ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+                  >
+                    <span>{{ size }}</span>
+                    <span v-if="pageSize === size" class="material-symbols-outlined text-sm text-primary">check</span>
+                  </button>
+                </div>
+              </transition>
+            </div>
+
+            <span>dòng/trang</span>
+          </div>
+          <span class="hidden md:inline text-on-surface-variant/40">|</span>
+          <span>
+            Tổng: <strong class="text-primary">{{ totalElements.toLocaleString('vi-VN') }}</strong> nhật ký
+          </span>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="flex items-center gap-1">
+          <button
+            @click="goToPage(1)"
+            :disabled="currentPage === 1 || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang đầu"
+          >
+            <span class="material-symbols-outlined text-base">first_page</span>
+          </button>
+          <button
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage === 1 || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang trước"
+          >
+            <span class="material-symbols-outlined text-base">chevron_left</span>
+          </button>
+
+          <span class="px-3 py-1 bg-surface-container-highest rounded-lg font-mono font-bold text-primary text-xs">
+            {{ currentPage }} / {{ totalPages }}
+          </span>
+
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="currentPage === totalPages || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang sau"
+          >
+            <span class="material-symbols-outlined text-base">chevron_right</span>
+          </button>
+          <button
+            @click="goToPage(totalPages)"
+            :disabled="currentPage === totalPages || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang cuối"
+          >
+            <span class="material-symbols-outlined text-base">last_page</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>
