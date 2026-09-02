@@ -1522,17 +1522,48 @@ const closeQrModal = async () => {
   }
 }
 
+const rawMemberPhone = computed(() => (cardNumberInput.value || '').replace(/\D/g, '').slice(0, 10))
+const isMemberPhoneValid = computed(() => /^0[35789]\d{8}$/.test(rawMemberPhone.value))
+
+const onMemberPhoneInput = (e) => {
+  cardError.value = ''
+  const digits = String(e.target.value || '').replace(/\D/g, '').slice(0, 10)
+  let formatted = digits
+  if (digits.length > 7) {
+    formatted = `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`
+  } else if (digits.length > 4) {
+    formatted = `${digits.slice(0, 4)} ${digits.slice(4)}`
+  }
+  cardNumberInput.value = formatted
+  if (e.target.value !== formatted) {
+    e.target.value = formatted
+  }
+}
+
+const clearMemberInput = () => {
+  cardNumberInput.value = ''
+  cardError.value = ''
+}
+
 const checkMemberCard = async () => {
   cardError.value = ''
-  if (!cardNumberInput.value.trim()) return
+  const phone = rawMemberPhone.value
+  if (!phone) {
+    cardError.value = 'Vui lòng nhập số điện thoại khách hàng.'
+    return
+  }
+  if (!isMemberPhoneValid.value) {
+    cardError.value = 'Số điện thoại phải gồm 10 số và bắt đầu bằng 03, 05, 07, 08, 09.'
+    return
+  }
   isCheckingCard.value = true
   try {
-    const { data } = await ticketingApi.memberCard(cardNumberInput.value.trim())
+    const { data } = await ticketingApi.memberCard(phone)
     member.value = data.data ?? data
     voucherRealtime.subscribeCustomer(member.value.customerId)
     loadOwnedVouchers() // bật danh sách voucher của khách sau khi tra cứu thành công
   } catch (err) {
-    cardError.value = err.response?.data?.error || 'Không tìm thấy thẻ thành viên.'
+    cardError.value = err.response?.data?.error || 'Không tìm thấy thẻ thành viên với số điện thoại này.'
     member.value = null
   } finally {
     isCheckingCard.value = false
@@ -2803,26 +2834,45 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Khi chưa tra cứu thẻ -->
-                <div v-if="!member" class="space-y-2.5">
+                <div v-if="!member" class="space-y-2">
                   <div class="flex gap-2">
-                    <input 
-                      v-model="cardNumberInput" 
-                      type="tel" 
-                      inputmode="numeric" 
-                      placeholder="Số điện thoại khách hàng..." 
-                      @keydown.enter.prevent="checkMemberCard"
-                      class="flex-1 bg-surface-container-high border border-outline-variant/15 rounded-2xl py-2.5 px-4 text-on-surface text-xs font-bold outline-none focus:border-primary/50" 
-                    />
+                    <div class="relative flex-1">
+                      <input 
+                        :value="cardNumberInput" 
+                        @input="onMemberPhoneInput"
+                        type="tel" 
+                        inputmode="numeric" 
+                        maxlength="12"
+                        placeholder="Số điện thoại khách hàng..." 
+                        @keydown.enter.prevent="isMemberPhoneValid && checkMemberCard()"
+                        class="w-full bg-surface-container-high border rounded-2xl py-2.5 pl-4 pr-9 text-on-surface text-xs font-bold outline-none transition-colors" 
+                        :class="cardError ? 'border-red-500/50 focus:border-red-500' : 'border-outline-variant/15 focus:border-primary/50'"
+                      />
+                      <button 
+                        v-if="cardNumberInput"
+                        type="button"
+                        @click="clearMemberInput"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-on-surface-variant hover:text-on-surface rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Xoá"
+                      >
+                        <span class="material-symbols-outlined text-[15px] leading-none select-none">close</span>
+                      </button>
+                    </div>
                     <button 
                       type="button"
-                      :disabled="isCheckingCard || !cardNumberInput.trim()" 
+                      :disabled="isCheckingCard || !isMemberPhoneValid" 
                       @click="checkMemberCard"
-                      class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-2xl hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                      class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-2xl hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
                     >
                       {{ isCheckingCard ? '...' : 'Kiểm tra' }}
                     </button>
                   </div>
-                  <p v-if="cardError" class="text-xs text-red-400 font-bold">{{ cardError }}</p>
+                  <div class="min-h-[16px]">
+                    <p v-if="cardError" class="text-[11px] text-red-400 font-bold flex items-center gap-1">
+                      <span class="material-symbols-outlined text-xs">info</span>
+                      {{ cardError }}
+                    </p>
+                  </div>
                 </div>
 
                 <!-- Khi đã tra cứu thành công: Thẻ Mini 2 Cột -->
@@ -3164,9 +3214,35 @@ onUnmounted(() => {
                 <div class="bg-primary/5 border border-primary/20 p-8 rounded-3xl space-y-4">
                   <p class="text-[10px] font-black text-primary uppercase tracking-widest">Thành viên (tùy chọn — để tích điểm)</p>
                   <div v-if="!member" class="space-y-3">
-                    <input v-model="cardNumberInput" type="tel" inputmode="numeric" placeholder="Số điện thoại khách hàng..." class="w-full bg-surface-container-high border border-outline-variant/10 rounded-2xl py-3 px-5 text-on-surface text-sm font-bold outline-none focus:border-primary/50" />
-                    <p v-if="cardError" class="text-xs text-red-400 font-bold">{{ cardError }}</p>
-                    <AppButton variant="primary" class="w-full" @click="checkMemberCard" :disabled="isCheckingCard">{{ isCheckingCard ? 'Đang kiểm tra...' : 'Kiểm tra' }}</AppButton>
+                    <div class="relative">
+                      <input 
+                        :value="cardNumberInput" 
+                        @input="onMemberPhoneInput"
+                        type="tel" 
+                        inputmode="numeric" 
+                        maxlength="12"
+                        placeholder="Số điện thoại khách hàng..." 
+                        @keydown.enter.prevent="isMemberPhoneValid && checkMemberCard()"
+                        class="w-full bg-surface-container-high border rounded-2xl py-3 pl-5 pr-10 text-on-surface text-sm font-bold outline-none transition-colors" 
+                        :class="cardError ? 'border-red-500/50 focus:border-red-500' : 'border-outline-variant/10 focus:border-primary/50'"
+                      />
+                      <button 
+                        v-if="cardNumberInput"
+                        type="button"
+                        @click="clearMemberInput"
+                        class="absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-on-surface-variant hover:text-on-surface rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Xoá"
+                      >
+                        <span class="material-symbols-outlined text-base leading-none select-none">close</span>
+                      </button>
+                    </div>
+                    <div class="min-h-[16px]">
+                      <p v-if="cardError" class="text-xs text-red-400 font-bold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-xs">info</span>
+                        {{ cardError }}
+                      </p>
+                    </div>
+                    <AppButton variant="primary" class="w-full" @click="checkMemberCard" :disabled="isCheckingCard || !isMemberPhoneValid">{{ isCheckingCard ? 'Đang kiểm tra...' : 'Kiểm tra' }}</AppButton>
                   </div>
                   <div v-else class="space-y-2 text-on-surface">
                     <div class="flex justify-between items-center">
