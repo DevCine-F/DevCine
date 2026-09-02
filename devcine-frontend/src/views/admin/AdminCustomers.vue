@@ -66,6 +66,7 @@ const closeAllDropdowns = () => {
   statusDropdownOpen.value = false
   typeDropdownOpen.value = false
   pageSizeDropdownOpen.value = false
+  orderPageSizeDropdownOpen.value = false
 }
 
 // ===== State Modal Chi tiết =====
@@ -78,6 +79,38 @@ const customerOrdersLoading = ref(false)
 const customerVouchers = ref([])
 const customerPoints = ref([])
 const customerHistoryLoading = ref(false)
+
+// ===== Phân trang Lịch sử đơn hàng của khách (trong Modal) =====
+const orderPageSize = ref(5)
+const orderCurrentPage = ref(1)
+const orderPageSizeDropdownOpen = ref(false)
+const ORDER_PAGE_SIZE_OPTIONS = [5, 10, 20]
+
+const totalOrderPages = computed(() => {
+  return Math.ceil(customerOrders.value.length / orderPageSize.value) || 1
+})
+
+const paginatedCustomerOrders = computed(() => {
+  const start = (orderCurrentPage.value - 1) * orderPageSize.value
+  return customerOrders.value.slice(start, start + orderPageSize.value)
+})
+
+watch(totalOrderPages, (newTotal) => {
+  if (orderCurrentPage.value > newTotal) {
+    orderCurrentPage.value = newTotal
+  }
+})
+
+const changeOrderPageSize = (size) => {
+  orderPageSize.value = size
+  orderCurrentPage.value = 1
+  orderPageSizeDropdownOpen.value = false
+}
+
+const goToOrderPage = (p) => {
+  if (p < 1 || p > totalOrderPages.value || p === orderCurrentPage.value) return
+  orderCurrentPage.value = p
+}
 
 // ===== State Modal Chỉnh sửa =====
 const showEditModal = ref(false)
@@ -343,6 +376,8 @@ const openDetailModal = async (customer) => {
   customerOrders.value = []
   customerVouchers.value = []
   customerPoints.value = []
+  orderCurrentPage.value = 1
+  orderPageSizeDropdownOpen.value = false
 
   detailLoading.value = true
   try {
@@ -360,6 +395,8 @@ watch(detailTab, async (newTab) => {
   if (!selectedCustomer.value) return
 
   if (newTab === 'orders') {
+    orderCurrentPage.value = 1
+    orderPageSizeDropdownOpen.value = false
     customerOrdersLoading.value = true
     try {
       const { data } = await customerApi.getOrders(selectedCustomer.value.userId)
@@ -1175,63 +1212,153 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 <span class="material-symbols-outlined text-4xl text-neutral-600 mb-2">receipt_long</span>
                 <p class="text-xs text-on-surface-variant font-medium">Khách hàng chưa có lịch sử đặt vé hoặc mua bắp nước nào.</p>
               </div>
-              <div v-else class="overflow-x-auto border border-outline-variant/10 rounded-2xl bg-surface-container-low">
-                <table class="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr class="bg-surface-container-highest/60 border-b border-outline-variant/10 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      <th class="p-3.5 pl-4">Mã đơn</th>
-                      <th class="p-3.5">Phim / Dịch vụ</th>
-                      <th class="p-3.5">Suất chiếu &amp; Rạp</th>
-                      <th class="p-3.5">Ghế / Món</th>
-                      <th class="p-3.5 text-right">Tổng tiền</th>
-                      <th class="p-3.5 text-center">Trạng thái</th>
-                      <th class="p-3.5 pr-4 text-right">Thời gian</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-outline-variant/5">
-                    <tr v-for="o in customerOrders" :key="o.orderCode" class="hover:bg-white/[0.02]">
-                      <td class="p-3.5 pl-4">
-                        <span class="font-mono font-bold text-primary">{{ o.orderCode }}</span>
-                        <div>
+              <div v-else class="border border-outline-variant/10 rounded-2xl bg-surface-container-low overflow-hidden shadow-md flex flex-col">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="bg-surface-container-highest/60 border-b border-outline-variant/10 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant select-none">
+                        <th class="p-3.5 pl-4">Mã đơn</th>
+                        <th class="p-3.5">Phim / Dịch vụ</th>
+                        <th class="p-3.5">Suất chiếu &amp; Rạp</th>
+                        <th class="p-3.5">Ghế / Món</th>
+                        <th class="p-3.5 text-right">Tổng tiền</th>
+                        <th class="p-3.5 text-center">Trạng thái</th>
+                        <th class="p-3.5 pr-4 text-right">Thời gian</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/5 text-on-surface">
+                      <tr v-for="o in paginatedCustomerOrders" :key="o.orderCode" class="hover:bg-white/[0.02] transition-colors">
+                        <td class="p-3.5 pl-4">
+                          <span class="font-mono font-bold text-primary">{{ o.orderCode }}</span>
+                          <div>
+                            <span
+                              v-if="o.orderType === 'TICKET'"
+                              class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                            >
+                              Vé xem phim
+                            </span>
+                            <span
+                              v-else
+                              class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                            >
+                              Bắp nước
+                            </span>
+                          </div>
+                        </td>
+                        <td class="p-3.5 font-bold text-on-surface">{{ o.title }}</td>
+                        <td class="p-3.5 text-[11px] text-on-surface-variant">
+                          <p v-if="o.showtimeStart" class="text-on-surface font-medium">{{ formatDateTime(o.showtimeStart) }}</p>
+                          <p>{{ o.cinemaName }} · {{ o.roomName }}</p>
+                        </td>
+                        <td class="p-3.5 font-mono text-[11px] text-on-surface-variant">
+                          {{ o.seats || '—' }}
+                        </td>
+                        <td class="p-3.5 text-right font-mono font-bold text-primary">
+                          {{ formatVND(o.finalPrice) }}
+                        </td>
+                        <td class="p-3.5 text-center">
                           <span
-                            v-if="o.orderType === 'TICKET'"
-                            class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                            class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border"
+                            :class="o.status === 'CONFIRMED' || o.status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-white/10 text-on-surface-variant border-white/10'"
                           >
-                            Vé xem phim
+                            {{ o.status }}
                           </span>
-                          <span
-                            v-else
-                            class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                          >
-                            Bắp nước
-                          </span>
-                        </div>
-                      </td>
-                      <td class="p-3.5 font-bold text-on-surface">{{ o.title }}</td>
-                      <td class="p-3.5 text-[11px] text-on-surface-variant">
-                        <p v-if="o.showtimeStart" class="text-on-surface font-medium">{{ formatDateTime(o.showtimeStart) }}</p>
-                        <p>{{ o.cinemaName }} · {{ o.roomName }}</p>
-                      </td>
-                      <td class="p-3.5 font-mono text-[11px] text-on-surface-variant">
-                        {{ o.seats || '—' }}
-                      </td>
-                      <td class="p-3.5 text-right font-mono font-bold text-primary">
-                        {{ formatVND(o.finalPrice) }}
-                      </td>
-                      <td class="p-3.5 text-center">
-                        <span
-                          class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border"
-                          :class="o.status === 'CONFIRMED' || o.status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-white/10 text-on-surface-variant border-white/10'"
+                        </td>
+                        <td class="p-3.5 pr-4 text-right font-mono text-[11px] text-on-surface-variant">
+                          {{ formatDateTime(o.createdAt) }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Pagination Footer trong Modal -->
+                <div class="p-3.5 bg-surface-container-highest/30 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-outline-variant/10 flex-shrink-0">
+                  <!-- Page size selector & Summary text -->
+                  <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                      <span>Hiển thị:</span>
+
+                      <!-- Custom Page Size Dropdown -->
+                      <div class="relative">
+                        <button
+                          type="button"
+                          @click="orderPageSizeDropdownOpen = !orderPageSizeDropdownOpen"
+                          class="h-7 bg-surface-container-highest border rounded-lg px-2 text-xs font-bold font-mono text-on-surface outline-none cursor-pointer flex items-center gap-1 transition-all shadow-sm"
+                          :class="orderPageSizeDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
                         >
-                          {{ o.status }}
-                        </span>
-                      </td>
-                      <td class="p-3.5 pr-4 text-right font-mono text-[11px] text-on-surface-variant">
-                        {{ formatDateTime(o.createdAt) }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                          <span>{{ orderPageSize }}</span>
+                          <span class="material-symbols-outlined text-sm text-on-surface-variant transition-transform duration-200" :class="{ 'rotate-180': orderPageSizeDropdownOpen }">expand_more</span>
+                        </button>
+
+                        <div v-if="orderPageSizeDropdownOpen" class="fixed inset-0 z-[1055]" @click="orderPageSizeDropdownOpen = false"></div>
+
+                        <transition name="fade">
+                          <div v-if="orderPageSizeDropdownOpen" class="absolute bottom-full left-0 mb-1.5 w-24 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[1060] overflow-hidden py-1 backdrop-blur-xl">
+                            <button
+                              v-for="size in ORDER_PAGE_SIZE_OPTIONS"
+                              :key="size"
+                              type="button"
+                              @click="changeOrderPageSize(size)"
+                              class="w-full flex items-center justify-between px-3 py-1.5 text-xs font-mono transition-colors"
+                              :class="orderPageSize === size ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+                            >
+                              <span>{{ size }}</span>
+                              <span v-if="orderPageSize === size" class="material-symbols-outlined text-sm text-primary">check</span>
+                            </button>
+                          </div>
+                        </transition>
+                      </div>
+
+                      <span>dòng/trang</span>
+                    </div>
+                    <span class="hidden md:inline text-on-surface-variant/40">|</span>
+                    <span>
+                      Tổng: <strong class="text-primary">{{ customerOrders.length.toLocaleString('vi-VN') }}</strong> đơn hàng
+                    </span>
+                  </div>
+
+                  <!-- Navigation Buttons -->
+                  <div class="flex items-center gap-1">
+                    <button
+                      @click="goToOrderPage(1)"
+                      :disabled="orderCurrentPage === 1 || customerOrdersLoading"
+                      class="p-1 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+                      title="Trang đầu"
+                    >
+                      <span class="material-symbols-outlined text-base">first_page</span>
+                    </button>
+                    <button
+                      @click="goToOrderPage(orderCurrentPage - 1)"
+                      :disabled="orderCurrentPage === 1 || customerOrdersLoading"
+                      class="p-1 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+                      title="Trang trước"
+                    >
+                      <span class="material-symbols-outlined text-base">chevron_left</span>
+                    </button>
+
+                    <span class="px-2.5 py-0.5 bg-surface-container-highest rounded-lg font-mono font-bold text-primary text-xs">
+                      {{ orderCurrentPage }} / {{ totalOrderPages }}
+                    </span>
+
+                    <button
+                      @click="goToOrderPage(orderCurrentPage + 1)"
+                      :disabled="orderCurrentPage === totalOrderPages || customerOrdersLoading"
+                      class="p-1 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+                      title="Trang sau"
+                    >
+                      <span class="material-symbols-outlined text-base">chevron_right</span>
+                    </button>
+                    <button
+                      @click="goToOrderPage(totalOrderPages)"
+                      :disabled="orderCurrentPage === totalOrderPages || customerOrdersLoading"
+                      class="p-1 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+                      title="Trang cuối"
+                    >
+                      <span class="material-symbols-outlined text-base">last_page</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1547,6 +1674,15 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 </template>
 
 <style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
