@@ -710,11 +710,19 @@ const availableDates = computed(() => {
   const todayYmd = getTodayYmd()
   const lateMs = lateBookingMinutes.value * 60 * 1000
 
+  // Chuẩn Lotte Cinema: Cố định tối đa 7 ngày tới (Hôm nay -> Hôm nay + 6 ngày)
+  const maxDate = new Date()
+  maxDate.setDate(maxDate.getDate() + 6)
+  const maxYmd = `${maxDate.getFullYear()}-${String(maxDate.getMonth() + 1).padStart(2, '0')}-${String(maxDate.getDate()).padStart(2, '0')}`
+
   showtimes.value.forEach(st => {
     const d = parseToDate(st)
     if (!d) return
     const ymd = getStYmd(st)
     
+    // Bỏ qua các suất ngoài khung 7 ngày tới
+    if (ymd > maxYmd) return
+
     // Bỏ qua các suất trong quá khứ đối với ngày hôm nay (tôn trọng LATE_BOOKING_MINUTES)
     if (ymd === todayYmd) {
       if (d.getTime() >= (nowTsVal - lateMs)) dates.add(ymd)
@@ -723,7 +731,7 @@ const availableDates = computed(() => {
     }
   })
   
-  // Trả về mảng đã sắp xếp tăng dần
+  // Trả về mảng đã sắp xếp tăng dần (tối đa 7 ngày)
   return Array.from(dates).sort()
 })
 
@@ -735,30 +743,22 @@ watch(availableDates, (newDates) => {
   }
 })
 
-// 2. REFACTOR GIAO DIỆN TABS & DROPDOWN/CARD CHỌN NGÀY
+// 2. GIAO DIỆN TABS CHỌN NGÀY CHO POS (TỐI ĐA 7 NGÀY)
 const quickDateTabs = computed(() => {
-  return availableDates.value.slice(0, 3).map(ymd => {
+  return availableDates.value.slice(0, 7).map(ymd => {
     const [y, m, dNum] = ymd.split('-')
     const d = new Date(y, m - 1, dNum)
     const isToday = ymd === getTodayYmd()
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowYmd = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
-    const isTomorrow = ymd === tomorrowYmd
+    const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
     
-    let label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-    if (isToday) label = `Hôm nay (${label})`
-    else if (isTomorrow) label = `Ngày mai (${label})`
-    else {
-      const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
-      label = `${days[d.getDay()]} (${label})`
-    }
+    const dateFormatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label = isToday ? `Hôm nay (${dateFormatted})` : `${days[d.getDay()]} (${dateFormatted})`
     return { value: ymd, label }
   })
 })
 
 const otherDateOptions = computed(() => {
-  return availableDates.value.slice(3).map(ymd => {
+  return availableDates.value.slice(7).map(ymd => {
     const [y, m, dNum] = ymd.split('-')
     const d = new Date(y, m - 1, dNum)
     const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
