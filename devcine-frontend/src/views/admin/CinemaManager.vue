@@ -84,7 +84,11 @@ const {
   checkFormatMismatch,
   onDragStart,
   onDrop,
-  handlePublish
+  handlePublish,
+  prevWeek,
+  nextWeek,
+  goToday,
+  weekOffset
 } = useShowtimes(selectedCinema);
 
 const {
@@ -503,6 +507,10 @@ onUnmounted(() => {
             :get-end-time="getEndTime"
             :can-schedule="can('schedules', 'add')"
             :can-schedule-edit="can('schedules', 'edit')"
+            :week-offset="weekOffset"
+            @prev-week="prevWeek"
+            @next-week="nextWeek"
+            @go-today="goToday"
             @update:selectedDate="(d) => selectedDate = d"
             @add-showtime="handleAddShowtime"
             @open-batch="showBatchShowtimeDrawer = true"

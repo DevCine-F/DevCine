@@ -1,4 +1,4 @@
-import { ref, computed, onScopeDispose } from "vue";
+import { ref, computed, watch, onScopeDispose } from "vue";
 import axios from "@/api/axios";
 import { useToastStore } from "@/stores/toast";
 import { friendlyError } from "@/utils/friendlyError";
@@ -17,29 +17,106 @@ export function useShowtimes(selectedCinema) {
     return h * 60 + m;
   };
 
-  const generateDates = () => {
-    const today = new Date();
-    const pad = (n) => n.toString().padStart(2, '0');
-    return Array.from({ length: 5 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i - 1);
-      const dayNames = ['CN', '2', '3', '4', '5', '6', '7'];
-      const dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
-      const fullDateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      return {
-        day: i === 1 ? 'Hôm nay' : `Thứ ${dayNames[d.getDay()]}`,
-        date: dateStr,
-        fullDate: fullDateStr,
-        isToday: i === 1
-      };
-    });
+  const pad = (n) => n.toString().padStart(2, '0');
+
+  // Lấy thứ Hai của tuần chứa một ngày bất kỳ (tuần bắt đầu từ Thứ Hai: ISO 8601)
+  const getMondayOfWeek = (d) => {
+    const date = new Date(d);
+    const day = date.getDay(); // 0: CN, 1: T2, ..., 6: T7
+    const diff = day === 0 ? 6 : day - 1;
+    date.setDate(date.getDate() - diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
   };
 
-  const dates = generateDates();
-  const selectedDate = ref(dates[1].date);
-  const isToday = computed(() => selectedDate.value === dates[1].date);
+  const getTodayDateStr = () => {
+    const today = new Date();
+    return `${pad(today.getDate())}/${pad(today.getMonth() + 1)}`;
+  };
+
+  const getTodayIsoStr = () => {
+    const today = new Date();
+    return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  };
+
+  // Độ lệch tuần so với tuần hiện tại (0: tuần này, -1: tuần trước, +1: tuần sau,...)
+  const weekOffset = ref(0);
+
+  // Sinh 7 ngày trong tuần (Thứ Hai -> Chủ Nhật) theo weekOffset
+  const dates = computed(() => {
+    const today = new Date();
+    const monday = getMondayOfWeek(today);
+    monday.setDate(monday.getDate() + weekOffset.value * 7);
+
+    const dayNames = ['CN', '2', '3', '4', '5', '6', '7'];
+    const todayIso = getTodayIsoStr();
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+
+      const dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+      const fullDateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const isActualToday = fullDateStr === todayIso;
+
+      let label = '';
+      if (isActualToday) {
+        label = 'Hôm nay';
+      } else if (d.getDay() === 0) {
+        label = 'Chủ nhật';
+      } else {
+        label = `Thứ ${dayNames[d.getDay()]}`;
+      }
+
+      return {
+        day: label,
+        date: dateStr,
+        fullDate: fullDateStr,
+        isToday: isActualToday
+      };
+    });
+  });
+
+  const selectedDate = ref(getTodayDateStr());
+
+  // Đồng bộ ngày được chọn khi chuyển tuần (giữ nguyên thứ trong tuần)
+  const syncSelectedDateOnWeekChange = (prevDates) => {
+    const currentList = prevDates || dates.value;
+    const oldIndex = currentList.findIndex(d => d.date === selectedDate.value);
+    const targetIndex = oldIndex >= 0 ? oldIndex : 0;
+
+    if (dates.value[targetIndex]) {
+      selectedDate.value = dates.value[targetIndex].date;
+    }
+  };
+
+  const prevWeek = () => {
+    const current = [...dates.value];
+    weekOffset.value--;
+    syncSelectedDateOnWeekChange(current);
+  };
+
+  const nextWeek = () => {
+    const current = [...dates.value];
+    weekOffset.value++;
+    syncSelectedDateOnWeekChange(current);
+  };
+
+  const goToday = () => {
+    weekOffset.value = 0;
+    selectedDate.value = getTodayDateStr();
+  };
+
+  // Reset về hôm nay khi đổi cụm rạp
+  watch(() => selectedCinema?.value?.id, (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      weekOffset.value = 0;
+      selectedDate.value = getTodayDateStr();
+    }
+  });
+
   const selectedDateIso = computed(() => {
-    const matched = dates.find(d => d.date === selectedDate.value);
+    const matched = dates.value.find(d => d.date === selectedDate.value);
     if (matched) return matched.fullDate;
     if (selectedDate.value && selectedDate.value.includes('/')) {
       const [d, m] = selectedDate.value.split('/');
@@ -48,6 +125,8 @@ export function useShowtimes(selectedCinema) {
     }
     return selectedDate.value;
   });
+
+  const isToday = computed(() => selectedDateIso.value === getTodayIsoStr());
 
   // ===== Cửa sổ giờ hoạt động động (co giãn theo cụm rạp) =====
   // openMin/closeMin theo phút; nếu đóng ≤ mở ⇒ qua nửa đêm (closeMin += 1440).
@@ -261,6 +340,10 @@ export function useShowtimes(selectedCinema) {
     checkFormatMismatch,
     onDragStart,
     onDrop,
-    handlePublish
+    handlePublish,
+    prevWeek,
+    nextWeek,
+    goToday,
+    weekOffset
   };
 }

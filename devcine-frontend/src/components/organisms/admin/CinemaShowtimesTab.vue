@@ -60,6 +60,10 @@ const props = defineProps({
   canScheduleEdit: {
     type: Boolean,
     default: true
+  },
+  weekOffset: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -68,7 +72,10 @@ defineEmits([
   'update:selected-date',
   'add-showtime',
   'open-batch',
-  'open-showtime'
+  'open-showtime',
+  'prev-week',
+  'next-week',
+  'go-today'
 ])
 
 const PX_PER_COL = 34 // bề rộng mỗi ô 15'
@@ -94,7 +101,18 @@ const isShowtimeLocked = (st) => {
   <header
     class="flex justify-between items-center p-8 border-b border-outline-variant/10 bg-on-surface/[0.02]"
   >
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
+      <!-- Nút lùi tuần -->
+      <button
+        type="button"
+        @click="$emit('prev-week')"
+        title="Tuần trước"
+        class="w-8 h-12 rounded-xl border border-outline-variant/10 bg-surface-container-high text-on-surface-variant hover:text-primary hover:bg-white/5 flex items-center justify-center transition-all"
+      >
+        <span class="material-symbols-outlined text-base">chevron_left</span>
+      </button>
+
+      <!-- 7 nút ngày trong tuần -->
       <button
         v-for="d in dates"
         :key="d.date"
@@ -110,6 +128,27 @@ const isShowtimeLocked = (st) => {
           d.day
         }}</span>
         <span class="text-xs font-black">{{ d.date }}</span>
+      </button>
+
+      <!-- Nút tiến tuần -->
+      <button
+        type="button"
+        @click="$emit('next-week')"
+        title="Tuần sau"
+        class="w-8 h-12 rounded-xl border border-outline-variant/10 bg-surface-container-high text-on-surface-variant hover:text-primary hover:bg-white/5 flex items-center justify-center transition-all"
+      >
+        <span class="material-symbols-outlined text-base">chevron_right</span>
+      </button>
+
+      <!-- Nút Hôm nay (chỉ hiển thị khi đã chuyển sang tuần khác) -->
+      <button
+        v-if="weekOffset !== 0"
+        type="button"
+        @click="$emit('go-today')"
+        title="Về ngày hôm nay"
+        class="h-12 px-3 rounded-xl border border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 hover:border-primary flex items-center justify-center text-[9px] font-black uppercase tracking-wider transition-all ml-1"
+      >
+        Hôm nay
       </button>
     </div>
 
