@@ -60,8 +60,10 @@ const quickAccounts = [
   { label: 'Quản trị', scope: 'Toàn hệ thống', user: 'admin', pass: '123' },
   { label: 'Quản lý', scope: 'Landmark 81', user: 'ql_minh', pass: 'Manager@123' },
   { label: 'Quản lý', scope: 'Bitexco', user: 'ql_ngan', pass: 'Manager@123' },
+  { label: 'Quản lý', scope: 'Devcine HaNoi', user: 'tamnguyenthi', pass: 'DevCine@2027' },
   { label: 'Nhân viên', scope: 'Landmark 81', user: 'nv_minh', pass: 'Staff@123' },
   { label: 'Nhân viên', scope: 'Bitexco', user: 'nv_dat', pass: 'Staff@123' },
+  { label: 'Nhân viên', scope: 'Devcine HaNoi', user: 'binhle', pass: 'DevCine@2027' },
 ]
 const quickLogin = (acc) => {
   username.value = acc.user
@@ -174,7 +176,7 @@ const loginAsAdmin = async (e) => {
     <!-- Quick Access (Dev Only) -->
     <div class="absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2">
       <!-- Menu chọn vai trò đăng nhập nhanh -->
-      <div v-if="showQuickMenu" class="w-60 bg-neutral-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black">
+      <div v-if="showQuickMenu" class="w-64 bg-neutral-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black">
         <p class="px-3 pt-2.5 pb-1 text-[10px] uppercase tracking-widest text-white/40 font-bold">Đăng nhập nhanh</p>
         <button v-for="acc in quickAccounts" :key="acc.user" type="button" @click="quickLogin(acc)"
                 class="w-full flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left">
