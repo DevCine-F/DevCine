@@ -218,6 +218,42 @@ const filteredStaff = computed(() => {
   })
 })
 
+// ===== Phân trang (client-side) =====
+const pageSize = ref(10)
+const currentPage = ref(1)
+const pageSizeDropdownOpen = ref(false)
+const PAGE_SIZE_OPTIONS = [10, 20, 50]
+
+const totalPages = computed(() => {
+  return Math.ceil(filteredStaff.value.length / pageSize.value) || 1
+})
+
+const paginatedStaff = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredStaff.value.slice(start, start + pageSize.value)
+})
+
+watch([search, cinemaFilter, statusFilter], () => {
+  currentPage.value = 1
+})
+
+watch(totalPages, (newTotal) => {
+  if (currentPage.value > newTotal) {
+    currentPage.value = newTotal
+  }
+})
+
+const changePageSize = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+  pageSizeDropdownOpen.value = false
+}
+
+const goToPage = (p) => {
+  if (p < 1 || p > totalPages.value || p === currentPage.value) return
+  currentPage.value = p
+}
+
 // Thống kê số nhân viên theo cơ sở (hiển thị nhanh)
 const countByCinema = computed(() => {
   const map = {}
@@ -353,166 +389,283 @@ const toggleActive = async (person) => {
   }
 }
 
-const resetFilters = () => { search.value = ''; cinemaFilter.value = ''; statusFilter.value = 'ALL' }
+const resetFilters = () => { search.value = ''; cinemaFilter.value = ''; statusFilter.value = 'ALL'; currentPage.value = 1 }
 
 onMounted(() => { fetchStaff(); fetchCinemas() })
 </script>
 
 <template>
-  <div class="p-10">
+  <div class="h-full flex flex-col space-y-6 p-10 overflow-hidden">
     <!-- Header -->
-    <header class="flex justify-between items-start mb-8 text-on-surface gap-4 flex-wrap">
+    <div class="flex justify-between items-end flex-shrink-0">
       <div>
-        <h1 class="text-3xl font-extrabold tracking-tight font-headline uppercase">Quản lý Nhân viên</h1>
-        <p class="text-on-surface-variant text-sm mt-1">Quản lý đội ngũ vận hành trên toàn bộ cơ sở &amp; phân quyền hệ thống</p>
+        <h1 class="text-3xl font-black text-on-surface tracking-tighter uppercase italic">
+          Quản lý <span class="text-primary">Nhân viên</span>
+        </h1>
+        <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">
+          Quản lý đội ngũ vận hành trên toàn bộ cơ sở &amp; phân quyền hệ thống · {{ filteredStaff.length }} nhân viên
+        </p>
       </div>
-      <button v-if="can('staff_management', 'add')" @click="openAddModal" class="bg-primary text-on-primary font-headline font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-sm hover:brightness-110 transition-all flex items-center gap-2">
+
+      <button
+        v-if="can('staff_management', 'add')"
+        @click="openAddModal"
+        class="px-6 py-3 bg-primary hover:brightness-110 text-on-primary font-bold text-xs uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 shadow-sm"
+      >
         <span class="material-symbols-outlined text-sm">person_add</span>
-        Thêm Nhân Viên
+        Thêm nhân viên
       </button>
-    </header>
+    </div>
 
-    <!-- Toolbar lọc -->
-    <div class="flex flex-wrap items-center gap-3 mb-6">
-      <div class="relative flex-1 min-w-[220px]">
-        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
-        <input v-model="search" type="text" placeholder="Tìm theo tên, email, mã NV, SĐT..."
-               class="w-full bg-surface-container-high border-none text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 pl-10 pr-4 text-on-surface" />
+    <!-- Toolbar lọc cao cấp với Bo góc chuẩn Admin Customers -->
+    <div class="bg-surface-container-low p-3 rounded-2xl border border-outline-variant/10 flex flex-wrap items-center gap-3 shadow-xl flex-shrink-0">
+      <!-- Search Input -->
+      <div class="relative flex-grow min-w-[240px] group">
+        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">search</span>
+        <input
+          v-model="search"
+          type="text"
+          placeholder="Tìm theo tên, email, mã NV, SĐT..."
+          class="w-full h-11 bg-surface-container-highest border border-outline-variant/10 rounded-xl pl-12 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none hover:border-outline-variant/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15 transition-all"
+        />
       </div>
 
-      <select v-model="cinemaFilter" class="bg-surface-container-high border-none text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface min-w-[200px]">
-        <option value="">Tất cả cơ sở</option>
-        <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }} ({{ countByCinema[c.id] || 0 }})</option>
-      </select>
+      <!-- Select Cơ sở -->
+      <div class="relative min-w-[200px]">
+        <select
+          v-model="cinemaFilter"
+          class="w-full h-11 bg-surface-container-highest border border-outline-variant/10 rounded-xl px-4 text-xs font-semibold text-on-surface outline-none cursor-pointer hover:border-outline-variant/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15 transition-all shadow-sm"
+        >
+          <option value="">Tất cả cơ sở</option>
+          <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }} ({{ countByCinema[c.id] || 0 }})</option>
+        </select>
+      </div>
 
-      <select v-model="statusFilter" class="bg-surface-container-high border-none text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface">
-        <option value="ALL">Mọi trạng thái</option>
-        <option value="ACTIVE">Đang làm việc</option>
-        <option value="INACTIVE">Đã tạm ngưng</option>
-      </select>
+      <!-- Select Trạng thái -->
+      <div class="relative min-w-[170px]">
+        <select
+          v-model="statusFilter"
+          class="w-full h-11 bg-surface-container-highest border border-outline-variant/10 rounded-xl px-4 text-xs font-semibold text-on-surface outline-none cursor-pointer hover:border-outline-variant/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15 transition-all shadow-sm"
+        >
+          <option value="ALL">Mọi trạng thái</option>
+          <option value="ACTIVE">Đang làm việc</option>
+          <option value="INACTIVE">Đã tạm ngưng</option>
+        </select>
+      </div>
 
-      <button v-if="search || cinemaFilter || statusFilter !== 'ALL'" @click="resetFilters"
-              class="text-xs font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors px-3 py-2.5 flex items-center gap-1 rounded-sm">
+      <!-- Reset Filter Button -->
+      <button
+        v-if="search || cinemaFilter || statusFilter !== 'ALL'"
+        @click="resetFilters"
+        class="text-xs font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors px-3 h-11 flex items-center gap-1 rounded-xl"
+      >
         <span class="material-symbols-outlined text-sm">filter_alt_off</span> Bỏ lọc
       </button>
     </div>
 
-    <!-- Bảng -->
-    <section class="bg-surface-container-low border border-outline-variant/10 rounded-sm overflow-hidden">
-      <table class="w-full text-left border-collapse">
-        <thead>
-          <tr class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant border-b border-outline-variant/10">
-            <th class="px-8 py-5">Nhân viên</th>
-            <th class="px-8 py-5">Mã NV</th>
-            <th class="px-8 py-5">Cơ sở</th>
-            <th class="px-8 py-5">Vai trò</th>
-            <th class="px-8 py-5">Ngày gia nhập</th>
-            <th class="px-8 py-5">Trạng thái</th>
-            <th class="px-8 py-5 text-right">Thao tác</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-outline-variant/10 text-on-surface">
-          <!-- Loading skeleton -->
-          <template v-if="isLoading">
-            <tr v-for="i in 4" :key="`sk-${i}`">
-              <td colspan="7" class="px-8 py-4">
-                <div class="h-10 bg-surface-container-highest rounded animate-pulse"></div>
+    <!-- Bảng dữ liệu: Bo góc rounded-2xl, flex-1 min-h-0 giới hạn chiều cao nội dung cuộn bên trong -->
+    <section class="bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden shadow-xl flex flex-col flex-1 min-h-0">
+      <div class="overflow-x-auto flex-1 min-h-0 overflow-y-auto">
+        <table class="w-full text-left border-collapse min-w-[950px]">
+          <thead class="sticky top-0 z-10 bg-surface-container-highest/80 backdrop-blur-md">
+            <tr class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant border-b border-outline-variant/10 select-none">
+              <th class="px-6 py-3.5">Nhân viên</th>
+              <th class="px-6 py-3.5">Mã NV</th>
+              <th class="px-6 py-3.5">Cơ sở</th>
+              <th class="px-6 py-3.5">Vai trò</th>
+              <th class="px-6 py-3.5">Ngày gia nhập</th>
+              <th class="px-6 py-3.5">Trạng thái</th>
+              <th class="px-6 py-3.5 text-right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/10 text-on-surface">
+            <!-- Loading skeleton -->
+            <template v-if="isLoading">
+              <tr v-for="i in 5" :key="`sk-${i}`">
+                <td colspan="7" class="px-6 py-3.5">
+                  <div class="h-9 bg-surface-container-highest rounded animate-pulse"></div>
+                </td>
+              </tr>
+            </template>
+
+            <!-- Dữ liệu -->
+            <template v-else-if="filteredStaff.length">
+              <tr v-for="person in paginatedStaff" :key="person.userId" class="group hover:bg-white/5 transition-all">
+                <td class="px-6 py-3">
+                  <div class="flex items-center gap-3">
+                    <img v-if="person.avatarUrl" :src="person.avatarUrl" class="w-9 h-9 rounded-full object-cover" alt="" />
+                    <div v-else class="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold uppercase text-xs">
+                      {{ (person.fullName || '?').charAt(0) }}
+                    </div>
+                    <div>
+                      <p class="font-bold text-sm uppercase tracking-tight group-hover:text-primary transition-colors flex items-center gap-2">
+                        {{ person.fullName }}
+                        <span v-if="isSelf(person)" class="text-[9px] px-1.5 py-0.5 rounded-sm bg-primary/20 text-primary font-bold tracking-normal">BẠN</span>
+                      </p>
+                      <p class="text-[10px] text-on-surface-variant mt-0.5">{{ person.email || '—' }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-3">
+                  <span class="text-xs font-mono text-on-surface-variant">{{ person.staffCode || '—' }}</span>
+                </td>
+                <td class="px-6 py-3">
+                  <span v-if="person.cinemaName" class="inline-flex items-center gap-1.5 text-xs font-semibold">
+                    <span class="material-symbols-outlined text-sm text-primary/70">location_on</span>{{ person.cinemaName }}
+                  </span>
+                  <span v-else class="text-xs text-on-surface-variant/60 italic">Chưa gán cơ sở</span>
+                </td>
+                <td class="px-6 py-3">
+                  <span class="text-xs font-semibold">{{ roleLabel(person.role) }}</span>
+                </td>
+                <td class="px-6 py-3">
+                  <span class="text-xs text-on-surface-variant">{{ formatDate(person.joinDate) }}</span>
+                </td>
+                <td class="px-6 py-3">
+                  <span :class="person.isActive ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'" class="px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-tighter">
+                    {{ person.isActive ? 'Đang làm việc' : 'Đã tạm ngưng' }}
+                  </span>
+                </td>
+                <td class="px-6 py-3 text-right">
+                  <div class="flex justify-end gap-1 items-center">
+                    <!-- Nút Sửa: Chỉ hiện khi có quyền sửa (bản thân hoặc cấp dưới) -->
+                    <button v-if="can('staff_management', 'edit') && canEditPerson(person)"
+                            @click="openEditModal(person)"
+                            :title="editPersonTitle(person)"
+                            class="p-2 rounded-lg text-on-surface-variant hover:text-white hover:bg-white/10 transition-colors">
+                      <span class="material-symbols-outlined text-base">edit</span>
+                    </button>
+
+                    <!-- Nút Toggle: Chỉ hiện khi có quyền đổi trạng thái (chỉ cấp dưới, không hiện cho bản thân hoặc cùng cấp) -->
+                    <button v-if="can('staff_management', 'edit') && canTogglePerson(person)"
+                            @click="toggleActive(person)"
+                            :title="togglePersonTitle(person)"
+                            class="p-2 rounded-lg transition-colors"
+                            :class="person.isActive ? 'text-on-surface-variant hover:text-rose-400 hover:bg-rose-500/10' : 'text-rose-400 hover:text-emerald-400 hover:bg-emerald-500/10'">
+                      <span class="material-symbols-outlined text-base">{{ person.isActive ? 'toggle_on' : 'toggle_off' }}</span>
+                    </button>
+
+                    <!-- Dấu gạch ngang khi không có quyền thao tác nào (nhân sự cùng cấp hoặc cấp cao hơn) -->
+                    <span v-if="!canEditPerson(person) && !canTogglePerson(person)"
+                          class="text-on-surface-variant/40 text-xs px-2 select-none"
+                          title="Không có quyền thao tác trên tài khoản này">—</span>
+                  </div>
+                </td>
+              </tr>
+            </template>
+
+            <!-- Error -->
+            <tr v-else-if="loadError">
+              <td colspan="7" class="px-8 py-16 text-center">
+                <span class="material-symbols-outlined text-4xl text-red-500/60 mb-2">error</span>
+                <p class="text-on-surface-variant font-semibold">Không tải được danh sách nhân viên.</p>
+                <button @click="fetchStaff" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Thử lại</button>
               </td>
             </tr>
-          </template>
 
-          <!-- Dữ liệu -->
-          <template v-else-if="filteredStaff.length">
-            <tr v-for="person in filteredStaff" :key="person.userId" class="group hover:bg-white/5 transition-all">
-            <td class="px-8 py-4">
-              <div class="flex items-center gap-4">
-                <img v-if="person.avatarUrl" :src="person.avatarUrl" class="w-10 h-10 rounded-full object-cover" alt="" />
-                <div v-else class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold uppercase">
-                  {{ (person.fullName || '?').charAt(0) }}
-                </div>
-                <div>
-                  <p class="font-bold text-sm uppercase tracking-tight group-hover:text-primary transition-colors flex items-center gap-2">
-                    {{ person.fullName }}
-                    <span v-if="isSelf(person)" class="text-[9px] px-1.5 py-0.5 rounded-sm bg-primary/20 text-primary font-bold tracking-normal">BẠN</span>
-                  </p>
-                  <p class="text-[10px] text-on-surface-variant mt-0.5">{{ person.email || '—' }}</p>
-                </div>
-              </div>
-            </td>
-            <td class="px-8 py-4">
-              <span class="text-xs font-mono text-on-surface-variant">{{ person.staffCode || '—' }}</span>
-            </td>
-            <td class="px-8 py-4">
-              <span v-if="person.cinemaName" class="inline-flex items-center gap-1.5 text-xs font-semibold">
-                <span class="material-symbols-outlined text-sm text-primary/70">location_on</span>{{ person.cinemaName }}
-              </span>
-              <span v-else class="text-xs text-on-surface-variant/60 italic">Chưa gán cơ sở</span>
-            </td>
-            <td class="px-8 py-4">
-              <span class="text-xs font-semibold">{{ roleLabel(person.role) }}</span>
-            </td>
-            <td class="px-8 py-4">
-              <span class="text-xs text-on-surface-variant">{{ formatDate(person.joinDate) }}</span>
-            </td>
-            <td class="px-8 py-4">
-              <span :class="person.isActive ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'" class="px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-tighter">
-                {{ person.isActive ? 'Đang làm việc' : 'Đã tạm ngưng' }}
-              </span>
-            </td>
-            <td class="px-8 py-4 text-right">
-              <div class="flex justify-end gap-2 items-center">
-                <!-- Nút Sửa: Chỉ hiện khi có quyền sửa (bản thân hoặc cấp dưới) -->
-                <button v-if="can('staff_management', 'edit') && canEditPerson(person)"
-                        @click="openEditModal(person)"
-                        :title="editPersonTitle(person)"
-                        class="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant">
-                  <span class="material-symbols-outlined text-sm">edit</span>
-                </button>
-
-                <!-- Nút Toggle: Chỉ hiện khi có quyền đổi trạng thái (chỉ cấp dưới, không hiện cho bản thân hoặc cùng cấp) -->
-                <button v-if="can('staff_management', 'edit') && canTogglePerson(person)"
-                        @click="toggleActive(person)"
-                        :title="togglePersonTitle(person)"
-                        class="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant">
-                  <span class="material-symbols-outlined text-sm">{{ person.isActive ? 'toggle_on' : 'toggle_off' }}</span>
-                </button>
-
-                <!-- Dấu gạch ngang khi không có quyền thao tác nào (nhân sự cùng cấp hoặc cấp cao hơn) -->
-                <span v-if="!canEditPerson(person) && !canTogglePerson(person)"
-                      class="text-on-surface-variant/40 text-xs px-2 select-none"
-                      title="Không có quyền thao tác trên tài khoản này">—</span>
-              </div>
-            </td>
+            <!-- Empty -->
+            <tr v-else>
+              <td colspan="7" class="px-8 py-16 text-center">
+                <span class="material-symbols-outlined text-4xl text-outline-variant mb-2">group_off</span>
+                <p class="text-on-surface-variant font-semibold">
+                  {{ staff.length ? 'Không có nhân viên khớp bộ lọc.' : 'Chưa có nhân viên nào.' }}
+                </p>
+                <button v-if="staff.length" @click="resetFilters" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Bỏ lọc</button>
+                <button v-else-if="can('staff_management', 'add')" @click="openAddModal" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Thêm nhân viên đầu tiên</button>
+              </td>
             </tr>
-          </template>
+          </tbody>
+        </table>
+      </div>
 
-          <!-- Error -->
-          <tr v-else-if="loadError">
-            <td colspan="7" class="px-8 py-16 text-center">
-              <span class="material-symbols-outlined text-4xl text-red-500/60 mb-2">error</span>
-              <p class="text-on-surface-variant font-semibold">Không tải được danh sách nhân viên.</p>
-              <button @click="fetchStaff" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Thử lại</button>
-            </td>
-          </tr>
+      <!-- Pagination & Footer với Custom Page Size Dropdown -->
+      <div class="p-4 bg-surface-container-highest/30 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-outline-variant/10 flex-shrink-0">
+        <!-- Page size selector & Summary text -->
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span>Hiển thị:</span>
 
-          <!-- Empty -->
-          <tr v-else>
-            <td colspan="7" class="px-8 py-16 text-center">
-              <span class="material-symbols-outlined text-4xl text-outline-variant mb-2">group_off</span>
-              <p class="text-on-surface-variant font-semibold">
-                {{ staff.length ? 'Không có nhân viên khớp bộ lọc.' : 'Chưa có nhân viên nào.' }}
-              </p>
-              <button v-if="staff.length" @click="resetFilters" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Bỏ lọc</button>
-              <button v-else-if="can('staff_management', 'add')" @click="openAddModal" class="mt-3 text-xs font-bold uppercase tracking-widest text-primary hover:underline">Thêm nhân viên đầu tiên</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            <!-- Custom Page Size Dropdown -->
+            <div class="relative">
+              <button
+                type="button"
+                @click="pageSizeDropdownOpen = !pageSizeDropdownOpen"
+                class="h-8 bg-surface-container-highest border rounded-lg px-2.5 text-xs font-bold font-mono text-on-surface outline-none cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
+                :class="pageSizeDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+              >
+                <span>{{ pageSize }}</span>
+                <span class="material-symbols-outlined text-sm text-on-surface-variant transition-transform duration-200" :class="{ 'rotate-180': pageSizeDropdownOpen }">expand_more</span>
+              </button>
+
+              <div v-if="pageSizeDropdownOpen" class="fixed inset-0 z-[55]" @click="pageSizeDropdownOpen = false"></div>
+
+              <transition name="fade">
+                <div v-if="pageSizeDropdownOpen" class="absolute bottom-full left-0 mb-1.5 w-24 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
+                  <button
+                    v-for="size in PAGE_SIZE_OPTIONS"
+                    :key="size"
+                    type="button"
+                    @click="changePageSize(size)"
+                    class="w-full flex items-center justify-between px-3 py-2 text-xs font-mono transition-colors"
+                    :class="pageSize === size ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+                  >
+                    <span>{{ size }}</span>
+                    <span v-if="pageSize === size" class="material-symbols-outlined text-sm text-primary">check</span>
+                  </button>
+                </div>
+              </transition>
+            </div>
+
+            <span>dòng/trang</span>
+          </div>
+          <span class="hidden md:inline text-on-surface-variant/40">|</span>
+          <span>
+            Tổng: <strong class="text-primary">{{ filteredStaff.length.toLocaleString('vi-VN') }}</strong> nhân viên
+          </span>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="flex items-center gap-1">
+          <button
+            @click="goToPage(1)"
+            :disabled="currentPage === 1 || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang đầu"
+          >
+            <span class="material-symbols-outlined text-base">first_page</span>
+          </button>
+          <button
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage === 1 || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang trước"
+          >
+            <span class="material-symbols-outlined text-base">chevron_left</span>
+          </button>
+
+          <span class="px-3 py-1 bg-surface-container-highest rounded-lg font-mono font-bold text-primary text-xs">
+            {{ currentPage }} / {{ totalPages }}
+          </span>
+
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="currentPage === totalPages || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang sau"
+          >
+            <span class="material-symbols-outlined text-base">chevron_right</span>
+          </button>
+          <button
+            @click="goToPage(totalPages)"
+            :disabled="currentPage === totalPages || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang cuối"
+          >
+            <span class="material-symbols-outlined text-base">last_page</span>
+          </button>
+        </div>
+      </div>
     </section>
-
-    <p v-if="!isLoading && filteredStaff.length" class="text-[11px] text-on-surface-variant mt-3">
-      Hiển thị {{ filteredStaff.length }}/{{ staff.length }} nhân viên
-    </p>
 
     <!-- Modal thêm/sửa -->
     <AppModal :show="isModalOpen" :title="editingId ? (isEditingSelf ? 'Sửa thông tin cá nhân' : 'Sửa nhân viên') : 'Thêm nhân viên mới'" @close="closeModal">
@@ -624,3 +777,15 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
     </AppModal>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>
