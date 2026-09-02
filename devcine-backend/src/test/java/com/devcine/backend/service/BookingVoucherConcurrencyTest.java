@@ -60,6 +60,7 @@ class BookingVoucherConcurrencyTest {
     @Mock StringRedisTemplate redisTemplate;
     @Mock SimpMessagingTemplate messagingTemplate;
     @Mock ValueOperations<String, String> valueOperations;
+    @Mock VoucherHoldLeaseService voucherHoldLeaseService;
 
     @InjectMocks
     BookingService bookingService;

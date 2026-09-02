@@ -52,6 +52,8 @@ export const voucherApi = {
   applyCode: (customerId, code) => api.post('/vouchers/apply', null, { params: { customerId, code } }),
   // Chấm điều kiện + số giảm thực của voucher theo giỏ hàng hiện tại (làm mờ mã không đủ điều kiện)
   preview: (payload) => api.post('/vouchers/preview', payload),
+  holdLease: (payload) => api.post('/vouchers/hold-lease', payload),
+  releaseLease: (payload) => api.post('/vouchers/release-lease', payload),
 };
 
 export const customerApi = {

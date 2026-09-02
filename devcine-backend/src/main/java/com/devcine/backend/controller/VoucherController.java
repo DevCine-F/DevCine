@@ -28,6 +28,7 @@ public class VoucherController {
     private final PromotionRepository promotionRepository;
     private final VoucherService voucherService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.devcine.backend.service.VoucherHoldLeaseService voucherHoldLeaseService;
 
     private void notifyVoucherUpdate(String action) {
         try {
@@ -248,6 +249,42 @@ public class VoucherController {
             )));
         } catch (RuntimeException ex) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
+        }
+    }
+
+    /** Khóa tạm thời voucher cho phiên POS hoặc Online (Redis Voucher Lease) */
+    @PostMapping("/hold-lease")
+    public ResponseEntity<?> holdLease(@RequestBody Map<String, Object> req) {
+        try {
+            Integer voucherId = req.get("voucherId") != null ? Integer.valueOf(req.get("voucherId").toString()) : null;
+            String channel = req.get("channel") != null ? req.get("channel").toString() : "ONLINE";
+            String sessionId = req.get("sessionId") != null ? req.get("sessionId").toString() : "";
+            Integer customerId = req.get("customerId") != null ? Integer.valueOf(req.get("customerId").toString()) : null;
+            long ttlSeconds = req.get("ttlSeconds") != null ? Long.parseLong(req.get("ttlSeconds").toString()) : 600;
+
+            boolean success = voucherHoldLeaseService.acquire(voucherId, channel, sessionId, customerId, ttlSeconds);
+            if (success) {
+                return ResponseEntity.ok(ApiResponse.ok(Map.of("held", true, "voucherId", voucherId)));
+            } else {
+                return ResponseEntity.badRequest().body(ApiResponse.fail("Không thể giữ mã ưu đãi."));
+            }
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail("Lỗi hệ thống khi giữ mã: " + ex.getMessage()));
+        }
+    }
+
+    /** Giải phóng khóa tạm thời voucher khi bỏ chọn hoặc đổi mã */
+    @PostMapping("/release-lease")
+    public ResponseEntity<?> releaseLease(@RequestBody Map<String, Object> req) {
+        try {
+            Integer voucherId = req.get("voucherId") != null ? Integer.valueOf(req.get("voucherId").toString()) : null;
+            String sessionId = req.get("sessionId") != null ? req.get("sessionId").toString() : null;
+            boolean released = voucherHoldLeaseService.release(voucherId, sessionId);
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("released", released)));
+        } catch (Exception ex) {
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("released", false)));
         }
     }
 }

@@ -5,6 +5,7 @@ import { voucherApi } from '@/api/customer/index'
 import AppButton from '../../components/common/AppButton.vue'
 import SeatGridRenderer from '@/components/common/SeatGridRenderer.vue'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
+import { useVoucherRealtime } from '@/composables/useVoucherRealtime'
 import { useSeatGridRender } from '@/composables/useSeatGridRender'
 import { useOrphanSeatCheck } from '@/composables/useOrphanSeatCheck'
 import { useToastStore } from '@/stores/toast'
@@ -66,11 +67,27 @@ const lockedPriceTable = ref(null)
 const lockedCombosPrices = ref(null)
 
 // Voucher tại quầy — chỉ dùng sau khi tra cứu thành viên (voucher gắn với khách hàng)
+const posVoucherSessionId = ref('POS_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7))
 const voucherCodeInput = ref('')
 const appliedVoucher = ref(null) // { id, code, discountType, discountValue }
 const ownedVouchers = ref([])
 const isApplyingVoucher = ref(false)
 const voucherError = ref('')
+
+const voucherRealtime = useVoucherRealtime({
+  onVoucherChange: async (ev) => {
+    if (member.value?.customerId && (!ev.customerId || ev.customerId === member.value.customerId)) {
+      if (ev.sessionId !== posVoucherSessionId.value) {
+        await loadOwnedVouchers()
+        if (appliedVoucher.value && ev.action === 'VOUCHER_LEASE_ACQUIRED' && ev.voucherId === appliedVoucher.value.id) {
+          clearVoucher()
+          voucherError.value = ev.reason || 'Mã ưu đãi đang được áp dụng tại phiên giao dịch khác.'
+          showToast(voucherError.value, 'warning')
+        }
+      }
+    }
+  }
+})
 
 // Thanh toán: tài khoản nhận tiền (QR) + modal tiền mặt / QR
 const bankInfo = ref({ code: '', name: '', accountNo: '', accountName: '' })
@@ -1512,6 +1529,7 @@ const checkMemberCard = async () => {
   try {
     const { data } = await ticketingApi.memberCard(cardNumberInput.value.trim())
     member.value = data.data ?? data
+    voucherRealtime.subscribeCustomer(member.value.customerId)
     loadOwnedVouchers() // bật danh sách voucher của khách sau khi tra cứu thành công
   } catch (err) {
     cardError.value = err.response?.data?.error || 'Không tìm thấy thẻ thành viên.'
@@ -1520,7 +1538,16 @@ const checkMemberCard = async () => {
     isCheckingCard.value = false
   }
 }
-const clearMember = () => { member.value = null; cardNumberInput.value = ''; cardError.value = ''; clearVoucherState() }
+const clearMember = () => {
+  if (appliedVoucher.value?.id) {
+    voucherApi.releaseLease({ voucherId: appliedVoucher.value.id, sessionId: posVoucherSessionId.value }).catch(() => {})
+  }
+  voucherRealtime.disconnect()
+  member.value = null
+  cardNumberInput.value = ''
+  cardError.value = ''
+  clearVoucherState()
+}
 
 const formatMemberPhone = (p) => {
   if (!p) return ''
@@ -1544,6 +1571,9 @@ const voucherEvals = ref({})
 const isVoucherEvalsReady = ref(false)
 
 const clearVoucherState = () => {
+  if (appliedVoucher.value?.id) {
+    voucherApi.releaseLease({ voucherId: appliedVoucher.value.id, sessionId: posVoucherSessionId.value }).catch(() => {})
+  }
   appliedVoucher.value = null
   voucherCodeInput.value = ''
   ownedVouchers.value = []
@@ -1553,6 +1583,9 @@ const clearVoucherState = () => {
 }
 
 const clearVoucher = () => {
+  if (appliedVoucher.value?.id) {
+    voucherApi.releaseLease({ voucherId: appliedVoucher.value.id, sessionId: posVoucherSessionId.value }).catch(() => {})
+  }
   appliedVoucher.value = null
   voucherCodeInput.value = ''
   voucherError.value = ''
@@ -1589,7 +1622,8 @@ const fetchPosVoucherEvals = async () => {
       customerId: member.value.customerId,
       movieId: movieId,
       seatPrices: seatPrices,
-      fnbTotal: fnbTotal
+      fnbTotal: fnbTotal,
+      sessionId: posVoucherSessionId.value
     })
 
     const resList = Array.isArray(data) ? data : (data?.data ?? [])
@@ -1643,6 +1677,26 @@ const applyVoucher = async () => {
       appliedVoucher.value = null
       voucherError.value = `Đã lưu mã vào ví! ${ev.reason || 'Đơn chưa đủ điều kiện để áp dụng ngay.'}`
     } else {
+      // Khóa voucher trên Redis cho phiên POS trước khi áp dụng
+      try {
+        if (appliedVoucher.value?.id) {
+          await voucherApi.releaseLease({ voucherId: appliedVoucher.value.id, sessionId: posVoucherSessionId.value })
+        }
+        await voucherApi.holdLease({
+          voucherId: data.id,
+          channel: 'POS',
+          sessionId: posVoucherSessionId.value,
+          customerId: member.value.customerId,
+          ttlSeconds: 900
+        })
+      } catch (leaseErr) {
+        appliedVoucher.value = null
+        voucherError.value = friendlyError(leaseErr, 'Mã ưu đãi đang được giữ trong một phiên giao dịch khác.')
+        showToast(voucherError.value, 'error')
+        await loadOwnedVouchers()
+        return
+      }
+
       appliedVoucher.value = {
         id: data.id,
         code: data.code,
@@ -1662,7 +1716,7 @@ const applyVoucher = async () => {
   }
 }
 
-const selectVoucher = (v) => {
+const selectVoucher = async (v) => {
   const ev = voucherEvals.value[v.id]
   if (ev && !ev.applicable) {
     voucherError.value = ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.'
@@ -1673,6 +1727,26 @@ const selectVoucher = (v) => {
     clearVoucher()
     return
   }
+
+  // Khóa voucher trên Redis cho phiên POS trước khi áp dụng
+  try {
+    if (appliedVoucher.value?.id) {
+      await voucherApi.releaseLease({ voucherId: appliedVoucher.value.id, sessionId: posVoucherSessionId.value })
+    }
+    await voucherApi.holdLease({
+      voucherId: v.id,
+      channel: 'POS',
+      sessionId: posVoucherSessionId.value,
+      customerId: member.value.customerId,
+      ttlSeconds: 900
+    })
+  } catch (err) {
+    voucherError.value = friendlyError(err, 'Mã ưu đãi đang được giữ trong một phiên giao dịch khác.')
+    showToast(voucherError.value, 'error')
+    await loadOwnedVouchers()
+    return
+  }
+
   appliedVoucher.value = {
     id: v.id,
     code: v.code || ev?.code || v.promotion?.code,
@@ -1691,6 +1765,9 @@ const showIneligibleVouchers = ref(false)
 const openVoucherModal = () => {
   isVoucherModalOpen.value = true
   voucherError.value = ''
+  if (member.value?.customerId) {
+    loadOwnedVouchers()
+  }
 }
 const closeVoucherModal = () => {
   isVoucherModalOpen.value = false
@@ -2245,6 +2322,7 @@ const resetPOS = () => {
   lockedPriceTable.value = null // ── Nhả lock snapshot giá vé khi bắt đầu phiên mới ──
   lockedCombosPrices.value = null // ── Nhả lock snapshot giá catalog F&B ──
   clearVoucherState()
+  posVoucherSessionId.value = 'POS_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)
   fetchData()
 }
 
@@ -2277,6 +2355,10 @@ onUnmounted(() => {
   if (nowTimer) clearInterval(nowTimer)
   stopHoldTimer()
   seatRealtime.disconnect()
+  voucherRealtime.disconnect()
+  if (appliedVoucher.value?.id) {
+    voucherApi.releaseLease({ voucherId: appliedVoucher.value.id, sessionId: posVoucherSessionId.value }).catch(() => {})
+  }
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
 </script>
@@ -3639,9 +3721,21 @@ onUnmounted(() => {
                 <span class="text-primary">{{ eligibleVouchers.length }} voucher khả dụng</span>
               </p>
             </div>
-            <button @click="closeVoucherModal" type="button" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors cursor-pointer">
-              <span class="material-symbols-outlined text-xl">close</span>
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+              <button 
+                @click="loadOwnedVouchers" 
+                :disabled="!isVoucherEvalsReady" 
+                type="button" 
+                title="Làm mới danh sách voucher"
+                class="h-8 px-2.5 flex items-center gap-1.5 rounded-sm border border-outline-variant/20 hover:border-primary/40 hover:bg-white/5 text-on-surface-variant hover:text-primary transition-all text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                <span class="material-symbols-outlined text-base" :class="{ 'animate-spin': !isVoucherEvalsReady }">sync</span>
+                <span>Làm mới</span>
+              </button>
+              <button @click="closeVoucherModal" type="button" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors cursor-pointer">
+                <span class="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
           </div>
 
           <!-- Body Modal (Cuộn độc lập) -->

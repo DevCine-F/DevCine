@@ -46,6 +46,7 @@ public class BookingService {
     private final SeatLayoutSnapshotService seatLayoutSnapshotService;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    private final VoucherHoldLeaseService voucherHoldLeaseService;
 
     @Transactional
     public Booking holdSeats(BookingRequestDTO request) {
@@ -664,6 +665,7 @@ public class BookingService {
                 // Voucher đã bị đánh dấu sử dụng bởi một đơn hàng khác (xung đột đồng thời / double-spending)
                 throw new RuntimeException("Mã ưu đãi đã được sử dụng trong một đơn hàng khác. Không thể hoàn tất thanh toán.");
             }
+            voucherHoldLeaseService.release(v.getId(), null);
 
             // Load Promotion FRESH từ DB — không dùng v.getPromotion() vì lazy association có thể stale
             // do persistence context cache từ transaction trước, dẫn đến đọc usedCount cũ.

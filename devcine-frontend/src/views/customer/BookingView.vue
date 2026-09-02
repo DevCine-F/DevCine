@@ -8,6 +8,7 @@ import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
 import { formatComboTitle } from '@/utils/format'
 import { useSeatRealtime } from '@/composables/useSeatRealtime'
+import { useVoucherRealtime } from '@/composables/useVoucherRealtime'
 import { useSeatGridRender } from '@/composables/useSeatGridRender'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import FnbOptionModal from '@/components/FnbOptionModal.vue'
@@ -18,6 +19,24 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToastStore()
+
+const onlineVoucherSessionId = computed(() => store.bookingId ? String(store.bookingId) : `ONLINE_${authStore.user?.id || 'ANON'}`)
+
+const voucherRealtime = useVoucherRealtime({
+  onVoucherChange: async (ev) => {
+    if (authStore.user?.id && (!ev.customerId || ev.customerId === authStore.user.id)) {
+      if (ev.sessionId !== onlineVoucherSessionId.value) {
+        await refreshVouchers()
+        await fetchVoucherEvals()
+        if (store.selectedVoucher && ev.action === 'VOUCHER_LEASE_ACQUIRED' && ev.voucherId === store.selectedVoucher.id) {
+          removeVoucher()
+          voucherError.value = ev.reason || 'Mã ưu đãi đang được áp dụng tại quầy thu ngân.'
+          toast.warning(voucherError.value)
+        }
+      }
+    }
+  }
+})
 
 // ===== Khóa ghế real-time (WebSocket/STOMP) — đồng bộ với quầy POS & khách online khác =====
 const seatRealtime = useSeatRealtime({
@@ -241,6 +260,17 @@ const goNext = async () => {
       return;
     }
   }
+  if (currentStep.value === 3) {
+    // Trước khi sang Bước 4 (Thanh toán), kiểm tra chắc chắn đơn và voucher đã được DB xác nhận re-hold
+    const ok = await ensureHeld();
+    if (!ok) {
+      removeVoucher();
+      voucherError.value = friendlyError(store.lastHoldError, 'Không thể áp dụng mã ưu đãi này.');
+      toast.error(voucherError.value);
+      await fetchVoucherEvals();
+      return; // Chặn lại ở Bước 3
+    }
+  }
   if (currentStep.value < steps.length) {
     currentStep.value++;
     scrollTop();
@@ -275,6 +305,16 @@ const goToStep = async (id) => {
       return;
     }
   }
+  if (currentStep.value === 3 && id > 3) {
+    const ok = await ensureHeld();
+    if (!ok) {
+      removeVoucher();
+      voucherError.value = friendlyError(store.lastHoldError, 'Không thể áp dụng mã ưu đãi này.');
+      toast.error(voucherError.value);
+      await fetchVoucherEvals();
+      return;
+    }
+  }
   currentStep.value = id;
   scrollTop();
 };
@@ -300,6 +340,7 @@ const ensureHeld = async () => {
 }
 watch(currentStep, async (s) => {
   if (s === 3) {
+    await refreshVouchers()
     await fetchVoucherEvals()
   }
   if (s === 4) {
@@ -389,12 +430,17 @@ const handleVisibilityChange = () => {
     nowTs.value = Date.now()
     if (holdExpiredNow()) {
       handleHoldExpired()
+    } else if (currentStep.value === 3) {
+      refreshVouchers().then(() => fetchVoucherEvals())
     }
   }
 }
 
 onMounted(async () => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  if (authStore.user?.id) {
+    voucherRealtime.subscribeCustomer(authStore.user.id)
+  }
   if (store.selectedShowtime?.startTime) {
     const stTime = new Date(store.selectedShowtime.startTime).getTime()
     if (stTime <= Date.now()) {
@@ -416,6 +462,10 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   if (countdownTimer) clearInterval(countdownTimer)
   seatRealtime.disconnect() // rời trang → nhả khóa ghế + ngắt WebSocket
+  voucherRealtime.disconnect() // ngắt WebSocket đồng bộ voucher
+  if (store.selectedVoucher?.id) {
+    voucherApi.releaseLease({ voucherId: store.selectedVoucher.id, sessionId: onlineVoucherSessionId.value }).catch(() => {})
+  }
 })
 
 // Tạm tính riêng phần ghế (đã gồm giá theo đối tượng) để hiển thị ở sidebar.
@@ -694,7 +744,9 @@ const fetchVoucherEvals = async () => {
       customerId: authStore.user.id,
       movieId: store.selectedMovie?.id ?? null,
       seatPrices,
-      fnbTotal
+      fnbTotal,
+      heldBookingId: store.bookingId || null,
+      sessionId: onlineVoucherSessionId.value
     })
     const map = {}
     for (const e of data) map[e.voucherId] = e
@@ -747,26 +799,58 @@ const applyVoucherCode = async () => {
       discountAmount.value = 0
       voucherSuccess.value = ''
       voucherError.value = `Đã lưu mã vào ví! ${ev.reason || 'Đơn chưa đủ điều kiện để áp dụng ngay.'}`
+      toast.warning(voucherError.value)
     } else {
+      try {
+        if (store.selectedVoucher?.id) {
+          await voucherApi.releaseLease({ voucherId: store.selectedVoucher.id, sessionId: onlineVoucherSessionId.value })
+        }
+        await voucherApi.holdLease({
+          voucherId: data.id,
+          channel: 'ONLINE',
+          sessionId: onlineVoucherSessionId.value,
+          customerId: authStore.user.id,
+          ttlSeconds: 600
+        })
+      } catch (leaseErr) {
+        removeVoucher()
+        voucherError.value = friendlyError(leaseErr, 'Mã ưu đãi đang được áp dụng tại quầy thu ngân.')
+        toast.error(voucherError.value)
+        await fetchVoucherEvals()
+        return
+      }
+
       store.selectedVoucher = data
       discountAmount.value = ev ? Number(ev.discountAmount || 0) : (calculateDiscount(), discountAmount.value)
       voucherSuccess.value = appliedSuccessText(discountAmount.value)
       voucherError.value = ''
+
+      // Kích hoạt re-hold ngay tại bước 3 để lock voucher trong DB và báo lỗi NGAY LẬP TỨC nếu có xung đột
+      held.value = false
+      const ok = await ensureHeld()
+      if (!ok) {
+        removeVoucher()
+        voucherError.value = friendlyError(store.lastHoldError, 'Mã ưu đãi đang được giữ trong một phiên giao dịch khác.')
+        toast.error(voucherError.value)
+        await fetchVoucherEvals()
+      }
     }
   } catch (err) {
     store.selectedVoucher = null
     discountAmount.value = 0
     voucherError.value = friendlyError(err, 'Mã giảm giá không hợp lệ!')
+    toast.error(voucherError.value)
   } finally {
     isApplyingVoucher.value = false
   }
 }
 
-const selectVoucher = (v) => {
+const selectVoucher = async (v) => {
   const ev = voucherEvals.value[v.id]
   if (ev && !ev.applicable) {
     voucherSuccess.value = ''
     voucherError.value = ev.reason || 'Đơn không đủ điều kiện để áp dụng mã này.'
+    toast.error(voucherError.value)
     return
   }
   // Toggle: nếu click lại vào chính voucher đang chọn thì bỏ chọn
@@ -774,6 +858,27 @@ const selectVoucher = (v) => {
     removeVoucher()
     return
   }
+
+  // Khóa voucher trên Redis (Lease) cho phiên Online
+  try {
+    if (store.selectedVoucher?.id) {
+      await voucherApi.releaseLease({ voucherId: store.selectedVoucher.id, sessionId: onlineVoucherSessionId.value })
+    }
+    await voucherApi.holdLease({
+      voucherId: v.id,
+      channel: 'ONLINE',
+      sessionId: onlineVoucherSessionId.value,
+      customerId: authStore.user.id,
+      ttlSeconds: 600
+    })
+  } catch (err) {
+    removeVoucher()
+    voucherError.value = friendlyError(err, 'Mã ưu đãi đang được áp dụng tại quầy thu ngân.')
+    toast.error(voucherError.value)
+    await fetchVoucherEvals()
+    return
+  }
+
   const promo = v.promotion || {}
   store.selectedVoucher = {
     id: v.id,
@@ -787,13 +892,30 @@ const selectVoucher = (v) => {
   else calculateDiscount()
   voucherSuccess.value = appliedSuccessText(discountAmount.value)
   voucherError.value = ''
+
+  // Kích hoạt re-hold ngay tại bước 3 để lock voucher trong DB và báo lỗi NGAY LẬP TỨC nếu có xung đột
+  held.value = false
+  const ok = await ensureHeld()
+  if (!ok) {
+    removeVoucher()
+    voucherError.value = friendlyError(store.lastHoldError, 'Mã ưu đãi đang được giữ trong một phiên giao dịch khác.')
+    toast.error(voucherError.value)
+    await fetchVoucherEvals()
+  }
 }
 
-const removeVoucher = () => {
+const removeVoucher = async () => {
+  if (store.selectedVoucher?.id) {
+    voucherApi.releaseLease({ voucherId: store.selectedVoucher.id, sessionId: onlineVoucherSessionId.value }).catch(() => {})
+  }
   store.selectedVoucher = null
   discountAmount.value = 0
   voucherSuccess.value = ''
   voucherError.value = ''
+  held.value = false
+  if (currentStep.value > 1) {
+    await ensureHeld()
+  }
 }
 
 const calculateDiscount = () => {

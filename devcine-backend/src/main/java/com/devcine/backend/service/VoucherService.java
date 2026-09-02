@@ -46,6 +46,7 @@ public class VoucherService {
     private final MailService mailService;
     private final PromoEmailLogRepository promoEmailLogRepository;
     private final com.devcine.backend.repository.MovieRepository movieRepository;
+    private final VoucherHoldLeaseService voucherHoldLeaseService;
 
     /**
      * Gửi email chiến dịch (chỉ thông báo mã) tới TOÀN BỘ khách thuộc đúng ĐỐI TƯỢNG áp dụng của
@@ -305,11 +306,29 @@ public class VoucherService {
                 : req.getSeatPrices().stream().filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal orderTotal = seatSum.add(req.getFnbTotal() != null ? req.getFnbTotal() : BigDecimal.ZERO);
 
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoff = now.minusMinutes(15);
+        Integer excludeBookingId = req.getHeldBookingId();
+        String sessionId = req.getSessionId() != null ? req.getSessionId()
+                : (excludeBookingId != null ? String.valueOf(excludeBookingId) : null);
+
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Voucher v : voucherRepository.findActiveVouchersByCustomerId(customerId, LocalDateTime.now())) {
+        for (Voucher v : voucherRepository.findActiveVouchersByCustomerId(customerId, now)) {
             ensureSnapshot(v); // Lazy migration: đóng băng snapshot cho voucher cũ
             Promotion p = v.getPromotion();
-            VoucherEval eval = evaluate(customerId, customer, v, orderTotal, req.getMovieId(), req.getSeatPrices());
+
+            boolean isDbHeldByOther = v.getId() != null && bookingRepository.isVoucherHeldByOtherBooking(v.getId(), excludeBookingId, now, cutoff);
+            boolean isRedisHeldByOther = v.getId() != null && voucherHoldLeaseService.isHeldByOther(v.getId(), sessionId);
+
+            VoucherEval eval;
+            if (isRedisHeldByOther) {
+                String holdReason = voucherHoldLeaseService.getHoldReason(v.getId(), sessionId);
+                eval = new VoucherEval(false, holdReason != null ? holdReason : "Mã ưu đãi đang được áp dụng tại quầy thu ngân.", BigDecimal.ZERO);
+            } else if (isDbHeldByOther) {
+                eval = new VoucherEval(false, "Mã ưu đãi đang được giữ trong một phiên giao dịch khác của bạn.", BigDecimal.ZERO);
+            } else {
+                eval = evaluate(customerId, customer, v, orderTotal, req.getMovieId(), req.getSeatPrices());
+            }
             BigDecimal shown = eval.discountAmount().min(orderTotal); // số giảm thực (không vượt tổng đơn)
 
             Integer applicableMovieId = v.effectiveApplicableMovieId();
@@ -522,6 +541,15 @@ public class VoucherService {
             if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
                     && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
                 throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng trên toàn hệ thống.");
+            }
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime cutoff = now.minusMinutes(15);
+            if (bookingRepository.isVoucherHeldByOtherBooking(existing.getId(), null, now, cutoff)) {
+                throw new RuntimeException("Mã ưu đãi đang được giữ trong một phiên giao dịch khác của bạn. Vui lòng hoàn tất hoặc hủy phiên đó trước.");
+            }
+            if (voucherHoldLeaseService.isHeldByOther(existing.getId(), null)) {
+                String reason = voucherHoldLeaseService.getHoldReason(existing.getId(), null);
+                throw new RuntimeException(reason != null ? reason : "Mã ưu đãi đang được giữ trong một phiên giao dịch khác.");
             }
             return existing;
         }
