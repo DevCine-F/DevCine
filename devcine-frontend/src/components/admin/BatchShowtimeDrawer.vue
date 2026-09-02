@@ -219,6 +219,8 @@ const activeDaysCount = computed(() => {
   if (!form.dateFrom || !form.dateTo || form.dateFrom > form.dateTo) return 0;
   const start = new Date(form.dateFrom);
   const end = new Date(form.dateTo);
+  const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+  if (diffDays > 60) return 0; // Tránh loop quá lớn khi người dùng gõ nhầm năm tương lai xa
   let count = 0;
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const dayVal = d.getDay() === 0 ? 7 : d.getDay(); // 1: T2 -> 7: CN
@@ -297,29 +299,89 @@ watch(() => form.formatId, (newFmtId) => {
   });
 });
 
+// Kiểm tra tính hợp lệ của Từ ngày (Realtime & On Blur)
+const validateDateFrom = () => {
+  const todayStr = getLocalTodayStr();
+  if (!form.dateFrom) {
+    fieldErrors.dateFrom = 'Vui lòng chọn ngày bắt đầu.';
+    return false;
+  }
+  if (form.dateFrom < todayStr) {
+    fieldErrors.dateFrom = 'Ngày bắt đầu không được nhỏ hơn ngày hiện tại.';
+    return false;
+  }
+  if (dateFromMax.value && form.dateFrom > dateFromMax.value) {
+    const parts = dateFromMax.value.split('-');
+    const formattedEnd = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateFromMax.value;
+    fieldErrors.dateFrom = `Vượt quá hạn phát hành của phim (kết thúc: ${formattedEnd}).`;
+    return false;
+  }
+  fieldErrors.dateFrom = '';
+  return true;
+};
+
+// Kiểm tra tính hợp lệ của Đến ngày (Realtime & On Blur)
+const validateDateTo = () => {
+  if (!form.dateTo) {
+    fieldErrors.dateTo = 'Vui lòng chọn ngày kết thúc.';
+    return false;
+  }
+  if (form.dateFrom && form.dateTo < form.dateFrom) {
+    fieldErrors.dateTo = 'Ngày kết thúc không được trước ngày bắt đầu.';
+    return false;
+  }
+  if (form.dateFrom && form.dateTo) {
+    const start = new Date(form.dateFrom + 'T00:00:00');
+    const end = new Date(form.dateTo + 'T00:00:00');
+    const diffMs = end.getTime() - start.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > 30) {
+      const max30 = new Date(start);
+      max30.setDate(max30.getDate() + 30);
+      const maxDay = String(max30.getDate()).padStart(2, '0');
+      const maxMonth = String(max30.getMonth() + 1).padStart(2, '0');
+      const maxYear = max30.getFullYear();
+      fieldErrors.dateTo = `Khoảng thời gian tối đa là 30 ngày (tối đa đến ${maxDay}/${maxMonth}/${maxYear}).`;
+      return false;
+    }
+    const selectedMovie = movies.value.find(m => m.id === form.movieId);
+    if (selectedMovie && selectedMovie.endDate) {
+      const mEndStr = typeof selectedMovie.endDate === 'string' ? selectedMovie.endDate.slice(0, 10) : '';
+      if (mEndStr && form.dateTo > mEndStr) {
+        const parts = mEndStr.split('-');
+        const formattedEnd = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : mEndStr;
+        fieldErrors.dateTo = `Vượt quá hạn phát hành của phim (kết thúc: ${formattedEnd}).`;
+        return false;
+      }
+    }
+  }
+  fieldErrors.dateTo = '';
+  return true;
+};
+
 // Lỗi tự xóa và tự động điều chỉnh khi người dùng thao tác
 watch(() => form.movieId, () => {
   fieldErrors.movieId = '';
-  if (dateFromMax.value && form.dateFrom > dateFromMax.value) {
-    form.dateFrom = dateFromMax.value;
-  }
-  if (dateToMax.value && form.dateTo > dateToMax.value) {
-    form.dateTo = dateToMax.value;
-  }
+  if (form.dateFrom) validateDateFrom();
+  if (form.dateTo) validateDateTo();
 });
 watch(() => form.formatId, () => { fieldErrors.formatId = ''; });
 watch(() => form.roomIds.length, () => { fieldErrors.roomIds = ''; });
 watch(() => form.dateFrom, (newFrom) => {
-  fieldErrors.dateFrom = '';
-  fieldErrors.dateTo = '';
-  if (newFrom && form.dateTo < newFrom) {
-    form.dateTo = newFrom;
-  }
-  if (dateToMax.value && form.dateTo > dateToMax.value) {
-    form.dateTo = dateToMax.value;
+  if (newFrom) {
+    validateDateFrom();
+    if (form.dateTo) validateDateTo();
+  } else {
+    fieldErrors.dateFrom = '';
   }
 });
-watch(() => form.dateTo, () => { fieldErrors.dateTo = ''; });
+watch(() => form.dateTo, (newTo) => {
+  if (newTo) {
+    validateDateTo();
+  } else {
+    fieldErrors.dateTo = '';
+  }
+});
 watch(() => form.startTimes.length, () => { fieldErrors.startTimes = ''; });
 
 const toggleRoom = (roomId) => {
@@ -373,34 +435,8 @@ const validate = () => {
   if (!form.formatId) fieldErrors.formatId = 'Vui lòng chọn định dạng chiếu cho phim.';
   if (!form.roomIds.length) fieldErrors.roomIds = 'Vui lòng chọn ít nhất một phòng chiếu khả dụng.';
 
-  const todayStr = getLocalTodayStr();
-  if (!form.dateFrom) {
-    fieldErrors.dateFrom = 'Vui lòng chọn ngày bắt đầu.';
-  } else if (form.dateFrom < todayStr) {
-    fieldErrors.dateFrom = 'Ngày bắt đầu không được nhỏ hơn ngày hiện tại.';
-  }
-
-  if (!form.dateTo) {
-    fieldErrors.dateTo = 'Vui lòng chọn ngày kết thúc.';
-  } else if (form.dateFrom && form.dateTo < form.dateFrom) {
-    fieldErrors.dateTo = 'Ngày kết thúc không được trước ngày bắt đầu.';
-  } else if (form.dateFrom && form.dateTo) {
-    const diffMs = new Date(form.dateTo) - new Date(form.dateFrom);
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays > 30) {
-      fieldErrors.dateTo = 'Khoảng thời gian tạo lịch tối đa không quá 30 ngày.';
-    } else {
-      const selectedMovie = movies.value.find(m => m.id === form.movieId);
-      if (selectedMovie && selectedMovie.endDate) {
-        const mEndStr = typeof selectedMovie.endDate === 'string' ? selectedMovie.endDate.slice(0, 10) : '';
-        if (mEndStr && form.dateTo > mEndStr) {
-          const parts = mEndStr.split('-');
-          const formattedEnd = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : mEndStr;
-          fieldErrors.dateTo = `Vượt quá hạn phát hành của phim (kết thúc: ${formattedEnd}).`;
-        }
-      }
-    }
-  }
+  validateDateFrom();
+  validateDateTo();
 
   if (!form.startTimes.length) {
     fieldErrors.startTimes = "Vui lòng thêm ít nhất một mốc giờ chiếu hoặc bấm 'Tự động rải ca'.";
@@ -807,18 +843,26 @@ const handleCreate = async () => {
             <input type="date" v-model="form.dateFrom"
               :min="dateFromMin"
               :max="dateFromMax || undefined"
+              @blur="validateDateFrom"
+              @change="validateDateFrom"
               :class="fieldErrors.dateFrom ? 'border-red-500/60 ring-1 ring-red-500/60' : 'border-white/10'"
               class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-            <p v-if="fieldErrors.dateFrom" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateFrom }}</p>
+            <div class="min-h-[18px] mt-1.5">
+              <p v-if="fieldErrors.dateFrom" aria-live="polite" class="text-[11px] text-red-400 font-bold leading-tight">{{ fieldErrors.dateFrom }}</p>
+            </div>
           </div>
           <div ref="dateToField">
             <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Đến ngày</label>
             <input type="date" v-model="form.dateTo"
               :min="dateToMin"
               :max="dateToMax || undefined"
+              @blur="validateDateTo"
+              @change="validateDateTo"
               :class="fieldErrors.dateTo ? 'border-red-500/60 ring-1 ring-red-500/60' : 'border-white/10'"
               class="w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors" />
-            <p v-if="fieldErrors.dateTo" aria-live="polite" class="text-[11px] text-red-400 font-bold mt-1.5">{{ fieldErrors.dateTo }}</p>
+            <div class="min-h-[18px] mt-1.5">
+              <p v-if="fieldErrors.dateTo" aria-live="polite" class="text-[11px] text-red-400 font-bold leading-tight">{{ fieldErrors.dateTo }}</p>
+            </div>
           </div>
         </div>
 
