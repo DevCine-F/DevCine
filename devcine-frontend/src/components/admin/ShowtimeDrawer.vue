@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, watch, computed, nextTick } from 'vue';
 import api from '@/api/axios';
 import { pricingApi } from '@/api/admin/index';
 import CustomSelect from './CustomSelect.vue';
@@ -231,8 +231,26 @@ const todayCheck = computed(() => {
   return getSelectedDateStr() === getLocalTodayStr();
 });
 
-const currentHour = computed(() => todayCheck.value ? new Date().getHours() : -1);
-const currentMinute = computed(() => todayCheck.value ? new Date().getMinutes() : -1);
+const nowTs = ref(Date.now());
+let timerInterval = null;
+
+onMounted(() => {
+  timerInterval = setInterval(() => {
+    if (props.isOpen) {
+      nowTs.value = Date.now();
+    }
+  }, 10000);
+});
+
+onUnmounted(() => {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+});
+
+const currentHour = computed(() => todayCheck.value ? new Date(nowTs.value).getHours() : -1);
+const currentMinute = computed(() => todayCheck.value ? new Date(nowTs.value).getMinutes() : -1);
 
 const cinemaScheduleBounds = computed(() => {
   let openMin = 8 * 60;
@@ -258,6 +276,56 @@ const cinemaScheduleBounds = computed(() => {
   return { openMin, closeMin };
 });
 
+const getSlotDateTime = (hourStr, minuteStr = '00') => {
+  const baseDateStr = getSelectedDateStr();
+  if (!baseDateStr) return null;
+  const parts = baseDateStr.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [y, m, d] = parts;
+  const dateObj = new Date(y, m - 1, d);
+
+  const { openMin } = cinemaScheduleBounds.value;
+  const h = parseInt(hourStr, 10);
+  const min = parseInt(minuteStr, 10);
+  if (isNaN(h) || isNaN(min)) return null;
+
+  const startMins = h * 60 + min;
+  if (startMins < openMin) {
+    // Suất chiếu sau nửa đêm (rạng sáng) thuộc ca đêm của ngày vận hành đang chọn:
+    // Calendar Date thực tế của suất phải là ngày tiếp theo (dateObj + 1 ngày).
+    dateObj.setDate(dateObj.getDate() + 1);
+  }
+  dateObj.setHours(h, min, 0, 0);
+  return dateObj;
+};
+
+const isMinuteInCinemaBounds = (hourStr, minVal) => {
+  const { openMin, closeMin } = cinemaScheduleBounds.value;
+  const startH = Math.floor(openMin / 60);
+  let h = parseInt(hourStr, 10);
+  if (h < (startH % 24)) h += 24;
+  const pos = h * 60 + parseInt(minVal, 10);
+  return pos >= openMin && pos <= closeMin;
+};
+
+const isSlotInPast = (hourStr, minuteStr) => {
+  const dt = getSlotDateTime(hourStr, minuteStr);
+  if (!dt) return false;
+  return dt.getTime() <= nowTs.value;
+};
+
+const isSlotAvailable = (hourStr, minVal) => {
+  if (!isMinuteInCinemaBounds(hourStr, minVal)) return false;
+  if (isSlotInPast(hourStr, minVal)) return false;
+  return true;
+};
+
+const allMinutesList = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
+
+const hasValidMinuteForHour = (hourVal) => {
+  return allMinutesList.some(m => isSlotAvailable(hourVal, m));
+};
+
 const hourOptions = computed(() => {
   const { openMin, closeMin } = cinemaScheduleBounds.value;
   const startH = Math.floor(openMin / 60);
@@ -266,22 +334,19 @@ const hourOptions = computed(() => {
   const hours = [];
   for (let h = startH; h <= endH; h++) {
     const val = (h % 24).toString().padStart(2, '0');
-    let isPastHour = false;
-    if (todayCheck.value) {
-      if (h >= startH) {
-        isPastHour = (h % 24) < currentHour.value;
+    const isValid = hasValidMinuteForHour(val);
+    const isCurrentFormHour = props.editData && val === form.startHour;
+    if (isValid || isCurrentFormHour) {
+      if (!hours.some(opt => opt.value === val)) {
+        hours.push({
+          value: val,
+          label: val
+        });
       }
-    }
-    if (!hours.some(opt => opt.value === val)) {
-      hours.push({
-        value: val,
-        label: val,
-        disabled: !isLocked.value && isPastHour && (!props.editData || val !== form.startHour)
-      });
     }
   }
 
-  // Đảm bảo nếu form.startHour đã có giá trị mà chưa nằm trong options thì add vào để luôn hiển thị đúng
+  // Đảm bảo nếu form.startHour đã có giá trị (ví dụ khi edit) thì luôn hiển thị đúng
   if (form.startHour && !hours.some(opt => opt.value === form.startHour)) {
     hours.unshift({ value: form.startHour, label: form.startHour });
   }
@@ -290,33 +355,22 @@ const hourOptions = computed(() => {
 });
 
 const minuteOptions = computed(() => {
-  const allMinutes = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
-
   if (!form.startHour) {
-    return allMinutes.map(val => ({ value: val, label: val }));
+    return allMinutesList.map(val => ({ value: val, label: val }));
   }
 
-  const { openMin, closeMin } = cinemaScheduleBounds.value;
-  const startH = Math.floor(openMin / 60);
-  let h = parseInt(form.startHour);
-  if (h < (startH % 24)) h += 24;
-
-  const result = allMinutes.map(val => {
-    const minVal = parseInt(val);
-    const pos = h * 60 + minVal;
-    let disabled = false;
-    if (pos < openMin || pos > closeMin) disabled = true;
-    if (todayCheck.value && currentHour.value !== -1 && parseInt(form.startHour) === currentHour.value) {
-      if (minVal < currentMinute.value) disabled = true;
-    }
-    return {
+  // Lọc chỉ giữ lại các phút nằm trong khung giờ rạp mở cửa và chưa trôi qua
+  const result = allMinutesList
+    .filter(val => {
+      const isCurrentFormMinute = props.editData && form.startHour === props.editData.startHour && val === form.startMinute;
+      return isSlotAvailable(form.startHour, val) || isCurrentFormMinute;
+    })
+    .map(val => ({
       value: val,
-      label: val,
-      disabled: !isLocked.value && disabled && (!props.editData || val !== form.startMinute)
-    };
-  });
+      label: val
+    }));
 
-  // Đảm bảo nếu form.startMinute đã có giá trị mà chưa nằm trong options thì add vào để luôn hiển thị đúng
+  // Đảm bảo nếu form.startMinute đã có giá trị mà chưa nằm trong options thì giữ lại để luôn hiển thị đúng
   if (form.startMinute && !result.some(opt => opt.value === form.startMinute)) {
     result.unshift({ value: form.startMinute, label: form.startMinute });
   }
@@ -392,6 +446,7 @@ watch(() => form.startMinute, () => {
 
 watch(() => props.isOpen, async (newVal) => {
   if (newVal) {
+    nowTs.value = Date.now();
     isInitializing.value = true;
     clearErrors();
 
@@ -645,8 +700,8 @@ const suggestedSlots = computed(() => {
   const endDay = 23 * 60 + 30;
 
   let currentMin = startDay;
-  if (currentHour.value > 0) {
-    const now = new Date();
+  if (todayCheck.value) {
+    const now = new Date(nowTs.value);
     const nowMin = now.getHours() * 60 + now.getMinutes() + 30;
     if (nowMin > currentMin) currentMin = nowMin;
   }
