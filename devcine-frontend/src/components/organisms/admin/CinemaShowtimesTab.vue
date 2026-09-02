@@ -133,17 +133,21 @@ const computedIsPastDate = computed(() => {
       <button
         v-for="d in dates"
         :key="d.date"
+        type="button"
         @click="$emit('update:selectedDate', d.date); $emit('update:selected-date', d.date)"
         :class="
           selectedDate === d.date
-            ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20'
-            : 'bg-surface-container-high text-on-surface-variant border-outline-variant/10'
+            ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20 hover:brightness-110 hover:bg-primary'
+            : 'bg-surface-container-high text-on-surface-variant border-outline-variant/10 hover:bg-white/5 hover:text-white hover:border-outline-variant/30'
         "
-        class="flex flex-col items-center min-w-[65px] py-2 rounded-xl border transition-all hover:bg-white/5"
+        class="flex flex-col items-center min-w-[65px] py-2 rounded-xl border transition-all cursor-pointer"
       >
-        <span class="text-[8px] font-black uppercase opacity-40">{{
-          d.day
-        }}</span>
+        <span
+          class="text-[8px] font-black uppercase tracking-wider"
+          :class="selectedDate === d.date ? 'text-on-primary/70' : 'opacity-40'"
+        >
+          {{ d.day }}
+        </span>
         <span class="text-xs font-black">{{ d.date }}</span>
       </button>
 
