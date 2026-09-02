@@ -38,16 +38,59 @@ const attempted = ref(false)
 const touch = (field) => { touched.value[field] = true }
 
 // ===== Validate realtime (mirror quy tắc backend) =====
-const RE_USERNAME = /^[a-z0-9_]{3,20}$/
+const RE_USERNAME = /^[a-z0-9_]{3,15}$/
 const RE_STAFFCODE = /^[A-Z0-9]{3,15}$/
 const RE_EMAIL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-const RE_PHONE = /^(03|05|07|08|09)\d{8}$/
+const RE_PHONE = /^\d{10}$/
 const RE_NAME = /^[\p{L}\p{M} ]+$/u
+
+const toTitleCase = (str) => {
+  if (!str) return ''
+  return str.trim().split(/\s+/).map(word => {
+    if (!word) return ''
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  }).join(' ')
+}
+
+const onInputFullName = (e) => {
+  let val = e.target.value
+  val = val.replace(/[^\p{L}\p{M}\s]/gu, '')
+  if (val.length > 30) val = val.slice(0, 30)
+  form.value.fullName = val
+}
+
+const onBlurFullName = () => {
+  touch('fullName')
+  if (form.value.fullName) {
+    form.value.fullName = toTitleCase(form.value.fullName)
+  }
+}
+
+const onInputUsername = (e) => {
+  let val = e.target.value
+  val = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  val = val.toLowerCase().replace(/[^a-z0-9_]/g, '')
+  if (val.length > 15) val = val.slice(0, 15)
+  form.value.username = val
+}
+
+const onInputPhone = (e) => {
+  let val = e.target.value
+  val = val.replace(/\D/g, '')
+  if (val.length > 10) val = val.slice(0, 10)
+  form.value.phone = val
+}
+
+const onInputEmail = (e) => {
+  let val = e.target.value.replace(/\s+/g, '').toLowerCase()
+  if (val.length > 100) val = val.slice(0, 100)
+  form.value.email = val
+}
 
 const errFullName = computed(() => {
   const s = form.value.fullName.trim()
   if (!s) return 'Vui lòng nhập họ và tên.'
-  if (s.length < 2 || s.length > 50) return 'Họ tên phải từ 2 đến 50 ký tự.'
+  if (s.length < 2 || s.length > 30) return 'Họ tên phải từ 2 đến 30 ký tự.'
   if (!RE_NAME.test(s)) return 'Họ tên chỉ gồm chữ cái và khoảng trắng.'
   return ''
 })
@@ -55,11 +98,10 @@ const errUsername = computed(() => {
   if (editingId.value) return '' // username không sửa khi edit
   const s = form.value.username.trim()
   if (!s) return 'Vui lòng nhập tài khoản đăng nhập.'
-  if (!RE_USERNAME.test(s)) return '3–20 ký tự; chỉ chữ thường, số, gạch dưới, không dấu, không khoảng trắng.'
+  if (!RE_USERNAME.test(s)) return '3–15 ký tự; chỉ chữ thường, số, gạch dưới, không dấu, không khoảng trắng.'
   return ''
 })
 const errStaffCode = computed(() => {
-  return ''
   return ''
 })
 const errEmail = computed(() => {
@@ -71,7 +113,7 @@ const errEmail = computed(() => {
 const errPhone = computed(() => {
   const s = form.value.phone.trim()
   if (!s) return 'Vui lòng nhập số điện thoại.'
-  if (!RE_PHONE.test(s)) return 'Số điện thoại không hợp lệ (10 số, bắt đầu 03/05/07/08/09).'
+  if (!RE_PHONE.test(s)) return 'Số điện thoại không hợp lệ (yêu cầu đúng 10 chữ số).'
   return ''
 })
 const errCinema = computed(() => form.value.cinemaId ? '' : 'Vui lòng chọn cơ sở làm việc.')
@@ -271,16 +313,20 @@ const fetchNextCode = async () => {
   if (editingId.value) return
   try {
     const res = await staffApi.getNextCode()
-    if (res.data?.success) {
-      form.value.staffCode = res.data.data
+    const code = typeof res.data === 'string' ? res.data : (res.data?.data || res.data)
+    if (code) {
+      form.value.staffCode = code
     }
   } catch (error) {
     console.error('Lỗi khi lấy mã nhân viên:', error)
   }
 }
 
+const originalPerson = ref(null)
+
 const openAddModal = async () => {
   editingId.value = null
+  originalPerson.value = null
   form.value = blankForm()
   resetValidationState()
   isModalOpen.value = true
@@ -289,6 +335,7 @@ const openAddModal = async () => {
 
 const openEditModal = (person) => {
   editingId.value = person.userId
+  originalPerson.value = { ...person }
   form.value = {
     fullName: person.fullName || '',
     username: person.username || '',
@@ -303,7 +350,89 @@ const openEditModal = (person) => {
   isModalOpen.value = true
 }
 
-const closeModal = () => { isModalOpen.value = false }
+const hasUnsavedChanges = computed(() => {
+  if (!isModalOpen.value) return false
+  if (!editingId.value) {
+    return !!(form.value.fullName || form.value.username || form.value.email || form.value.phone || form.value.cinemaId)
+  }
+  if (!originalPerson.value) return false
+  const p = originalPerson.value
+  return form.value.fullName.trim() !== (p.fullName || '').trim() ||
+         form.value.email.trim() !== (p.email || '').trim() ||
+         form.value.phone.trim() !== (p.phone || '').trim() ||
+         Number(form.value.cinemaId || 0) !== Number(p.cinemaId || 0) ||
+         form.value.role !== (p.role || 'STAFF').toUpperCase() ||
+         form.value.isActive !== !!p.isActive
+})
+
+const closeModal = async (force = false) => {
+  if (!force && hasUnsavedChanges.value) {
+    const ok = await confirm.show({
+      title: 'Đóng biểu mẫu',
+      message: 'Bạn có những thay đổi chưa được lưu. Bạn có chắc chắn muốn thoát không?',
+      confirmText: 'Đóng biểu mẫu',
+      cancelText: 'Tiếp tục chỉnh sửa',
+      tone: 'neutral',
+    })
+    if (!ok) return
+  }
+  isModalOpen.value = false
+  originalPerson.value = null
+}
+
+const checkSensitiveChanges = async () => {
+  if (!editingId.value || !originalPerson.value) return true
+  const p = originalPerson.value
+  const targetName = p.fullName || form.value.fullName.trim() || 'nhân viên'
+
+  // 1. Chuyển trạng thái sang TẠM NGƯNG
+  const isDeactivating = p.isActive && !form.value.isActive
+  if (isDeactivating) {
+    const ok = await confirm.show({
+      title: 'Xác nhận tạm ngưng nhân viên',
+      message: `Bạn có chắc chắn muốn tạm ngưng hoạt động của "${targetName}"? Nhân viên sẽ bị ngắt quyền đăng nhập vào hệ thống quầy vé POS và các trang nội bộ.`,
+      confirmText: 'Tạm ngưng',
+      cancelText: 'Giữ nguyên',
+      tone: 'danger',
+    })
+    if (!ok) return false
+  }
+
+  // 2. Thay đổi Vai trò (STAFF <-> MANAGER)
+  const oldRole = (p.role || 'STAFF').toUpperCase()
+  const newRole = form.value.role.toUpperCase()
+  if (oldRole !== newRole) {
+    const isDemotion = oldRole === 'MANAGER' && newRole === 'STAFF'
+    const ok = await confirm.show({
+      title: isDemotion ? 'Xác nhận hạ vai trò' : 'Xác nhận nâng vai trò',
+      message: isDemotion
+        ? `Hạ vai trò của "${targetName}" từ Quản lý cơ sở xuống Nhân viên? Tài khoản sẽ bị thu hồi quyền xem báo cáo doanh thu và duyệt nghiệp vụ cụm rạp.`
+        : `Nâng vai trò của "${targetName}" lên Quản lý cơ sở? Tài khoản sẽ được cấp quyền quản trị nhân sự và duyệt các thao tác tại cụm rạp.`,
+      confirmText: isDemotion ? 'Hạ vai trò' : 'Nâng vai trò',
+      cancelText: 'Giữ nguyên',
+      tone: isDemotion ? 'danger' : 'warning',
+    })
+    if (!ok) return false
+  }
+
+  // 3. Chuyển Cơ sở làm việc (Đổi cụm rạp)
+  const oldCinemaId = p.cinemaId ? Number(p.cinemaId) : null
+  const newCinemaId = form.value.cinemaId ? Number(form.value.cinemaId) : null
+  if (oldCinemaId && newCinemaId && oldCinemaId !== newCinemaId) {
+    const oldCinemaName = cinemaNameById(oldCinemaId) || 'Cơ sở cũ'
+    const newCinemaName = cinemaNameById(newCinemaId) || 'Cơ sở mới'
+    const ok = await confirm.show({
+      title: 'Xác nhận chuyển cơ sở làm việc',
+      message: `Chuyển nhân viên "${targetName}" từ [${oldCinemaName}] sang [${newCinemaName}]? Quyền mở ca POS và dữ liệu phân công sẽ được chuyển sang cụm rạp mới.`,
+      confirmText: 'Chuyển cơ sở',
+      cancelText: 'Giữ nguyên',
+      tone: 'warning',
+    })
+    if (!ok) return false
+  }
+
+  return true
+}
 
 const buildPayload = () => {
   const base = {
@@ -327,12 +456,25 @@ const buildPayload = () => {
 
 const validate = () => {
   attempted.value = true
+  touched.value = {
+    fullName: true,
+    username: true,
+    email: true,
+    phone: true,
+    cinemaId: true,
+  }
   if (!formValid.value) { toast.warning('Vui lòng kiểm tra lại các trường còn thiếu hoặc chưa hợp lệ.'); return false }
   return true
 }
 
 const saveStaff = async () => {
   if (!validate()) return
+
+  if (editingId.value) {
+    const confirmed = await checkSensitiveChanges()
+    if (!confirmed) return
+  }
+
   isSaving.value = true
   try {
     if (editingId.value) {
@@ -345,15 +487,24 @@ const saveStaff = async () => {
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
       await fetchStaff()
-      closeModal()
+      closeModal(true)
     } else {
       const res = await staffApi.create(buildPayload())
       const d = res?.data ?? {}
       toast.success('Thêm nhân viên thành công.')
       await fetchStaff()
-      closeModal()
+      closeModal(true)
       // Hiện thông tin đăng nhập cho admin (email best-effort đã gửi song song)
-      credsResult.value = { username: d.username, password: d.defaultPassword, emailSent: d.emailSent }
+      credsResult.value = {
+        username: d.username || form.value.username.trim(),
+        password: d.defaultPassword || 'DevCine@2026',
+        fullName: d.fullName || form.value.fullName.trim(),
+        staffCode: d.staffCode || form.value.staffCode || 'DC---',
+        cinemaName: d.cinemaName || cinemaNameById(Number(form.value.cinemaId)) || 'Cơ sở đã chọn',
+        role: d.role || form.value.role,
+        email: d.email || form.value.email.trim(),
+        emailSent: d.emailSent,
+      }
     }
   } catch (e) {
     toast.error(friendlyError(e, 'Lưu nhân viên thất bại.'))
@@ -362,11 +513,34 @@ const saveStaff = async () => {
   }
 }
 
-const copyCreds = async () => {
+const copiedField = ref(null)
+const copyText = async (text, fieldName = 'all') => {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedField.value = fieldName
+    toast.success(fieldName === 'all' ? 'Đã sao chép toàn bộ thông tin tài khoản.' : `Đã sao chép ${fieldName}.`)
+    setTimeout(() => {
+      if (copiedField.value === fieldName) copiedField.value = null
+    }, 2000)
+  } catch {
+    toast.warning('Không sao chép được, vui lòng ghi lại thủ công.')
+  }
+}
+
+const copyCreds = () => {
   if (!credsResult.value) return
-  const text = `Tài khoản: ${credsResult.value.username}\nMật khẩu mặc định: ${credsResult.value.password}`
-  try { await navigator.clipboard.writeText(text); toast.success('Đã sao chép thông tin đăng nhập.') }
-  catch { toast.warning('Không sao chép được, vui lòng ghi lại thủ công.') }
+  const r = credsResult.value
+  const text = [
+    `HỌ VÀ TÊN: ${r.fullName}`,
+    `MÃ NHÂN VIÊN: ${r.staffCode}`,
+    `VAI TRÒ: ${roleLabel(r.role)}`,
+    `CƠ SỞ LÀM VIỆC: ${r.cinemaName}`,
+    `TÀI KHOẢN ĐĂNG NHẬP: ${r.username}`,
+    `MẬT KHẨU TẠM: ${r.password}`,
+    `EMAIL: ${r.email}`,
+  ].join('\n')
+  copyText(text, 'all')
 }
 
 const toggleActive = async (person) => {
@@ -673,7 +847,7 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1.5 col-span-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Họ và tên <span class="text-red-500">*</span></label>
-            <input v-model="form.fullName" @blur="touch('fullName')" type="text" placeholder="VD: Trần Quang Huy"
+            <input :value="form.fullName" @input="onInputFullName" @blur="onBlurFullName" type="text" maxlength="30" placeholder="VD: Trần Quang Huy"
                    class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
                    :class="showErr('fullName', errFullName) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('fullName', errFullName)" class="text-[11px] text-red-400 font-medium">{{ errFullName }}</p>
@@ -683,7 +857,7 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
               Tài khoản đăng nhập <span v-if="!editingId" class="text-red-500">*</span>
             </label>
-            <input v-model="form.username" @blur="touch('username')" type="text" :disabled="!!editingId" placeholder="vd: nv_huy"
+            <input :value="form.username" @input="onInputUsername" @blur="touch('username')" type="text" :disabled="!!editingId" maxlength="15" placeholder="vd: nv_huy"
                    class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed"
                    :class="showErr('username', errUsername) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('username', errUsername)" class="text-[11px] text-red-400 font-medium">{{ errUsername }}</p>
@@ -696,14 +870,14 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
 
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Email <span class="text-red-500">*</span></label>
-            <input v-model="form.email" @blur="touch('email')" type="email" placeholder="email@devcine.com"
+            <input :value="form.email" @input="onInputEmail" @blur="touch('email')" type="email" maxlength="100" placeholder="email@devcine.com"
                    class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
                    :class="showErr('email', errEmail) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('email', errEmail)" class="text-[11px] text-red-400 font-medium">{{ errEmail }}</p>
           </div>
           <div class="space-y-1.5">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số điện thoại <span class="text-red-500">*</span></label>
-            <input v-model="form.phone" @blur="touch('phone')" type="text" placeholder="09xxxxxxxx"
+            <input :value="form.phone" @input="onInputPhone" @blur="touch('phone')" type="text" maxlength="10" placeholder="09xxxxxxxx"
                    class="w-full bg-surface-container-high border text-sm rounded-sm focus:ring-1 focus:ring-primary py-2.5 px-4 text-on-surface"
                    :class="showErr('phone', errPhone) ? 'border-red-500' : 'border-transparent'" />
             <p v-if="showErr('phone', errPhone)" class="text-[11px] text-red-400 font-medium">{{ errPhone }}</p>
@@ -758,20 +932,72 @@ onMounted(() => { fetchStaff(); fetchCinemas() })
     <!-- Kết quả tạo tài khoản: hiển thị thông tin đăng nhập cho admin -->
     <AppModal :show="!!credsResult" title="Tài khoản đã được tạo" @close="credsResult = null">
       <div v-if="credsResult" class="space-y-4">
-        <p class="text-sm text-on-surface-variant">
-          Nhân viên đăng nhập bằng thông tin dưới đây và sẽ được yêu cầu <b>đổi mật khẩu ở lần đầu</b>.
+        <p class="text-xs text-on-surface-variant">
+          Nhân viên sử dụng thông tin dưới đây để đăng nhập và bắt buộc <b class="text-on-surface">đổi mật khẩu ở lần đầu</b>.
         </p>
-        <div class="bg-surface-container-high rounded-xl p-4 space-y-2">
-          <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Tài khoản</span><span class="font-black text-on-surface">{{ credsResult.username }}</span></div>
-          <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Mật khẩu mặc định</span><span class="font-black text-primary font-mono">{{ credsResult.password }}</span></div>
+
+        <div class="bg-surface-container-high rounded-sm p-4 space-y-2.5 border border-outline-variant/10 text-xs">
+          <!-- Thông tin nhân sự -->
+          <div class="flex items-center justify-between">
+            <span class="text-on-surface-variant text-[11px] uppercase tracking-wider font-semibold">Họ và tên</span>
+            <span class="font-bold text-on-surface text-sm">{{ credsResult.fullName }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-on-surface-variant text-[11px] uppercase tracking-wider font-semibold">Mã nhân viên</span>
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-bold text-primary">{{ credsResult.staffCode }}</span>
+              <span class="px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+                {{ roleLabel(credsResult.role) }}
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-on-surface-variant text-[11px] uppercase tracking-wider font-semibold">Cơ sở làm việc</span>
+            <span class="font-medium text-on-surface">{{ credsResult.cinemaName }}</span>
+          </div>
+
+          <div class="h-px bg-outline-variant/10 my-1"></div>
+
+          <!-- Thông tin tài khoản & Mật khẩu -->
+          <div class="flex items-center justify-between group">
+            <span class="text-on-surface-variant text-[11px] uppercase tracking-wider font-semibold">Tài khoản</span>
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono font-bold text-on-surface bg-surface-container-highest px-2 py-0.5 rounded-sm select-all">{{ credsResult.username }}</span>
+              <button @click="copyText(credsResult.username, 'tài khoản')" class="p-1 text-on-surface-variant hover:text-primary transition-colors rounded-sm" title="Sao chép tài khoản">
+                <span class="material-symbols-outlined text-[15px]">{{ copiedField === 'tài khoản' ? 'check' : 'content_copy' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between group">
+            <span class="text-on-surface-variant text-[11px] uppercase tracking-wider font-semibold">Mật khẩu tạm</span>
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-sm select-all">{{ credsResult.password }}</span>
+              <button @click="copyText(credsResult.password, 'mật khẩu')" class="p-1 text-on-surface-variant hover:text-primary transition-colors rounded-sm" title="Sao chép mật khẩu">
+                <span class="material-symbols-outlined text-[15px]">{{ copiedField === 'mật khẩu' ? 'check' : 'content_copy' }}</span>
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="flex items-center gap-2 text-xs" :class="credsResult.emailSent ? 'text-green-400' : 'text-amber-400'">
-          <span class="material-symbols-outlined text-base">{{ credsResult.emailSent ? 'mark_email_read' : 'unsubscribe' }}</span>
-          {{ credsResult.emailSent ? 'Đã gửi email thông tin đăng nhập cho nhân viên.' : 'Chưa gửi được email — vui lòng báo trực tiếp thông tin trên cho nhân viên.' }}
+
+        <!-- Trạng thái email -->
+        <div class="flex items-center gap-2 text-xs p-2.5 rounded-sm border"
+             :class="credsResult.emailSent ? 'bg-green-500/5 text-green-400 border-green-500/20' : 'bg-amber-500/5 text-amber-400 border-amber-500/20'">
+          <span class="material-symbols-outlined text-base shrink-0">{{ credsResult.emailSent ? 'mark_email_read' : 'unsubscribe' }}</span>
+          <span class="truncate">
+            {{ credsResult.emailSent ? `Đã gửi email thông tin đăng nhập tới: ${credsResult.email}` : 'Chưa gửi được email — vui lòng sao chép và gửi trực tiếp cho nhân viên.' }}
+          </span>
         </div>
-        <div class="flex justify-end gap-3 pt-2">
-          <button @click="copyCreds" class="px-4 py-2 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-white/10 transition-all">Sao chép</button>
-          <button @click="credsResult = null" class="px-5 py-2 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all">Đã hiểu</button>
+
+        <!-- Nút hành động -->
+        <div class="flex justify-end gap-2.5 pt-2 border-t border-outline-variant/10">
+          <button @click="copyCreds" class="px-4 py-2 bg-surface-container-highest text-on-surface font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-white/10 transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">{{ copiedField === 'all' ? 'check' : 'content_copy' }}</span>
+            {{ copiedField === 'all' ? 'Đã sao chép' : 'Sao chép tất cả' }}
+          </button>
+          <button @click="credsResult = null" class="px-5 py-2 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 transition-all">
+            Hoàn tất
+          </button>
         </div>
       </div>
     </AppModal>

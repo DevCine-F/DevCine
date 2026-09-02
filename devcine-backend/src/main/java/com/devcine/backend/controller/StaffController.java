@@ -9,6 +9,7 @@ import com.devcine.backend.repository.CinemaRepository;
 import com.devcine.backend.repository.RoleRepository;
 import com.devcine.backend.repository.StaffRepository;
 import com.devcine.backend.repository.UserRepository;
+import com.devcine.backend.util.PhoneUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -38,9 +39,9 @@ public class StaffController {
     @org.springframework.beans.factory.annotation.Value("${staff.default-password:DevCine@2026}")
     private String defaultStaffPassword;
 
-    private static final java.util.regex.Pattern USERNAME_RE = java.util.regex.Pattern.compile("^[a-z0-9_]{3,20}$");
+    private static final java.util.regex.Pattern USERNAME_RE = java.util.regex.Pattern.compile("^[a-z0-9_]{3,15}$");
     private static final java.util.regex.Pattern EMAIL_RE = java.util.regex.Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    private static final java.util.regex.Pattern PHONE_RE = java.util.regex.Pattern.compile("^(03|05|07|08|09)\\d{8}$");
+    private static final java.util.regex.Pattern PHONE_RE = java.util.regex.Pattern.compile("^\\d{10}$");
     private static final java.util.regex.Pattern NAME_RE = java.util.regex.Pattern.compile("^[\\p{L}\\p{M} ]+$");
 
     private static String str(Object o) {
@@ -66,7 +67,7 @@ public class StaffController {
     private void validateFullName(String v) {
         String s = str(v);
         if (s.isBlank()) throw new IllegalArgumentException("Vui lòng nhập họ và tên.");
-        if (s.length() < 2 || s.length() > 50) throw new IllegalArgumentException("Họ tên phải từ 2 đến 50 ký tự.");
+        if (s.length() < 2 || s.length() > 30) throw new IllegalArgumentException("Họ tên phải từ 2 đến 30 ký tự.");
         if (!NAME_RE.matcher(s).matches()) throw new IllegalArgumentException("Họ tên chỉ gồm chữ cái và khoảng trắng.");
     }
 
@@ -75,12 +76,22 @@ public class StaffController {
     }
 
     private String validateAndSanitizePhone(Object v, boolean required) {
-        return com.devcine.backend.util.PhoneUtils.validateAndSanitize(v, required);
+        String clean = PhoneUtils.sanitize(v);
+        if (clean == null) {
+            if (required) {
+                throw new IllegalArgumentException("Vui lòng nhập số điện thoại.");
+            }
+            return null;
+        }
+        if (!PHONE_RE.matcher(clean).matches()) {
+            throw new IllegalArgumentException("Số điện thoại không hợp lệ (yêu cầu đúng 10 chữ số).");
+        }
+        return clean;
     }
 
     private void validateUsernameFormat(String v) {
         if (!USERNAME_RE.matcher(str(v)).matches())
-            throw new IllegalArgumentException("Tài khoản 3-20 ký tự, chỉ gồm chữ thường, số, gạch dưới, không dấu, không khoảng trắng.");
+            throw new IllegalArgumentException("Tài khoản 3-15 ký tự, chỉ gồm chữ thường, số, gạch dưới, không dấu, không khoảng trắng.");
     }
 
     private static String formatStaffCode(String prefix, int number) {
@@ -266,6 +277,12 @@ public class StaffController {
             resp.put("success", true);
             resp.put("userId", u.getId());
             resp.put("username", username);
+            resp.put("fullName", fullName);
+            resp.put("email", email);
+            resp.put("phone", cleanPhone);
+            resp.put("staffCode", staff.getStaffCode());
+            resp.put("cinemaName", staffCinema.getName());
+            resp.put("role", role.getName());
             resp.put("defaultPassword", defaultStaffPassword);
             resp.put("emailSent", emailSent);
             return ResponseEntity.status(201).body(resp);
