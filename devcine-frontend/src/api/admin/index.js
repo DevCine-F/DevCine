@@ -9,7 +9,7 @@ export const movieApi = {
 };
 
 export const cinemaApi = {
-  getAll: () => api.get('/admin/cinemas'),
+  getAll: (params = { all: true }) => api.get('/v1/cinemas', { params }),
   // ... other cinema methods
 };
 

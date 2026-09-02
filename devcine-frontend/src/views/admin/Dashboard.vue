@@ -10,10 +10,29 @@ import { friendlyError } from "@/utils/friendlyError";
 const { can } = useAdminPerm();
 const toast = useToastStore();
 const authStore = useAuthStore();
-const isAdmin = computed(() => (authStore.user?.role?.name || "").toUpperCase() === "ADMIN");
+const isAdmin = computed(() => authStore.isAdmin || (authStore.role || "").toUpperCase() === "ADMIN");
 
 const cinemas = ref([]);
 const selectedCinemaId = ref("");
+
+const selectedCinema = computed(() => {
+  if (!selectedCinemaId.value) return null;
+  return cinemas.value.find((c) => String(c.id) === String(selectedCinemaId.value)) || null;
+});
+
+const scopeBadgeText = computed(() => {
+  if (isAdmin.value) {
+    return selectedCinema.value ? `CƠ SỞ: ${selectedCinema.value.name.toUpperCase()}` : "TOÀN HỆ THỐNG";
+  }
+  return authStore.cinemaName ? `CƠ SỞ: ${authStore.cinemaName.toUpperCase()}` : "BÁO CÁO CƠ SỞ";
+});
+
+const userCardLabel = computed(() => {
+  if (isAdmin.value && !selectedCinemaId.value) {
+    return "Khách mới toàn hệ thống";
+  }
+  return "Khách mới của cơ sở";
+});
 
 const range = ref("today");
 const isLoading = ref(true);
@@ -114,8 +133,8 @@ const revenueLabel = computed(() =>
 const kpiCards = computed(() => [
   { id: "revenue", label: revenueLabel.value, item: data.value.revenue, icon: "payments", color: "primary" },
   { id: "tickets", label: "Vé đã bán", item: data.value.tickets, icon: "confirmation_number", color: "blue" },
-  // Khách lần đầu giao dịch tại cơ sở — không phải số tài khoản mới đăng ký
-  { id: "users", label: "Khách mới của cơ sở", item: data.value.newUsers, icon: "person_add", color: "purple" },
+  // Khách mới: toàn hệ thống khi xem tổng, hoặc cơ sở khi lọc theo rạp
+  { id: "users", label: userCardLabel.value, item: data.value.newUsers, icon: "person_add", color: "purple" },
   { id: "occupancy", label: "Tỷ lệ lấp đầy", item: data.value.occupancy, icon: "chair", color: "orange" },
 ]);
 
@@ -175,7 +194,8 @@ const fetchCinemas = async () => {
   if (!isAdmin.value) return;
   try {
     const res = await cinemaApi.getAll();
-    cinemas.value = res.data?.data || res.data || [];
+    const raw = res.data;
+    cinemas.value = Array.isArray(raw) ? raw : (raw?.data || []);
   } catch (err) {
     console.error("Lỗi tải danh sách rạp:", err);
   }
@@ -230,9 +250,16 @@ onBeforeUnmount(() => {
     <!-- Header -->
     <header class="mb-10 flex flex-col lg:flex-row lg:justify-between lg:items-end gap-6">
       <div>
-        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">
-          Bảng Điều khiển
-        </h1>
+        <div class="flex items-center gap-3 flex-wrap">
+          <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight font-headline uppercase italic text-primary">
+            Bảng Điều khiển
+          </h1>
+          <span 
+            class="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-sm border"
+            :class="selectedCinemaId || !isAdmin ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-primary/10 text-primary border-primary/30'">
+            {{ scopeBadgeText }}
+          </span>
+        </div>
         <p class="text-on-surface-variant text-sm mt-1 uppercase tracking-widest font-bold">
           Hệ thống phân tích dữ liệu thời gian thực
         </p>
@@ -240,13 +267,18 @@ onBeforeUnmount(() => {
       <div class="flex items-center gap-3 flex-wrap">
         <!-- Bộ lọc chọn cơ sở cho ADMIN -->
         <div v-if="isAdmin && cinemas.length" class="flex items-center">
-          <select 
-            v-model="selectedCinemaId" 
-            @change="fetchStats"
-            class="bg-surface-container-high text-on-surface text-xs font-bold px-3 py-2 rounded-sm border border-outline-variant/20 focus:outline-none focus:border-primary">
-            <option value="">Tất cả cụm rạp</option>
-            <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </select>
+          <div class="relative bg-surface-container-high rounded-lg border border-outline-variant/20 hover:border-outline-variant/40 hover:bg-white/5 transition-all">
+            <select 
+              v-model="selectedCinemaId" 
+              @change="fetchStats"
+              class="appearance-none bg-transparent text-on-surface-variant hover:text-on-surface pl-3.5 pr-8 py-2.5 text-[10px] font-bold uppercase tracking-wider focus:outline-none cursor-pointer">
+              <option value="" class="bg-surface-container-high text-on-surface">Toàn hệ thống</option>
+              <option v-for="c in cinemas" :key="c.id" :value="c.id" class="bg-surface-container-high text-on-surface">{{ c.name }}</option>
+            </select>
+            <span class="material-symbols-outlined text-sm text-on-surface-variant pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+              expand_more
+            </span>
+          </div>
         </div>
 
         <!-- Bộ lọc thời gian -->
