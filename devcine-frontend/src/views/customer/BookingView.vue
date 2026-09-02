@@ -1,5 +1,5 @@
 <script setup>
-import { RouterLink, useRouter, useRoute } from 'vue-router'
+import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
 import { useBookingStore } from '@/stores/booking'
 import { paymentApi, voucherApi } from '@/api/customer'
 import { settingsApi } from '@/api/admin'
@@ -286,17 +286,29 @@ const goNext = async () => {
     scrollTop();
   }
 };
-const goBack = () => {
+const goBack = async () => {
   if (currentStep.value > 1) {
     currentStep.value--;
     scrollTop();
     return;
   }
   // Ở bước 1 (chọn ghế): quay về trang trước (thường là màn chọn suất/lịch chiếu);
-  // nếu không có lịch sử điều hướng thì về trang Lịch chiếu.
+  // nếu đã từng tạo đơn giữ chỗ DB -> chủ động giải phóng để nhả ghế tức thì cho quầy/người khác
+  if (store.bookingId) {
+    await store.releaseHold();
+    store.resetSelections();
+  }
   if (window.history.length > 1) router.back();
   else router.push('/lich-chieu');
 };
+
+onBeforeRouteLeave(async (to, from) => {
+  // Khi người dùng chủ động rời trang đặt vé sang trang khác (Navbar/Link), không phải sang /success hay VNPAY
+  if (to.path !== '/success' && store.bookingId && !isPaying.value) {
+    await store.releaseHold();
+    store.resetSelections();
+  }
+});
 const goToStep = async (id) => {
   if (id === currentStep.value) return;
   // Cho phép quay lại bất kỳ bước trước mà không cần validate
@@ -1313,6 +1325,11 @@ watch(() => store.remainingCapacity, () => {
 // Reset toàn bộ ghế đã chọn (khi đổi số lượng vé) + nhả khoá real-time + chọn lại khối mặc định.
 const resetSeatSelection = () => {
   store.selectedSeats.forEach(s => seatRealtime.deselect(s.seatId))
+  if (store.bookingId) {
+    store.releaseHold().catch(() => {})
+    store.bookingId = null
+    held.value = false
+  }
   store.clearSeats()
   store.autoPickBlockSize()
   hoverBlockIds.value = []
@@ -1405,6 +1422,7 @@ const proceedToPayment = async () => {
         // Dùng giá cuối do backend tính ở bước giữ ghế (đã trừ voucher) để tránh lệch/giảm 2 lần
         const { data } = await paymentApi.createPayment(store.finalPrice, store.bookingId);
         if (data.code === '00') {
+          isPaying.value = true;
           sessionStorage.setItem('bookingState', JSON.stringify(store.$state));
           window.location.href = data.data; // Redirect to VNPAY Sandbox
         } else {
