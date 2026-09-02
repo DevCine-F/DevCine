@@ -450,6 +450,13 @@ public class BookingService {
                 throw new RuntimeException("Voucher does not belong to this customer");
             }
 
+            // Chặn giữ trùng: không cho phép nhiều đơn HOLD cùng lúc giữ chung 1 voucher còn hiệu lực
+            Integer excludeBookingId = (oldBooking != null) ? oldBooking.getId() : request.getHeldBookingId();
+            LocalDateTime cutoff = LocalDateTime.now().minusMinutes(holdMinutes);
+            if (bookingRepository.isVoucherHeldByOtherBooking(voucher.getId(), excludeBookingId, LocalDateTime.now(), cutoff)) {
+                throw new RuntimeException("Mã ưu đãi đang được giữ trong một phiên giao dịch khác của bạn. Vui lòng hoàn tất hoặc hủy phiên đó trước.");
+            }
+
             // Chấm điều kiện (đơn tối thiểu / theo phim / đối tượng / lượt dùng) + tính giảm qua
             // NGUỒN SỰ THẬT DUY NHẤT — dùng SNAPSHOT đóng băng trên voucher thay vì Promotion LIVE.
             voucherService.ensureSnapshotPublic(voucher); // Lazy migration: đóng băng cho voucher cũ
@@ -643,6 +650,41 @@ public class BookingService {
         if (!"HOLD".equals(booking.getStatus())) {
             throw new RuntimeException("Trạng thái đơn không hợp lệ để thanh toán.");
         }
+
+        // Mark voucher as used + tăng lượt dùng ATOMIC (chống race condition khi 2 đơn cùng thanh toán)
+        // THỨ TỰ QUAN TRỌNG:
+        // 1. Atomic update trạng thái used của Voucher trong DB TRƯỚC: chỉ thành công khi is_used = false
+        // 2. Atomic increment usedCount của Promotion (fail-fast khi hết lượt)
+        if (booking.getVoucher() != null) {
+            Voucher v = booking.getVoucher();
+            LocalDateTime now = LocalDateTime.now();
+
+            int voucherUpdated = voucherRepository.markVoucherAsUsedIfUnused(v.getId(), now);
+            if (voucherUpdated == 0) {
+                // Voucher đã bị đánh dấu sử dụng bởi một đơn hàng khác (xung đột đồng thời / double-spending)
+                throw new RuntimeException("Mã ưu đãi đã được sử dụng trong một đơn hàng khác. Không thể hoàn tất thanh toán.");
+            }
+
+            // Load Promotion FRESH từ DB — không dùng v.getPromotion() vì lazy association có thể stale
+            // do persistence context cache từ transaction trước, dẫn đến đọc usedCount cũ.
+            Promotion freshPromo = promotionRepository.findById(v.getPromotion().getId()).orElse(null);
+
+            if (freshPromo != null && freshPromo.getUsageLimit() != null && freshPromo.getUsageLimit() > 0) {
+                // Có giới hạn lượt → atomic increment + check kết quả TRƯỚC KHI hoàn tất
+                int updated = promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
+                if (updated == 0) {
+                    // Hết lượt → từ chối ngay, rollback transaction
+                    throw new RuntimeException("Mã khuyến mãi đã hết lượt sử dụng, vui lòng bỏ voucher và thử lại.");
+                }
+            } else if (freshPromo != null) {
+                // Không giới hạn lượt (usageLimit = 0/null) → tăng bình thường, SQL luôn thành công
+                promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
+            }
+
+            // Cập nhật entity trong Hibernate session hiện tại để đồng bộ memory
+            v.setIsUsed(true);
+            v.setUsedAt(now);
+        }
         
         // Tích điểm — dùng chung LoyaltyService cho CẢ vé online lẫn vé POS; tính trên số tiền
         // thực trả (finalPrice, đã trừ voucher + làm tròn tiền mặt). Khách null (vãng lai) -> bỏ qua.
@@ -686,33 +728,6 @@ public class BookingService {
                     .map(bs -> bs.getSeat().getId())
                     .toList();
             seatLockService.markSold(booking.getShowtime().getId(), soldSeatIds);
-        }
-
-        // Mark voucher as used + tăng lượt dùng ATOMIC (chống race condition khi 2 đơn cùng thanh toán)
-        // THỨ TỰ QUAN TRỌNG: atomic increment TRƯỚC (fail-fast) → chỉ đánh dấu isUsed=true SAU khi đã chắc
-        // chắn increment thành công. Tránh pattern "save rồi rollback" gây mất nhất quán khi timeout/lỗi.
-        if (booking.getVoucher() != null) {
-            Voucher v = booking.getVoucher();
-            // Load Promotion FRESH từ DB — không dùng v.getPromotion() vì lazy association có thể stale
-            // do persistence context cache từ transaction trước, dẫn đến đọc usedCount cũ.
-            Promotion freshPromo = promotionRepository.findById(v.getPromotion().getId()).orElse(null);
-
-            if (freshPromo != null && freshPromo.getUsageLimit() != null && freshPromo.getUsageLimit() > 0) {
-                // Có giới hạn lượt → atomic increment + check kết quả TRƯỚC KHI save isUsed
-                int updated = promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
-                if (updated == 0) {
-                    // Hết lượt → từ chối ngay, KHÔNG cần save/rollback vì chưa thay đổi gì
-                    throw new RuntimeException("Mã khuyến mãi đã hết lượt sử dụng, vui lòng bỏ voucher và thử lại.");
-                }
-            } else if (freshPromo != null) {
-                // Không giới hạn lượt (usageLimit = 0/null) → tăng bình thường, SQL luôn thành công
-                promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
-            }
-
-            // Chỉ đánh dấu đã dùng SAU KHI atomic increment thành công (hoặc không giới hạn)
-            v.setIsUsed(true);
-            v.setUsedAt(LocalDateTime.now()); // ghi mốc thời điểm sử dụng voucher
-            voucherRepository.save(v);
         }
 
         // Tạo thông báo "đặt vé thành công" cho khách hàng

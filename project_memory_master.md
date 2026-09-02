@@ -389,5 +389,22 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
   - Gỡ bỏ icon đổi theme và icon chuông thông báo, dọn dẹp các watchers/store calls không sử dụng khi render trang.
   - Toàn bộ giao diện khách hàng vận hành theo Dark theme chuẩn rạp chiếu phim, thanh công cụ tinh gọn chỉ giữ lại icon Tìm kiếm (`search`) và khu vực đăng nhập / thông tin tài khoản người dùng.
 
+### 29. Cơ Chế Phòng Vệ 2 Tầng Chống Sử Dụng Trùng Voucher (2-Tier Voucher Double-Spending Protection & Atomic Lock)
+- **Vấn Đề & Lỗ Hổng (Root Cause):**
+  - Khi người dùng tạo 2 đơn hàng song song (Online và POS hoặc 2 tab/thiết bị khác nhau) và áp dụng cùng 1 mã voucher chưa sử dụng (`is_used = false`):
+    - Ở bước giữ chỗ (`holdSeats`), voucher không bị đánh dấu `is_used = true` để tránh mất voucher nếu huỷ đơn hoặc hết hạn. Do thiếu truy vấn kiểm tra các đơn giữ chỗ đang chạy, cả 2 đơn đều được áp voucher thành công.
+    - Ở bước thanh toán (`completePayment`), lệnh cập nhật cũ `v.setIsUsed(true); voucherRepository.save(v);` không có tính nguyên tử (`UPDATE ... WHERE is_used = false`), dẫn đến nguy cơ cả 2 đơn hoàn tất thanh toán và cùng nhận giảm giá.
+- **Giải Pháp 2 Tầng Toàn Diện:**
+  - **Lớp 1 - Chặn Giữ Chỗ Trùng Voucher (`holdSeats` & `BookingRepository.isVoucherHeldByOtherBooking`):**
+    - Truy vấn kiểm tra xem voucher có đang nằm trong bất kỳ đơn hàng nào có trạng thái `HOLD`, `PENDING_PAYMENT`, `PAYING` còn hiệu lực (`expiresAt > now`) hay không.
+    - Ngoại lệ an toàn: Bỏ qua kiểm tra chính `heldBookingId` để hỗ trợ cơ chế re-hold cập nhật F&B/ghế liền mạch trên cùng 1 đơn.
+    - Chặn ngay lập tức khi phát hiện voucher đang bị giam ở đơn khác: *"Mã ưu đãi đang được giữ trong một phiên giao dịch khác của bạn. Vui lòng hoàn tất hoặc hủy phiên đó trước."*
+  - **Lớp 2 - Khóa Cập Nhật Nguyên Tử & Fail-Safe Khi Thanh Toán (`completePayment` & `VoucherRepository.markVoucherAsUsedIfUnused`):**
+    - Thực thi câu lệnh nguyên tử SQL trực tiếp: `UPDATE tbl_voucher SET is_used = true, used_at = :now WHERE id = :id AND is_used = false`.
+    - Đặt khối kiểm tra voucher lên **ngay đầu hàm `completePayment` (Fail-fast)** trước khi cộng điểm loyalty, đổi trạng thái ghế, sinh vé hoặc xác nhận đơn.
+    - Trong trường hợp 2 luồng cùng lúc gửi thanh toán: Chỉ đúng 1 transaction thay đổi thành công `is_used` từ `false` sang `true` (kết quả trả về `1`); transaction còn lại nhận kết quả `0` $\rightarrow$ Ném ngoại lệ *"Mã ưu đãi đã được sử dụng trong một đơn hàng khác. Không thể hoàn tất thanh toán."* và tự động rollback toàn bộ dữ liệu.
+- **Bộ Test Kiểm Thử Tự Động (`BookingVoucherConcurrencyTest.java`):**
+  - Đầy đủ 5 test cases bao phủ: Chặn giữ voucher khi đang bị đơn khác giữ, cho phép re-hold cùng đơn, chặn thanh toán khi voucher đã bị dùng, thanh toán thành công khi voucher hợp lệ, và giả lập Race Condition 2 luồng đồng thời thanh toán xác nhận đúng 1 đơn thành công và 1 đơn bị chặn lỗi 100%.
+
 
 

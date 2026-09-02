@@ -31,4 +31,13 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
     // Khách đã từng SỬ DỤNG voucher của promotion này chưa (isUsed = true)
     @Query("SELECT COUNT(v) > 0 FROM Voucher v WHERE v.customer.userId = :customerId AND v.promotion.id = :promotionId AND v.isUsed = true")
     boolean existsUsedByCustomerIdAndPromotionId(@Param("customerId") Integer customerId, @Param("promotionId") Integer promotionId);
+
+    /**
+     * Đánh dấu voucher đã sử dụng ATOMIC (chống race condition / double spending).
+     * Chỉ cập nhật thành công (trả về 1) khi voucher chưa bị sử dụng (isUsed = false).
+     */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = false)
+    @Query("UPDATE Voucher v SET v.isUsed = true, v.usedAt = :now WHERE v.id = :voucherId AND v.isUsed = false")
+    int markVoucherAsUsedIfUnused(@Param("voucherId") Integer voucherId, @Param("now") LocalDateTime now);
 }
+

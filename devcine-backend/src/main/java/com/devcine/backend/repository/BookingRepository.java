@@ -465,4 +465,19 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
                                                @Param("cutoff") LocalDateTime cutoff,
                                                @Param("now") LocalDateTime now,
                                                Pageable pageable);
+
+    /**
+     * Kiểm tra xem voucher có đang được giữ bởi một đơn hàng khác (HOLD, PENDING_PAYMENT, PAYING)
+     * còn hiệu lực hay không (chống giữ trùng voucher ở nhiều phiên Online/POS).
+     */
+    @Query("SELECT COUNT(b) > 0 FROM Booking b " +
+           "WHERE b.voucher.id = :voucherId " +
+           "AND b.status IN ('HOLD', 'PENDING_PAYMENT', 'PAYING') " +
+           "AND (b.expiresAt > :now OR (b.expiresAt IS NULL AND b.createdAt > :cutoff)) " +
+           "AND (:excludeBookingId IS NULL OR b.id <> :excludeBookingId)")
+    boolean isVoucherHeldByOtherBooking(@Param("voucherId") Integer voucherId,
+                                        @Param("excludeBookingId") Integer excludeBookingId,
+                                        @Param("now") LocalDateTime now,
+                                        @Param("cutoff") LocalDateTime cutoff);
 }
+
