@@ -17,9 +17,12 @@ const ticketTypeLabel = (t) => {
 const isLoading = ref(false)
 const error = ref('')
 const rows = ref([])
-const page = ref(0)
+const currentPage = ref(1)
 const totalPages = ref(1)
 const totalElements = ref(0)
+const pageSize = ref(10)
+const pageSizeDropdownOpen = ref(false)
+const PAGE_SIZE_OPTIONS = [10, 20, 50]
 
 const filters = reactive({ q: '', status: '', method: '', hasFnb: '', from: '', to: '' })
 
@@ -41,14 +44,14 @@ const METHODS = ['CASH', 'TRANSFER', 'VNPAY']
 
 // Dropdown Trạng thái, Dịch vụ & Phương thức
 const statusOpen = ref(false)
-const selectStatus = (s) => { filters.status = s; statusOpen.value = false; page.value = 0; fetchBookings() }
+const selectStatus = (s) => { filters.status = s; statusOpen.value = false; currentPage.value = 1; fetchBookings() }
 const statusFilterLabel = (s) => {
   const found = STATUS_OPTIONS.find(o => o.value === s)
   return found ? (found.value ? found.label : 'Trạng thái') : 'Trạng thái'
 }
 
 const fnbOpen = ref(false)
-const selectFnb = (v) => { filters.hasFnb = v; fnbOpen.value = false; page.value = 0; fetchBookings() }
+const selectFnb = (v) => { filters.hasFnb = v; fnbOpen.value = false; currentPage.value = 1; fetchBookings() }
 const fnbLabel = (v) => {
   if (v === 'YES') return 'Có F&B'
   if (v === 'NO') return 'Chỉ vé'
@@ -56,7 +59,7 @@ const fnbLabel = (v) => {
 }
 
 const methodOpen = ref(false)
-const selectMethod = (m) => { filters.method = m; methodOpen.value = false; page.value = 0; fetchBookings() }
+const selectMethod = (m) => { filters.method = m; methodOpen.value = false; currentPage.value = 1; fetchBookings() }
 
 const hasActiveFilters = computed(() => {
   return Boolean(filters.q || filters.status || filters.method || filters.hasFnb || filters.from || filters.to)
@@ -124,7 +127,10 @@ const fetchBookings = async () => {
   isLoading.value = true
   error.value = ''
   try {
-    const params = { page: page.value, size: 15 }
+    const params = {
+      page: Math.max(0, currentPage.value - 1),
+      size: pageSize.value
+    }
     if (filters.q.trim()) params.q = filters.q.trim()
     if (filters.status) params.status = filters.status
     if (filters.method) params.method = filters.method
@@ -134,11 +140,16 @@ const fetchBookings = async () => {
     const { data } = await bookingAdminApi.list(params)
     const result = data.data ?? data
     rows.value = result.content ?? []
-    totalPages.value = result.totalPages ?? 1
+    totalPages.value = Math.max(1, result.totalPages ?? 1)
     totalElements.value = result.totalElements ?? rows.value.length
+    if (currentPage.value > totalPages.value) {
+      currentPage.value = totalPages.value
+    }
   } catch (err) {
     error.value = friendlyError(err, 'Không tải được danh sách hoá đơn.')
     rows.value = []
+    totalElements.value = 0
+    totalPages.value = 1
     toast.error(error.value)
   } finally {
     isLoading.value = false
@@ -148,14 +159,26 @@ const fetchBookings = async () => {
 let searchTimer = null
 const onSearchInput = () => {
   if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => { page.value = 0; fetchBookings() }, 400)
+  searchTimer = setTimeout(() => { currentPage.value = 1; fetchBookings() }, 400)
 }
-const applyFilter = () => { page.value = 0; fetchBookings() }
+const applyFilter = () => { currentPage.value = 1; fetchBookings() }
 const resetFilters = () => {
   filters.q = ''; filters.status = ''; filters.method = ''; filters.hasFnb = ''; filters.from = ''; filters.to = ''
-  page.value = 0; fetchBookings()
+  currentPage.value = 1; fetchBookings()
 }
-const goPage = (p) => { if (p < 0 || p >= totalPages.value) return; page.value = p; fetchBookings() }
+
+const changePageSize = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+  pageSizeDropdownOpen.value = false
+  fetchBookings()
+}
+
+const goToPage = (p) => {
+  if (p < 1 || p > totalPages.value || p === currentPage.value) return
+  currentPage.value = p
+  fetchBookings()
+}
 
 // ===== Detail modal =====
 const showDetail = ref(false)
@@ -604,11 +627,92 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
         </template>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-center gap-4 p-4 border-t border-outline-variant/10 bg-surface-container-high flex-shrink-0">
-        <button @click="goPage(page - 1)" :disabled="page === 0" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-surface-container-highest rounded disabled:opacity-40 hover:bg-white/10 transition-colors">Trước</button>
-        <span class="text-xs text-on-surface-variant font-mono">Trang {{ page + 1 }} / {{ totalPages }}</span>
-        <button @click="goPage(page + 1)" :disabled="page >= totalPages - 1" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-surface-container-highest rounded disabled:opacity-40 hover:bg-white/10 transition-colors">Tiếp</button>
+      <!-- Pagination & Footer với Custom Page Size Dropdown -->
+      <div class="p-4 bg-surface-container-highest/30 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-outline-variant/10 flex-shrink-0">
+        <!-- Page size selector & Summary text -->
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span>Hiển thị:</span>
+
+            <!-- Custom Page Size Dropdown -->
+            <div class="relative">
+              <button
+                type="button"
+                @click="pageSizeDropdownOpen = !pageSizeDropdownOpen"
+                class="h-8 bg-surface-container-highest border rounded-lg px-2.5 text-xs font-bold font-mono text-on-surface outline-none cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
+                :class="pageSizeDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+              >
+                <span>{{ pageSize }}</span>
+                <span class="material-symbols-outlined text-sm text-on-surface-variant transition-transform duration-200" :class="{ 'rotate-180': pageSizeDropdownOpen }">expand_more</span>
+              </button>
+
+              <div v-if="pageSizeDropdownOpen" class="fixed inset-0 z-[55]" @click="pageSizeDropdownOpen = false"></div>
+
+              <transition name="fade">
+                <div v-if="pageSizeDropdownOpen" class="absolute bottom-full left-0 mb-1.5 w-24 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
+                  <button
+                    v-for="size in PAGE_SIZE_OPTIONS"
+                    :key="size"
+                    type="button"
+                    @click="changePageSize(size)"
+                    class="w-full flex items-center justify-between px-3 py-2 text-xs font-mono transition-colors"
+                    :class="pageSize === size ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
+                  >
+                    <span>{{ size }}</span>
+                    <span v-if="pageSize === size" class="material-symbols-outlined text-sm text-primary">check</span>
+                  </button>
+                </div>
+              </transition>
+            </div>
+
+            <span>dòng/trang</span>
+          </div>
+          <span class="hidden md:inline text-on-surface-variant/40">|</span>
+          <span>
+            Tổng: <strong class="text-primary">{{ totalElements.toLocaleString('vi-VN') }}</strong> hoá đơn
+          </span>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="flex items-center gap-1">
+          <button
+            @click="goToPage(1)"
+            :disabled="currentPage === 1 || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang đầu"
+          >
+            <span class="material-symbols-outlined text-base">first_page</span>
+          </button>
+          <button
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage === 1 || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang trước"
+          >
+            <span class="material-symbols-outlined text-base">chevron_left</span>
+          </button>
+
+          <span class="px-3 py-1 bg-surface-container-highest rounded-lg font-mono font-bold text-primary text-xs">
+            {{ currentPage }} / {{ totalPages }}
+          </span>
+
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="currentPage === totalPages || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang sau"
+          >
+            <span class="material-symbols-outlined text-base">chevron_right</span>
+          </button>
+          <button
+            @click="goToPage(totalPages)"
+            :disabled="currentPage === totalPages || isLoading"
+            class="p-1.5 rounded-lg border border-outline-variant/10 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant hover:text-white transition-colors"
+            title="Trang cuối"
+          >
+            <span class="material-symbols-outlined text-base">last_page</span>
+          </button>
+        </div>
       </div>
     </div>
 
