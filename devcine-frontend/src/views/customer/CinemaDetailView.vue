@@ -82,7 +82,13 @@ const fetchAll = async () => {
     ])
     cinema.value = cRes.data
     showtimes.value = (sRes.data || []).filter(s => s.cinemaId === cinemaId)
-    if (availableDates.value.length) selectedDate.value = availableDates.value[0]
+    if (availableDates.value.length) {
+      const stillValid = availableDates.value.some(d => d.dateStr === selectedDate.value)
+      if (!stillValid) {
+        const firstWithShow = availableDates.value.find(d => d.hasShowtimes)
+        selectedDate.value = firstWithShow ? firstWithShow.dateStr : availableDates.value[0].dateStr
+      }
+    }
   } catch (e) {
     console.error('Lỗi tải chi tiết rạp', e)
     toast.error(friendlyError(e, 'Không tải được thông tin rạp.'))
@@ -91,7 +97,8 @@ const fetchAll = async () => {
   }
 }
 
-const availableDates = computed(() => {
+// Tập hợp các ngày thực tế có suất chiếu tương lai tại rạp này
+const datesWithShowtimes = computed(() => {
   const set = new Set()
   showtimes.value.forEach(s => {
     const d = toDate(s.startTime)
@@ -100,14 +107,37 @@ const availableDates = computed(() => {
       if (ds) set.add(ds)
     }
   })
-  return [...set].sort()
+  return set
 })
 
-const dateLabel = (ds) => {
-  const d = new Date(ds + 'T00:00:00')
-  const wd = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()]
-  return { weekday: wd, day: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}` }
-}
+// Chuẩn Lotte Cinema: Cố định 7 ngày liên tiếp từ Hôm nay (Hôm nay -> Hôm nay + 6 ngày)
+const availableDates = computed(() => {
+  const dates = []
+  const today = new Date()
+  const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+  const pad = (n) => String(n).padStart(2, '0')
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today)
+    d.setDate(today.getDate() + i)
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+    let weekdayLabel = ''
+    if (i === 0) {
+      weekdayLabel = 'Hôm nay'
+    } else {
+      weekdayLabel = dayNames[d.getDay()]
+    }
+
+    dates.push({
+      dateStr,
+      weekday: weekdayLabel,
+      day: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`,
+      hasShowtimes: datesWithShowtimes.value.has(dateStr)
+    })
+  }
+  return dates
+})
 
 // Nhóm suất chiếu của ngày đang chọn theo phim và theo định dạng (LotteCinema style)
 const moviesOfDay = computed(() => {
@@ -286,7 +316,7 @@ onUnmounted(() => {
                 <span class="material-symbols-outlined text-primary text-base sm:text-lg">schedule</span>Mở cửa: {{ cinema.openingTime }} – Suất cuối: {{ cinema.closingTime }}
               </span>
               <span class="flex items-center gap-1.5 sm:gap-2">
-                <span class="material-symbols-outlined text-primary text-base sm:text-lg">event_available</span>{{ availableDates.length }} ngày có suất chiếu
+                <span class="material-symbols-outlined text-primary text-base sm:text-lg">event_available</span>{{ datesWithShowtimes.size }} ngày có suất chiếu
               </span>
             </div>
 
@@ -320,27 +350,34 @@ onUnmounted(() => {
               <span class="material-symbols-outlined text-primary text-xl sm:text-2xl">event</span> Lịch chiếu
             </h2>
 
-            <div v-if="availableDates.length === 0" class="py-16 text-center border-2 border-dashed border-outline-variant/30 rounded-2xl sm:rounded-3xl">
+            <div v-if="datesWithShowtimes.size === 0" class="py-16 text-center border-2 border-dashed border-outline-variant/30 rounded-2xl sm:rounded-3xl">
               <span class="material-symbols-outlined text-4xl sm:text-5xl opacity-20 mb-3 block">event_busy</span>
               <p class="text-on-surface-variant text-sm italic">Hiện chưa có suất chiếu nào tại rạp này.</p>
             </div>
 
             <template v-else>
-              <!-- Tabs ngày -->
+              <!-- Tabs ngày (Chuẩn 7 ngày liên tiếp từ Hôm nay) -->
               <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-6 sm:mb-8 touch-pan-x">
                 <button
-                  v-for="ds in availableDates" :key="ds"
-                  @click="selectedDate = ds"
-                  class="flex flex-col items-center justify-center w-20 sm:w-24 h-16 sm:h-20 rounded-xl sm:rounded-2xl border shrink-0 transition-all"
-                  :class="selectedDate === ds ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20' : 'border-outline-variant/20 hover:border-primary/40'"
+                  v-for="d in availableDates" :key="d.dateStr"
+                  @click="selectedDate = d.dateStr"
+                  class="relative flex flex-col items-center justify-center w-20 sm:w-24 h-16 sm:h-20 rounded-xl sm:rounded-2xl border shrink-0 transition-all"
+                  :class="selectedDate === d.dateStr ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20' : 'border-outline-variant/20 hover:border-primary/40'"
                 >
-                  <span class="text-[9px] sm:text-[0.65rem] font-bold uppercase tracking-widest opacity-80">{{ dateLabel(ds).weekday }}</span>
-                  <span class="text-base sm:text-lg font-bold">{{ dateLabel(ds).day }}</span>
+                  <span class="text-[9px] sm:text-[0.65rem] font-bold uppercase tracking-widest opacity-80">{{ d.weekday }}</span>
+                  <span class="text-base sm:text-lg font-bold">{{ d.day }}</span>
+                  <span v-if="selectedDate !== d.dateStr && d.hasShowtimes" class="absolute bottom-1.5 w-1 h-1 rounded-full bg-primary/70"></span>
                 </button>
               </div>
 
+              <!-- Trạng thái không có suất chiếu cho ngày được chọn -->
+              <div v-if="moviesOfDay.length === 0" class="py-16 text-center border-2 border-dashed border-outline-variant/30 rounded-2xl sm:rounded-3xl">
+                <span class="material-symbols-outlined text-4xl sm:text-5xl opacity-20 mb-3 block">event_busy</span>
+                <p class="text-on-surface-variant text-sm italic">Không có suất chiếu nào vào ngày này. Quý khách vui lòng chọn ngày khác.</p>
+              </div>
+
               <!-- Phim trong ngày -->
-              <div class="space-y-4 sm:space-y-6">
+              <div v-else class="space-y-4 sm:space-y-6">
                 <div v-for="m in moviesOfDay" :key="m.movieId" class="flex flex-col sm:flex-row gap-4 sm:gap-5 p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-surface-container-low border border-outline-variant/10">
                   <RouterLink :to="`/movie/${m.movieId}`" class="w-20 sm:w-24 h-28 sm:h-36 rounded-xl overflow-hidden shrink-0 bg-surface-container-high border border-white/5 self-start sm:self-auto">
                     <img v-if="m.posterUrl" :src="m.posterUrl" class="w-full h-full object-cover hover:scale-105 transition-transform" />
