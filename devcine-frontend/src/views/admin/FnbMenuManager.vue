@@ -1108,21 +1108,7 @@ onMounted(() => {
           <!-- Thành phần / Ô chọn — CHỈ hiện cho COMBO -->
           <div v-if="form.type === 'COMBO'" class="space-y-3 pt-5 border-t border-outline-variant/10">
             <div class="flex justify-between items-center gap-2">
-              <div class="flex items-center gap-2">
-                <label class="text-[10px] font-bold uppercase tracking-widest text-primary">Thành phần combo</label>
-                <span
-                  v-if="form.slots.length === 0"
-                  class="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-surface-container-high text-on-surface-variant border border-outline-variant/20"
-                >
-                  Cố định
-                </span>
-                <span
-                  v-else
-                  class="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary border border-primary/20"
-                >
-                  {{ form.slots.length }} ô chọn
-                </span>
-              </div>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-primary">Thành phần combo</label>
             </div>
 
             <!-- ── CHẾ ĐỘ BUILDER (số lượng) ── -->
@@ -1177,9 +1163,6 @@ onMounted(() => {
                     </div>
                   </div>
                 </div>
-                <p v-else class="text-xs text-on-surface-variant italic">
-                  Chưa đặt số lượng nào — combo sẽ là món cố định (khách không chọn vị).
-                </p>
               </template>
             </template>
 
