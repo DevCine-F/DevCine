@@ -18,6 +18,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  isPastDate: {
+    type: Boolean,
+    default: false
+  },
   // Số cột 15' của lưới (co giãn theo giờ hoạt động rạp).
   gridCols: {
     type: Number,
@@ -94,6 +98,19 @@ const sortedHalls = computed(() => {
 const isShowtimeLocked = (st) => {
   return (st.soldSeats || 0) + (st.heldSeats || 0) > 0 || st.reserved > 0;
 }
+
+const computedIsPastDate = computed(() => {
+  if (props.isPastDate) return true;
+  const today = new Date();
+  const pad = (n) => n.toString().padStart(2, '0');
+  const todayIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+  const matched = props.dates?.find(d => d.date === props.selectedDate);
+  if (matched?.fullDate) {
+    return matched.fullDate < todayIso;
+  }
+  return false;
+});
 </script>
 
 <template>
@@ -155,17 +172,30 @@ const isShowtimeLocked = (st) => {
     <div class="flex gap-4">
       <button
         v-if="canSchedule"
-        @click="$emit('open-batch')"
-        class="bg-surface-container-highest text-on-surface px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-white/10 transition-all flex items-center gap-2"
+        type="button"
+        :disabled="computedIsPastDate"
+        @click="!computedIsPastDate && $emit('open-batch')"
+        :title="computedIsPastDate ? 'Không thể tạo lịch chiếu cho ngày trong quá khứ' : 'Tạo lịch chiếu hàng loạt'"
+        class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all flex items-center gap-2"
+        :class="computedIsPastDate
+          ? 'bg-white/[0.03] text-white/30 border-white/5 cursor-not-allowed shadow-none'
+          : 'bg-surface-container-highest text-on-surface border-outline-variant/10 hover:bg-white/10'"
       >
-        <span class="material-symbols-outlined text-sm">bolt</span> Tạo hàng loạt
+        <span class="material-symbols-outlined text-sm">{{ computedIsPastDate ? 'lock' : 'bolt' }}</span>
+        Tạo hàng loạt
       </button>
       <button
         v-if="canSchedule"
-        @click="$emit('add-showtime')"
-        class="bg-primary text-on-primary px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:brightness-110 transition-all flex items-center gap-2"
+        type="button"
+        :disabled="computedIsPastDate"
+        @click="!computedIsPastDate && $emit('add-showtime')"
+        :title="computedIsPastDate ? 'Không thể thêm suất chiếu cho ngày trong quá khứ' : 'Thêm suất chiếu mới'"
+        class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+        :class="computedIsPastDate
+          ? 'bg-primary/20 text-primary/40 border border-primary/20 cursor-not-allowed shadow-none'
+          : 'bg-primary text-on-primary shadow-lg shadow-primary/20 hover:brightness-110'"
       >
-        <span class="material-symbols-outlined text-sm">add</span>
+        <span class="material-symbols-outlined text-sm">{{ computedIsPastDate ? 'lock' : 'add' }}</span>
         Thêm suất chiếu
       </button>
     </div>

@@ -74,6 +74,7 @@ const {
   selectedDate,
   selectedDateIso,
   isToday,
+  isPastDate,
   gridCols,
   hourMarks,
   showNowIndicator,
@@ -339,13 +340,25 @@ const handleDeleteShowtime = async () => {
   }
 };
 
-// Chỉ mở drawer Thêm suất chiếu khi cụm rạp đã có phòng chiếu
+// Chỉ mở drawer Thêm suất chiếu khi cụm rạp đã có phòng chiếu và ngày không ở quá khứ
 const handleAddShowtime = () => {
+  if (isPastDate.value) {
+    toast.warning("Không thể thêm suất chiếu cho ngày trong quá khứ.");
+    return;
+  }
   if (!selectedCinema.value?.halls || selectedCinema.value.halls.length === 0) {
     toast.warning("Cụm rạp chưa có phòng chiếu. Vui lòng thêm phòng ở tab \"Phòng chiếu\" trước.");
     return;
   }
   showAddShowtimeDrawer.value = true;
+};
+
+const handleOpenBatch = () => {
+  if (isPastDate.value) {
+    toast.warning("Không thể tạo suất chiếu hàng loạt cho ngày trong quá khứ.");
+    return;
+  }
+  showBatchShowtimeDrawer.value = true;
 };
 
 const closeDrawer = () => {
@@ -497,6 +510,7 @@ onUnmounted(() => {
             :dates="dates"
             v-model:selected-date="selectedDate"
             :is-today="isToday"
+            :is-past-date="isPastDate"
             :grid-cols="gridCols"
             :hour-marks="hourMarks"
             :show-now="showNowIndicator"
@@ -513,7 +527,7 @@ onUnmounted(() => {
             @go-today="goToday"
             @update:selectedDate="(d) => selectedDate = d"
             @add-showtime="handleAddShowtime"
-            @open-batch="showBatchShowtimeDrawer = true"
+            @open-batch="handleOpenBatch"
             @open-showtime="openShowtimeDetails"
           />
 

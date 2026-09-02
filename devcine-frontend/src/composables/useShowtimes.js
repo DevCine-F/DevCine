@@ -127,6 +127,7 @@ export function useShowtimes(selectedCinema) {
   });
 
   const isToday = computed(() => selectedDateIso.value === getTodayIsoStr());
+  const isPastDate = computed(() => selectedDateIso.value < getTodayIsoStr());
 
   // ===== Cửa sổ giờ hoạt động động (co giãn theo cụm rạp) =====
   // openMin/closeMin theo phút; nếu đóng ≤ mở ⇒ qua nửa đêm (closeMin += 1440).
@@ -329,6 +330,7 @@ export function useShowtimes(selectedCinema) {
     selectedDate,
     selectedDateIso,
     isToday,
+    isPastDate,
     gridCols,
     hourMarks,
     showNowIndicator,
