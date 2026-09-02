@@ -22,7 +22,7 @@ public class UploadController {
     private final CloudinaryService cloudinaryService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> uploadImage(@RequestParam("file") MultipartFile file) {
         try {
             String url = cloudinaryService.uploadFile(file);

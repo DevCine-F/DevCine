@@ -58,7 +58,7 @@ public class AuthController {
     public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> body) {
         try {
             Integer userId = Integer.valueOf(body.get("userId"));
-            var data = authService.updateProfile(userId, body.get("fullName"), body.get("email"), body.get("phone"));
+            var data = authService.updateProfile(userId, body.get("fullName"), body.get("email"), body.get("phone"), body.get("avatarUrl"));
             return ResponseEntity.ok(ApiResponse.ok(data));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));

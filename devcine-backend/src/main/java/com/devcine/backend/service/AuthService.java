@@ -144,6 +144,11 @@ public class AuthService {
 
     @Transactional
     public Map<String, Object> updateProfile(Integer userId, String fullName, String email, String phone) {
+        return updateProfile(userId, fullName, email, phone, null);
+    }
+
+    @Transactional
+    public Map<String, Object> updateProfile(Integer userId, String fullName, String email, String phone, String avatarUrl) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
 
@@ -164,6 +169,9 @@ public class AuthService {
             }
             user.setPhone(cleanPhone);
         }
+        if (avatarUrl != null) {
+            user.setAvatarUrl(avatarUrl.isBlank() ? null : avatarUrl.trim());
+        }
 
         userRepository.save(user);
         log.info("Profile updated for user: {}", user.getUsername());
@@ -176,6 +184,7 @@ public class AuthService {
         m.put("username", user.getUsername());
         m.put("email", user.getEmail());
         m.put("fullName", user.getFullName());
+        m.put("avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
         m.put("phone", user.getPhone() != null ? user.getPhone() : "");
         m.put("role", user.getRole() != null ? user.getRole().getName() : "");
         m.put("isActive", Boolean.TRUE.equals(user.getIsActive()));

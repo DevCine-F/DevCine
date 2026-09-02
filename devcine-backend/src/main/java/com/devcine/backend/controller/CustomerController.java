@@ -455,6 +455,11 @@ public class CustomerController {
                         user.setPhone(null);
                     }
                 }
+                if (body.containsKey("avatarUrl")) {
+                    Object avatarVal = body.get("avatarUrl");
+                    String avatar = avatarVal != null ? avatarVal.toString().trim() : null;
+                    user.setAvatarUrl(avatar != null && !avatar.isBlank() ? avatar : null);
+                }
                 userRepository.save(user);
             }
 

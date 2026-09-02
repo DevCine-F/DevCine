@@ -1,9 +1,11 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import api from '@/api/axios'
 import { customerApi } from '@/api/customer'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { friendlyError } from '@/utils/friendlyError'
+import { prepareImageForUpload } from '@/utils/imageUpload'
 import BookingHistoryView from './BookingHistoryView.vue'
 
 const authStore = useAuthStore()
@@ -12,9 +14,103 @@ const customer = ref(null)
 const isLoading = ref(true)
 const isSaving = ref(false)
 const isEditing = ref(false)
-const editForm = ref({ fullName: '', email: '', phone: '', dob: '' })
+const editForm = ref({ fullName: '', email: '', phone: '', dob: '', avatarUrl: '' })
 const pointHistory = ref([])
 const isLoadingHistory = ref(false)
+
+// Avatar edit & upload modal state
+const isAvatarModalOpen = ref(false)
+const isUploadingAvatar = ref(false)
+const tempAvatarUrl = ref('')
+const fileInputRef = ref(null)
+
+const displayedAvatar = computed(() => {
+  if (isEditing.value) {
+    return editForm.value.avatarUrl !== undefined ? editForm.value.avatarUrl : (customer.value?.avatarUrl || '')
+  }
+  return customer.value?.avatarUrl || ''
+})
+
+const openAvatarModal = () => {
+  tempAvatarUrl.value = displayedAvatar.value || ''
+  isAvatarModalOpen.value = true
+}
+
+const closeAvatarModal = () => {
+  isAvatarModalOpen.value = false
+}
+
+const triggerFileUpload = () => {
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (event) => {
+  const file = event.target?.files?.[0]
+  if (!file) return
+  try {
+    const prepared = await prepareImageForUpload(file, {
+      types: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
+      maxMB: 5
+    })
+    isUploadingAvatar.value = true
+    const fd = new FormData()
+    fd.append('file', prepared)
+    const { data } = await api.post('/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    const uploadedUrl = data?.data?.url || data?.url || (typeof data?.data === 'string' ? data.data : '')
+    if (!uploadedUrl) throw new Error('Không nhận được đường dẫn ảnh từ máy chủ.')
+
+    tempAvatarUrl.value = uploadedUrl
+    toast.success('Đã tải ảnh lên thành công!')
+  } catch (err) {
+    console.error('Upload avatar error', err)
+    toast.error(friendlyError(err, 'Tải ảnh lên thất bại.'))
+  } finally {
+    isUploadingAvatar.value = false
+    if (event.target) event.target.value = ''
+  }
+}
+
+const selectEmptyAvatar = () => {
+  tempAvatarUrl.value = ''
+}
+
+const handleSaveAvatar = async () => {
+  const newAvatar = tempAvatarUrl.value.trim()
+  if (isEditing.value) {
+    editForm.value.avatarUrl = newAvatar
+    isAvatarModalOpen.value = false
+    toast.success('Đã chọn ảnh đại diện. Bấm "Lưu" để hoàn tất cập nhật hồ sơ.')
+  } else {
+    if (!authStore.user?.id) return
+    isUploadingAvatar.value = true
+    try {
+      const payload = {
+        fullName: customer.value?.fullName || '',
+        email: customer.value?.email || '',
+        phone: customer.value?.phone || '',
+        dob: customer.value?.dob || '',
+        avatarUrl: newAvatar
+      }
+      const res = await customerApi.updateProfile(authStore.user.id, payload)
+      const updated = res.data?.data ?? res.data
+      customer.value = updated
+      editForm.value.avatarUrl = updated.avatarUrl || ''
+      if (authStore.user) {
+        authStore.user.avatarUrl = updated.avatarUrl || ''
+        localStorage.setItem('user', JSON.stringify(authStore.user))
+      }
+      toast.success(newAvatar ? 'Cập nhật ảnh đại diện thành công!' : 'Đã đặt về ảnh đại diện mặc định!')
+      isAvatarModalOpen.value = false
+    } catch (err) {
+      console.error('Failed to update avatar', err)
+      toast.error(friendlyError(err, 'Cập nhật ảnh đại diện thất bại.'))
+    } finally {
+      isUploadingAvatar.value = false
+    }
+  }
+}
 
 // Phân trang lịch sử điểm
 const POINT_PAGE_SIZE = 8
@@ -43,7 +139,13 @@ const fetchProfile = async () => {
   try {
     const { data } = await customerApi.getProfile(authStore.user.id)
     customer.value = data
-    editForm.value = { fullName: data.fullName || '', email: data.email || '', phone: data.phone || '', dob: data.dob || '' }
+    editForm.value = {
+      fullName: data.fullName || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      dob: data.dob || '',
+      avatarUrl: data.avatarUrl || ''
+    }
   } catch (err) {
     console.error('Failed to fetch profile', err)
     toast.error(friendlyError(err, 'Không tải được thông tin hồ sơ.'))
@@ -89,12 +191,14 @@ const handleSaveProfile = async () => {
       fullName: updated.fullName || '',
       email: updated.email || '',
       phone: updated.phone || '',
-      dob: updated.dob || ''
+      dob: updated.dob || '',
+      avatarUrl: updated.avatarUrl || ''
     }
     if (authStore.user) {
       if (updated.fullName) authStore.user.fullName = updated.fullName
       if (updated.email) authStore.user.email = updated.email
       if (updated.phone) authStore.user.phone = updated.phone
+      authStore.user.avatarUrl = updated.avatarUrl || ''
       localStorage.setItem('user', JSON.stringify(authStore.user))
     }
     isEditing.value = false
@@ -112,7 +216,8 @@ const handleCancelEdit = () => {
       fullName: customer.value.fullName || '',
       email: customer.value.email || '',
       phone: customer.value.phone || '',
-      dob: customer.value.dob || ''
+      dob: customer.value.dob || '',
+      avatarUrl: customer.value.avatarUrl || ''
     }
   }
   isEditing.value = false
@@ -225,10 +330,38 @@ const tierInfo = computed(() => {
         <div class="absolute -top-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
         
         <div class="relative z-10 flex flex-col sm:flex-row gap-4 sm:gap-8 items-start sm:items-center">
-          <!-- User Avatar -->
-          <div class="relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 shrink-0 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-            <img class="w-full h-full object-cover" src="/images/Hopper.webp" alt="Avatar"/>
-            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+          <!-- User Avatar Container -->
+          <div 
+            @click="openAvatarModal"
+            class="relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 shrink-0 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-surface-container-highest flex items-center justify-center group cursor-pointer select-none transition-all duration-300 hover:border-primary/50"
+            title="Bấm để đổi ảnh đại diện"
+          >
+            <!-- Displayed Avatar Image -->
+            <img 
+              v-if="displayedAvatar" 
+              :src="displayedAvatar" 
+              alt="Avatar" 
+              class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+            <!-- Blank / Empty Avatar Fallback (Avatar trắng / Icon mặc định sang trọng) -->
+            <div 
+              v-else 
+              class="w-full h-full bg-gradient-to-br from-white/15 via-white/5 to-transparent flex flex-col items-center justify-center text-white/50"
+            >
+              <span class="material-symbols-outlined text-4xl sm:text-5xl md:text-6xl text-white/60 font-light">person</span>
+            </div>
+
+            <!-- Hover Overlay with Camera Icon in Center -->
+            <div class="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-1 text-white z-10">
+              <span class="material-symbols-outlined text-2xl sm:text-3xl text-primary transition-transform duration-300 transform group-hover:scale-110">photo_camera</span>
+              <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white/90">Đổi ảnh</span>
+            </div>
+
+            <!-- Uploading / Processing Overlay -->
+            <div v-if="isUploadingAvatar" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center z-20 gap-1.5 backdrop-blur-sm">
+              <span class="material-symbols-outlined text-primary text-2xl sm:text-3xl animate-spin">progress_activity</span>
+              <span class="text-[9px] font-bold text-white uppercase tracking-widest">Đang tải...</span>
+            </div>
           </div>
           
           <!-- Basic Info -->
@@ -438,6 +571,134 @@ const tierInfo = computed(() => {
 
     <!-- Booking History -->
     <BookingHistoryView preview />
+
+    <!-- Modal Chỉnh sửa ảnh đại diện -->
+    <Teleport to="body">
+      <div 
+        v-if="isAvatarModalOpen" 
+        class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all"
+        @click.self="closeAvatarModal"
+      >
+        <div class="bg-surface-container-low border border-white/10 rounded-2xl w-full max-w-md p-5 sm:p-6 shadow-2xl relative overflow-hidden animate-slide-in flex flex-col gap-5 text-on-surface">
+          <!-- Glow effect background -->
+          <div class="absolute -top-20 -right-20 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+          
+          <!-- Header -->
+          <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3">
+            <div>
+              <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-base sm:text-lg">photo_camera</span>
+                Chỉnh sửa ảnh đại diện
+              </h3>
+              <p class="text-[10px] sm:text-[11px] text-on-surface-variant mt-0.5">
+                Tải ảnh mới, chọn ảnh mặc định hoặc sử dụng ảnh trống
+              </p>
+            </div>
+            <button 
+              @click="closeAvatarModal" 
+              class="w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <span class="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
+
+          <!-- Preview & Current Selection -->
+          <div class="flex flex-col items-center justify-center gap-2 py-2">
+            <div class="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/15 shadow-2xl bg-surface-container-highest flex items-center justify-center">
+              <img 
+                v-if="tempAvatarUrl" 
+                :src="tempAvatarUrl" 
+                alt="Preview" 
+                class="w-full h-full object-cover" 
+              />
+              <div 
+                v-else 
+                class="w-full h-full bg-gradient-to-br from-white/15 via-white/5 to-transparent flex flex-col items-center justify-center text-white/50 select-none"
+              >
+                <span class="material-symbols-outlined text-4xl sm:text-5xl text-white/60 font-light">person</span>
+              </div>
+              <div v-if="isUploadingAvatar" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 gap-1">
+                <span class="material-symbols-outlined text-primary text-2xl animate-spin">progress_activity</span>
+                <span class="text-[8px] font-bold text-white uppercase tracking-wider">Đang tải...</span>
+              </div>
+            </div>
+            <span class="text-[10px] text-on-surface-variant font-mono uppercase">Xem trước ảnh đại diện</span>
+          </div>
+
+          <!-- Action Options -->
+          <div class="space-y-3">
+            <!-- 1. Tải ảnh từ máy tính / điện thoại -->
+            <div>
+              <button 
+                type="button" 
+                @click="triggerFileUpload" 
+                :disabled="isUploadingAvatar"
+                class="w-full p-3.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/30 flex items-center justify-between transition-all cursor-pointer group disabled:opacity-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
+                    <span class="material-symbols-outlined text-xl">cloud_upload</span>
+                  </div>
+                  <div class="text-left">
+                    <p class="text-xs font-bold text-white group-hover:text-primary transition-colors">Tải ảnh từ thiết bị</p>
+                    <p class="text-[10px] text-on-surface-variant">JPG, PNG, WEBP tối đa 5MB</p>
+                  </div>
+                </div>
+                <span class="material-symbols-outlined text-sm text-primary">arrow_forward_ios</span>
+              </button>
+              <input 
+                type="file" 
+                ref="fileInputRef" 
+                accept="image/jpeg,image/jpg,image/png,image/webp" 
+                class="hidden" 
+                @change="handleFileChange" 
+              />
+            </div>
+
+            <!-- 2. Đặt về ảnh mặc định / Ảnh trống -->
+            <div>
+              <button 
+                type="button"
+                @click="selectEmptyAvatar"
+                :class="['w-full p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left', !tempAvatarUrl ? 'bg-primary/15 border-primary text-white shadow-lg' : 'bg-surface-container-high border-white/5 text-on-surface-variant hover:text-white hover:border-white/15']"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined text-lg text-white/70">person</span>
+                  </div>
+                  <div>
+                    <p class="text-xs font-bold">Đặt ảnh trống (Mặc định)</p>
+                    <p class="text-[10px] text-on-surface-variant/80">Xóa ảnh hiện tại và dùng avatar trắng mặc định</p>
+                  </div>
+                </div>
+                <span v-if="!tempAvatarUrl" class="material-symbols-outlined text-base text-primary">check_circle</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Footer Actions -->
+          <div class="flex justify-end items-center gap-2.5 pt-3 border-t border-outline-variant/10">
+            <button 
+              type="button" 
+              @click="closeAvatarModal" 
+              class="text-xs font-bold uppercase tracking-wider px-4 py-2 border border-outline-variant/20 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant cursor-pointer"
+            >
+              Huỷ
+            </button>
+            <button 
+              type="button" 
+              @click="handleSaveAvatar" 
+              :disabled="isUploadingAvatar"
+              class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-4 py-2 bg-primary text-on-primary rounded hover:brightness-110 transition-all disabled:opacity-60 cursor-pointer shadow-lg shadow-primary/20"
+            >
+              <span v-if="isUploadingAvatar" class="material-symbols-outlined text-sm animate-spin">autorenew</span>
+              <span v-else class="material-symbols-outlined text-sm">check</span>
+              {{ isUploadingAvatar ? 'Đang lưu...' : 'Lưu thay đổi' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
