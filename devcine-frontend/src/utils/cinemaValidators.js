@@ -57,6 +57,9 @@ export const validateHotline = (hotline) => {
   const d = rawDigits(hotline)
   if (!d) return 'Hotline không được để trống'
   if (d.length < 8 || d.length > 11) return 'Hotline phải gồm 8 đến 11 chữ số'
+  if (!(d.startsWith('0') || d.startsWith('1800') || d.startsWith('1900'))) {
+    return 'Đầu số Hotline không hợp lệ (hỗ trợ 0x, 1800, 1900)'
+  }
   return ''
 }
 
