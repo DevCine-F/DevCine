@@ -14,7 +14,6 @@ const error = ref('')
 const searchQuery = ref('')
 const tierFilter = ref('ALL')
 const statusFilter = ref('ALL')
-const typeFilter = ref('ALL')
 const sortBy = ref('createdAt')
 const sortOrder = ref('desc') // 'asc' | 'desc'
 const pageSize = ref(10)
@@ -24,7 +23,6 @@ let searchTimer = null
 // ===== State Custom Dropdown UI =====
 const tierDropdownOpen = ref(false)
 const statusDropdownOpen = ref(false)
-const typeDropdownOpen = ref(false)
 const pageSizeDropdownOpen = ref(false)
 
 const TIER_OPTIONS = [
@@ -41,12 +39,6 @@ const STATUS_OPTIONS = [
   { value: 'LOCKED', label: 'Đã khóa', dot: 'bg-rose-400', color: 'text-rose-400' }
 ]
 
-const TYPE_OPTIONS = [
-  { value: 'ALL', label: 'Mọi loại khách', icon: 'apps', color: 'text-on-surface-variant' },
-  { value: 'MEMBER', label: 'Thành viên', icon: 'person', color: 'text-sky-300' },
-  { value: 'GUEST', label: 'Khách vãng lai', icon: 'storefront', color: 'text-amber-400' }
-]
-
 const PAGE_SIZE_OPTIONS = [10, 20, 50]
 
 const LOCK_REASONS = [
@@ -59,12 +51,10 @@ const LOCK_REASONS = [
 
 const selectedTierOption = computed(() => TIER_OPTIONS.find(o => o.value === tierFilter.value) || TIER_OPTIONS[0])
 const selectedStatusOption = computed(() => STATUS_OPTIONS.find(o => o.value === statusFilter.value) || STATUS_OPTIONS[0])
-const selectedTypeOption = computed(() => TYPE_OPTIONS.find(o => o.value === typeFilter.value) || TYPE_OPTIONS[0])
 
 const closeAllDropdowns = () => {
   tierDropdownOpen.value = false
   statusDropdownOpen.value = false
-  typeDropdownOpen.value = false
   pageSizeDropdownOpen.value = false
   orderPageSizeDropdownOpen.value = false
 }
@@ -125,8 +115,7 @@ const editForm = ref({
   membershipTier: '',
   loyaltyPoints: 0,
   createdAt: '',
-  isActive: true,
-  isGuest: false
+  isActive: true
 })
 const editErrors = ref({})
 
@@ -261,11 +250,6 @@ const filteredCustomers = computed(() => {
       if (statusFilter.value === 'ACTIVE' && !c.isActive) return false
       if (statusFilter.value === 'LOCKED' && c.isActive) return false
     }
-    // 3. Loại khách
-    if (typeFilter.value !== 'ALL') {
-      if (typeFilter.value === 'MEMBER' && c.isGuest) return false
-      if (typeFilter.value === 'GUEST' && !c.isGuest) return false
-    }
     return true
   }).sort((a, b) => {
     let va = a[sortBy.value]
@@ -310,7 +294,6 @@ const resetFilters = () => {
   searchQuery.value = ''
   tierFilter.value = 'ALL'
   statusFilter.value = 'ALL'
-  typeFilter.value = 'ALL'
   sortBy.value = 'createdAt'
   sortOrder.value = 'desc'
   currentPage.value = 1
@@ -343,8 +326,8 @@ const exportCsv = () => {
   const lines = filteredCustomers.value.map(c => [
     `#DC-${c.userId}`,
     c.fullName || 'Khách hàng',
-    c.isGuest ? 'Khách vãng lai' : 'Thành viên chính thức',
-    c.isGuest ? '' : (c.email || ''),
+    'Thành viên chính thức',
+    c.email || '',
     c.phone || '',
     c.dob ? formatDate(c.dob) : '',
     c.membershipTier || 'BRONZE',
@@ -424,6 +407,108 @@ watch(detailTab, async (newTab) => {
 })
 
 // ===== Modal Chỉnh sửa =====
+const editInitialState = ref({ fullName: '', dob: '' })
+const isEditDirty = computed(() => {
+  return (editForm.value.fullName || '').trim() !== (editInitialState.value.fullName || '').trim() ||
+         (editForm.value.dob || '') !== (editInitialState.value.dob || '')
+})
+
+const maxDobDate = computed(() => {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() - 6)
+  return d.toISOString().split('T')[0]
+})
+const minDobDate = '1900-01-01'
+
+const formatPhoneDisplay = (p) => {
+  if (!p) return 'Chưa cập nhật'
+  const clean = p.replace(/\D/g, '')
+  if (clean.length === 10) {
+    return `${clean.slice(0, 4)} ${clean.slice(4, 7)} ${clean.slice(7)}`
+  }
+  return p
+}
+
+const onFullNameInput = () => {
+  if (editForm.value.fullName) {
+    // Chặn số và ký tự đặc biệt theo thời gian thực (chỉ cho phép chữ và khoảng trắng)
+    editForm.value.fullName = editForm.value.fullName.replace(/[^\p{L}\s]/gu, '').slice(0, 50)
+  }
+  validateFullName()
+}
+
+const onFullNameBlur = () => {
+  if (editForm.value.fullName) {
+    // Chuẩn hóa Title Case và khoảng trắng kép
+    const words = editForm.value.fullName
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+      .split(' ')
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    editForm.value.fullName = words.join(' ')
+  }
+  validateFullName()
+}
+
+const validateFullName = () => {
+  const name = (editForm.value.fullName || '').trim()
+  if (!name) {
+    editErrors.value.fullName = 'Vui lòng nhập họ và tên thành viên.'
+    return false
+  }
+  if (name.length < 2) {
+    editErrors.value.fullName = 'Họ và tên phải có tối thiểu 2 ký tự.'
+    return false
+  }
+  if (name.length > 50) {
+    editErrors.value.fullName = 'Họ và tên không được vượt quá 50 ký tự.'
+    return false
+  }
+  if (!/^[\p{L}\s]+$/u.test(name)) {
+    editErrors.value.fullName = 'Họ và tên chỉ được chứa chữ cái và khoảng trắng.'
+    return false
+  }
+  delete editErrors.value.fullName
+  return true
+}
+
+const validateDob = () => {
+  if (!editForm.value.dob) {
+    delete editErrors.value.dob
+    return true
+  }
+  const d = new Date(editForm.value.dob)
+  const now = new Date()
+  if (isNaN(d.getTime())) {
+    editErrors.value.dob = 'Định dạng ngày sinh không hợp lệ.'
+    return false
+  }
+  if (d > now) {
+    editErrors.value.dob = 'Ngày sinh không thể lớn hơn ngày hiện tại.'
+    return false
+  }
+  
+  // Tính tuổi chính xác
+  let age = now.getFullYear() - d.getFullYear()
+  const m = now.getMonth() - d.getMonth()
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) {
+    age--
+  }
+  
+  if (age < 6) {
+    editErrors.value.dob = 'Thành viên phải từ đủ 6 tuổi trở lên.'
+    return false
+  }
+  if (age > 125) {
+    editErrors.value.dob = 'Năm sinh không hợp lệ. Vui lòng kiểm tra lại.'
+    return false
+  }
+  delete editErrors.value.dob
+  return true
+}
+
 const openEditModal = (customer) => {
   closeAllDropdowns()
   editForm.value = {
@@ -435,54 +520,59 @@ const openEditModal = (customer) => {
     membershipTier: customer.membershipTier || 'BRONZE',
     loyaltyPoints: customer.loyaltyPoints || 0,
     createdAt: customer.createdAt || '',
-    isActive: customer.isActive,
-    isGuest: customer.isGuest
+    isActive: customer.isActive
+  }
+  editInitialState.value = {
+    fullName: customer.fullName || '',
+    dob: customer.dob || ''
   }
   editErrors.value = {}
   showEditModal.value = true
 }
 
 const saveEditForm = async () => {
-  editErrors.value = {}
-  const name = editForm.value.fullName.trim()
-  if (!name) {
-    editErrors.value.fullName = 'Vui lòng nhập họ và tên khách hàng.'
-    return
-  }
-  if (name.length < 2 || name.length > 50) {
-    editErrors.value.fullName = 'Họ và tên phải từ 2 đến 50 ký tự.'
+  onFullNameBlur()
+  const isNameValid = validateFullName()
+  const isDobValid = validateDob()
+  if (!isNameValid || !isDobValid) return
+
+  if (!isEditDirty.value) {
+    toast.info('Không có thông tin nào thay đổi.')
+    showEditModal.value = false
     return
   }
 
+  const name = editForm.value.fullName.trim()
   editSaving.value = true
   try {
     await customerApi.update(editForm.value.userId, {
       fullName: name,
       dob: editForm.value.dob || null
     })
-    toast.success('Cập nhật thông tin khách hàng thành công!')
+    toast.success('Cập nhật thông tin thành viên thành công!')
+    if (selectedCustomer.value && selectedCustomer.value.userId === editForm.value.userId) {
+      selectedCustomer.value.fullName = name
+      selectedCustomer.value.dob = editForm.value.dob || null
+    }
     showEditModal.value = false
     fetchCustomers()
   } catch (err) {
-    toast.error(friendlyError(err, 'Không thể cập nhật thông tin khách hàng.'))
+    toast.error(friendlyError(err, 'Không thể cập nhật thông tin thành viên.'))
   } finally {
     editSaving.value = false
   }
 }
 
-const sendResetPasswordFromModal = async () => {
-  if (editForm.value.isGuest) {
-    toast.error('Không thể gửi liên kết đặt lại mật khẩu cho tài khoản vãng lai.')
-    return
-  }
-  if (!editForm.value.isActive) {
+const handleSendResetPassword = async (customer) => {
+  if (!customer || !customer.userId) return
+  if (!customer.isActive) {
     toast.error('Tài khoản đang bị khóa. Vui lòng mở khóa tài khoản trước khi gửi yêu cầu.')
     return
   }
 
   editSendingReset.value = true
   try {
-    const { data } = await customerApi.sendResetPassword(editForm.value.userId)
+    const { data } = await customerApi.sendResetPassword(customer.userId)
     toast.success(data?.data?.message || data?.message || 'Đã gửi mã xác minh đặt lại mật khẩu thành công!')
   } catch (err) {
     toast.error(friendlyError(err, 'Không thể gửi yêu cầu đặt lại mật khẩu.'))
@@ -515,6 +605,11 @@ const submitToggleLock = async () => {
       reason: willLock ? reason : null
     })
     toast.success(willLock ? 'Đã khóa tài khoản khách hàng thành công!' : 'Đã mở khóa tài khoản thành công!')
+    if (selectedCustomer.value && selectedCustomer.value.userId === lockTarget.value.userId) {
+      selectedCustomer.value.isActive = !willLock
+      selectedCustomer.value.lockReason = willLock ? reason : null
+      selectedCustomer.value.lockedAt = willLock ? new Date().toISOString() : null
+    }
     showLockModal.value = false
     fetchCustomers()
   } catch (err) {
@@ -534,10 +629,10 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
     <div class="flex justify-between items-end flex-shrink-0">
       <div>
         <h1 class="text-3xl font-black text-on-surface tracking-tighter uppercase italic">
-          Quản lý <span class="text-primary">Khách hàng</span>
+          Quản lý <span class="text-primary">Thành viên</span>
         </h1>
         <p class="text-sm font-bold text-on-surface-variant uppercase tracking-widest mt-1">
-          Danh sách thành viên · Hạng thẻ · Điểm tích lũy &amp; Doanh thu · {{ filteredCustomers.length }} khách hàng
+          Danh sách thành viên · Hạng thẻ · Điểm tích lũy &amp; Doanh thu · {{ filteredCustomers.length }} thành viên
         </p>
       </div>
 
@@ -640,46 +735,9 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
         </transition>
       </div>
 
-      <!-- Custom Dropdown: Loại khách -->
-      <div class="relative min-w-[160px]">
-        <button
-          type="button"
-          @click="typeDropdownOpen = !typeDropdownOpen; tierDropdownOpen = false; statusDropdownOpen = false"
-          class="w-full h-11 bg-surface-container-highest border rounded-xl px-3.5 text-xs font-semibold text-on-surface outline-none cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm"
-          :class="typeDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
-        >
-          <div class="flex items-center gap-2 truncate">
-            <span class="material-symbols-outlined text-base shrink-0" :class="selectedTypeOption.color">{{ selectedTypeOption.icon }}</span>
-            <span class="truncate">{{ selectedTypeOption.label }}</span>
-          </div>
-          <span class="material-symbols-outlined text-base text-on-surface-variant transition-transform duration-200 shrink-0" :class="{ 'rotate-180': typeDropdownOpen }">expand_more</span>
-        </button>
-
-        <div v-if="typeDropdownOpen" class="fixed inset-0 z-[55]" @click="typeDropdownOpen = false"></div>
-        
-        <transition name="fade">
-          <div v-if="typeDropdownOpen" class="absolute left-0 top-full mt-1.5 w-full min-w-[180px] bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl">
-            <button
-              v-for="opt in TYPE_OPTIONS"
-              :key="opt.value"
-              type="button"
-              @click="typeFilter = opt.value; currentPage = 1; typeDropdownOpen = false"
-              class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs text-left transition-colors"
-              :class="typeFilter === opt.value ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
-            >
-              <div class="flex items-center gap-2.5">
-                <span class="material-symbols-outlined text-base" :class="opt.color">{{ opt.icon }}</span>
-                <span :class="opt.color">{{ opt.label }}</span>
-              </div>
-              <span v-if="typeFilter === opt.value" class="material-symbols-outlined text-sm text-primary">check</span>
-            </button>
-          </div>
-        </transition>
-      </div>
-
       <!-- Reset Filter Button -->
       <button
-        v-if="searchQuery || tierFilter !== 'ALL' || statusFilter !== 'ALL' || typeFilter !== 'ALL'"
+        v-if="searchQuery || tierFilter !== 'ALL' || statusFilter !== 'ALL'"
         @click="resetFilters"
         class="text-xs font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors px-3 h-11 flex items-center gap-1"
       >
@@ -791,13 +849,6 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                     <div class="flex items-center gap-2 mt-0.5">
                       <span class="text-[10px] text-on-surface-variant font-mono">#DC-{{ c.userId }}</span>
                       <span
-                        v-if="c.isGuest"
-                        class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                      >
-                        Vãng lai
-                      </span>
-                      <span
-                        v-else
                         class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30"
                       >
                         Thành viên
@@ -809,8 +860,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 
               <!-- Liên hệ -->
               <td class="px-6 py-4">
-                <p v-if="c.isGuest" class="text-on-surface-variant/70 italic text-[11px]">—</p>
-                <p v-else class="text-on-surface font-medium text-xs">{{ c.email || '—' }}</p>
+                <p class="text-on-surface font-medium text-xs">{{ c.email || '—' }}</p>
                 <p class="text-[11px] text-on-surface-variant font-mono mt-0.5">{{ c.phone || 'Chưa cập nhật' }}</p>
               </td>
 
@@ -867,11 +917,11 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 
               <!-- Thao tác (Action Buttons) -->
               <td class="px-6 py-4 text-center">
-                <div class="flex items-center justify-center gap-1">
+                <div class="flex items-center justify-center gap-1.5">
                   <!-- Xem chi tiết -->
                   <button
                     @click="openDetailModal(c)"
-                    title="Xem chi tiết hồ sơ"
+                    title="Xem chi tiết hồ sơ & lịch sử"
                     class="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
                   >
                     <span class="material-symbols-outlined text-lg">visibility</span>
@@ -885,15 +935,6 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                     :class="c.isActive ? 'text-on-surface-variant hover:text-rose-400 hover:bg-rose-500/10' : 'text-rose-400 hover:text-emerald-400 hover:bg-emerald-500/10'"
                   >
                     <span class="material-symbols-outlined text-lg">{{ c.isActive ? 'lock' : 'lock_open' }}</span>
-                  </button>
-
-                  <!-- Chỉnh sửa -->
-                  <button
-                    @click="openEditModal(c)"
-                    title="Chỉnh sửa thông tin"
-                    class="p-2 rounded-lg text-on-surface-variant hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    <span class="material-symbols-outlined text-lg">edit</span>
                   </button>
                 </div>
               </td>
@@ -1000,7 +1041,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
         
         <div class="relative w-full max-w-5xl bg-surface border border-outline-variant/20 shadow-2xl rounded-3xl overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in duration-200">
           <!-- Modal Header -->
-          <div class="p-6 bg-surface-container-high/60 border-b border-outline-variant/10 flex justify-between items-center">
+          <div class="p-6 bg-surface-container-high/60 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
               <span class="material-symbols-outlined text-primary text-2xl">account_circle</span>
               <div>
@@ -1008,9 +1049,52 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 <p class="text-xs text-on-surface-variant font-mono">ID #DC-{{ selectedCustomer.userId }} · {{ selectedCustomer.fullName }}</p>
               </div>
             </div>
-            <button @click="showDetailModal = false" class="p-1.5 rounded-xl hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors">
-              <span class="material-symbols-outlined">close</span>
-            </button>
+
+            <!-- CSKH Action Bar (Tối giản, đồng bộ màu & bo góc rounded-sm) -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <!-- Gửi đặt lại mật khẩu -->
+              <button
+                type="button"
+                @click="handleSendResetPassword(selectedCustomer)"
+                :disabled="editSendingReset || !selectedCustomer.isActive"
+                title="Gửi mã đặt lại mật khẩu về email khách hàng"
+                class="h-8 px-3 bg-surface-container-highest/80 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed text-on-surface hover:text-white text-xs font-semibold rounded-sm border border-outline-variant/20 hover:border-outline-variant/40 flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                <span class="material-symbols-outlined text-sm text-on-surface-variant">mail_lock</span>
+                <span>{{ editSendingReset ? 'Đang gửi...' : 'Gửi đặt lại mật khẩu' }}</span>
+              </button>
+
+              <!-- Sửa hồ sơ CSKH -->
+              <button
+                type="button"
+                @click="openEditModal(selectedCustomer)"
+                title="Cập nhật Họ tên / Ngày sinh hỗ trợ khách"
+                class="h-8 px-3 bg-surface-container-highest/80 hover:bg-white/10 text-on-surface hover:text-white text-xs font-semibold rounded-sm border border-outline-variant/20 hover:border-outline-variant/40 flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                <span class="material-symbols-outlined text-sm text-on-surface-variant">edit</span>
+                <span>Sửa hồ sơ</span>
+              </button>
+
+              <!-- Khóa / Mở khóa -->
+              <button
+                type="button"
+                @click="openLockModal(selectedCustomer)"
+                :title="selectedCustomer.isActive ? 'Khóa tài khoản khách hàng' : 'Mở khóa tài khoản khách hàng'"
+                class="h-8 px-3 bg-surface-container-highest/80 hover:bg-white/10 text-on-surface hover:text-white text-xs font-semibold rounded-sm border border-outline-variant/20 hover:border-outline-variant/40 flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                <span class="material-symbols-outlined text-sm text-on-surface-variant">{{ selectedCustomer.isActive ? 'lock' : 'lock_open' }}</span>
+                <span>{{ selectedCustomer.isActive ? 'Khóa tài khoản' : 'Mở khóa' }}</span>
+              </button>
+
+              <!-- Đóng Modal -->
+              <button
+                @click="showDetailModal = false"
+                class="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-white/10 text-on-surface-variant hover:text-white transition-colors border border-transparent hover:border-outline-variant/20 ml-1"
+                title="Đóng"
+              >
+                <span class="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
           </div>
 
           <!-- Tab Bar Navigation -->
@@ -1057,13 +1141,6 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                     <div class="flex items-center gap-2.5 flex-wrap">
                       <h4 class="text-lg font-bold text-on-surface">{{ selectedCustomer.fullName || 'Khách hàng' }}</h4>
                       <span
-                        v-if="selectedCustomer.isGuest"
-                        class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                      >
-                        Khách vãng lai
-                      </span>
-                      <span
-                        v-else
                         class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30"
                       >
                         Thành viên
@@ -1103,7 +1180,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
                       <span class="text-on-surface-variant block text-[11px]">Email</span>
-                      <p class="font-medium text-on-surface mt-0.5">{{ selectedCustomer.isGuest ? '— (Khách vãng lai)' : (selectedCustomer.email || '—') }}</p>
+                      <p class="font-medium text-on-surface mt-0.5">{{ selectedCustomer.email || '—' }}</p>
                     </div>
                     <div>
                       <span class="text-on-surface-variant block text-[11px]">Số điện thoại</span>
@@ -1459,14 +1536,14 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
     <!-- MODAL B: CHỈNH SỬA THÔNG TIN KHÁCH HÀNG (CUSTOMER EDIT MODAL)             -->
     <!-- ========================================================================= -->
     <Teleport to="body">
-      <div v-if="showEditModal" class="fixed inset-0 z-[999] flex items-center justify-center p-4">
+      <div v-if="showEditModal" class="fixed inset-0 z-[1050] flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="showEditModal = false"></div>
         
         <div class="relative w-full max-w-xl bg-surface border border-outline-variant/20 shadow-2xl rounded-3xl overflow-hidden animate-in fade-in zoom-in duration-200">
           <div class="p-6 bg-surface-container-high border-b border-outline-variant/10 flex justify-between items-center">
             <div class="flex items-center gap-2.5">
               <span class="material-symbols-outlined text-primary text-2xl">edit_note</span>
-              <h3 class="text-base font-black uppercase tracking-wider text-on-surface">Chỉnh sửa thông tin</h3>
+              <h3 class="text-base font-black uppercase tracking-wider text-on-surface">Cập nhật hồ sơ thành viên</h3>
             </div>
             <button @click="showEditModal = false" class="p-1 rounded-lg hover:bg-white/10 text-on-surface-variant hover:text-white">
               <span class="material-symbols-outlined">close</span>
@@ -1474,6 +1551,12 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
           </div>
 
           <form @submit.prevent="saveEditForm" class="p-6 space-y-5">
+            <!-- CSKH Notice Alert -->
+            <div class="p-3.5 bg-primary/10 border border-primary/20 rounded-sm text-xs text-primary flex items-start gap-2.5">
+              <span class="material-symbols-outlined text-base shrink-0 mt-0.5">support_agent</span>
+              <span>Hỗ trợ CSKH: Chỉ cập nhật Họ tên và Ngày sinh khi có yêu cầu trực tiếp từ chính chủ tài khoản.</span>
+            </div>
+
             <!-- Editable Field: Họ và tên -->
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
@@ -1482,26 +1565,45 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               <input
                 v-model="editForm.fullName"
                 type="text"
-                class="w-full bg-surface-container-highest border border-outline-variant/10 rounded-xl px-4 py-2.5 text-xs text-on-surface focus:ring-1 focus:ring-primary outline-none"
-                placeholder="Nhập họ và tên khách hàng"
+                maxlength="50"
+                @input="onFullNameInput"
+                @blur="onFullNameBlur"
+                class="w-full bg-surface-container-highest border rounded-sm px-4 py-2.5 text-xs text-on-surface outline-none transition-all"
+                :class="editErrors.fullName ? 'border-red-500/60 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' : 'border-outline-variant/10 focus:border-primary focus:ring-1 focus:ring-primary/20'"
+                placeholder="Ví dụ: Nguyễn Văn An"
               />
-              <p v-if="editErrors.fullName" class="text-red-400 text-[11px] mt-1">{{ editErrors.fullName }}</p>
+              <p v-if="editErrors.fullName" class="text-red-400 text-[11px] font-medium mt-1.5 flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">error</span>
+                <span>{{ editErrors.fullName }}</span>
+              </p>
             </div>
 
             <!-- Editable Field: Ngày sinh -->
             <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
-                Ngày sinh
-              </label>
+              <div class="flex justify-between items-center mb-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                  Ngày sinh
+                </label>
+                <span class="text-[10px] text-on-surface-variant/60">Tối thiểu từ đủ 6 tuổi</span>
+              </div>
               <input
                 v-model="editForm.dob"
                 type="date"
-                class="w-full bg-surface-container-highest border border-outline-variant/10 rounded-xl px-4 py-2.5 text-xs text-on-surface focus:ring-1 focus:ring-primary outline-none"
+                :min="minDobDate"
+                :max="maxDobDate"
+                @change="validateDob"
+                @blur="validateDob"
+                class="w-full bg-surface-container-highest border rounded-sm px-4 py-2.5 text-xs text-on-surface outline-none transition-all"
+                :class="editErrors.dob ? 'border-red-500/60 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' : 'border-outline-variant/10 focus:border-primary focus:ring-1 focus:ring-primary/20'"
               />
+              <p v-if="editErrors.dob" class="text-red-400 text-[11px] font-medium mt-1.5 flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">error</span>
+                <span>{{ editErrors.dob }}</span>
+              </p>
             </div>
 
             <!-- Read-only Security Box -->
-            <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 space-y-2.5 text-xs">
+            <div class="p-4 bg-surface-container-low rounded-sm border border-outline-variant/10 space-y-2.5 text-xs select-none">
               <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/80 block">Thông tin bảo mật (Chỉ đọc)</span>
               <div class="grid grid-cols-2 gap-3 text-[11px]">
                 <div>
@@ -1514,26 +1616,13 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 </div>
                 <div>
                   <span class="text-on-surface-variant block">Số điện thoại</span>
-                  <span class="font-mono font-medium text-on-surface">{{ editForm.phone || 'Chưa cập nhật' }}</span>
+                  <span class="font-mono font-medium text-on-surface">{{ formatPhoneDisplay(editForm.phone) }}</span>
                 </div>
                 <div>
                   <span class="text-on-surface-variant block">Hạng &amp; Điểm</span>
-                  <span class="font-bold text-primary">{{ editForm.membershipTier }} · {{ editForm.loyaltyPoints }} pts</span>
+                  <span class="font-bold text-primary">{{ editForm.membershipTier }} · {{ (editForm.loyaltyPoints || 0).toLocaleString('vi-VN') }} pts</span>
                 </div>
               </div>
-            </div>
-
-            <!-- Security Action: Send Reset Password Email -->
-            <div class="pt-2">
-              <button
-                type="button"
-                @click="sendResetPasswordFromModal"
-                :disabled="editSendingReset || editForm.isGuest || !editForm.isActive"
-                class="w-full py-2.5 bg-surface-container-high hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed text-on-surface text-xs font-bold uppercase tracking-wider rounded-xl transition-colors border border-outline-variant/20 flex items-center justify-center gap-2"
-              >
-                <span class="material-symbols-outlined text-base text-primary">mail_lock</span>
-                <span>{{ editSendingReset ? 'Đang gửi yêu cầu...' : 'Gửi mã đặt lại mật khẩu về email' }}</span>
-              </button>
             </div>
 
             <!-- Form Actions -->
@@ -1541,14 +1630,15 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
               <button
                 type="button"
                 @click="showEditModal = false"
-                class="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:text-white transition-colors"
+                class="px-5 py-2.5 rounded-sm border border-outline-variant/20 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:text-white hover:bg-white/5 transition-colors"
               >
                 Hủy
               </button>
               <button
                 type="submit"
-                :disabled="editSaving"
-                class="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2"
+                :disabled="editSaving || Object.keys(editErrors).length > 0 || !isEditDirty"
+                :title="!isEditDirty ? 'Chưa có thông tin thay đổi' : 'Lưu thay đổi'"
+                class="px-6 py-2.5 rounded-sm bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-on-primary text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 shadow-sm"
               >
                 <span class="material-symbols-outlined text-base">save</span>
                 <span>{{ editSaving ? 'Đang lưu...' : 'Lưu thay đổi' }}</span>
@@ -1563,7 +1653,7 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
     <!-- MODAL C: KHÓA / MỞ KHÓA TÀI KHOẢN (LOCK / UNLOCK MODAL)                   -->
     <!-- ========================================================================= -->
     <Teleport to="body">
-      <div v-if="showLockModal && lockTarget" class="fixed inset-0 z-[999] flex items-center justify-center p-4">
+      <div v-if="showLockModal && lockTarget" class="fixed inset-0 z-[1050] flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="showLockModal = false"></div>
         
         <div class="relative w-full max-w-lg bg-surface border border-outline-variant/20 shadow-2xl rounded-3xl overflow-hidden animate-in fade-in zoom-in duration-200">

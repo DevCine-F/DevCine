@@ -52,6 +52,11 @@ public class DataSeeder {
                         ") " +
                         "UPDATE users u SET phone = NULL FROM ranked_users r WHERE u.id = r.id AND r.rn > 1;");
                 jdbcTemplate.execute("CREATE UNIQUE INDEX IF NOT EXISTS uk_users_phone ON users(phone) WHERE phone IS NOT NULL AND phone <> '';");
+                // Dọn dẹp tài khoản khách vãng lai ảo cũ (chuyển booking về null và xóa user rác)
+                jdbcTemplate.execute("UPDATE bookings SET customer_id = NULL WHERE customer_id IN (SELECT id FROM users WHERE email LIKE '%@guest.devcine.vn' OR username LIKE 'guest_%');");
+                jdbcTemplate.execute("DELETE FROM vouchers WHERE customer_id IN (SELECT id FROM users WHERE email LIKE '%@guest.devcine.vn' OR username LIKE 'guest_%');");
+                jdbcTemplate.execute("DELETE FROM customers WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@guest.devcine.vn' OR username LIKE 'guest_%');");
+                jdbcTemplate.execute("DELETE FROM users WHERE email LIKE '%@guest.devcine.vn' OR username LIKE 'guest_%';");
             } catch (Exception ignored) {
             }
 

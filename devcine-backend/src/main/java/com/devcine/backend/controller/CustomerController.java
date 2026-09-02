@@ -425,11 +425,27 @@ public class CustomerController {
 
             if (customer.getUser() != null) {
                 var user = customer.getUser();
-                if (body.containsKey("fullName") && body.get("fullName") != null) {
-                    String name = body.get("fullName").toString().trim();
-                    if (!name.isBlank()) {
-                        user.setFullName(name);
+                if (body.containsKey("fullName")) {
+                    Object nameVal = body.get("fullName");
+                    if (nameVal == null || nameVal.toString().trim().isBlank()) {
+                        throw new RuntimeException("Vui lòng nhập họ và tên thành viên.");
                     }
+                    String name = nameVal.toString().trim().replaceAll("\\s+", " ");
+                    if (name.length() < 2 || name.length() > 50) {
+                        throw new RuntimeException("Họ và tên phải từ 2 đến 50 ký tự.");
+                    }
+                    if (!name.matches("^[\\p{L} ]+$")) {
+                        throw new RuntimeException("Họ và tên chỉ được chứa chữ cái và khoảng trắng.");
+                    }
+                    // Chuẩn hóa Title Case
+                    String[] words = name.toLowerCase().split(" ");
+                    StringBuilder formattedName = new StringBuilder();
+                    for (String w : words) {
+                        if (!w.isEmpty()) {
+                            formattedName.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1)).append(" ");
+                        }
+                    }
+                    user.setFullName(formattedName.toString().trim());
                 }
                 if (body.containsKey("email") && body.get("email") != null) {
                     String email = body.get("email").toString().trim();
@@ -466,7 +482,23 @@ public class CustomerController {
             if (body.containsKey("dob")) {
                 Object dobVal = body.get("dob");
                 if (dobVal != null && !dobVal.toString().isBlank()) {
-                    customer.setDob(LocalDate.parse(dobVal.toString().trim()));
+                    LocalDate parsedDob;
+                    try {
+                        parsedDob = LocalDate.parse(dobVal.toString().trim());
+                    } catch (Exception ex) {
+                        throw new RuntimeException("Định dạng ngày sinh không hợp lệ (chuẩn YYYY-MM-DD).");
+                    }
+                    LocalDate now = LocalDate.now();
+                    if (parsedDob.isAfter(now)) {
+                        throw new RuntimeException("Ngày sinh không thể lớn hơn ngày hiện tại.");
+                    }
+                    if (parsedDob.isAfter(now.minusYears(6))) {
+                        throw new RuntimeException("Thành viên phải từ đủ 6 tuổi trở lên.");
+                    }
+                    if (parsedDob.isBefore(now.minusYears(125))) {
+                        throw new RuntimeException("Năm sinh không hợp lệ. Vui lòng kiểm tra lại.");
+                    }
+                    customer.setDob(parsedDob);
                 } else {
                     customer.setDob(null);
                 }
@@ -559,7 +591,7 @@ public class CustomerController {
 
     /**
      * Gửi liên kết / mã đặt lại mật khẩu tới email khách hàng.
-     * Chặn tài khoản vãng lai (@guest.devcine.vn) và tài khoản đang bị khóa.
+     * Chặn tài khoản đang bị khóa.
      */
     @PostMapping("/{id}/send-reset-password")
     @PreAuthorize("@perm.can('customers', 'edit')")
@@ -580,9 +612,6 @@ public class CustomerController {
             }
 
             String email = user.getEmail().trim().toLowerCase();
-            if (email.endsWith("@guest.devcine.vn")) {
-                throw new RuntimeException("Không thể gửi liên kết đặt lại mật khẩu cho tài khoản vãng lai tạo tại quầy.");
-            }
 
             if (!Boolean.TRUE.equals(user.getIsActive())) {
                 throw new RuntimeException("Tài khoản đang trong trạng thái bị khóa. Vui lòng mở khóa tài khoản trước khi gửi yêu cầu.");
@@ -619,12 +648,6 @@ public class CustomerController {
         m.put("isActive", active);
         m.put("lockReason", customer.getLockReason() != null ? customer.getLockReason() : "");
         m.put("lockedAt", customer.getLockedAt() != null ? customer.getLockedAt().toString() : null);
-
-        // Nhận diện tài khoản vãng lai
-        boolean isGuest = email.toLowerCase().endsWith("@guest.devcine.vn")
-                || (customer.getUser() != null && customer.getUser().getUsername() != null && customer.getUser().getUsername().toLowerCase().startsWith("guest_"))
-                || (customer.getUser() != null && customer.getUser().getFullName() != null && customer.getUser().getFullName().toLowerCase().contains("vãng lai"));
-        m.put("isGuest", isGuest);
 
         // Thống kê tài chính
         m.put("totalSpent", totalSpent != null ? totalSpent : BigDecimal.ZERO);
