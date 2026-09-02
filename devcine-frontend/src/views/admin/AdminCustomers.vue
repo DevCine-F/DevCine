@@ -26,7 +26,6 @@ const tierDropdownOpen = ref(false)
 const statusDropdownOpen = ref(false)
 const typeDropdownOpen = ref(false)
 const pageSizeDropdownOpen = ref(false)
-const lockReasonDropdownOpen = ref(false)
 
 const TIER_OPTIONS = [
   { value: 'ALL', label: 'Mọi hạng thẻ', icon: 'apps', color: 'text-on-surface-variant' },
@@ -67,7 +66,6 @@ const closeAllDropdowns = () => {
   statusDropdownOpen.value = false
   typeDropdownOpen.value = false
   pageSizeDropdownOpen.value = false
-  lockReasonDropdownOpen.value = false
 }
 
 // ===== State Modal Chi tiết =====
@@ -1469,40 +1467,29 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
                 </div>
               </div>
 
-              <!-- Custom Dropdown: Lý do khóa -->
+              <!-- Dropdown: Lý do khóa -->
               <div>
                 <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
                   Lý do khóa tài khoản <span class="text-red-400">*</span>
                 </label>
                 
                 <div class="relative">
-                  <button
-                    type="button"
-                    @click="lockReasonDropdownOpen = !lockReasonDropdownOpen"
-                    class="w-full bg-surface-container-highest border rounded-xl px-4 py-2.5 text-xs text-left text-on-surface outline-none cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm"
-                    :class="lockReasonDropdownOpen ? 'border-primary/60 ring-2 ring-primary/15' : 'border-outline-variant/10 hover:border-outline-variant/30'"
+                  <select
+                    v-model="lockReasonOption"
+                    class="w-full bg-surface-container-highest border border-outline-variant/10 hover:border-outline-variant/30 rounded-xl pl-4 pr-10 py-2.5 text-xs text-on-surface outline-none cursor-pointer transition-all appearance-none font-medium focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
                   >
-                    <span class="truncate font-medium">{{ lockReasonOption }}</span>
-                    <span class="material-symbols-outlined text-base text-on-surface-variant transition-transform duration-200" :class="{ 'rotate-180': lockReasonDropdownOpen }">expand_more</span>
-                  </button>
-
-                  <div v-if="lockReasonDropdownOpen" class="fixed inset-0 z-[55]" @click="lockReasonDropdownOpen = false"></div>
-
-                  <transition name="fade">
-                    <div v-if="lockReasonDropdownOpen" class="absolute left-0 top-full mt-1.5 w-full bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)] z-[60] overflow-hidden py-1 backdrop-blur-xl max-h-60 overflow-y-auto">
-                      <button
-                        v-for="r in LOCK_REASONS"
-                        :key="r"
-                        type="button"
-                        @click="lockReasonOption = r; lockReasonDropdownOpen = false"
-                        class="w-full flex items-center justify-between px-4 py-2.5 text-xs text-left transition-colors"
-                        :class="lockReasonOption === r ? 'text-primary bg-primary/10 font-bold' : 'text-on-surface-variant hover:bg-white/5 hover:text-on-surface'"
-                      >
-                        <span>{{ r }}</span>
-                        <span v-if="lockReasonOption === r" class="material-symbols-outlined text-sm text-primary">check</span>
-                      </button>
-                    </div>
-                  </transition>
+                    <option
+                      v-for="r in LOCK_REASONS"
+                      :key="r"
+                      :value="r"
+                      class="bg-surface-container-high text-on-surface py-2"
+                    >
+                      {{ r }}
+                    </option>
+                  </select>
+                  <span class="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-base text-on-surface-variant pointer-events-none">
+                    expand_more
+                  </span>
                 </div>
               </div>
 
@@ -1558,3 +1545,19 @@ onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(245, 197, 24, 0.2);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 197, 24, 0.4);
+}
+</style>
