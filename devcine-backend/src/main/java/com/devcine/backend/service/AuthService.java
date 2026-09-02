@@ -95,6 +95,11 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Số điện thoại/email hoặc mật khẩu không đúng"));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
+            String roleName = user.getRole() != null ? user.getRole().getName().toUpperCase() : "CUSTOMER";
+            if ("STAFF".equals(roleName) || "MANAGER".equals(roleName) || "ADMIN".equals(roleName)) {
+                throw new RuntimeException("Tài khoản nhân viên của bạn đã bị tạm ngưng hoạt động. Vui lòng liên hệ Quản lý cơ sở hoặc Quản trị viên hệ thống để được hỗ trợ.");
+            }
+
             Customer customer = customerRepository.findById(user.getId()).orElse(null);
             String reason = (customer != null && customer.getLockReason() != null && !customer.getLockReason().isBlank())
                     ? customer.getLockReason().trim() : null;
