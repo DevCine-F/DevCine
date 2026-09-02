@@ -1,15 +1,18 @@
 package com.devcine.backend.service;
 
+import com.devcine.backend.repository.BookingSeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Khóa ghế tạm thời (transient) khi người dùng CLICK chọn ghế — chống xung đột đồng thời
@@ -28,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SeatLockService {
 
     private final SimpMessagingTemplate messaging;
+    private final BookingSeatRepository bookingSeatRepository;
 
     /** Khóa quá hạn sau 10 phút (an toàn cho kết nối nửa-mở; bình thường nhả khi disconnect). */
     private static final long LOCK_TTL_MS = 10 * 60_000L;
@@ -66,17 +70,24 @@ public class SeatLockService {
         return acquired;
     }
 
-    /** Bỏ chọn 1 ghế — chỉ phiên đang giữ mới nhả được. Broadcast RELEASED nếu có nhả. */
+    /** Bỏ chọn 1 ghế — chỉ phiên đang giữ mới nhả được. Broadcast RELEASED nếu có nhả và không có đơn DB hold. */
     public void deselect(Integer showtimeId, Integer seatId, String sessionId) {
         Map<Integer, Lock> seatLocks = locksByShowtime.get(showtimeId);
         if (seatLocks == null) return;
         Lock existing = seatLocks.get(seatId);
         if (existing != null && existing.sessionId().equals(sessionId) && seatLocks.remove(seatId, existing)) {
-            broadcast(showtimeId, "SEAT_RELEASED", List.of(seatId), null);
+            List<Integer> dbHeld = bookingSeatRepository.findConflictingSeats(
+                    showtimeId, List.of(seatId), LocalDateTime.now());
+            if (dbHeld == null || !dbHeld.contains(seatId)) {
+                broadcast(showtimeId, "SEAT_RELEASED", List.of(seatId), null);
+            }
         }
     }
 
-    /** Nhả toàn bộ ghế của một phiên (khi WebSocket ngắt) — broadcast RELEASED theo từng suất. */
+    /**
+     * Nhả toàn bộ ghế của một phiên (khi WebSocket ngắt) — broadcast RELEASED theo từng suất.
+     * DB-Aware: Nếu ghế đã được tạo đơn giữ chỗ DB (HOLD còn hạn) thì không broadcast nhả.
+     */
     public void releaseSession(String sessionId) {
         locksByShowtime.forEach((showtimeId, seatLocks) -> {
             List<Integer> released = new ArrayList<>();
@@ -86,7 +97,14 @@ public class SeatLockService {
                 }
             });
             if (!released.isEmpty()) {
-                broadcast(showtimeId, "SEAT_RELEASED", released, null);
+                List<Integer> dbHeld = bookingSeatRepository.findConflictingSeats(
+                        showtimeId, released, LocalDateTime.now());
+                List<Integer> trulyReleased = released.stream()
+                        .filter(id -> dbHeld == null || !dbHeld.contains(id))
+                        .collect(Collectors.toList());
+                if (!trulyReleased.isEmpty()) {
+                    broadcast(showtimeId, "SEAT_RELEASED", trulyReleased, null);
+                }
             }
         });
     }
@@ -130,7 +148,14 @@ public class SeatLockService {
             });
             if (!released.isEmpty()) {
                 log.info("Nhả {} ghế khóa quá hạn ở suất #{}.", released.size(), showtimeId);
-                broadcast(showtimeId, "SEAT_RELEASED", released, null);
+                List<Integer> dbHeld = bookingSeatRepository.findConflictingSeats(
+                        showtimeId, released, LocalDateTime.now());
+                List<Integer> trulyReleased = released.stream()
+                        .filter(id -> dbHeld == null || !dbHeld.contains(id))
+                        .collect(Collectors.toList());
+                if (!trulyReleased.isEmpty()) {
+                    broadcast(showtimeId, "SEAT_RELEASED", trulyReleased, null);
+                }
             }
         });
     }

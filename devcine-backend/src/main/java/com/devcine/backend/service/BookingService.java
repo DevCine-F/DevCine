@@ -82,7 +82,7 @@ public class BookingService {
                     oldBookingSeats = bookingSeatRepository.findAllByBookingIdWithSeat(oldBooking.getId());
                     oldBookingFnbs = bookingRepository.findAllFnbsByBookingIds(java.util.List.of(oldBooking.getId()));
                 }
-                posHoldService.releaseHold(request.getHeldBookingId());
+                posHoldService.releaseHold(request.getHeldBookingId(), false);
             } catch (Exception e) {
                 log.warn("Lỗi khi giải phóng đơn giữ cũ {}: {}", request.getHeldBookingId(), e.getMessage());
             }

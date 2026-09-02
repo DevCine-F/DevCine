@@ -34,12 +34,23 @@ public class PosHoldService {
 
     /**
      * Nhả ghế của một đơn chờ về AVAILABLE (đặt bookingSeat HOLD → EXPIRED, booking → CANCELLED).
-     *
-     * @return trạng thái xử lý: {@code NOT_FOUND} | {@code CONFIRMED} (đã thanh toán, không nhả)
-     *         | {@code RELEASED}
+     * Mặc định phát WebSocket broadcast SEAT_RELEASED ra toàn bộ các client.
      */
     @Transactional
     public String releaseHold(Integer bookingId) {
+        return releaseHold(bookingId, true);
+    }
+
+    /**
+     * Nhả ghế của một đơn chờ về AVAILABLE.
+     *
+     * @param bookingId ID đơn giữ chỗ cần giải phóng
+     * @param broadcastRelease true nếu muốn phát WebSocket SEAT_RELEASED (khi hủy đơn thật sự),
+     *                         false nếu giải phóng ngầm trong luồng re-hold cập nhật đơn (tránh nhả nhầm giao diện)
+     * @return trạng thái xử lý: {@code NOT_FOUND} | {@code CONFIRMED} | {@code RELEASED}
+     */
+    @Transactional
+    public String releaseHold(Integer bookingId, boolean broadcastRelease) {
         Booking booking = bookingRepository.findById(bookingId).orElse(null);
         if (booking == null) {
             return "NOT_FOUND";
@@ -72,12 +83,14 @@ public class PosHoldService {
 
         log.info("Đã nhả {} ghế của đơn chờ {} (booking #{}).", seats.size(), booking.getBookingCode(), bookingId);
         
-        try {
-            List<Integer> seatIds = seats.stream().map(bs -> bs.getSeat().getId()).collect(Collectors.toList());
-            Object payload = Map.of("type", "SEAT_RELEASED", "seatIds", seatIds, "by", "");
-            messagingTemplate.convertAndSend("/topic/showtime/" + booking.getShowtime().getId(), payload);
-        } catch (Exception e) {
-            log.warn("Mạng WebSocket ngắt kết nối đột ngột khi releaseHold booking #{}: {}", bookingId, e.getMessage());
+        if (broadcastRelease) {
+            try {
+                List<Integer> seatIds = seats.stream().map(bs -> bs.getSeat().getId()).collect(Collectors.toList());
+                Object payload = Map.of("type", "SEAT_RELEASED", "seatIds", seatIds, "by", "");
+                messagingTemplate.convertAndSend("/topic/showtime/" + booking.getShowtime().getId(), payload);
+            } catch (Exception e) {
+                log.warn("Mạng WebSocket ngắt kết nối đột ngột khi releaseHold booking #{}: {}", bookingId, e.getMessage());
+            }
         }
 
         return "RELEASED";
