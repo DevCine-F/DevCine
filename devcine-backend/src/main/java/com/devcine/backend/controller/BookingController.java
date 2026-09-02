@@ -37,6 +37,12 @@ public class BookingController {
     public ResponseEntity<?> holdSeats(@RequestBody BookingRequestDTO request) {
         try {
             Booking booking = bookingService.holdSeats(request);
+            long ttlSeconds = 0;
+            if (booking.getExpiresAt() != null) {
+                ttlSeconds = Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), booking.getExpiresAt()).getSeconds());
+            }
+            booking.setTtlSeconds(ttlSeconds);
+            booking.setServerTime(java.time.OffsetDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toString());
             return ResponseEntity.ok(ApiResponse.ok(booking));
         } catch (RuntimeException ex) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));

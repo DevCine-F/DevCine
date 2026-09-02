@@ -82,4 +82,12 @@ public class Booking {
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    /** TTL còn lại tính bằng giây (chỉ dùng trả về cho client ở API /hold, không lưu DB) */
+    @Transient
+    private Long ttlSeconds;
+
+    /** Giờ server tại thời điểm response (ISO 8601 kèm offset, dùng để client phát hiện lệch múi giờ) */
+    @Transient
+    private String serverTime;
 }

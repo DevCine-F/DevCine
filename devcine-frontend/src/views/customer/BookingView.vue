@@ -290,8 +290,8 @@ const ensureHeld = async () => {
       held.value = ok
       holding.value = false
       holdPromise = null
-      if (ok && store.heldAt && holdStartTs.value === 0) {
-        holdStartTs.value = new Date(store.heldAt).getTime()
+      if (ok) {
+        hasWarnedNearExpiry.value = false
       }
       return ok
     })
@@ -316,20 +316,20 @@ watch(() => [store.selectedSeats.length, JSON.stringify(store.selectedSeats.map(
   held.value = false
 })
 
-// ===== Đồng hồ đếm ngược thời gian giữ chỗ (bắt đầu từ khi chọn ghế) =====
+// ===== Đồng hồ đếm ngược thời gian giữ chỗ (chỉ chạy từ Bước 2 sau khi DB tạo đơn giữ ghế thành công) =====
 const holdMinutes = ref(10)        // số phút giữ ghế (admin cấu hình, mặc định 10)
 const nowTs = ref(Date.now())
-const holdStartTs = ref(0)         // mốc bắt đầu phiên giữ chỗ (lúc chọn ghế đầu tiên)
 let countdownTimer = null
 let expiredHandled = false
+const hasWarnedNearExpiry = ref(false)
 
-const holdDeadline = computed(() => holdStartTs.value ? holdStartTs.value + holdMinutes.value * 60000 : 0)
-const isCountingDown = computed(() => holdStartTs.value > 0)
+// Chỉ đếm ngược khi đã rời Bước 1 và đã có holdDeadlineTs từ server response
+const isCountingDown = computed(() => currentStep.value > 1 && store.holdDeadlineTs > 0)
 // Đã quá hạn giữ chỗ — kiểm ĐỒNG BỘ để chặn đặt vé ngay cả khi watcher secondsLeft chưa kịp chạy (tránh race)
-const holdExpiredNow = () => holdStartTs.value > 0 && Date.now() >= holdDeadline.value
+const holdExpiredNow = () => isCountingDown.value && Date.now() >= store.holdDeadlineTs
 const secondsLeft = computed(() => {
   if (!isCountingDown.value) return null
-  return Math.max(0, Math.floor((holdDeadline.value - nowTs.value) / 1000))
+  return Math.max(0, Math.floor((store.holdDeadlineTs - nowTs.value) / 1000))
 })
 const countdownLabel = computed(() => {
   const s = secondsLeft.value
@@ -337,13 +337,11 @@ const countdownLabel = computed(() => {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 })
 
-// Bắt đầu đếm khi khách chọn ghế đầu tiên; dừng/đặt lại khi bỏ hết ghế
-watch(() => store.selectedSeats.length, (n) => {
-  if (n > 0 && holdStartTs.value === 0) {
-    holdStartTs.value = Date.now()
+// Mỗi lần server cấp deadline mới (đổi ghế/combo/voucher → re-hold) → reset cờ cảnh báo
+watch(() => store.holdDeadlineTs, (newTs, oldTs) => {
+  if (newTs !== oldTs && newTs > 0) {
+    hasWarnedNearExpiry.value = false
     expiredHandled = false
-  } else if (n === 0) {
-    holdStartTs.value = 0
   }
 })
 
@@ -352,8 +350,8 @@ watch(() => store.selectedSeats.length, (n) => {
 const handleHoldExpired = async () => {
   if (expiredHandled) return
   expiredHandled = true
-  holdStartTs.value = 0
   held.value = false
+  hasWarnedNearExpiry.value = false
   // 1) Nhả khóa real-time TỪNG ghế trên server (in-memory) trước khi xoá lựa chọn
   store.selectedSeats.forEach(seat => seatRealtime.deselect(seat.seatId))
   // 2) Nhả đơn đang giữ ghế dưới DB (nếu đã tạo) → mở ghế cho khách khác mua ngay
@@ -371,11 +369,32 @@ const handleHoldExpired = async () => {
   currentStep.value = 1
   scrollTop()
   toast.warning(`Đã hết thời gian giữ chỗ (${holdMinutes.value} phút). Vui lòng chọn lại ghế.`)
+  expiredHandled = false
 }
 
-watch(secondsLeft, (s) => { if (s === 0) handleHoldExpired() })
+// Cảnh báo khi còn <= 120 giây (2 phút) và kích hoạt hủy đơn khi = 0
+watch(secondsLeft, (s) => {
+  if (s == null) return
+  if (s <= 120 && s > 0 && !hasWarnedNearExpiry.value && isCountingDown.value) {
+    hasWarnedNearExpiry.value = true
+    toast.warning('Thời gian giữ ghế của bạn còn dưới 2 phút. Vui lòng hoàn tất thanh toán!')
+  }
+  if (s === 0 && isCountingDown.value) {
+    handleHoldExpired()
+  }
+})
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    nowTs.value = Date.now()
+    if (holdExpiredNow()) {
+      handleHoldExpired()
+    }
+  }
+}
 
 onMounted(async () => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   if (store.selectedShowtime?.startTime) {
     const stTime = new Date(store.selectedShowtime.startTime).getTime()
     if (stTime <= Date.now()) {
@@ -394,6 +413,7 @@ onMounted(async () => {
   countdownTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
 })
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   if (countdownTimer) clearInterval(countdownTimer)
   seatRealtime.disconnect() // rời trang → nhả khóa ghế + ngắt WebSocket
 })
@@ -1324,14 +1344,14 @@ const proceedToPayment = async () => {
       </div>
     </div>
 
-    <!-- Banner đếm ngược thời gian giữ ghế -->
+    <!-- Banner đếm ngược thời gian giữ ghế (chỉ hiện từ Bước 2) -->
     <transition name="fade">
       <div v-if="isCountingDown"
-           :class="secondsLeft <= 60 ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-primary/10 border-primary/30 text-primary'"
-           class="mb-6 sm:mb-8 flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl border backdrop-blur-sm text-xs sm:text-sm">
-        <span class="material-symbols-outlined text-lg sm:text-xl" :class="{ 'animate-pulse': secondsLeft <= 60 }">timer</span>
-        <span class="font-bold">Vui lòng hoàn tất trong</span>
-        <span class="font-mono font-black text-lg sm:text-xl tabular-nums tracking-wider">{{ countdownLabel }}</span>
+           :class="secondsLeft <= 120 ? 'bg-red-500/10 border-red-500/40 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-primary/10 border-primary/30 text-primary'"
+           class="mb-6 sm:mb-8 flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl border backdrop-blur-sm text-xs sm:text-sm transition-colors duration-300">
+        <span class="material-symbols-outlined text-lg sm:text-xl" :class="{ 'animate-pulse text-red-400': secondsLeft <= 120 }">timer</span>
+        <span class="font-bold">Thời gian giữ ghế:</span>
+        <span class="font-mono font-black text-lg sm:text-xl tabular-nums tracking-wider" :class="{ 'animate-pulse text-red-400': secondsLeft <= 120 }">{{ countdownLabel }}</span>
       </div>
     </transition>
 

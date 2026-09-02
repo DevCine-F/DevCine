@@ -16,7 +16,9 @@ export const useBookingStore = defineStore('booking', {
     bookingId: null,
     bookingCode: null,
     sessionStartedAt: null,
-    heldAt: null, // Thời điểm server tạo đơn giữ ghế (ISO) — mốc bắt đầu đếm ngược
+    heldAt: null, // Thời điểm server tạo đơn giữ ghế (ISO)
+    expiresAt: null, // Thời điểm hết hạn giữ ghế từ server (ISO)
+    holdDeadlineTs: 0, // Timestamp hết hạn (ms) chuẩn hóa theo TTL server (chống lệch múi giờ)
     paymentMethod: null, // Phương thức thanh toán đã chọn (VNPAY/TRANSFER)
     paidAt: null, // Thời điểm thanh toán thành công (ISO string)
     lastHoldError: '', // Thông điệp lỗi giữ ghế gần nhất (để hiển thị cho khách)
@@ -176,6 +178,8 @@ export const useBookingStore = defineStore('booking', {
       this.bookingCode = null;
       this.sessionStartedAt = new Date().toISOString();
       this.heldAt = null;
+      this.expiresAt = null;
+      this.holdDeadlineTs = 0;
       this.paymentMethod = null;
       this.paidAt = null;
       this.lastHoldError = '';
@@ -220,6 +224,8 @@ export const useBookingStore = defineStore('booking', {
     },
     clearSeats() {
       this.selectedSeats = [];
+      this.expiresAt = null;
+      this.holdDeadlineTs = 0;
       this.calculateTotal();
     },
     updateFnb(fnbItem, quantity, options = []) {
@@ -345,7 +351,16 @@ export const useBookingStore = defineStore('booking', {
         const { data } = await bookingApi.holdSeats(payload);
         this.bookingId = data.id;
         this.bookingCode = data.bookingCode;
-        this.heldAt = data.createdAt || new Date().toISOString(); // mốc đếm ngược (ưu tiên giờ server)
+        this.heldAt = data.createdAt || new Date().toISOString();
+        this.expiresAt = data.expiresAt || null;
+        // Ưu tiên TTL từ server — không phụ thuộc đồng hồ client (chống lệch timezone)
+        if (data.ttlSeconds != null && data.ttlSeconds > 0) {
+          this.holdDeadlineTs = Date.now() + data.ttlSeconds * 1000;
+        } else if (data.expiresAt) {
+          this.holdDeadlineTs = new Date(data.expiresAt).getTime();
+        } else {
+          this.holdDeadlineTs = 0;
+        }
         this.paymentMethod = paymentMethod;
         // Giá cuối do backend tính (đã trừ voucher) — dùng làm số tiền thanh toán chuẩn
         this.finalPrice = data.finalPrice;
@@ -391,6 +406,8 @@ export const useBookingStore = defineStore('booking', {
       this.bookingId = null;
       this.bookingCode = null;
       this.heldAt = null;
+      this.expiresAt = null;
+      this.holdDeadlineTs = 0;
       this.paymentMethod = null;
       this.paidAt = null;
       this.lastHoldError = '';
@@ -407,6 +424,8 @@ export const useBookingStore = defineStore('booking', {
       this.bookingId = null;
       this.bookingCode = null;
       this.heldAt = null;
+      this.expiresAt = null;
+      this.holdDeadlineTs = 0;
       this.paymentMethod = null;
       this.paidAt = null;
     }

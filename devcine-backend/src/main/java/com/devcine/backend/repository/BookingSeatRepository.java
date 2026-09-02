@@ -31,10 +31,10 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Intege
            "GROUP BY b.showtime.id")
     List<Object[]> countReservedByShowtimeIds(@Param("showtimeIds") Collection<Integer> showtimeIds);
 
-    // Ghế đang HOLD nhưng đơn đã tạo trước mốc cutoff → quá hạn giữ, cần giải phóng
+    // Ghế đang HOLD nhưng đơn đã quá hạn (expiresAt <= now hoặc fallback createdAt < cutoff) → cần giải phóng
     @Query("SELECT bs FROM BookingSeat bs JOIN FETCH bs.booking b " +
-           "WHERE bs.status = 'HOLD' AND b.createdAt < :cutoff")
-    List<BookingSeat> findStaleHolds(@Param("cutoff") LocalDateTime cutoff);
+           "WHERE bs.status = 'HOLD' AND ((b.expiresAt IS NOT NULL AND b.expiresAt <= :now) OR (b.expiresAt IS NULL AND b.createdAt < :cutoff))")
+    List<BookingSeat> findStaleHolds(@Param("now") LocalDateTime now, @Param("cutoff") LocalDateTime cutoff);
 
     // Số ghế đã GIỮ/BÁN (SOLD/HOLD) của MỘT suất — guard trước khi xoá suất chiếu.
     @Query("SELECT COUNT(bs) FROM BookingSeat bs " +

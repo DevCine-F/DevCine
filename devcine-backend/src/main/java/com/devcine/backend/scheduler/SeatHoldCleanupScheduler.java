@@ -33,10 +33,11 @@ public class SeatHoldCleanupScheduler {
     @Scheduled(fixedDelayString = "${devcine.seat-hold.cleanup-ms:60000}")
     @Transactional
     public void releaseExpiredHolds() {
+        LocalDateTime now = LocalDateTime.now();
         int holdMinutes = systemSettingService.getSeatHoldMinutes();
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(holdMinutes);
+        LocalDateTime cutoff = now.minusMinutes(holdMinutes);
 
-        List<BookingSeat> staleSeats = bookingSeatRepository.findStaleHolds(cutoff);
+        List<BookingSeat> staleSeats = bookingSeatRepository.findStaleHolds(now, cutoff);
         if (staleSeats.isEmpty()) {
             return;
         }

@@ -238,9 +238,11 @@ public class BookingService {
         for (BookingSeat reserved : existingReservedSeats) {
             if (selectedSeatIds.contains(reserved.getSeat().getId())) {
                 boolean isHold = "HOLD".equals(reserved.getStatus());
-                // Chỗ giữ quá hạn (quá thời gian cấu hình) coi như đã được giải phóng
-                boolean isStale = reserved.getBooking().getCreatedAt() != null
-                        && reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(holdMinutes));
+                // Chỗ giữ quá hạn (quá thời gian cấu hình hoặc qua expiresAt) coi như đã được giải phóng
+                boolean isStale = (reserved.getBooking() != null && reserved.getBooking().getExpiresAt() != null
+                        && !reserved.getBooking().getExpiresAt().isAfter(LocalDateTime.now()))
+                        || (reserved.getBooking() != null && reserved.getBooking().getExpiresAt() == null && reserved.getBooking().getCreatedAt() != null
+                        && reserved.getBooking().getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(holdMinutes)));
 
                 // CHỈ nhả chỗ giữ đã quá hạn. Trước đây còn nhả khi "cùng member" → cho phép
                 // 2 phiên cùng tài khoản cướp ghế của nhau (bán trùng). Nay bỏ, kết hợp khóa
@@ -249,9 +251,20 @@ public class BookingService {
                     // Giải phóng chỗ giữ cũ để tránh khoá ghế trùng và rác HOLD
                     reserved.setStatus("EXPIRED");
                     bookingSeatRepository.save(reserved);
+                    if (reserved.getBooking() != null && "HOLD".equals(reserved.getBooking().getStatus())) {
+                        reserved.getBooking().setStatus("EXPIRED");
+                        bookingRepository.save(reserved.getBooking());
+                    }
                     continue;
                 }
-                throw new RuntimeException("Seat " + reserved.getSeat().getId() + " is already taken or on hold.");
+                Seat s = reserved.getSeat();
+                String seatLabel;
+                if (s != null) {
+                    seatLabel = s.displayLabel();
+                } else {
+                    seatLabel = "không xác định";
+                }
+                throw new RuntimeException("Ghế " + seatLabel + " đã có người đặt hoặc đang được giữ chỗ.");
             }
         }
 
