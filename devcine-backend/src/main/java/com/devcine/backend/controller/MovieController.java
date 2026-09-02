@@ -54,7 +54,7 @@ public class MovieController {
 
     /** Thống kê vận hành thật theo phim (doanh thu, vé bán, lấp đầy, hạng vé) cho modal chi tiết. */
     @GetMapping("/{id:\\d+}/stats")
-    @PreAuthorize("@perm.can('movies','edit')")
+    @PreAuthorize("@perm.can('movies','view') or @perm.can('movies','edit')")
     public ResponseEntity<?> getMovieStats(@PathVariable Integer id) {
         if (movieService.getMovieById(id) == null) {
             return ResponseEntity.status(404).body(ApiResponse.fail("Không tìm thấy dữ liệu."));

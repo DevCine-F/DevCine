@@ -54,9 +54,16 @@ const features = ref([
   {
     id: 'movies',
     moduleId: 'content',
-    name: 'Quản lý phim & Lịch chiếu',
+    name: 'Quản lý phim',
     actions: ['view', 'add', 'edit', 'delete'],
-    labels: { view: 'Xem danh sách phim & suất chiếu', add: 'Thêm phim mới', edit: 'Sửa thông tin phim & suất chiếu', delete: 'Xoá / ẩn phim' }
+    labels: { view: 'Xem danh sách phim', add: 'Thêm phim mới', edit: 'Sửa thông tin phim (Tên, Poster, Trailer...)', delete: 'Xoá / ẩn phim' }
+  },
+  {
+    id: 'schedules',
+    moduleId: 'content',
+    name: 'Lịch chiếu & Suất chiếu',
+    actions: ['view', 'add', 'edit', 'delete'],
+    labels: { view: 'Xem lịch chiếu', add: 'Xếp suất chiếu mới (Đơn & Lô)', edit: 'Sửa giờ chiếu & phòng chiếu', delete: 'Xoá / huỷ suất chiếu' }
   },
   {
     id: 'movie_categories',
@@ -302,7 +309,6 @@ const sanitizeRoleMatrix = (matrix) => {
     const acts = (matrix[fid] || []).filter(a => allow.has(a))
     if (acts.length) {
       payload[fid] = acts
-      if (fid === 'movies') payload['schedules'] = acts
     }
   })
   return payload
