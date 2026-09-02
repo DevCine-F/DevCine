@@ -1110,10 +1110,32 @@ const fetchData = async () => {
   isLoading.value = false
 }
 
+const backToShowtimes = () => {
+  // 1. Nhả toàn bộ ghế đã chọn trên server qua WebSocket
+  if (selectedSeats.value.length > 0) {
+    selectedSeats.value.forEach(s => seatRealtime.deselect(s.seatId))
+  }
+  // 2. Dọn sạch danh sách ghế đã chọn và combo F&B
+  selectedSeats.value = []
+  selectedCombos.value = []
+  // 3. Dừng bộ đếm giữ ghế
+  stopHoldTimer()
+  // 4. Ngắt kết nối kênh sơ đồ ghế của suất cũ
+  stopSeatPolling()
+  // 5. Quay về Bước 1
+  currentStep.value = 1
+  selectedShowtime.value = null
+  lockedPriceTable.value = null
+  lockedCombosPrices.value = null
+}
+
 const selectShowtime = async (st) => {
   if (isPastShowtime(st)) {
     showToast('Suất chiếu đã quá giờ phát sóng — không thể bán vé.', 'error')
     return
+  }
+  if (selectedSeats.value.length > 0) {
+    selectedSeats.value.forEach(s => seatRealtime.deselect(s.seatId))
   }
   selectedShowtime.value = st
   sessionStartedAt.value = new Date().toISOString()
@@ -2329,6 +2351,9 @@ const openQrFullscreen = () => {
 }
 
 const resetPOS = () => {
+  if (selectedSeats.value.length > 0) {
+    selectedSeats.value.forEach(s => seatRealtime.deselect(s.seatId))
+  }
   stopHoldTimer()
   stopSeatPolling()
   currentStep.value = 1
@@ -2595,7 +2620,7 @@ onUnmounted(() => {
             <h2 class="text-xl font-black uppercase italic tracking-tighter text-on-surface flex items-center gap-3">
               <span class="w-8 h-1 bg-primary rounded-full"></span> 2. Chọn ghế ({{ selectedSeats.length }})
             </h2>
-            <AppButton variant="ghost" @click="currentStep = 1">Quay lại</AppButton>
+            <AppButton variant="ghost" @click="backToShowtimes">Quay lại</AppButton>
           </div>
           <div class="w-full flex flex-col items-center gap-1.5 mb-3 shrink-0">
             <div class="w-2/3 h-1.5 bg-gradient-to-r from-transparent via-primary/40 to-transparent rounded-full blur-[2px]"></div>
