@@ -59,6 +59,9 @@ public class SeatService {
 
         // Tính giá tập trung qua PricingService (nạp ngữ cảnh suất một lần — tránh N+1)
         PricingService.PricingContext priceCtx = pricingService.buildContext(showtime);
+        List<SeatType> allSeatTypes = seatTypeRepository.findAll();
+        java.util.Map<String, SeatType> seatTypeByName = allSeatTypes.stream()
+                .collect(Collectors.toMap(SeatType::getName, s -> s, (a, b) -> a));
 
         String layoutJson = showtime.getLayoutData();
         List<SeatDTO> seatDTOs;
@@ -115,6 +118,7 @@ public class SeatService {
                     colNum = cell.getGridCol() + 1;
                 }
 
+                SeatType cellSeatType = seatTypeByName.get(cell.getType());
                 seatDTOs.add(SeatDTO.builder()
                         .seatId(cell.getSeatId())
                         .rowChar(rowChar)
@@ -123,7 +127,7 @@ public class SeatService {
                         .kind("SEAT")
                         .span(cell.getSpan() > 0 ? cell.getSpan() : 1)
                         .label(cell.getLabel())
-                        .price(pricingService.priceFor(priceCtx, "ADULT"))
+                        .price(pricingService.priceFor(priceCtx, cellSeatType, "ADULT"))
                         .status(status)
                         .seatStatus(seatStatus)
                         .gridRow(cell.getGridRow())
@@ -160,7 +164,7 @@ public class SeatService {
                         .kind("SEAT")
                         .span(span)
                         .label(seat.displayLabel())
-                        .price(pricingService.priceFor(priceCtx, "ADULT"))
+                        .price(pricingService.priceFor(priceCtx, seat.getSeatType(), "ADULT"))
                         .status(status)
                         .seatStatus(seatStatus)
                         .gridRow(seat.getGridRow())
@@ -174,9 +178,10 @@ public class SeatService {
                 .matrixCol(matrixCol)
                 .seats(seatDTOs)
                 .audienceLabels(PricingService.audienceLabels(online))
-                .priceTable(pricingService.buildPriceTable(priceCtx, seatTypeRepository.findAll(),
+                .priceTable(pricingService.buildPriceTable(priceCtx, allSeatTypes,
                         online ? PricingService.ONLINE_AUDIENCE_TYPES : PricingService.AUDIENCE_TYPES))
                 .build();
+
     }
 
     /**

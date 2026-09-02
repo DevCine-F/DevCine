@@ -141,6 +141,7 @@ class BookingVoucherConcurrencyTest {
         when(showtimeRepository.findByIdForUpdate(1)).thenReturn(Optional.of(showtime));
         when(seatRepository.findByRoomIdAndIsActiveTrue(1)).thenReturn(List.of(seatA1, seatA2));
         when(pricingService.normalizeAudience(any())).thenReturn("ADULT");
+        when(pricingService.priceFor(any(), any(), eq("ADULT"))).thenReturn(new BigDecimal("100000"));
         when(pricingService.priceFor(any(), eq("ADULT"))).thenReturn(new BigDecimal("100000"));
         when(customerRepository.findById(1)).thenReturn(Optional.of(customer));
         when(voucherRepository.findById(10)).thenReturn(Optional.of(voucher));

@@ -338,7 +338,8 @@ public class BookingService {
                 } else {
                     seatPrice = BigDecimal.ZERO;
                     for (String t : types) {
-                        seatPrice = seatPrice.add(pricingService.priceFor(priceCtx, t));
+                        BigDecimal unitP = pricingService.priceFor(priceCtx, seat != null ? seat.getSeatType() : null, t);
+                        seatPrice = seatPrice.add(unitP != null ? unitP : BigDecimal.ZERO);
                     }
                 }
             }

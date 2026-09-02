@@ -502,7 +502,7 @@ const ticketBreakdown = computed(() => {
   Object.entries(store.ticketQuantities).forEach(([code, q]) => {
     if (q > 0) {
       const label = store.audienceLabels[code] || code;
-      const basePrice = (store.priceTable['STANDARD'] && store.priceTable['STANDARD'][code]) || 0;
+      const basePrice = (store.priceTable['NORMAL'] && store.priceTable['NORMAL'][code]) || (store.priceTable['STANDARD'] && store.priceTable['STANDARD'][code]) || 0;
       breakdown[code] = { label, qty: q, price: 0, _unassigned: q, _basePrice: basePrice };
     }
   });

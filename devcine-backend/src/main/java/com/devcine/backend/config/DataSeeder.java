@@ -30,8 +30,10 @@ public class DataSeeder {
             org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         return args -> {
 
-            // ===== MIGRATION CỘT TRÊN BẢNG PROMOTIONS & VOUCHERS & UNIQUE PHONE =====
+            // ===== MIGRATION CỘT TRÊN BẢNG PROMOTIONS & VOUCHERS & SEAT_TYPES & UNIQUE PHONE =====
             try {
+                jdbcTemplate.execute("ALTER TABLE seat_types ADD COLUMN IF NOT EXISTS surcharge NUMERIC(15, 2) NOT NULL DEFAULT 0;");
+                jdbcTemplate.execute("ALTER TABLE seat_types ADD COLUMN IF NOT EXISTS weekend_surcharge NUMERIC(15, 2);");
                 jdbcTemplate.execute("ALTER TABLE promotions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;");
                 jdbcTemplate.execute("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_order_value_snapshot NUMERIC(15, 2);");
                 jdbcTemplate.execute("ALTER TABLE vouchers ALTER COLUMN applicable_movie_titles_snapshot TYPE TEXT;");

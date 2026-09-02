@@ -16,12 +16,13 @@ const activeTab = ref('base')
 
 const config = ref(null)
 const baseMatrix = reactive({})       // key `${roomType}|${dayType}|${audience}` -> value (flat: không theo giờ)
+const seatTypes = ref([])
 const formats = ref([])
 const holidays = ref([])
 const newHoliday = reactive({ holidayDate: '', name: '' })
 
-// Simulator (flat pricing: ngày × đối tượng × loại phòng × định dạng)
-const sim = reactive({ dayType: 'WEEKEND', audienceType: 'ADULT', roomType: 'STANDARD', formatId: '' })
+// Simulator: ngày × đối tượng × loại phòng × định dạng × loại ghế
+const sim = reactive({ dayType: 'WEEKEND', audienceType: 'ADULT', roomType: 'STANDARD', formatId: '', seatTypeId: '' })
 const simResult = ref(null)
 const simulating = ref(false)
 
@@ -33,10 +34,13 @@ const fmtThousand = (n) => (n === null || n === undefined || n === '' ? '' : Num
 // Giới hạn giá trị tối đa cho 1 ô tiền vé
 const MIN_BASE_PRICE = 20000
 const MAX_BASE_PRICE = 1000000
+const MAX_SURCHARGE = 1000000
 const MAX_PRICE = 999999999
 
 const baseErrors = reactive({})
 const baseTouched = ref(false)
+const seatTypeErrors = reactive({})
+const formatErrors = reactive({})
 
 const getBasePriceError = (val) => {
   if (val === null || val === undefined || val === '') {
@@ -96,6 +100,106 @@ const onBaseMatrixInput = (e, key) => {
   input.setSelectionRange(newCaretPos, newCaretPos)
 }
 
+const getSeatTypeSurchargeError = (val) => {
+  if (val === null || val === undefined || val === '') {
+    return 'Không được để trống'
+  }
+  const num = Number(val)
+  if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+    return 'Phải là số nguyên không âm'
+  }
+  if (num > MAX_SURCHARGE) {
+    return `Tối đa ${fmtThousand(MAX_SURCHARGE)} đ`
+  }
+  if (num % 1000 !== 0) {
+    return 'Phải là bội số 1.000 đ'
+  }
+  return null
+}
+
+const getSeatTypeWeekendSurchargeError = (weekendVal, regularVal) => {
+  if (weekendVal === null || weekendVal === undefined || weekendVal === '') {
+    return null // Cho phép để trống = ngày thường
+  }
+  const num = Number(weekendVal)
+  if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+    return 'Phải là số nguyên không âm'
+  }
+  if (num > MAX_SURCHARGE) {
+    return `Tối đa ${fmtThousand(MAX_SURCHARGE)} đ`
+  }
+  if (num % 1000 !== 0) {
+    return 'Phải là bội số 1.000 đ'
+  }
+  const regNum = Number(regularVal || 0)
+  if (num < regNum) {
+    return `Phải ≥ ngày thường (${fmtThousand(regNum)} đ)`
+  }
+  return null
+}
+
+const validateSeatTypeItem = (st) => {
+  const errSurcharge = getSeatTypeSurchargeError(st.surcharge)
+  if (errSurcharge) {
+    seatTypeErrors[`${st.id}_surcharge`] = errSurcharge
+  } else {
+    delete seatTypeErrors[`${st.id}_surcharge`]
+  }
+
+  const errWeekend = getSeatTypeWeekendSurchargeError(st.weekendSurcharge, st.surcharge)
+  if (errWeekend) {
+    seatTypeErrors[`${st.id}_weekendSurcharge`] = errWeekend
+  } else {
+    delete seatTypeErrors[`${st.id}_weekendSurcharge`]
+  }
+}
+
+const onSeatTypeSurchargeInput = (e, st, field) => {
+  const input = e.target
+  const rawOldVal = input.value || ''
+  const caretPos = input.selectionStart || 0
+  const digitsBefore = rawOldVal.slice(0, caretPos).replace(/\D/g, '').length
+
+  let cleanDigits = rawOldVal.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  if (cleanDigits.length > 9) cleanDigits = cleanDigits.slice(0, 9)
+
+  if (field === 'weekendSurcharge' && !cleanDigits && rawOldVal.trim() === '') {
+    st[field] = null
+    input.value = ''
+    validateSeatTypeItem(st)
+    return
+  }
+
+  if (field === 'surcharge' && !cleanDigits) {
+    st[field] = ''
+    input.value = ''
+    validateSeatTypeItem(st)
+    return
+  }
+
+  const numVal = cleanDigits ? Math.min(Number(cleanDigits), MAX_PRICE) : 0
+  st[field] = numVal
+
+  const formattedVal = cleanDigits ? numVal.toLocaleString('vi-VN') : (field === 'weekendSurcharge' ? '' : '0')
+  input.value = formattedVal
+
+  let newCaretPos = 0
+  let digitsCount = 0
+  for (let i = 0; i < formattedVal.length; i++) {
+    if (/\d/.test(formattedVal[i])) digitsCount++
+    if (digitsCount === digitsBefore) {
+      newCaretPos = i + 1
+      break
+    }
+  }
+  if (digitsBefore === 0) {
+    newCaretPos = 0
+  }
+  input.setSelectionRange(newCaretPos, newCaretPos)
+
+  validateSeatTypeItem(st)
+}
+
 const onFormatSurchargeInput = (e, f, field) => {
   const input = e.target
   const rawOldVal = input.value || ''
@@ -142,11 +246,6 @@ const onFormatSurchargeInput = (e, f, field) => {
   validateFormatItem(f)
 }
 
-const clearWeekendSurcharge = (f) => {
-  f.weekendSurcharge = null
-  validateFormatItem(f)
-}
-
 const formatMovieFormatName = (raw) => {
   if (!raw) return ''
   return raw
@@ -161,11 +260,17 @@ const formatMovieFormatName = (raw) => {
     })
     .join(' ')
 }
+
+const seatTypeLabel = (name) => {
+  const up = (name || '').toUpperCase()
+  if (up === 'NORMAL' || up === 'STANDARD') return 'Ghế Thường'
+  if (up === 'VIP') return 'Ghế VIP'
+  if (up === 'SWEETBOX') return 'Ghế Đôi Sweetbox'
+  return name
+}
+
 const audienceEntries = computed(() => Object.entries(config.value?.audiences || {}))
 const roomTypes = computed(() => config.value?.roomTypes || [])
-
-const MAX_SURCHARGE = 1000000
-const formatErrors = reactive({})
 
 const getFormatSurchargeError = (val) => {
   if (val === null || val === undefined || val === '') {
@@ -230,13 +335,23 @@ const loadConfig = async () => {
 
     Object.keys(baseMatrix).forEach(k => delete baseMatrix[k])
     Object.keys(baseErrors).forEach(k => delete baseErrors[k])
+    Object.keys(seatTypeErrors).forEach(k => delete seatTypeErrors[k])
     Object.keys(formatErrors).forEach(k => delete formatErrors[k])
+
     const existing = {}
     ;(data.baseMatrix || []).forEach(r => { existing[`${r.roomType}|${r.dayType}|${r.audienceType}`] = r.value })
     ;(data.roomTypes || []).forEach(rt => data.dayTypes.forEach(d => Object.keys(data.audiences).forEach(a => {
       const key = `${rt.code}|${d.code}|${a}`
       baseMatrix[key] = existing[key] ?? 0
     })))
+
+    seatTypes.value = (data.seatTypes || [])
+      .map(st => ({
+        ...st,
+        surcharge: Number(st.surcharge || 0),
+        weekendSurcharge: st.weekendSurcharge == null ? null : Number(st.weekendSurcharge),
+      }))
+      .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
 
     formats.value = (data.formats || [])
       .map(f => ({
@@ -250,6 +365,7 @@ const loadConfig = async () => {
     holidays.value = data.holidays || []
     if (roomTypes.value.length) sim.roomType = roomTypes.value[0].code
     if (formats.value.length) sim.formatId = formats.value[0].id
+    if (seatTypes.value.length) sim.seatTypeId = seatTypes.value[0].id
   } catch (e) {
     loadError.value = true
     toast.error(friendlyError(e, 'Không tải được cấu hình giá vé.'))
@@ -304,6 +420,50 @@ const saveBase = async () => {
     toast.success('Đã lưu bảng giá nền.')
   } catch (e) {
     toast.error(friendlyError(e, 'Lưu giá nền thất bại.'))
+  } finally { saving.value = false }
+}
+
+const validateAllSeatTypes = () => {
+  let hasError = false
+  let firstErrorMsg = ''
+
+  ;(seatTypes.value || []).forEach(st => {
+    validateSeatTypeItem(st)
+    const errSur = seatTypeErrors[`${st.id}_surcharge`]
+    const errWk = seatTypeErrors[`${st.id}_weekendSurcharge`]
+    if (errSur && !firstErrorMsg) {
+      firstErrorMsg = `${st.name} (Phụ thu ngày thường): ${errSur}`
+    }
+    if (errWk && !firstErrorMsg) {
+      firstErrorMsg = `${st.name} (Phụ thu cuối tuần & lễ): ${errWk}`
+    }
+    if (errSur || errWk) {
+      hasError = true
+    }
+  })
+
+  if (hasError) {
+    toast.error(firstErrorMsg || 'Vui lòng sửa các ô phụ thu loại ghế chưa hợp lệ.')
+    return false
+  }
+  return true
+}
+
+const saveSeatTypes = async () => {
+  if (!validateAllSeatTypes()) return
+
+  saving.value = true
+  try {
+    await pricingApi.saveSeatTypes(seatTypes.value.map(st => ({
+      id: st.id,
+      name: st.name,
+      colorCode: st.colorCode,
+      surcharge: Number(st.surcharge || 0),
+      weekendSurcharge: st.weekendSurcharge == null || st.weekendSurcharge === '' ? null : Number(st.weekendSurcharge),
+    })))
+    toast.success('Đã lưu cấu hình loại ghế.')
+  } catch (e) {
+    toast.error(friendlyError(e, 'Lưu loại ghế thất bại.'))
   } finally { saving.value = false }
 }
 
@@ -389,6 +549,7 @@ const runSimulate = async () => {
       audienceType: sim.audienceType,
       roomType: sim.roomType,
       formatId: sim.formatId,
+      seatTypeId: sim.seatTypeId,
     })
     simResult.value = data
   } catch (e) {
@@ -398,6 +559,7 @@ const runSimulate = async () => {
 
 const TABS = [
   { key: 'base', label: 'Giá nền', icon: 'grid_on' },
+  { key: 'seatType', label: 'Loại ghế', icon: 'chair' },
   { key: 'format', label: 'Định dạng', icon: 'movie' },
   { key: 'holiday', label: 'Ngày lễ', icon: 'event' },
   { key: 'sim', label: 'Tính thử', icon: 'calculate' },
@@ -408,7 +570,7 @@ const TABS = [
   <div class="p-6 md:p-10 space-y-6">
     <header>
       <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight font-headline uppercase text-primary">Cấu hình giá vé</h1>
-      <p class="text-on-surface-variant text-sm mt-1">Flat pricing: giá = giá nền (loại phòng × loại ngày × đối tượng) + phụ thu định dạng (2D/3D). Mọi ghế trong cùng phòng + định dạng đồng giá.</p>
+      <p class="text-on-surface-variant text-sm mt-1">Cấu hình giá vé: Giá vé = Giá nền (loại phòng × loại ngày × đối tượng) + Phụ thu định dạng (2D/3D) + Phụ thu loại ghế (Thường/VIP/Sweetbox).</p>
     </header>
 
     <div v-if="loading" class="space-y-3">
@@ -418,7 +580,7 @@ const TABS = [
     <div v-else-if="loadError" class="bg-red-500/10 border border-red-500/30 p-8 text-center">
       <span class="material-symbols-outlined text-4xl text-red-400 mb-2">error</span>
       <p class="text-on-surface-variant mb-4">Không tải được cấu hình giá.</p>
-      <button @click="loadConfig" class="px-5 py-2 bg-primary text-on-primary font-bold">Thử lại</button>
+      <button @click="loadConfig" class="px-5 py-2 bg-primary text-on-primary font-bold rounded-sm">Thử lại</button>
     </div>
 
     <template v-else>
@@ -459,7 +621,7 @@ const TABS = [
                           inputmode="numeric"
                           :value="fmtThousand(baseMatrix[`${rt.code}|${d.code}|${code}`])"
                           @input="onBaseMatrixInput($event, `${rt.code}|${d.code}|${code}`)"
-                          class="w-32 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm rounded"
+                          class="w-32 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm rounded-sm"
                           :class="baseErrors[`${rt.code}|${d.code}|${code}`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
                         />
                         <span class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="baseErrors[`${rt.code}|${d.code}|${code}`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
@@ -484,9 +646,84 @@ const TABS = [
           </p>
         </div>
         <div>
-          <button v-if="can('pricing', 'edit')" @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none rounded-lg">
+          <button v-if="can('pricing', 'edit')" @click="saveBase" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none rounded-sm">
             <span class="material-symbols-outlined text-base">{{ saving ? 'sync' : 'save' }}</span>
             {{ saving ? 'Đang lưu...' : 'Lưu giá nền' }}
+          </button>
+        </div>
+      </section>
+
+      <!-- TAB: Loại ghế (Phụ thu loại ghế Thường / VIP / Sweetbox) -->
+      <section v-else-if="activeTab === 'seatType'" class="space-y-4">
+        <p class="text-sm text-on-surface-variant">Cấu hình mức phụ thu theo loại ghế (cộng vào giá vé cho từng suất ghế).</p>
+        <div class="overflow-x-auto bg-surface-container-low border border-outline-variant/10 rounded-xl shadow-sm">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-white/5 border-b border-outline-variant/10">
+                <th class="py-4 px-5 text-left">Loại ghế</th>
+                <th class="py-4 px-5 text-center">Phụ thu ngày thường (T2–T5)</th>
+                <th class="py-4 px-5 text-center">Phụ thu cuối tuần & lễ</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/10">
+              <tr v-for="st in seatTypes" :key="st.id" class="hover:bg-white/[0.02] transition-colors">
+                <td class="py-3.5 px-5 font-bold text-on-surface">
+                  {{ seatTypeLabel(st.name) }}
+                </td>
+                <td class="py-3.5 px-5 text-center align-top">
+                  <div class="inline-flex flex-col items-center">
+                    <div class="inline-flex items-center relative group">
+                      <input
+                        type="text"
+                        inputmode="numeric"
+                        :value="fmtThousand(st.surcharge)"
+                        @input="onSeatTypeSurchargeInput($event, st, 'surcharge')"
+                        class="w-36 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm rounded-sm"
+                        :class="seatTypeErrors[`${st.id}_surcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
+                      />
+                      <span class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="seatTypeErrors[`${st.id}_surcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
+                    </div>
+                    <span v-if="seatTypeErrors[`${st.id}_surcharge`]" class="text-[10px] font-bold text-red-400 mt-1 max-w-[140px] leading-tight text-center" :title="seatTypeErrors[`${st.id}_surcharge`]">
+                      {{ seatTypeErrors[`${st.id}_surcharge`] }}
+                    </span>
+                  </div>
+                </td>
+                <td class="py-3.5 px-5 text-center align-top">
+                  <div class="inline-flex flex-col items-center">
+                    <div class="inline-flex items-center relative group">
+                      <input
+                        type="text"
+                        inputmode="numeric"
+                        :value="st.weekendSurcharge != null ? fmtThousand(st.weekendSurcharge) : ''"
+                        @input="onSeatTypeSurchargeInput($event, st, 'weekendSurcharge')"
+                        placeholder="= ngày thường"
+                        class="w-40 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm placeholder:text-on-surface-variant/40 placeholder:text-xs placeholder:font-normal shadow-sm rounded-sm"
+                        :class="seatTypeErrors[`${st.id}_weekendSurcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
+                      />
+                      <span v-if="st.weekendSurcharge != null && st.weekendSurcharge !== ''" class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="seatTypeErrors[`${st.id}_weekendSurcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
+                    </div>
+                    <span v-if="seatTypeErrors[`${st.id}_weekendSurcharge`]" class="text-[10px] font-bold text-red-400 mt-1 max-w-[160px] leading-tight text-center" :title="seatTypeErrors[`${st.id}_weekendSurcharge`]">
+                      {{ seatTypeErrors[`${st.id}_weekendSurcharge`] }}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-on-surface-variant">
+          <p class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm text-primary">info</span>
+            * Ghế đôi Sweetbox có sức chứa = 2 vé; mức phụ thu trên được tự động nhân theo số lượng vé của ghế.
+          </p>
+          <p class="text-on-surface-variant/80">
+            Quy định: Số nguyên từ 0 đ – 1.000.000 đ, bội số của 1.000 đ. Cuối tuần ≥ ngày thường.
+          </p>
+        </div>
+        <div>
+          <button v-if="can('pricing', 'edit')" @click="saveSeatTypes" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none rounded-sm">
+            <span class="material-symbols-outlined text-base">{{ saving ? 'sync' : 'save' }}</span>
+            {{ saving ? 'Đang lưu...' : 'Lưu cấu hình loại ghế' }}
           </button>
         </div>
       </section>
@@ -519,7 +756,7 @@ const TABS = [
                         inputmode="numeric"
                         :value="fmtThousand(f.surcharge)"
                         @input="onFormatSurchargeInput($event, f, 'surcharge')"
-                        class="w-36 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm rounded"
+                        class="w-36 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm shadow-sm rounded-sm"
                         :class="formatErrors[`${f.id}_surcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
                       />
                       <span class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="formatErrors[`${f.id}_surcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
@@ -538,7 +775,7 @@ const TABS = [
                         :value="f.weekendSurcharge != null ? fmtThousand(f.weekendSurcharge) : ''"
                         @input="onFormatSurchargeInput($event, f, 'weekendSurcharge')"
                         placeholder="= ngày thường"
-                        class="w-40 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm placeholder:text-on-surface-variant/40 placeholder:text-xs placeholder:font-normal shadow-sm rounded"
+                        class="w-40 bg-surface-container-high border py-2 pl-3 pr-7 text-right font-bold outline-none transition-all tabular-nums text-sm placeholder:text-on-surface-variant/40 placeholder:text-xs placeholder:font-normal shadow-sm rounded-sm"
                         :class="formatErrors[`${f.id}_weekendSurcharge`] ? 'border-red-500 text-red-400 bg-red-500/10 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-outline-variant/20 text-on-surface group-hover:border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary'"
                       />
                       <span v-if="f.weekendSurcharge != null && f.weekendSurcharge !== ''" class="absolute right-2.5 text-xs font-bold pointer-events-none select-none" :class="formatErrors[`${f.id}_weekendSurcharge`] ? 'text-red-400' : 'text-on-surface-variant/60 group-focus-within:text-primary'">đ</span>
@@ -562,7 +799,7 @@ const TABS = [
           </p>
         </div>
         <div>
-          <button v-if="can('pricing', 'edit')" @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none rounded-lg">
+          <button v-if="can('pricing', 'edit')" @click="saveFormats" :disabled="saving" class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60 disabled:pointer-events-none rounded-sm">
             <span class="material-symbols-outlined text-base">{{ saving ? 'sync' : 'save' }}</span>
             {{ saving ? 'Đang lưu...' : 'Lưu định dạng' }}
           </button>
@@ -575,13 +812,13 @@ const TABS = [
         <div class="flex flex-wrap items-end gap-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-4">
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Ngày</label>
-            <input type="date" v-model="newHoliday.holidayDate" class="bg-surface-container-high border border-outline-variant/20 p-2 rounded text-on-surface outline-none" />
+            <input type="date" v-model="newHoliday.holidayDate" class="bg-surface-container-high border border-outline-variant/20 p-2 rounded-sm text-on-surface outline-none" />
           </div>
           <div class="flex-1 min-w-[160px]">
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Tên</label>
-            <input type="text" v-model="newHoliday.name" placeholder="Vd: Tết Dương lịch" class="w-full bg-surface-container-high border border-outline-variant/20 p-2 rounded text-on-surface outline-none" />
+            <input type="text" v-model="newHoliday.name" placeholder="Vd: Tết Dương lịch" class="w-full bg-surface-container-high border border-outline-variant/20 p-2 rounded-sm text-on-surface outline-none" />
           </div>
-          <button v-if="can('pricing', 'edit')" @click="addHoliday" class="px-5 py-2 bg-primary text-on-primary rounded-lg font-bold">Thêm</button>
+          <button v-if="can('pricing', 'edit')" @click="addHoliday" class="px-5 py-2 bg-primary text-on-primary rounded-sm font-bold">Thêm</button>
         </div>
 
         <div v-if="!holidays.length" class="text-center text-on-surface-variant py-8">Chưa có ngày lễ nào.</div>
@@ -596,29 +833,35 @@ const TABS = [
         <div class="space-y-3 bg-surface-container-low border border-outline-variant/10 rounded-xl p-6">
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại ngày</label>
-            <select v-model="sim.dayType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+            <select v-model="sim.dayType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded-sm text-on-surface outline-none">
               <option v-for="d in config.dayTypes" :key="d.code" :value="d.code">{{ d.label }}</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Đối tượng</label>
-            <select v-model="sim.audienceType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+            <select v-model="sim.audienceType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded-sm text-on-surface outline-none">
               <option v-for="[code, label] in audienceEntries" :key="code" :value="code">{{ label }}</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại phòng</label>
-            <select v-model="sim.roomType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+            <select v-model="sim.roomType" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded-sm text-on-surface outline-none">
               <option v-for="rt in roomTypes" :key="rt.code" :value="rt.code">{{ rt.label }}</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Định dạng</label>
-            <select v-model="sim.formatId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded text-on-surface outline-none">
+            <select v-model="sim.formatId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded-sm text-on-surface outline-none">
               <option v-for="f in formats" :key="f.id" :value="f.id">{{ f.name }}</option>
             </select>
           </div>
-          <button @click="runSimulate" :disabled="simulating" class="w-full px-6 py-3 bg-primary text-on-primary rounded-lg font-bold disabled:opacity-60">
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant block mb-1">Loại ghế</label>
+            <select v-model="sim.seatTypeId" class="w-full bg-surface-container-high border border-outline-variant/20 p-2.5 rounded-sm text-on-surface outline-none">
+              <option v-for="st in seatTypes" :key="st.id" :value="st.id">{{ seatTypeLabel(st.name) }}</option>
+            </select>
+          </div>
+          <button @click="runSimulate" :disabled="simulating" class="w-full px-6 py-3 bg-primary text-on-primary rounded-sm font-bold disabled:opacity-60">
             {{ simulating ? 'Đang tính...' : 'Tính thử giá' }}
           </button>
         </div>
@@ -636,6 +879,10 @@ const TABS = [
                 <span>Phụ thu định dạng:</span>
                 <span class="font-bold text-on-surface">+{{ fmt(simResult.formatSurcharge) }} đ</span>
               </div>
+              <div class="flex justify-between items-center">
+                <span>Phụ thu loại ghế:</span>
+                <span class="font-bold text-on-surface">+{{ fmt(simResult.seatSurcharge) }} đ</span>
+              </div>
             </div>
           </template>
           <div v-else class="text-center text-on-surface-variant py-6">
@@ -652,3 +899,4 @@ const TABS = [
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
+

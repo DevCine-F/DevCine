@@ -106,6 +106,13 @@ public class PricingService {
         return fmt.getWeekendSurcharge() != null ? fmt.getWeekendSurcharge() : nz(fmt.getSurcharge());
     }
 
+    /** Phụ thu loại ghế phụ thuộc ngày: T2–T5 dùng surcharge; cuối tuần/lễ dùng weekendSurcharge (fallback surcharge). */
+    public BigDecimal resolveSeatSurcharge(SeatType seatType, String dayType) {
+        if (seatType == null) return BigDecimal.ZERO;
+        if ("WEEKDAY".equals(dayType)) return nz(seatType.getSurcharge());
+        return seatType.getWeekendSurcharge() != null ? seatType.getWeekendSurcharge() : nz(seatType.getSurcharge());
+    }
+
     /** Nạp toàn bộ ngữ cảnh giá của 1 suất MỘT LẦN (tránh N+1 khi tính nhiều ghế). */
     public PricingContext buildContext(Showtime st) {
         LocalDateTime start = st.getStartTime();
@@ -152,27 +159,35 @@ public class PricingService {
         return ruleVal.equalsIgnoreCase(actual) ? 2 : null;
     }
 
-    /** Giá 1 vé theo đối tượng trong ngữ cảnh đã nạp (flat: không phụ thuộc loại ghế). */
-    public BigDecimal priceFor(PricingContext ctx, String audience) {
+    /** Giá 1 vé theo loại ghế & đối tượng trong ngữ cảnh đã nạp: Giá nền + Phụ thu định dạng + Phụ thu loại ghế. */
+    public BigDecimal priceFor(PricingContext ctx, SeatType seatType, String audience) {
         BigDecimal base = ctx.baseByAudience.getOrDefault(audience, DEFAULT_BASE);
-        return base.add(nz(ctx.formatSurcharge)).max(BigDecimal.ZERO);
+        BigDecimal fmtSur = nz(ctx.formatSurcharge);
+        BigDecimal seatSur = resolveSeatSurcharge(seatType, ctx.dayType);
+        return base.add(fmtSur).add(seatSur).max(BigDecimal.ZERO);
+    }
+
+    /** Fallback tính giá không truyền loại ghế (mặc định 0đ phụ thu ghế). */
+    public BigDecimal priceFor(PricingContext ctx, String audience) {
+        return priceFor(ctx, (SeatType) null, audience);
     }
 
     public PriceBreakdown breakdown(PricingContext ctx, Seat seat, String audience) {
-        BigDecimal total = priceFor(ctx, audience);
+        SeatType seatType = seat != null ? seat.getSeatType() : null;
+        BigDecimal seatSur = resolveSeatSurcharge(seatType, ctx.dayType);
+        BigDecimal total = priceFor(ctx, seatType, audience);
         return PriceBreakdown.builder()
                 .seatId(seat != null ? seat.getId() : null)
-                .seatType(seat != null && seat.getSeatType() != null ? seat.getSeatType().getName() : null)
+                .seatType(seatType != null ? seatType.getName() : null)
                 .ticketType(audience)
                 .basePrice(ctx.baseByAudience.getOrDefault(audience, DEFAULT_BASE))
-                .seatSurcharge(BigDecimal.ZERO)
+                .seatSurcharge(seatSur)
                 .formatSurcharge(nz(ctx.formatSurcharge))
                 .fixedPrice(false).total(total).build();
     }
 
     /**
-     * Bảng giá cho FE: tên loại ghế -> (đối tượng -> giá). Flat pricing nên mọi loại ghế đồng giá,
-     * nhưng vẫn giữ cấu trúc theo loại ghế để seat-map FE không phải đổi contract.
+     * Bảng giá cho FE: tên loại ghế -> (đối tượng -> giá). Phân tách chính xác theo phụ thu của từng loại ghế.
      */
     public Map<String, Map<String, BigDecimal>> buildPriceTable(PricingContext ctx, List<SeatType> seatTypes) {
         return buildPriceTable(ctx, seatTypes, AUDIENCE_TYPES);
@@ -180,19 +195,19 @@ public class PricingService {
 
     public Map<String, Map<String, BigDecimal>> buildPriceTable(PricingContext ctx, List<SeatType> seatTypes,
                                                                 List<String> audiences) {
-        Map<String, BigDecimal> byAud = new LinkedHashMap<>();
-        for (String aud : audiences) {
-            byAud.put(aud, priceFor(ctx, aud));
-        }
         Map<String, Map<String, BigDecimal>> table = new LinkedHashMap<>();
         for (SeatType seatType : seatTypes) {
-            table.put(seatType.getName(), new LinkedHashMap<>(byAud));
+            Map<String, BigDecimal> byAud = new LinkedHashMap<>();
+            for (String aud : audiences) {
+                byAud.put(aud, priceFor(ctx, seatType, aud));
+            }
+            table.put(seatType.getName(), byAud);
         }
         return table;
     }
 
     /** Tính thử giá theo các chiều rời (cho bộ Simulator của admin, không cần suất thật). */
-    public PriceBreakdown simulate(String dayType, String audience, String roomType, MovieFormat fmt) {
+    public PriceBreakdown simulate(String dayType, String audience, String roomType, MovieFormat fmt, SeatType seatType) {
         String aud = normalizeAudience(audience);
         String room = normalizeRoomType(roomType);
         List<PricingRule> rules = pricingRuleRepository.findByRuleTypeAndActiveTrue(RULE_BASE_PRICE);
@@ -201,14 +216,20 @@ public class PricingService {
         BigDecimal fmtSur = resolveFormatSurcharge(fmt, dayType);
         PricingContext ctx = new PricingContext(dayType, room, fmt, fmtSur, baseByAud);
 
-        BigDecimal total = priceFor(ctx, aud);
+        BigDecimal seatSur = resolveSeatSurcharge(seatType, dayType);
+        BigDecimal total = priceFor(ctx, seatType, aud);
         return PriceBreakdown.builder()
                 .ticketType(aud)
                 .basePrice(baseByAud.get(aud))
-                .seatSurcharge(BigDecimal.ZERO)
+                .seatSurcharge(seatSur)
                 .formatSurcharge(nz(fmtSur))
                 .fixedPrice(false).total(total).build();
     }
+
+    public PriceBreakdown simulate(String dayType, String audience, String roomType, MovieFormat fmt) {
+        return simulate(dayType, audience, roomType, fmt, null);
+    }
+
 
     private static BigDecimal nz(BigDecimal v) {
         return v != null ? v : BigDecimal.ZERO;

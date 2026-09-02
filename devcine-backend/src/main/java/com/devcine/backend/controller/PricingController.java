@@ -80,13 +80,15 @@ public class PricingController {
         }
         res.put("baseMatrix", baseMatrix);
 
-        // Loại ghế chỉ còn ý nghĩa HIỂN THỊ (tên + màu) — flat pricing bỏ phụ thu theo ghế.
+        // Loại ghế (tên, màu hiển thị, phụ thu ngày thường & cuối tuần)
         List<Map<String, Object>> seatTypes = new ArrayList<>();
         for (SeatType s : seatTypeRepository.findAll()) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", s.getId());
             m.put("name", s.getName());
             m.put("colorCode", s.getColorCode());
+            m.put("surcharge", s.getSurcharge());
+            m.put("weekendSurcharge", s.getWeekendSurcharge());
             seatTypes.add(m);
         }
         res.put("seatTypes", seatTypes);
@@ -147,7 +149,7 @@ public class PricingController {
         }
     }
 
-    // ============ Lưu loại ghế (chỉ tên + màu — flat pricing bỏ phụ thu ghế) ============
+    // ============ Lưu loại ghế (tên, màu, phụ thu ngày thường & cuối tuần) ============
     @PutMapping("/seat-types")
     @PreAuthorize("@perm.can('pricing','edit')")
     @Transactional
@@ -164,11 +166,18 @@ public class PricingController {
                     if (nm != null && !nm.toString().isBlank()) s.setName(nm.toString().trim());
                     Object cc = it.get("colorCode");
                     if (cc != null && !cc.toString().isBlank()) s.setColorCode(cc.toString().trim());
+                    if (it.get("surcharge") != null) {
+                        s.setSurcharge(new BigDecimal(it.get("surcharge").toString()));
+                    }
+                    if (it.containsKey("weekendSurcharge")) {
+                        s.setWeekendSurcharge(it.get("weekendSurcharge") != null && !it.get("weekendSurcharge").toString().isBlank()
+                                ? new BigDecimal(it.get("weekendSurcharge").toString()) : null);
+                    }
                     seatTypeRepository.save(s);
                 }
             }
             notifyPricingUpdate("SEAT_TYPES_UPDATED");
-            return ResponseEntity.ok(ApiResponse.success("Đã lưu loại ghế."));
+            return ResponseEntity.ok(ApiResponse.success("Đã lưu cấu hình loại ghế."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
@@ -189,7 +198,7 @@ public class PricingController {
                             .orElseThrow(() -> new RuntimeException("Không tìm thấy định dạng"));
                     if (it.get("surcharge") != null) f.setSurcharge(new BigDecimal(it.get("surcharge").toString()));
                     if (it.containsKey("weekendSurcharge")) {
-                        f.setWeekendSurcharge(it.get("weekendSurcharge") != null
+                        f.setWeekendSurcharge(it.get("weekendSurcharge") != null && !it.get("weekendSurcharge").toString().isBlank()
                                 ? new BigDecimal(it.get("weekendSurcharge").toString()) : null);
                     }
                     movieFormatRepository.save(f);
@@ -235,17 +244,22 @@ public class PricingController {
     @PreAuthorize("@perm.can('pricing','edit')")
     public ResponseEntity<?> simulate(@RequestBody Map<String, Object> body) {
         try {
-            MovieFormat fmt = body.get("formatId") != null
+            MovieFormat fmt = body.get("formatId") != null && !body.get("formatId").toString().isBlank()
                     ? movieFormatRepository.findById(Integer.parseInt(body.get("formatId").toString())).orElse(null)
+                    : null;
+            SeatType seatType = body.get("seatTypeId") != null && !body.get("seatTypeId").toString().isBlank()
+                    ? seatTypeRepository.findById(Integer.parseInt(body.get("seatTypeId").toString())).orElse(null)
                     : null;
             PriceBreakdown bd = pricingService.simulate(
                     (String) body.get("dayType"),
                     (String) body.get("audienceType"),
                     (String) body.get("roomType"),
-                    fmt);
+                    fmt,
+                    seatType);
             return ResponseEntity.ok(ApiResponse.ok(bd));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         }
     }
 }
+
