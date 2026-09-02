@@ -70,12 +70,22 @@ public class VoucherHoldLeaseService {
             if (existingJson != null) {
                 try {
                     LeaseInfo existing = objectMapper.readValue(existingJson, LeaseInfo.class);
+                    // 1. Cùng session -> gia hạn TTL
                     if (sessionId.equals(existing.getSessionId())) {
-                        // Gia hạn lại TTL cho chính session này
                         redisTemplate.expire(key, Duration.ofSeconds(ttl));
                         return true;
                     }
-                    // Khác session -> báo lỗi xung đột
+                    // 2. Cùng khách hàng Online (khách F5 hoặc mở lại tab mới trên web) -> cho phép kế thừa lease
+                    if ("ONLINE".equalsIgnoreCase(channel)
+                            && "ONLINE".equalsIgnoreCase(existing.getChannel())
+                            && customerId != null && customerId.equals(existing.getCustomerId())) {
+                        redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(ttl));
+                        log.info("[VoucherLease] Khách hàng #{} Online kế thừa lại khóa voucher #{} từ session cũ {} sang {}",
+                                customerId, voucherId, existing.getSessionId(), sessionId);
+                        broadcastVoucherEvent(customerId, "VOUCHER_LEASE_ACQUIRED", voucherId, channel, sessionId);
+                        return true;
+                    }
+                    // 3. Khác session / khác kênh -> báo lỗi xung đột
                     String conflictReason = "POS".equalsIgnoreCase(existing.getChannel())
                             ? "Mã ưu đãi đang được áp dụng tại quầy thu ngân."
                             : "Mã ưu đãi đang được giữ trong một phiên đặt vé Online của bạn.";
@@ -121,26 +131,37 @@ public class VoucherHoldLeaseService {
     /**
      * Kiểm tra xem voucher có đang bị một phiên khác giữ không
      */
-    public boolean isHeldByOther(Integer voucherId, String sessionId) {
+    public boolean isHeldByOther(Integer voucherId, String channel, String sessionId, Integer customerId) {
         if (voucherId == null) return false;
         String key = LEASE_PREFIX + voucherId;
         try {
             String existingJson = redisTemplate.opsForValue().get(key);
             if (existingJson == null) return false;
             LeaseInfo info = objectMapper.readValue(existingJson, LeaseInfo.class);
+            // Cùng session -> không bị coi là người khác giữ
             if (sessionId != null && sessionId.equals(info.getSessionId())) {
-                return false; // Chính session này đang giữ
+                return false;
             }
-            return true; // Bị session khác giữ
+            // Cùng khách hàng Online -> không bị coi là người khác giữ
+            if ("ONLINE".equalsIgnoreCase(channel)
+                    && "ONLINE".equalsIgnoreCase(info.getChannel())
+                    && customerId != null && customerId.equals(info.getCustomerId())) {
+                return false;
+            }
+            return true; // Bị phiên khác / kênh khác giữ
         } catch (Exception e) {
             return false;
         }
     }
 
+    public boolean isHeldByOther(Integer voucherId, String sessionId) {
+        return isHeldByOther(voucherId, null, sessionId, null);
+    }
+
     /**
      * Lấy lý do chi tiết nếu voucher đang bị giữ
      */
-    public String getHoldReason(Integer voucherId, String sessionId) {
+    public String getHoldReason(Integer voucherId, String channel, String sessionId, Integer customerId) {
         if (voucherId == null) return null;
         String key = LEASE_PREFIX + voucherId;
         try {
@@ -150,12 +171,21 @@ public class VoucherHoldLeaseService {
             if (sessionId != null && sessionId.equals(info.getSessionId())) {
                 return null;
             }
+            if ("ONLINE".equalsIgnoreCase(channel)
+                    && "ONLINE".equalsIgnoreCase(info.getChannel())
+                    && customerId != null && customerId.equals(info.getCustomerId())) {
+                return null;
+            }
             return "POS".equalsIgnoreCase(info.getChannel())
                     ? "Mã ưu đãi đang được áp dụng tại quầy thu ngân."
                     : "Mã ưu đãi đang được giữ trong một phiên đặt vé Online của bạn.";
         } catch (Exception e) {
             return null;
         }
+    }
+
+    public String getHoldReason(Integer voucherId, String sessionId) {
+        return getHoldReason(voucherId, null, sessionId, null);
     }
 
     private void broadcastVoucherEvent(Integer customerId, String action, Integer voucherId, String channel, String sessionId) {

@@ -116,4 +116,29 @@ class VoucherHoldLeaseTest {
         assertTrue(correct);
         verify(redisTemplate).delete("voucher:lease:100");
     }
+
+    @Test
+    @DisplayName("Cùng khách hàng Online mở lại/F5 thì kế thừa khóa thành công, không bị tự chặn")
+    void testOnlineCustomerReclaimSucceeds() throws Exception {
+        when(valueOperations.setIfAbsent(eq("voucher:lease:100"), anyString(), any(Duration.class)))
+                .thenReturn(false);
+
+        VoucherHoldLeaseService.LeaseInfo existing = new VoucherHoldLeaseService.LeaseInfo(
+                100, "ONLINE", "OLD_SESSION", 55, System.currentTimeMillis(), 600
+        );
+        when(valueOperations.get("voucher:lease:100")).thenReturn(objectMapper.writeValueAsString(existing));
+
+        // Khách hàng 55 dùng session mới trên Online -> kế thừa thành công
+        boolean ok = service.acquire(100, "ONLINE", "NEW_SESSION", 55, 600);
+        assertTrue(ok);
+        verify(valueOperations).set(eq("voucher:lease:100"), anyString(), eq(Duration.ofSeconds(600)));
+
+        // isHeldByOther trả về false cho chính khách hàng đó
+        boolean isHeld = service.isHeldByOther(100, "ONLINE", "NEW_SESSION", 55);
+        assertFalse(isHeld);
+
+        // Nhưng đối với POS thì isHeldByOther trả về true
+        boolean posSeesHeld = service.isHeldByOther(100, "POS", "POS_SESSION_1", 55);
+        assertTrue(posSeesHeld);
+    }
 }

@@ -311,6 +311,8 @@ public class VoucherService {
         Integer excludeBookingId = req.getHeldBookingId();
         String sessionId = req.getSessionId() != null ? req.getSessionId()
                 : (excludeBookingId != null ? String.valueOf(excludeBookingId) : null);
+        String channel = req.getChannel() != null ? req.getChannel()
+                : (sessionId != null && sessionId.startsWith("POS") ? "POS" : "ONLINE");
 
         List<Map<String, Object>> out = new ArrayList<>();
         for (Voucher v : voucherRepository.findActiveVouchersByCustomerId(customerId, now)) {
@@ -318,11 +320,11 @@ public class VoucherService {
             Promotion p = v.getPromotion();
 
             boolean isDbHeldByOther = v.getId() != null && bookingRepository.isVoucherHeldByOtherBooking(v.getId(), excludeBookingId, now, cutoff);
-            boolean isRedisHeldByOther = v.getId() != null && voucherHoldLeaseService.isHeldByOther(v.getId(), sessionId);
+            boolean isRedisHeldByOther = v.getId() != null && voucherHoldLeaseService.isHeldByOther(v.getId(), channel, sessionId, customerId);
 
             VoucherEval eval;
             if (isRedisHeldByOther) {
-                String holdReason = voucherHoldLeaseService.getHoldReason(v.getId(), sessionId);
+                String holdReason = voucherHoldLeaseService.getHoldReason(v.getId(), channel, sessionId, customerId);
                 eval = new VoucherEval(false, holdReason != null ? holdReason : "Mã ưu đãi đang được áp dụng tại quầy thu ngân.", BigDecimal.ZERO);
             } else if (isDbHeldByOther) {
                 eval = new VoucherEval(false, "Mã ưu đãi đang được giữ trong một phiên giao dịch khác của bạn.", BigDecimal.ZERO);

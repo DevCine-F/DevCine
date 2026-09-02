@@ -17,4 +17,5 @@ public class VoucherPreviewRequest {
     private List<BigDecimal> seatPrices;     // giá từng ghế (đã theo đối tượng) — để tính base & đơn tối thiểu
     private Integer heldBookingId;           // ID đơn đang giữ của phiên hiện tại (để bỏ qua không tự coi là đơn khác)
     private String sessionId;                // Session ID của phiên giữ chỗ (POS hoặc Online)
+    private String channel;                  // Kênh đặt vé (POS hoặc ONLINE)
 }

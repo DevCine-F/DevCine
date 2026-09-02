@@ -1623,7 +1623,8 @@ const fetchPosVoucherEvals = async () => {
       movieId: movieId,
       seatPrices: seatPrices,
       fnbTotal: fnbTotal,
-      sessionId: posVoucherSessionId.value
+      sessionId: posVoucherSessionId.value,
+      channel: 'POS'
     })
 
     const resList = Array.isArray(data) ? data : (data?.data ?? [])

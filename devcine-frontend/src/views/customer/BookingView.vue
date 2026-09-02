@@ -20,7 +20,17 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToastStore()
 
-const onlineVoucherSessionId = computed(() => store.bookingId ? String(store.bookingId) : `ONLINE_${authStore.user?.id || 'ANON'}`)
+const getOnlineVoucherSessionId = () => {
+  const uid = authStore.user?.id || 'ANON'
+  const storageKey = `devcine_online_voucher_session_${uid}`
+  let token = sessionStorage.getItem(storageKey)
+  if (!token) {
+    token = `ONLINE_TAB_${uid}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+    sessionStorage.setItem(storageKey, token)
+  }
+  return token
+}
+const onlineVoucherSessionId = ref(getOnlineVoucherSessionId())
 
 const voucherRealtime = useVoucherRealtime({
   onVoucherChange: async (ev) => {
@@ -746,7 +756,8 @@ const fetchVoucherEvals = async () => {
       seatPrices,
       fnbTotal,
       heldBookingId: store.bookingId || null,
-      sessionId: onlineVoucherSessionId.value
+      sessionId: onlineVoucherSessionId.value,
+      channel: 'ONLINE'
     })
     const map = {}
     for (const e of data) map[e.voucherId] = e
