@@ -39,6 +39,19 @@ watch(
 );
 
 const durationText = (m) => (m?.durationMins ? m.durationMins + " Phút" : "N/A");
+
+const formatCompactPrice = (val) => {
+  const num = Number(val) || 0;
+  if (num >= 1_000_000_000) {
+    const b = (num / 1_000_000_000).toFixed(2).replace(/\.?0+$/, "");
+    return { value: b, unit: "Tỷ" };
+  }
+  if (num >= 1_000_000) {
+    const m = (num / 1_000_000).toFixed(1).replace(/\.?0+$/, "");
+    return { value: m, unit: "Tr" };
+  }
+  return { value: num.toLocaleString("vi-VN"), unit: "đ" };
+};
 </script>
 
 <template>
@@ -85,8 +98,8 @@ const durationText = (m) => (m?.durationMins ? m.durationMins + " Phút" : "N/A"
         <div class="px-16 py-10 flex justify-between items-center shrink-0 border-b border-white/5">
           <div class="flex items-center gap-16">
             <div v-for="(info, i) in [
-              { label: 'Ngôn ngữ gốc', val: movie.originalLanguage || 'Tiếng Anh' },
-              { label: 'Phiên bản', val: movie.versionType || 'Phụ đề' },
+              { label: 'Ngôn ngữ gốc', val: movie.originalLanguage || '—' },
+              { label: 'Phiên bản', val: movie.versionType || '—' },
               { label: 'Năm', val: movie.productionYear || '—' },
               { label: 'Hệ thống ID', val: '#' + movie.id },
             ]" :key="i" class="space-y-1">
@@ -122,7 +135,10 @@ const durationText = (m) => (m?.durationMins ? m.durationMins + " Phút" : "N/A"
                       <span class="material-symbols-outlined text-white/30 text-3xl">payments</span>
                     </div>
                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Doanh thu vé</p>
-                    <p class="text-3xl font-bold text-white">{{ formatPrice(stats.ticketRevenue) }}</p>
+                    <p class="text-3xl font-bold text-white tracking-tight cursor-default" :title="formatPrice(stats.ticketRevenue)">
+                      {{ formatCompactPrice(stats.ticketRevenue).value }}
+                      <span class="text-lg text-white/40 font-bold ml-1">{{ formatCompactPrice(stats.ticketRevenue).unit }}</span>
+                    </p>
                   </div>
                   <div class="p-8 bg-white/[0.02] border border-white/10 rounded-[24px] group hover:bg-white/[0.04] transition-all">
                     <div class="flex justify-between items-start mb-6">
