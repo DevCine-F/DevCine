@@ -73,7 +73,7 @@ public class AdminBookingController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@perm.can('bookings', 'view')")
+    @PreAuthorize("@perm.can('bookings', 'view') or @perm.can('pos_ticketing', 'view')")
     @Transactional(readOnly = true)
     public ResponseEntity<?> detail(@PathVariable Integer id, @RequestParam(required = false) String type) {
         if ("CONCESSION".equalsIgnoreCase(type)) {

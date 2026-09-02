@@ -89,11 +89,13 @@ Xem memory `devcine-progress.md` để biết đã xong gì và còn lại gì.
 - **Cinema Scoping (`CustomerController`, `CustomerRepository`, `ConcessionSaleRepository`):** Với MANAGER/STAFF, chỉ cho phép xem/thao tác các khách hàng đã từng giao dịch (mua vé CONFIRMED hoặc mua F&B COMPLETED) tại rạp của mình (`hasAccessToCustomer`), chéo rạp trả về 403 Forbidden.
 - **Tối ưu Backend:** Batch Aggregation Query O(1) tính tổng chi tiêu chống N+1; chặn tích/tiêu điểm và chặn gửi email reset password cho tài khoản bị khóa.
 - **Tạm ẩn menu CSKH (`AdminLayout.vue`):** Tạm ẩn tab "Chăm sóc khách hàng" trên sidebar quản trị phục vụ review, bảo tồn toàn bộ route & code bên dưới.
-- **Chuẩn hóa Ma trận Phân quyền V8 (`DataSeeder`, `AdminPermissions.vue`, `CinemaController`, `RoomController`, `SeatController`):**
-  + MANAGER: Được phân quyền quản lý cụm rạp (`cinemas:view,edit` scoped), khách hàng (`customers:view,edit` scoped), lịch chiếu, nhân sự, hóa đơn, sự cố ghế và thống kê rạp mình. Đóng toàn bộ các quyền cấu hình toàn cục.
-  + STAFF: Tinh gọn tuyệt đối, CHỈ có đúng 2 quyền: Bán vé (POS) và Kiểm soát vé (Check-in QR).
+- **Chuẩn hóa Ma trận Phân quyền 18 Tab Sidebar V9 (`DataSeeder`, `AdminPermissions.vue`, `AdminLayout.vue`, `admin.js`, `AdminBookingController.java`):**
+  + MANAGER: Được phân quyền quản lý cơ sở: Vận hành (`dashboard_stats`, `pos_ticketing`, `ticket_checkin`, `bookings`), Phim & Lịch chiếu (`movies`, `movie_categories`, `schedules`), Cơ sở & F&B (`cinemas`, `fnb_menu`), Khách hàng & Nhân sự (`customers`, `staff_management`).
+  + STAFF: Tinh gọn tuyệt đối, CHỈ có đúng 2 quyền: Bán vé (POS `pos_ticketing:view,add`) và Kiểm soát vé (`ticket_checkin:view`).
   + ADMIN: Toàn quyền toàn hệ thống.
-  + UI AdminPermissions: Tái cấu trúc 4 tab trực quan, tích hợp Toast thông báo (`useToastStore` / `AppToast.vue`).
+  + UI AdminPermissions: Giữ trọn vẹn phong cách Card UI gốc (Pill buttons chọn Role `rounded-full`, tab ngang vạch neon `glow underline indicator`, thẻ Card `rounded-xl`, badge đếm quyền `ĐÃ CHỌN: X / Y`, master toggle, floating glassmorphic footer) chia theo đúng 6 phân hệ ngang khớp 1-1 với 18 Tab Sidebar.
+  + Tách độc lập `ticket_checkin` và `movie_categories`; tự động đồng bộ `schedules` theo `movies`.
+  + Endpoint chi tiết đơn hàng `GET /api/admin/bookings/{id}` mở cho cả `@perm.can('pos_ticketing', 'view')` để in vé K80 sau thanh toán QR tại POS mà không cần cấp quyền truy cập tab Hoá đơn trên sidebar.
 
 **Tạm thời VÔ HIỆU HÓA — Đổi giao diện Sáng/Tối & Thông báo Khách hàng (02/09/2026):** Ẩn hoàn toàn nút chuyển theme (`useTheme`) và chuông thông báo (`useNotificationStore`/`NotificationView`) khỏi `Navbar.vue`. Đánh dấu là chức năng tạm thời vô hiệu hóa, không sử dụng trong giai đoạn này (coi như không có); toàn bộ giao diện khách hàng chạy Dark theme mặc định chuẩn rạp chiếu phim.
 
