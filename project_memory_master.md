@@ -406,5 +406,20 @@ Tài liệu này lưu trữ và tổng hợp các cột mốc (milestone) đã h
 - **Bộ Test Kiểm Thử Tự Động (`BookingVoucherConcurrencyTest.java`):**
   - Đầy đủ 5 test cases bao phủ: Chặn giữ voucher khi đang bị đơn khác giữ, cho phép re-hold cùng đơn, chặn thanh toán khi voucher đã bị dùng, thanh toán thành công khi voucher hợp lệ, và giả lập Race Condition 2 luồng đồng thời thanh toán xác nhận đúng 1 đơn thành công và 1 đơn bị chặn lỗi 100%.
 
-
+### 30. Bảo Vệ Quyền Sở Hữu Voucher Cá Nhân Khi Đổi Điểm (Points Redemption Quota Protection)
+- **Vấn Đề & Lỗ Hổng (Root Cause):**
+  - Khi khách hàng đổi điểm tích lũy (`loyaltyPoints`) lấy voucher, hệ thống cũ **không kiểm tra** `usageLimit` của chiến dịch trước khi trừ điểm → khách có thể bị trừ điểm dù chiến dịch đã hết suất phát hành.
+  - `usedCount` của chiến dịch **chỉ tăng khi thanh toán vé thành công** (không tăng khi phát hành voucher đổi điểm) → người khác thanh toán trước hết quota, khách đã đổi điểm vào ví bị vô hiệu hóa (`EXHAUSTED`) — mất điểm mà không nhận được quyền lợi.
+  - Hàm `evaluate()` và `getOrClaimForCheckout()` kiểm tra `promo.getUsedCount() >= promo.getUsageLimit()` cho tất cả voucher — kể cả voucher cá nhân đã nằm trong ví (đã trả chi phí đổi điểm) — dẫn đến bị chặn sử dụng oan.
+- **Phân Biệt 2 Loại Voucher (Thiết kế sau fix):**
+  - **Voucher Công Khai (First Come First Served):** Khách lưu mã về ví bằng 1 click (không mất chi phí). Quota tính tại thời điểm **thanh toán** (cũ) — giữ nguyên 100%.
+  - **Voucher Cá Nhân (Đổi điểm / Admin tặng):** Khách bỏ điểm tích lũy để đổi. Quota tính tại thời điểm **phát hành** (mới); một khi đã vào ví là bảo lưu 100% đến `validUntil`.
+- **Giải Pháp Triển Khai (5 file, không thay đổi ERD / DB Schema):**
+  - **`PromotionRepository.java`:** Thêm query `incrementIssuedCountIfQuotaAvailable` — dùng riêng cho luồng phát hành voucher đổi điểm (tên khác với `incrementUsedCountIfAllowed` để phân biệt ngữ cảnh gọi).
+  - **`VoucherService.java` — `redeemWithPoints()`:** Atomic increment `usedCount` **TRƯỚC** khi trừ điểm khách; nếu `reserved == 0` (hết quota) ném lỗi ngay — toàn bộ transaction rollback an toàn, điểm không bị trừ.
+  - **`VoucherService.java` — `evaluate()` và `getOrClaimForCheckout()`:** Bổ sung biến `isOwnedPersonally = voucher.getId() != null && voucher.getCustomer() != null`; bỏ qua kiểm tra `usedCount >= usageLimit` cho voucher đã thuộc sở hữu cá nhân — đồng bộ với logic tương tự đã có cho `isActive` (comment nguyên bản đã ghi rõ triết lý này).
+  - **`BookingService.java` — `completePayment()`:** Phân nhánh theo `freshPromo.getAllowPointRedemption()`: voucher đổi điểm → bỏ qua `incrementUsedCountIfAllowed` (đã tăng khi phát hành, không tăng lần 2); mã công khai → giữ nguyên logic tăng khi thanh toán.
+  - **`VoucherController.java`:** Logic gán `EXHAUSTED` thêm điều kiện `!isPointRedemption` — voucher đổi điểm **không bao giờ bị EXHAUSTED** trên trang ví (`/profile/vouchers`), luôn giữ `ACTIVE` cho đến `validUntil`.
+  - **`KhuyenMaiView.vue`:** Phân biệt label: `"Hết suất đổi"` (khi `allowPointRedemption = true`) vs `"Hết lượt lưu"` (mã công khai thông thường).
+- **Tính Tương Thích:** Bảo toàn 100% logic Snapshot, cơ chế chống race condition 2 tầng (Redis Lease + Atomic SQL), logic mã công khai FCFS, và toàn bộ test cases hiện có.
 

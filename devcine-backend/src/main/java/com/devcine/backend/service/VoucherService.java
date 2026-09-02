@@ -203,7 +203,13 @@ public class VoucherService {
         }
 
         // 3. Lượt sử dụng toàn hệ thống (Hết lượt)
-        if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
+        // Voucher đã thuộc sở hữu cá nhân (trong ví, getId != null + getCustomer != null) được MIỄN NHIỄM
+        // kiểm tra này. Lý do: Voucher đổi bằng điểm hoặc Admin tặng trực tiếp đã giữ chỗ quota ngay
+        // tại thời điểm phát hành — không thể bị người khác "cướp mất lượt" sau này.
+        // Chỉ chặn với voucher chưa thuộc về ai (guest / claim mã mới khi chiến dịch hết lượt).
+        boolean isOwnedPersonally = voucher.getId() != null && voucher.getCustomer() != null;
+        if (!isOwnedPersonally
+                && promo.getUsageLimit() != null && promo.getUsageLimit() > 0
                 && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
             return new VoucherEval(false, "Mã ưu đãi đã hết lượt sử dụng.", BigDecimal.ZERO);
         }
@@ -420,6 +426,16 @@ public class VoucherService {
             throw new RuntimeException("Bạn không đủ điểm để đổi ưu đãi này.");
         }
 
+        // Giữ chỗ quota ATOMIC trước khi trừ điểm.
+        // Thứ tự quan trọng: tăng usedCount TRƯỚC — nếu sau đó bất kỳ bước nào lỗi,
+        // @Transactional rollback cả usedCount lẫn điểm về trạng thái ban đầu.
+        // Ngược lại (trừ điểm trước) nếu increment fail → phải rollback điểm thủ công, phức tạp hơn.
+        int reserved = promotionRepository.incrementIssuedCountIfQuotaAvailable(promo.getId());
+        if (reserved == 0) {
+            // usageLimit > 0 và usedCount đã đạt mức trần → không còn suất đổi
+            throw new RuntimeException("Ưu đãi này đã hết số lượng có thể đổi. Vui lòng chọn ưu đãi khác.");
+        }
+
         // Trừ điểm qua LoyaltyService: chỉ trừ ví tiêu được (GIỮ NGUYÊN tích lũy trọn đời -> hạng
         // không tụt) và ghi sổ điểm.
         loyaltyService.redeem(customer, promo.getPointsRequired(), promo.getCode());
@@ -540,10 +556,8 @@ public class VoucherService {
             if (Boolean.FALSE.equals(promo.getIsActive())) {
                 throw new RuntimeException("Mã ưu đãi đang tạm dừng áp dụng.");
             }
-            if (promo.getUsageLimit() != null && promo.getUsageLimit() > 0
-                    && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getUsageLimit()) {
-                throw new RuntimeException("Mã ưu đãi đã hết lượt sử dụng trên toàn hệ thống.");
-            }
+            // Voucher đã thuộc sở hữu cá nhân → KHÔNG kiểm tra usedCount >= usageLimit.
+            // Quota đã được giữ chỗ ngay khi phát hành (đổi điểm) hoặc Admin tặng trực tiếp.
             LocalDateTime now = LocalDateTime.now();
             LocalDateTime cutoff = now.minusMinutes(15);
             if (bookingRepository.isVoucherHeldByOtherBooking(existing.getId(), null, now, cutoff)) {

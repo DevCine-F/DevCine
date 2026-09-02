@@ -671,16 +671,24 @@ public class BookingService {
             // do persistence context cache từ transaction trước, dẫn đến đọc usedCount cũ.
             Promotion freshPromo = promotionRepository.findById(v.getPromotion().getId()).orElse(null);
 
-            if (freshPromo != null && freshPromo.getUsageLimit() != null && freshPromo.getUsageLimit() > 0) {
-                // Có giới hạn lượt → atomic increment + check kết quả TRƯỚC KHI hoàn tất
-                int updated = promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
-                if (updated == 0) {
-                    // Hết lượt → từ chối ngay, rollback transaction
-                    throw new RuntimeException("Mã khuyến mãi đã hết lượt sử dụng, vui lòng bỏ voucher và thử lại.");
+            if (freshPromo != null) {
+                boolean isPointRedemptionVoucher = Boolean.TRUE.equals(freshPromo.getAllowPointRedemption());
+                if (!isPointRedemptionVoucher) {
+                    // Mã công khai (claimByCode / First Come First Served):
+                    // usedCount tăng tại đây — lúc khách thanh toán thành công. Logic cũ giữ nguyên.
+                    if (freshPromo.getUsageLimit() != null && freshPromo.getUsageLimit() > 0) {
+                        int updated = promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
+                        if (updated == 0) {
+                            // Hết lượt → từ chối ngay, rollback transaction
+                            throw new RuntimeException("Mã khuyến mãi đã hết lượt sử dụng, vui lòng bỏ voucher và thử lại.");
+                        }
+                    } else {
+                        // Không giới hạn lượt (usageLimit = 0/null) → tăng bình thường, SQL luôn thành công
+                        promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
+                    }
                 }
-            } else if (freshPromo != null) {
-                // Không giới hạn lượt (usageLimit = 0/null) → tăng bình thường, SQL luôn thành công
-                promotionRepository.incrementUsedCountIfAllowed(freshPromo.getId());
+                // Voucher đổi điểm (allowPointRedemption = true):
+                // usedCount đã được tăng ATOMIC ngay khi đổi điểm thành công → KHÔNG tăng lần 2.
             }
 
             // Cập nhật entity trong Hibernate session hiện tại để đồng bộ memory

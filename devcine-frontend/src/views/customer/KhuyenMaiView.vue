@@ -63,7 +63,9 @@ const getIneligibilityReason = (promo) => {
 
 const getPromoStatusBadge = (promo) => {
   if (promo.exhausted) {
-    return { label: 'Hết lượt lưu', class: 'bg-neutral-800/90 text-neutral-400 border border-neutral-700' }
+    // Phân biệt mã đổi điểm vs mã công khai
+    const label = isPointPromo(promo) ? 'Hết suất đổi' : 'Hết lượt lưu'
+    return { label, class: 'bg-neutral-800/90 text-neutral-400 border border-neutral-700' }
   }
   if (isPointPromo(promo)) {
     return { label: 'Đổi bằng điểm', class: 'bg-amber-500/20 text-amber-300 border border-amber-500/30' }
@@ -336,9 +338,9 @@ onMounted(() => {
 
           <div v-else-if="promo.exhausted" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5 min-h-[44px]">
             <span class="inline-flex items-center bg-neutral-800 text-neutral-400 border border-neutral-700 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider px-3 h-8 rounded-sm select-none">
-              Hết lượt lưu
+              {{ isPointPromo(promo) ? 'Hết suất đổi' : 'Hết lượt lưu' }}
             </span>
-            <span class="text-[11px] text-neutral-500">Đã hết suất hệ thống</span>
+            <span class="text-[11px] text-neutral-500">{{ isPointPromo(promo) ? 'Đã hết số lượng có thể đổi' : 'Đã hết suất hệ thống' }}</span>
           </div>
 
           <div v-else-if="getIneligibilityReason(promo)" class="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-white/5 min-h-[44px]">

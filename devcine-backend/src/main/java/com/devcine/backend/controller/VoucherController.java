@@ -76,10 +76,14 @@ public class VoucherController {
                         status = "EXPIRED";
                     } else {
                         // Voucher chưa dùng và còn hạn, nhưng cần kiểm tra thêm:
-                        // Nếu promotion đã hết lượt toàn hệ thống → đánh dấu EXHAUSTED.
-                        // Khách không thể dùng và không nên thấy ở tab "Ưu đãi hiện tại".
+                        // Với mã CÔNG KHAI (First Come First Served): Nếu promotion đã hết lượt toàn hệ thống
+                        // → đánh dấu EXHAUSTED. Khách không thể dùng và không nên thấy ở tab "Ưu đãi hiện tại".
+                        // Với voucher ĐỔI ĐIỂM / ADMIN TẶNG: Quota đã được giữ chỗ khi phát hành →
+                        // KHÔNG bao giờ EXHAUSTED, luôn ACTIVE cho đến hết hạn validUntil.
                         var promo = v.getPromotion();
-                        boolean exhausted = promo != null
+                        boolean isPointRedemption = promo != null && Boolean.TRUE.equals(promo.getAllowPointRedemption());
+                        boolean exhausted = !isPointRedemption
+                                && promo != null
                                 && promo.getUsageLimit() != null
                                 && promo.getUsageLimit() > 0
                                 && promo.getUsedCount() != null
