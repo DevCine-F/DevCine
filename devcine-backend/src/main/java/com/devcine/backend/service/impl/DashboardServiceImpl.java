@@ -37,8 +37,14 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats(String range, String month) {
+        return getDashboardStats(range, month, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DashboardStatsResponse getDashboardStats(String range, String month, Integer requestedCinemaId) {
         Window w = resolveWindow(range, month);
-        Integer cinemaId = resolveCinemaScope();
+        Integer cinemaId = resolveCinemaScope(requestedCinemaId);
 
         // ===== KPI cho khoảng đã chọn (+ trend so với kỳ liền trước) =====
         BigDecimal revenue = bookingRepository.sumRevenueByDateRange(w.start, w.end, cinemaId);
@@ -76,12 +82,11 @@ public class DashboardServiceImpl implements DashboardService {
     /**
      * Phạm vi cơ sở của người đang xem dashboard.
      *
-     * <p>Trả null = toàn hệ thống, và CHỈ ADMIN được như vậy. Với các vai trò khác, thiếu cinemaId
-     * là lỗi dữ liệu (chưa gắn bản ghi Staff / chưa gán cơ sở) — phải chặn lại chứ không được coi
-     * như "xem tất cả", nếu không một lỗi dữ liệu sẽ tự động biến thành leo thang quyền.</p>
+     * <p>ADMIN: được phép xem toàn hệ thống (null) hoặc chọn 1 cơ sở cụ thể.
+     * Quản lý/Nhân viên: bị khoá cứng theo cơ sở được phân công, không thể xem rạp khác.</p>
      */
-    private Integer resolveCinemaScope() {
-        if (SecurityUtils.hasRole("ADMIN")) return null;
+    private Integer resolveCinemaScope(Integer requestedCinemaId) {
+        if (SecurityUtils.hasRole("ADMIN")) return requestedCinemaId;
 
         Integer cinemaId = SecurityUtils.getCurrentUserCinemaId();
         if (cinemaId == null) {

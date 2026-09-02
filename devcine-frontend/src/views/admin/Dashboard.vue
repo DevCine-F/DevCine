@@ -3,10 +3,18 @@ import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import axios from "@/api/axios";
 import { useAdminPerm } from "@/composables/useAdminPerm";
 import { useToastStore } from "@/stores/toast";
+import { useAuthStore } from "@/stores/auth";
+import { cinemaApi } from "@/api/admin/index";
 import { friendlyError } from "@/utils/friendlyError";
 
 const { can } = useAdminPerm();
 const toast = useToastStore();
+const authStore = useAuthStore();
+const isAdmin = computed(() => (authStore.user?.role?.name || "").toUpperCase() === "ADMIN");
+
+const cinemas = ref([]);
+const selectedCinemaId = ref("");
+
 const range = ref("today");
 const isLoading = ref(true);
 const loadError = ref(false);
@@ -163,12 +171,23 @@ const hoverTip = computed(() => {
   return { ...d, leftPct, topPx };
 });
 
+const fetchCinemas = async () => {
+  if (!isAdmin.value) return;
+  try {
+    const res = await cinemaApi.getAll();
+    cinemas.value = res.data?.data || res.data || [];
+  } catch (err) {
+    console.error("Lỗi tải danh sách rạp:", err);
+  }
+};
+
 const fetchStats = async () => {
   isLoading.value = true;
   loadError.value = false;
   try {
     const params = { range: range.value };
     if (range.value === "month") params.month = selectedMonth.value;
+    if (isAdmin.value && selectedCinemaId.value) params.cinemaId = selectedCinemaId.value;
     const res = await axios.get("/dashboard/stats", { params });
     data.value = res.data;
   } catch (error) {
@@ -191,7 +210,10 @@ const changeRange = (key) => {
   fetchStats();
 };
 
-onMounted(() => {
+onMounted(async () => {
+  if (isAdmin.value) {
+    await fetchCinemas();
+  }
   fetchStats();
   document.addEventListener("mousedown", handleClickOutside);
   document.addEventListener("keydown", handleEscape);
@@ -216,6 +238,17 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <div class="flex items-center gap-3 flex-wrap">
+        <!-- Bộ lọc chọn cơ sở cho ADMIN -->
+        <div v-if="isAdmin && cinemas.length" class="flex items-center">
+          <select 
+            v-model="selectedCinemaId" 
+            @change="fetchStats"
+            class="bg-surface-container-high text-on-surface text-xs font-bold px-3 py-2 rounded-sm border border-outline-variant/20 focus:outline-none focus:border-primary">
+            <option value="">Tất cả cụm rạp</option>
+            <option v-for="c in cinemas" :key="c.id" :value="c.id">{{ c.name }}</option>
+          </select>
+        </div>
+
         <!-- Bộ lọc thời gian -->
         <div class="flex bg-surface-container-high rounded-lg p-1 border border-outline-variant/20">
           <button v-for="r in ranges" :key="r.key" @click="changeRange(r.key)"

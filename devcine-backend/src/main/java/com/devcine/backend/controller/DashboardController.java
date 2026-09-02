@@ -24,7 +24,8 @@ public class DashboardController {
     @PreAuthorize("@perm.can('dashboard_stats', 'view')")
     public ResponseEntity<ApiResponse<DashboardStatsResponse>> getDashboardStats(
             @RequestParam(defaultValue = "today") String range,
-            @RequestParam(required = false) String month) {
-        return ResponseEntity.ok(ApiResponse.ok(dashboardService.getDashboardStats(range, month)));
+            @RequestParam(required = false) String month,
+            @RequestParam(required = false) Integer cinemaId) {
+        return ResponseEntity.ok(ApiResponse.ok(dashboardService.getDashboardStats(range, month, cinemaId)));
     }
 }
