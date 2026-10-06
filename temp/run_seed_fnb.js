@@ -1,6 +1,6 @@
 const { Client } = require('pg');
 const fs = require('fs');
-const dbUrl = 'postgres://postgres.uetuvfdemxlptcfniwti:DevCine@123@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres';
+const dbUrl = 'postgresql://neondb_owner:npg_weBC5j1EgyYM@ep-broad-tree-b58yfhk3-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 const sql = `
 CREATE TABLE IF NOT EXISTS fnb_option_groups (
