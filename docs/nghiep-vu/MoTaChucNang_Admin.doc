@@ -1,0 +1,139 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>Mô tả chức năng Admin</title></head>
+<body>
+<h1>Mô Tả Chức Năng Vai Trò Quản Trị (Admin / Manager)</h1>
+
+<h2>X.0. Giới thiệu chung về phân hệ Quản trị (Admin)</h2>
+<p>Trong hệ sinh thái của dự án DevCine, nếu như phân hệ Khách hàng (Client) đóng vai trò thu hút và mang lại trải nghiệm đặt vé tiện lợi cho người xem, thì phân hệ Quản trị (Admin/Manager) chính là "bộ não" điều hành toàn bộ hoạt động kinh doanh cốt lõi của chuỗi rạp chiếu phim.</p>
+<p>Phân hệ này được thiết kế chuyên biệt dành cho Ban giám đốc, Quản lý rạp và Nhân viên vận hành. Mục tiêu trọng tâm của phân hệ Admin trong dự án DevCine là giải quyết bài toán số hóa toàn diện quy trình quản lý rạp chiếu phim truyền thống, tập trung vào các khía cạnh:</p>
+<ol>
+<li><strong>Đồng bộ hóa dữ liệu thời gian thực (Real-time Sync):</strong> Quản lý trạng thái sơ đồ ghế ngồi đồng bộ chặt chẽ giữa kênh bán vé trực tuyến (Web/App) và bán vé trực tiếp tại quầy (POS). Hệ thống khóa ghế tức thời (hold seats) ngay khi có giao dịch, ngăn chặn tuyệt đối rủi ro bán trùng ghế.</li>
+<li><strong>Tối ưu hóa nguồn lực chiếu phim:</strong> Cung cấp công cụ xếp lịch chiếu thông minh. Hệ thống tự động tính toán dựa trên thời lượng phim và thời gian dọn dẹp để cảnh báo trùng lặp, giúp quản lý tối đa hóa công suất khai thác của từng phòng chiếu.</li>
+<li><strong>Quản lý đa chi nhánh (Multi-branch Management):</strong> Hỗ trợ thiết lập và giám sát hoạt động của nhiều cụm rạp (Cinemas) trên cùng một nền tảng duy nhất. Mỗi cụm rạp được phép cấu hình số lượng phòng chiếu và thiết kế sơ đồ ma trận ghế độc lập, bám sát thực tế kiến trúc rạp.</li>
+<li><strong>Cấu hình kinh doanh linh hoạt:</strong> Cho phép tùy biến bảng giá vé tự động (theo khung giờ, ngày lễ, loại ghế VIP/Thường); cùng với đó là quản lý kho sản phẩm bắp nước (F&B) và khởi tạo các chiến dịch mã khuyến mãi phức tạp nhằm kích cầu doanh thu.</li>
+<li><strong>Bảo mật và Phân quyền chặt chẽ:</strong> Ứng dụng cơ chế phân quyền (Role-Based Access Control) đảm bảo tính bảo mật. Mỗi cấp độ nhân sự (Thu ngân POS, Quản lý chi nhánh, Quản trị viên cấp cao) chỉ được phép truy cập và thao tác trên các màn hình chức năng thuộc đúng phận sự nghiệp vụ.</li>
+</ol>
+<p>Với giao diện được thiết kế hiện đại (UI/UX tối ưu hóa cho thao tác nhanh) cùng hệ thống biểu đồ báo cáo trực quan, phân hệ Admin giúp giảm tải đáng kể công việc thủ công và cung cấp dữ liệu tức thời để nhà quản lý đưa ra quyết định chiến lược.</p>
+<p>Dưới đây là mô tả chi tiết các nhóm tính năng cấu thành nên phân hệ Quản trị của dự án DevCine.</p>
+
+<hr>
+
+<h3>X.1. Phân hệ Báo cáo và Thống kê (Dashboard)</h3>
+<p><strong>Hình X.1: Màn hình Báo cáo và Thống kê (Dashboard)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Trong mô hình kinh doanh rạp chiếu phim, dữ liệu là chìa khóa để điều chỉnh chiến lược. Màn hình Dashboard đóng vai trò là một trung tâm phân tích dữ liệu tập trung (Data Analytics Hub). Hệ thống tự động thu thập, tổng hợp và tính toán dữ liệu từ tất cả các nguồn bán vé (Online/Offline) theo thời gian thực. Thay vì phải trích xuất báo cáo thủ công, Ban giám đốc và Quản lý rạp có thể ngay lập tức nhìn thấy bức tranh toàn cảnh về sức khỏe tài chính của cụm rạp, xác định được đâu là khung giờ vàng (peak hours) hoặc bộ phim nào đang gánh doanh thu, từ đó đưa ra quyết định xếp thêm suất chiếu hoặc đẩy mạnh marketing kịp thời.</p>
+<ul>
+<li><strong>Biểu đồ doanh thu:</strong> Hiển thị trực quan dữ liệu doanh thu bán vé và dịch vụ bắp nước (F&B) theo các mốc thời gian (ngày, tuần, tháng, năm).</li>
+<li><strong>Thống kê tổng quan (Card chỉ số):</strong> Hiển thị các chỉ số quan trọng như: Tổng doanh thu, Số vé bán ra, Tỷ lệ lấp đầy phòng chiếu (Occupancy Rate), Số lượng khách hàng mới.</li>
+<li><strong>Top phim thịnh hành:</strong> Liệt kê danh sách các bộ phim đang có doanh thu cao nhất.</li>
+<li><strong>Hoạt động trong ngày:</strong> Bảng tóm tắt các suất chiếu sắp diễn ra trong ngày.</li>
+</ul>
+
+<h3>X.2. Phân hệ Bán hàng & Quản lý giao dịch</h3>
+
+<h4>X.2.1. Chức năng Bán vé tại quầy (Ticketing POS)</h4>
+<p><strong>Hình X.2: Màn hình Bán vé tại quầy (Ticketing POS)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Tại quầy vé vật lý, tốc độ xử lý giao dịch là yếu tố sống còn để tránh tình trạng ùn tắc khách hàng, đặc biệt là vào các ngày cuối tuần hay dịp lễ. Do đó, chức năng Ticketing POS của DevCine được thiết kế với triết lý tối giản hóa thao tác (Minimalist UI). Nhân viên thu ngân có thể hoàn thành một chu trình: "Chọn phim -> Chọn ghế -> Chọn bắp nước -> Thanh toán" chỉ trong vài giây. Đặc biệt, luồng dữ liệu của màn hình POS được liên kết chặt chẽ với hệ thống bán vé Online qua cơ chế khóa ghế tạm thời (hold-seat), triệt tiêu hoàn toàn rủi ro bán trùng một ghế cho hai khách hàng khác nhau.</p>
+<ul>
+<li><strong>Tìm kiếm và chọn suất chiếu:</strong> Cung cấp bộ lọc theo rạp, ngày chiếu, phim để nhân viên chọn đúng suất chiếu cho khách.</li>
+<li><strong>Giao diện sơ đồ ghế trực quan:</strong> Hiển thị sơ đồ ghế của phòng chiếu theo thời gian thực (real-time). Các ghế đã bán, ghế đang được giữ (hold), và ghế trống được phân biệt bằng màu sắc.</li>
+<li><strong>Chọn dịch vụ đi kèm (F&B):</strong> Tích hợp tab chọn bắp, nước, và các combo khuyến mãi ngay trên cùng màn hình.</li>
+<li><strong>Thanh toán và In vé:</strong> Tổng hợp hóa đơn, hỗ trợ nhiều phương thức thanh toán và tính năng in vé ngay lập tức.</li>
+</ul>
+
+<h4>X.2.2. Chức năng Quản lý Đơn hàng (Bookings)</h4>
+<p><strong>Hình X.3: Màn hình Quản lý đơn đặt vé</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Với hệ thống bán vé đa kênh (Omni-channel), việc kiểm soát trạng thái của từng đơn hàng là bài toán phức tạp. Màn hình Bookings là nơi lưu vết toàn bộ vòng đời của một giao dịch mua vé, từ lúc khách hàng khởi tạo, thanh toán qua cổng điện tử, cho đến khi hoàn tất. Quản trị viên sử dụng màn hình này để đối soát doanh thu cuối ngày, hoặc đóng vai trò như bộ phận Chăm sóc khách hàng (Customer Service) nhằm can thiệp xử lý các tình huống ngoại lệ như: lỗi mạng khi đang thanh toán, khách hàng yêu cầu hoàn hủy vé do nhầm lịch, hoặc tra cứu lại thông tin vé bị thất lạc.</p>
+<ul>
+<li><strong>Danh sách đơn hàng:</strong> Bảng dữ liệu hiển thị mã đơn hàng, thông tin khách hàng, số lượng vé, tổng tiền, trạng thái thanh toán.</li>
+<li><strong>Bộ lọc tìm kiếm:</strong> Tra cứu đơn hàng dựa trên mã giao dịch, số điện thoại hoặc email.</li>
+<li><strong>Xem chi tiết & Xử lý:</strong> Xem mã ghế, combo đã đặt. Hỗ trợ Hủy đơn hàng hoặc Xác nhận lại giao dịch khi xảy ra sự cố.</li>
+</ul>
+
+<h4>X.2.3. Chức năng Soát vé trực tiếp (Ticket Check-in)</h4>
+<p><strong>Hình X.4: Màn hình Soát vé khách hàng</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Để đảm bảo an ninh và chống gian lận (sử dụng vé giả hoặc một vé dùng nhiều lần), quy trình soát vé cần diễn ra chính xác tuyệt đối nhưng vẫn phải đảm bảo lưu lượng khách vào rạp nhanh chóng. Chức năng Ticket Check-in số hóa hoàn toàn khâu xé vé giấy truyền thống. Nhân viên chỉ cần sử dụng thiết bị quét mã QR Code trên vé vật lý hoặc trên màn hình điện thoại của khách, hệ thống sẽ gọi API xác thực tức thì và trả về kết quả hợp lệ hay không, đồng thời ghi nhận khách đã chính thức "In-cinema", giúp rạp nắm được chính xác lượng người đang có mặt trong phòng chiếu.</p>
+<ul>
+<li><strong>Quét mã QR Code:</strong> Sử dụng máy quét để đọc trực tiếp mã QR trên vé giấy hoặc vé điện tử.</li>
+<li><strong>Xác thực tự động:</strong> Đối chiếu mã vé và hiển thị trạng thái (Hợp lệ/Không hợp lệ) kèm theo số ghế, phòng chiếu.</li>
+<li><strong>Thống kê số lượng:</strong> Hiển thị tiến trình check-in của từng suất chiếu (VD: 45/50 khách).</li>
+</ul>
+
+<h3>X.3. Phân hệ Quản lý Phim và Lịch chiếu</h3>
+
+<h4>X.3.1. Chức năng Quản lý Phim & Danh mục</h4>
+<p><strong>Hình X.5: Màn hình Quản lý danh sách Phim</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Nội dung phim là sản phẩm cốt lõi của một hệ thống rạp. Phân hệ này là kho dữ liệu trung tâm (CMS - Content Management System) lưu trữ mọi thông tin metadata của các tác phẩm điện ảnh. Không chỉ dừng lại ở việc hiển thị hình ảnh đẹp mắt (Poster, Trailer) để thu hút người xem trên website, tính năng này còn mang tính tuân thủ pháp lý cao thông qua việc cấu hình chuẩn xác các nhãn phân loại độ tuổi (C13, C16, C18) theo quy định của Cục Điện ảnh. Mọi dữ liệu thiết lập tại đây sẽ được đồng bộ hiển thị đồng loạt lên tất cả các nền tảng phía người dùng.</p>
+<ul>
+<li><strong>Danh sách phim:</strong> Quản lý phim theo các trạng thái: Đang chiếu, Sắp chiếu, Đã ngưng chiếu.</li>
+<li><strong>Thêm/Sửa thông tin phim:</strong> Điền chi tiết Tên phim, Thể loại, Đạo diễn, Diễn viên, Thời lượng, Giới hạn tuổi, upload Poster và Trailer.</li>
+<li><strong>Quản lý danh mục:</strong> Thiết lập các Thể loại phim (Hành động, Hài hước...) và Định dạng (2D, 3D).</li>
+</ul>
+
+<h4>X.3.2. Chức năng Quản lý Lịch chiếu (Showtimes)</h4>
+<p><strong>Hình X.6: Màn hình Quản lý suất chiếu</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Xếp lịch chiếu là một trong những bài toán khó nhất trong vận hành rạp, đòi hỏi sự tính toán chi li về mặt thời gian. Hệ thống cung cấp công cụ tự động hóa quá trình này bằng thuật toán chống xung đột (Conflict Resolution). Khi Quản lý rạp lên lịch trình, hệ thống sẽ tự động cộng dồn "Thời lượng phim" và "Thời gian làm sạch phòng chiếu (Turnaround time)" để xác định chính xác thời điểm phòng trống. Nếu có bất kỳ sự chồng chéo nào về khung giờ trong cùng một phòng, hệ thống sẽ chặn lại và phát cảnh báo, đảm bảo lịch chiếu luôn khả thi trên thực tế.</p>
+<ul>
+<li><strong>Sắp xếp lịch chiếu:</strong> Khai báo suất chiếu cho phim, chọn rạp, chọn phòng, ngày và thời gian bắt đầu.</li>
+<li><strong>Hệ thống cảnh báo thông minh:</strong> Tự động tính toán thời gian kết thúc và cảnh báo lỗi nếu xếp lịch đè lên suất chiếu khác trong cùng phòng.</li>
+<li><strong>Hiển thị Calendar/Bảng:</strong> Xem lịch chiếu dạng lưới thời khóa biểu của từng phòng.</li>
+</ul>
+
+<h3>X.4. Phân hệ Quản lý Cơ sở vật chất và Dịch vụ</h3>
+
+<h4>X.4.1. Chức năng Quản lý Cụm rạp & Phòng chiếu (Cinema Manager)</h4>
+<p><strong>Hình X.7: Màn hình Quản lý Cơ sở vật chất rạp</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Để hệ thống phần mềm có thể phục vụ cho chuỗi rạp đang mở rộng, nó cần khả năng ánh xạ chính xác kiến trúc vật lý bên ngoài vào không gian số. Chức năng Cinema Manager cho phép hệ thống DevCine có thể mở rộng (Scale-up) không giới hạn số lượng chi nhánh. Điểm nổi bật nhất là công cụ "Ma trận xây dựng sơ đồ ghế" (Seat Matrix Builder), cho phép Admin tự do thiết kế, cấu trúc lại sơ đồ chỗ ngồi của bất kỳ phòng chiếu nào (có lối đi ở giữa, ghế VIP ở hàng sau, hoặc ghế đôi) sao cho khớp 100% với bản vẽ thi công ngoài đời thực.</p>
+<ul>
+<li><strong>Danh sách Chi nhánh:</strong> Thêm mới và quản lý thông tin các cụm rạp (Địa chỉ, Hotline, Hình ảnh).</li>
+<li><strong>Quản lý Phòng chiếu:</strong> Cấu hình số lượng phòng thuộc từng rạp, loại màn hình chiếu.</li>
+<li><strong>Thiết kế Sơ đồ ghế:</strong> Giao diện kẻ lưới để vẽ sơ đồ ghế thực tế (chia block, định dạng ghế VIP, ghế đôi Sweetbox).</li>
+</ul>
+
+<h4>X.4.2. Chức năng Quản lý Bắp Nước (F&B)</h4>
+<p><strong>Hình X.8: Màn hình Quản lý sản phẩm Bắp - Nước</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Dịch vụ ăn uống (F&B) thường chiếm tỷ trọng lợi nhuận rất cao trong cơ cấu doanh thu của rạp chiếu phim (Non-ticket Revenue). Chức năng này cung cấp giải pháp bán lẻ (Retail Management) cơ bản, giúp Admin đa dạng hóa danh mục sản phẩm, từ các mặt hàng lẻ đến việc đóng gói thành các Combo siêu tiết kiệm (Upselling). Việc quản lý tập trung giúp bộ phận Marketing dễ dàng thiết kế các chương trình kích cầu, đồng thời đồng bộ menu hiển thị cho cả nhân viên bán hàng POS lẫn khách hàng mua vé trực tuyến.</p>
+<ul>
+<li><strong>Danh sách sản phẩm/Combo:</strong> Quản lý thông tin, hình ảnh, giá bán của từng loại bắp, nước, combo.</li>
+<li><strong>Cập nhật tồn kho:</strong> Đánh dấu "Còn hàng" hoặc "Hết hàng" để ẩn/hiện trên POS và web.</li>
+</ul>
+
+<h3>X.5. Phân hệ Truyền thông và Khách hàng</h3>
+
+<h4>X.5.1. Chức năng Quản lý Khuyến mãi (Promotions)</h4>
+<p><strong>Hình X.9: Màn hình Quản lý Khuyến mãi</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Đây là công cụ đắc lực hỗ trợ chiến dịch Marketing của rạp. Thực tế cho thấy, việc lấp đầy các suất chiếu vào những khung giờ thấp điểm (off-peak hours) là thách thức lớn. Phân hệ Promotions cung cấp bộ máy tạo mã giảm giá linh hoạt (Rules Engine). Quản lý có thể tạo ra các kịch bản khuyến mãi phức tạp như: "Giảm giá 20% cho suất chiếu sáng thứ Hai", hoặc "Mã giảm 50K giới hạn 100 lượt dùng". Điều này giúp rạp chiếu phim chủ động điều tiết nhu cầu của khách hàng và tối ưu hóa tỷ lệ lấp đầy phòng chiếu.</p>
+<ul>
+<li><strong>Tạo mã giảm giá (Vouchers):</strong> Thiết lập quy tắc giảm theo % hoặc số tiền cố định.</li>
+<li><strong>Điều kiện áp dụng:</strong> Cấu hình thời hạn, số lượng mã, hoặc chỉ áp dụng cho một phim/rạp cụ thể.</li>
+<li><strong>Banner quảng cáo:</strong> Upload và tùy chỉnh hiển thị banner trên trang chủ khách hàng.</li>
+</ul>
+
+<h4>X.5.2. Chức năng Đánh giá & Hỗ trợ khách hàng (Reviews & FAQ)</h4>
+<p><strong>Hình X.10: Màn hình Hỗ trợ Khách hàng</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Quản trị trải nghiệm khách hàng (CRM) là yếu tố giữ chân người dùng trong thời đại số. Phân hệ này là cầu nối giao tiếp hai chiều giữa rạp và khán giả. Đối với hệ thống Đánh giá, Admin đóng vai trò là người kiểm duyệt (Moderator), loại bỏ các ngôn từ không phù hợp hoặc spoil nội dung phim, tạo môi trường thảo luận văn minh. Đối với hệ thống FAQ và Hỗ trợ, đây là công cụ Ticketing nội bộ giúp tiếp nhận khiếu nại, giải đáp thắc mắc nhanh chóng, từ đó nâng cao mức độ hài lòng và uy tín thương hiệu của DevCine.</p>
+<ul>
+<li><strong>Quản lý Đánh giá:</strong> Kiểm duyệt và phản hồi các bình luận của khách hàng về phim.</li>
+<li><strong>Hỗ trợ & FAQ:</strong> Cập nhật các câu hỏi thường gặp, tiếp nhận và giải quyết khiếu nại/sự cố của khách hàng.</li>
+</ul>
+
+<h3>X.6. Phân hệ Quản trị Hệ thống và Nhân sự</h3>
+
+<h4>X.6.1. Chức năng Quản lý Nhân sự & Phân quyền</h4>
+<p><strong>Hình X.11: Màn hình Quản lý Nhân viên và Phân quyền</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Trong một tổ chức vận hành rạp chiếu phim, tính bảo mật và toàn vẹn dữ liệu phải được đặt lên hàng đầu. Không thể để một nhân viên bán vé quầy có khả năng xóa phim hay xem báo cáo doanh thu tổng. Hệ thống giải quyết vấn đề này thông qua cơ chế phân quyền RBAC (Role-Based Access Control). Chức năng này cho phép Quản trị viên cấp cao định nghĩa các nhóm Vai trò (Roles) tương ứng với từng chức danh thực tế ngoài đời, sau đó cấp phát tài khoản cho nhân viên. Mọi quyền hạn (Xem, Thêm, Sửa, Xóa) trên từng màn hình chức năng đều được kiểm soát gắt gao.</p>
+<ul>
+<li><strong>Danh sách tài khoản:</strong> Thêm mới, chỉnh sửa thông tin, khóa tài khoản nhân viên.</li>
+<li><strong>Thiết lập Vai trò (Roles):</strong> Tạo nhóm quyền (Ví dụ: Quản lý chi nhánh, Nhân viên bán vé).</li>
+<li><strong>Cấp quyền chi tiết:</strong> Gán quyền Xem/Thêm/Sửa/Xóa cho từng tính năng cụ thể.</li>
+</ul>
+
+<h4>X.6.2. Chức năng Quản lý Sự cố (Incident Management)</h4>
+<p><strong>Hình X.12: Màn hình Quản lý Sự cố</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Việc vận hành hàng chục phòng chiếu liên tục chắc chắn sẽ phát sinh các rủi ro về cơ sở hạ tầng (như hỏng máy chiếu, rách màn hình, lỗi hệ thống điều hòa). Chức năng Quản lý Sự cố hoạt động như một hệ thống quản lý công việc bảo trì (Maintenance Tracking). Ngay khi phát hiện vấn đề, nhân viên có thể lập tức "Log" một báo cáo sự cố lên hệ thống. Quản lý rạp dựa vào đó để đánh giá mức độ nghiêm trọng, điều phối kỹ thuật viên sửa chữa và cập nhật tiến độ (Đang xử lý / Đã khắc phục), đảm bảo rạp chiếu luôn trong trạng thái kỹ thuật tốt nhất.</p>
+<ul>
+<li><strong>Tạo báo cáo sự cố:</strong> Ghi nhận lỗi hỏng hóc thiết bị (máy chiếu, điều hòa) hoặc sự cố an ninh.</li>
+<li><strong>Theo dõi trạng thái:</strong> Cập nhật tiến độ xử lý từ lúc Tiếp nhận đến khi Hoàn tất để đảm bảo rạp hoạt động thông suốt.</li>
+</ul>
+
+</body>
+</html>

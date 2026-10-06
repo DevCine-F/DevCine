@@ -1,0 +1,204 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>Mô tả chức năng Admin - DevCine</title></head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6;">
+
+<h1>MÔ TẢ CHI TIẾT CHỨC NĂNG PHÂN HỆ QUẢN TRỊ (ADMIN) — DEVCINE</h1>
+
+<h2>X.0. Giới thiệu chung về phân hệ Quản trị (Admin)</h2>
+<p>Phân hệ Quản trị (Admin Portal) của DevCine đóng vai trò là "trung tâm điều hành và kiểm soát dữ liệu" toàn diện cho chuỗi rạp chiếu phim, được xây dựng trên nền tảng kiến trúc hiện đại (Vue 3, Vite, Pinia, TailwindCSS kết hợp Spring Boot Backend). Hệ thống được thiết kế chuyên biệt nhằm phục vụ 3 nhóm đối tượng quản trị và vận hành: Quản trị viên hệ thống (Super Admin), Quản lý cụm rạp (Cinema Manager), và Nhân viên nghiệp vụ (Staff / Cashier).</p>
+
+<p>Phân hệ giải quyết triệt để các bài toán kỹ thuật và nghiệp vụ cốt lõi trong source code:</p>
+<ol>
+<li><strong>Đồng bộ hóa dữ liệu thời gian thực (Real-time Sync):</strong> Tích hợp kết nối WebSocket/STOMP (<code>useSeatRealtime</code>) kết hợp cơ chế Polling và bộ đếm giữ ghế (Seat Holding Timer 5 phút) để đồng bộ trạng thái ghế tức thì giữa các quầy POS và người dùng đặt vé online, ngăn chặn xung đột bán trùng ghế.</li>
+<li><strong>Quản trị rạp đa chi nhánh & Sơ đồ ma trận linh hoạt:</strong> Cho phép mở rộng không giới hạn các cụm rạp (<code>CinemaManager</code>), hỗ trợ công cụ thiết kế ma trận ghế trực quan (<code>CinemaSeatMapView</code>) tương thích với kiến trúc vật lý thực tế của từng phòng chiếu.</li>
+<li><strong>Tự động hóa xếp lịch & Thuật toán chống xung đột (Conflict Resolution):</strong> Hệ thống timeline xếp lịch chiếu (<code>CinemaShowtimesTab</code>) tự động phát hiện trùng khung giờ chiếu, sai lệch định dạng phòng/phim, hỗ trợ cả lên lịch đơn lẻ và lên lịch hàng loạt (<code>BatchShowtimeDrawer</code>).</li>
+<li><strong>Mô hình giá vé linh hoạt (Flat Pricing Engine):</strong> Tính toán giá vé tự động dựa trên ma trận kết hợp: Loại phòng × Loại ngày (Ngày thường, Cuối tuần, Ngày lễ) × Đối tượng khách hàng (Người lớn, HSSV/U22, Trẻ em, Cao tuổi) + Phụ thu công nghệ định dạng (2D, 3D, IMAX...).</li>
+<li><strong>Cơ chế phân quyền chặt chẽ (RBAC Matrix):</strong> Quản lý quyền hạn chi tiết theo từng cặp <code>Feature × Action</code> (View, Add, Edit, Delete, Export, Manage) thông qua composable <code>useAdminPerm</code> và Router Guards, đảm bảo an toàn dữ liệu và tính chuyên môn hóa nghiệp vụ.</li>
+</ol>
+
+<hr>
+
+<h3>X.1. Phân hệ Báo cáo và Thống kê (Dashboard)</h3>
+<p><strong>Hình X.1: Màn hình Bảng điều khiển Thống kê (Dashboard)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Màn hình Dashboard (<code>Dashboard.vue</code>) là trung tâm phân tích dữ liệu kinh doanh thời gian thực của DevCine. Hệ thống tự động tổng hợp toàn bộ các giao dịch từ cả kênh Online và quầy POS, cung cấp bức tranh toàn cảnh về hiệu quả hoạt động với các bộ lọc linh hoạt: Hôm nay, 7 ngày qua (Tuần), và Theo tháng (với bộ chọn lịch Tháng/Năm tùy biến).</p>
+<ul>
+<li><strong>Bộ thẻ chỉ số KPI chính:</strong>
+  <ul>
+    <li><em>Tổng doanh thu:</em> Doanh thu tổng hợp từ vé và F&B, đi kèm chỉ số % tăng/giảm so với kỳ trước.</li>
+    <li><em>Vé đã bán:</em> Tổng số lượng vé đã xuất trên toàn hệ thống hoặc theo chi nhánh.</li>
+    <li><em>Khách mới của cơ sở:</em> Số lượng khách hàng thực hiện giao dịch lần đầu tại rạp.</li>
+    <li><em>Tỷ lệ lấp đầy (Occupancy Rate):</em> Tỷ lệ phần trăm giữa tổng số vé bán ra trên tổng sức chứa ghế của tất cả các suất chiếu đã chạy.</li>
+  </ul>
+</li>
+<li><strong>Biểu đồ Hiệu quả Kinh doanh (SVG Chart):</strong> Biểu đồ kết hợp trực quan biểu diễn đường Doanh thu (vùng diện tích gradient) và Lượng vé bán ra (đường nét đứt), tích hợp Tooltip tương tác hiển thị chi tiết số liệu khi di chuột qua từng mốc thời gian.</li>
+<li><strong>Bảng xếp hạng Phim hàng đầu (Top Movies):</strong> Danh sách các bộ phim đạt doanh thu và số lượng vé bán cao nhất trong khoảng thời gian được chọn, kèm ảnh Poster và doanh thu chi tiết.</li>
+<li><strong>Theo dõi Hoạt động Vận hành trong ngày:</strong>
+  <ul>
+    <li><em>Giao dịch gần đây (Recent Bookings):</em> Danh sách đơn hàng mới nhất thể hiện mã đơn, tên phim, khách hàng, kênh bán (POS/Online), thời gian và giá trị thanh toán.</li>
+    <li><em>Tiến độ Suất chiếu (Showtime Occupancy):</em> Bảng theo dõi các suất chiếu trong ngày kèm thanh tiến trình đo lường tỷ lệ lấp đầy ghế theo thời gian thực (số vé đã bán / tổng ghế phòng).</li>
+  </ul>
+</li>
+<li><strong>Xuất báo cáo:</strong> Hỗ trợ tính năng xuất dữ liệu báo cáo thống kê phục vụ công tác đối soát kế toán.</li>
+</ul>
+
+<h3>X.2. Phân hệ Bán hàng & Dịch vụ (POS & Giao dịch)</h3>
+
+<h4>X.2.1. Chức năng Bán vé tại quầy (Ticketing POS)</h4>
+<p><strong>Hình X.2: Màn hình Bán vé tại quầy (Ticketing POS)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Giao diện bán hàng chuyên dụng (<code>TicketingPOS.vue</code>) được tối ưu hóa cho nhân viên thu ngân tại quầy giao dịch, hỗ trợ 2 luồng thao tác độc lập: Bán vé kèm F&B (<code>TICKET</code>) và Bán nhanh bắp nước độc lập (<code>FNB</code>). Phân hệ tích hợp các công nghệ đồng bộ hóa ghế ngồi thời gian thực, thuật toán kiểm tra ghế lẻ (Orphan Seat Check) và quản lý hàng đợi đơn hàng tạm giữ.</p>
+<ul>
+<li><strong>Bộ lọc và Danh sách Suất chiếu:</strong> Lọc suất chiếu nhanh theo các tab ngày (Hôm nay, Ngày mai, và các ngày tới), tự động ẩn các suất đã quá giờ chiếu theo cấu hình thời gian trễ (<code>LATE_BOOKING_MINUTES</code>). Phim được gom nhóm theo Định dạng và Phòng chiếu trực quan.</li>
+<li><strong>Sơ đồ ghế Real-time & Bộ đếm giữ ghế:</strong>
+  <ul>
+    <li>Hiển thị ma trận sơ đồ ghế phòng chiếu với phân màu trạng thái: Ghế trống, Ghế đang chọn, Ghế đang được giữ bởi quầy khác/online, Ghế đã bán, và Ghế bảo trì.</li>
+    <li>Bộ đếm thời gian giữ ghế 5 phút (<code>HOLD_SECONDS = 300s</code>) đếm lùi trực tiếp, tự động giải phóng ghế khi hết hạn.</li>
+    <li>Thuật toán <code>useOrphanSeatCheck</code> ngăn chặn việc chọn ghế để lại 1 ghế trống đơn lẻ; hỗ trợ nút gạt Override dành riêng cho Admin/Manager khi cần xử lý ngoại lệ.</li>
+  </ul>
+</li>
+<li><strong>Phân bổ Đối tượng vé (Ticket Audience Counter):</strong> Cho phép tăng/giảm linh hoạt số lượng vé theo từng đối tượng (Người lớn, HSSV/U22, Trẻ em, Cao tuổi) khớp với tổng số ghế đã chọn và tự động áp dụng bảng giá tương ứng.</li>
+<li><strong>Bán kèm F&B và Tùy chọn món (Modal Option):</strong> Chọn nhanh các món bắp nước/combo, hỗ trợ cửa sổ popup chọn vị bắp (Ngọt, Mặn, Phô mai, Caramel...) và kích cỡ nước (Vừa, Lớn).</li>
+<li><strong>Tích hợp Hội viên & Voucher:</strong> Tra cứu thông tin khách hàng thành viên qua Số điện thoại/Mã thẻ để tích điểm và áp dụng mã giảm giá (Voucher) hợp lệ của khách hàng.</li>
+<li><strong>Đa dạng Phương thức Thanh toán:</strong> Hỗ trợ thanh toán Tiền mặt (tự động tính tiền thừa trả khách), Quét mã QR chuyển khoản ngân hàng (VietQR tự động sinh mã theo đơn), và in vé điện tử/hóa đơn bán hàng chuẩn nhiệt.</li>
+<li><strong>Quản lý Đơn chờ (Pending/Hold Orders):</strong> Tính năng lưu tạm tối đa 3 đơn hàng đang phục vụ dở dang vào danh sách đơn chờ để phục vụ khách tiếp theo, cho phép khôi phục lại đơn hàng kèm trạng thái ghế bất cứ lúc nào.</li>
+<li><strong>Yêu cầu Hủy đơn F&B (Void Request):</strong> Gửi yêu cầu hủy hóa đơn bắp nước đã xuất nhầm để Trưởng ca/Quản lý duyệt (nhân viên thu ngân không thể tự ý xóa đơn).</li>
+</ul>
+
+<h4>X.2.2. Chức năng Quản lý Đơn hàng (Bookings)</h4>
+<p><strong>Hình X.3: Màn hình Quản lý Đơn đặt vé (Bookings)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Màn hình <code>AdminBookings.vue</code> cung cấp công cụ theo dõi, tra cứu và đối soát toàn bộ các đơn hàng phát sinh trên toàn hệ thống (bao gồm đơn đặt online qua Web/App và đơn xuất tại quầy POS).</p>
+<ul>
+<li><strong>Danh sách Đơn hàng Toàn diện:</strong> Bảng dữ liệu hiển thị chi tiết Mã đơn hàng (<code>bookingCode</code>), Thông tin khách hàng (Tên, SĐT, Email), Tên phim, Suất chiếu, Phòng/Rạp, Danh sách ghế, Combo F&B, Kênh đặt (Online/POS), Tổng tiền và Thời gian tạo.</li>
+<li><strong>Bộ lọc & Tìm kiếm Đa tiêu chí:</strong> Lọc nhanh theo trạng thái giao dịch (Đã thanh toán <code>CONFIRMED</code>, Chờ thanh toán <code>PENDING</code>, Đã hủy <code>CANCELLED</code>, Đã hoàn tiền <code>REFUNDED</code>), lọc theo khoảng ngày, theo cụm rạp, hoặc tìm kiếm chính xác theo mã đơn/SĐT.</li>
+<li><strong>Chi tiết Đơn & Nghiệp vụ Xử lý:</strong> Xem chi tiết mã QR của vé, lịch sử thanh toán; hỗ trợ quyền hủy đơn hàng hoặc xử lý hoàn tiền cọc theo chính sách của rạp.</li>
+</ul>
+
+<h4>X.2.3. Chức năng Soát vé Khách hàng (Ticket Check-in)</h4>
+<p><strong>Hình X.4: Màn hình Soát vé vào rạp (Ticket Check-in)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Giao diện nghiệp vụ <code>TicketCheckIn.vue</code> được thiết kế tối ưu cho nhân viên kiểm soát tại cửa phòng chiếu, hỗ trợ quét mã vạch/QR tốc độ cao để xác thực vé vào rạp.</p>
+<ul>
+<li><strong>Quét mã QR đa phương thức:</strong> Hỗ trợ quét trực tiếp qua Camera thiết bị, sử dụng đầu đọc mã vạch chuyên dụng (Barcode Scanner), hoặc nhập thủ công mã vé/số điện thoại của khách.</li>
+<li><strong>Xác thực trạng thái vé tức thời:</strong>
+  <ul>
+    <li><em>Vé hợp lệ (Màu xanh):</em> Hiển thị âm thanh thông báo thành công, thông tin số ghế, phòng chiếu, định dạng phim và giờ chiếu.</li>
+    <li><em>Vé không hợp lệ/Cảnh báo (Màu đỏ/Vàng):</em> Cảnh báo rõ lý do (Vé đã check-in trước đó kèm thời gian cụ thể, Vé bị hủy, Vé chưa thanh toán, hoặc Sai suất chiếu/phòng chiếu).</li>
+  </ul>
+</li>
+<li><strong>Thống kê Tiến độ Soát vé:</strong> Hiển thị thanh tiến trình check-in của từng suất chiếu (Số lượng khách đã vào rạp / Tổng số vé đã bán).</li>
+</ul>
+
+<h3>X.3. Phân hệ Quản lý Phim & Lịch chiếu</h3>
+
+<h4>X.3.1. Chức năng Quản lý Phim & Danh mục (Movies & Categories)</h4>
+<p><strong>Hình X.5: Màn hình Quản lý Danh sách Phim</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Phân hệ <code>AdminMovies.vue</code> và <code>MovieCategoryManager.vue</code> quản lý toàn bộ vòng đời nội dung phim trên hệ thống từ lúc chuẩn bị phát hành đến khi ngừng chiếu, tích hợp lưu trữ media đám mây (Cloudinary) và kiểm soát ràng buộc dữ liệu nghiêm ngặt.</p>
+<ul>
+<li><strong>Bộ lọc & Tìm kiếm Phim Nâng cao:</strong> Tìm kiếm theo tên phim, đạo diễn; lọc theo Trạng thái (Đang chiếu, Sắp chiếu, Lưu trữ), Quốc gia, Độ tuổi, Thể loại, và Định dạng (2D, 3D, IMAX...).</li>
+<li><strong>Biên tập Thông tin Phim:</strong> Nhập chi tiết Tên phim (Gốc & Tiếng Việt), Đạo diễn, Diễn viên, Thời lượng (phút), Ngày khởi chiếu, Ngày kết thúc, Giới hạn độ tuổi (P, K, T13, T16, T18, C), Tóm tắt nội dung. Upload ảnh Poster/Banner lên Cloudinary với tính năng tự động tối ưu hóa (<code>optimizeCloudinaryUrl</code>), nhúng Trailer Youtube.</li>
+<li><strong>Cơ chế Đổi Trạng thái Phim 4 Lớp An toàn:</strong>
+  <ul>
+    <li><em>Lớp 1:</em> Chặn chuyển thành "Sắp chiếu" nếu Ngày khởi chiếu nhỏ hơn hoặc bằng ngày hiện tại.</li>
+    <li><em>Lớp 2:</em> Chặn chuyển sang "Lưu trữ" hoặc "Sắp chiếu" nếu bộ phim vẫn còn các suất chiếu đang hoạt động (<code>hasActiveShowtimes</code>).</li>
+    <li><em>Lớp 3:</em> Hiển thị hộp thoại xác nhận cảnh báo khi ngừng chiếu phim (phim sẽ bị ẩn khỏi giao diện bán vé của khách).</li>
+    <li><em>Lớp 4:</em> Thực thi cập nhật và đồng bộ trạng thái hiển thị.</li>
+  </ul>
+</li>
+<li><strong>Thao tác Hàng loạt (Bulk Actions):</strong> Cho phép chọn nhiều phim để đổi trạng thái hàng loạt hoặc xóa hàng loạt.</li>
+<li><strong>Quản lý Danh mục (Category Manager):</strong> Quản lý danh mục Thể loại phim (Genres) và Danh mục Định dạng chiếu (Formats).</li>
+</ul>
+
+<h4>X.3.2. Chức năng Quản lý Lịch chiếu (Showtimes)</h4>
+<p><strong>Hình X.6: Màn hình Quản lý Lịch chiếu Timeline</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Nằm trong phân hệ <code>CinemaManager.vue</code> (Tab Lịch chiếu <code>CinemaShowtimesTab.vue</code>), cung cấp công cụ xếp lịch chiếu dạng lưới thời gian (Timeline Grid) trực quan, tự động hóa việc phát hiện xung đột và hỗ trợ xếp lịch linh hoạt.</p>
+<ul>
+<li><strong>Timeline Lịch chiếu Trực quan:</strong> Hiển thị toàn bộ các phòng chiếu theo trục ngang và trục thời gian từ 08:00 đến 24:00+ với các vạch chia giờ, vạch đánh dấu thời gian hiện tại (<code>Current Time Indicator</code>).</li>
+<li><strong>Thuật toán Phát hiện Xung đột (Conflict Checking):</strong> Tự động tính toán giờ kết thúc của suất chiếu (Thời lượng phim + Thời gian dọn phòng/nghỉ giữa các suất). Cảnh báo viền đỏ nổi bật nếu có sự chồng chéo thời gian giữa hai suất chiếu trong cùng một phòng.</li>
+<li><strong>Kiểm tra Sai lệch Định dạng (Format Mismatch):</strong> Tự động phát hiện và cảnh báo nếu xếp phim có định dạng không tương thích với phòng chiếu (Ví dụ: Xếp phim 3D vào phòng chỉ hỗ trợ 2D).</li>
+<li><strong>Tương tác Kéo - Thả (Drag & Drop):</strong> Hỗ trợ kéo thả khối suất chiếu trên timeline để điều chỉnh phòng chiếu hoặc dời khung giờ một cách nhanh chóng.</li>
+<li><strong>Thêm Suất chiếu Đơn & Hàng loạt (Batch Showtimes):</strong>
+  <ul>
+    <li><em>ShowtimeDrawer:</em> Khởi tạo 1 suất chiếu cụ thể cho phim, chọn phòng, ngày và giờ bắt đầu.</li>
+    <li><em>BatchShowtimeDrawer:</em> Công cụ sinh lịch chiếu hàng loạt theo khoảng ngày, áp dụng khung giờ lặp lại cho nhiều cụm rạp và phòng chiếu cùng lúc.</li>
+  </ul>
+</li>
+<li><strong>Xem Chi tiết & Kiểm tra Sơ đồ Ghế Suất chiếu (<code>ShowtimeDetailsDrawer</code>):</strong> Xem thông tin doanh thu, số vé đã bán của suất; mở popup kiểm tra trực tiếp trạng thái từng ghế thực tế của suất chiếu (<code>SOLD</code>, <code>HOLD</code>, <code>MAINTENANCE</code>).</li>
+</ul>
+
+<h3>X.4. Phân hệ Cơ sở vật chất & Sản phẩm</h3>
+
+<h4>X.4.1. Chức năng Quản lý Cụm rạp & Sơ đồ ghế (Cinema & Seat Map)</h4>
+<p><strong>Hình X.7: Màn hình Quản trị Cụm rạp và Sơ đồ ghế</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Phân hệ <code>CinemaManager.vue</code> và <code>CinemaSeatMapView.vue</code> cho phép cấu hình và số hóa toàn bộ hệ thống cơ sở hạ tầng vật lý của chuỗi rạp chiếu phim DevCine.</p>
+<ul>
+<li><strong>Quản lý Danh sách Cụm rạp:</strong> Thêm mới, chỉnh sửa thông tin chi nhánh (Tên rạp, Tỉnh/Thành phố, Quận/Huyện, Địa chỉ, Số điện thoại hotline, Hình ảnh). Tích hợp bộ lọc rạp theo Tỉnh/TP và Quận/Huyện.</li>
+<li><strong>Quản lý Phòng chiếu (Rooms / Halls):</strong> Thiết lập danh sách các phòng chiếu trực thuộc từng cụm rạp, cấu hình tên phòng, loại phòng (Standard, 3D, IMAX, VIP, Sweetbox), trạng thái hoạt động.</li>
+<li><strong>Công cụ Thiết kế Ma trận Sơ đồ ghế (<code>CinemaSeatMapView</code>):</strong>
+  <ul>
+    <li>Khai báo số hàng (<code>matrixRow</code>) và số cột (<code>matrixCol</code>) của phòng chiếu.</li>
+    <li>Trình vẽ lưới trực quan: Click hoặc quét chọn để định cấu hình từng ô trên lưới thành: Ghế Thường (<code>NORMAL</code>), Ghế VIP (<code>VIP</code>), Ghế Đôi (<code>SWEETBOX</code>), hoặc Lối đi lại (<code>AISLE</code>).</li>
+    <li>Đánh số thứ tự hàng (A, B, C...) và cột (1, 2, 3...) tự động, lưu trữ cấu trúc ma trận ghế chuẩn xác để hiển thị đồng nhất lên Web, App và POS.</li>
+  </ul>
+</li>
+</ul>
+
+<h4>X.4.2. Chức năng Cấu hình Giá vé (Admin Pricing)</h4>
+<p><strong>Hình X.8: Màn hình Cấu hình Bảng giá vé (Flat Pricing)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Màn hình <code>AdminPricing.vue</code> quản lý toàn bộ chính sách giá vé tự động của hệ thống theo mô hình Flat Pricing kết hợp phụ thu công nghệ.</p>
+<ul>
+<li><strong>Bảng Giá nền (Base Matrix):</strong> Ma trận thiết lập giá vé cơ sở theo 3 chiều: <em>Loại phòng</em> (Standard, IMAX, VIP...) × <em>Loại ngày</em> (Ngày thường T2–T5, Cuối tuần T6–CN) × <em>Đối tượng khách hàng</em> (Người lớn ADULT, HSSV/U22, Trẻ em CHILD, Cao tuổi SENIOR).</li>
+<li><strong>Phụ thu Định dạng công nghệ (Format Surcharge):</strong> Cấu hình mức tiền phụ thu cộng thêm cho các định dạng đặc biệt (2D, 3D, IMAX 3D...) riêng biệt cho ngày thường và cuối tuần/lễ.</li>
+<li><strong>Quản lý Ngày lễ (Holidays):</strong> Khai báo danh sách các ngày lễ đặc biệt trong năm (Tết, 30/4, 1/5...) để hệ thống tự động áp bậc giá "Cao điểm".</li>
+<li><strong>Bộ Mô phỏng Tính thử giá (Price Simulator):</strong> Công cụ cho phép Admin chọn thử Loại ngày, Đối tượng, Loại phòng và Định dạng để kiểm tra kết quả giá vé tính toán trước khi áp dụng thực tế.</li>
+</ul>
+
+<h4>X.4.3. Chức năng Quản lý Thực đơn Bắp Nước (F&B Menu Manager)</h4>
+<p><strong>Hình X.9: Màn hình Quản lý Sản phẩm F&B</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Màn hình <code>FnbMenuManager.vue</code> quản lý danh mục sản phẩm đồ ăn, thức uống và các gói Combo bán kèm theo vé.</p>
+<ul>
+<li><strong>Quản lý Mặt hàng & Combo:</strong> Thêm mới, chỉnh sửa thông tin món (Tên, Ảnh minh họa, Giá bán, Mô tả thành phần combo).</li>
+<li><strong>Quản lý Tùy chọn món (Options):</strong> Cấu hình các nhóm tùy chọn đi kèm cho sản phẩm như Vị bắp (Ngọt, Mặn, Caramel, Phô mai) và Size nước (Vừa, Lớn) kèm giá chênh lệch.</li>
+<li><strong>Bật/Tắt Trạng thái Phục vụ:</strong> Nút gạt chuyển đổi nhanh trạng thái "Sẵn sàng" (<code>is_available</code>) hoặc "Tạm hết hàng" để đồng bộ ngay lập tức lên giao diện đặt của khách và màn hình bán POS.</li>
+</ul>
+
+<h3>X.5. Phân hệ Khách hàng & Truyền thông</h3>
+
+<h4>X.5.1. Chức năng Quản lý Khuyến mãi & Banner (Promotions & Banners)</h4>
+<p><strong>Hình X.10: Màn hình Quản lý Khuyến mãi và Banner</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Phân hệ <code>AdminPromotions.vue</code> và <code>AdminBanners.vue</code> cung cấp các công cụ Marketing nhằm gia tăng tỷ lệ chuyển đổi và tương tác với khách hàng.</p>
+<ul>
+<li><strong>Quản lý Mã Khuyến mãi (Vouchers / Coupons):</strong> Khởi tạo mã giảm giá theo Phần trăm (<code>PERCENT</code>) hoặc Số tiền cố định (<code>FIXED_AMOUNT</code>). Thiết lập giá trị đơn tối thiểu, mức giảm tối đa, giới hạn lượt dùng, thời gian hiệu lực.</li>
+<li><strong>Quản lý Banner Quảng cáo (Hero Banners):</strong> Quản lý danh sách hình ảnh trình chiếu (Slider) trên trang chủ, cài đặt đường dẫn liên kết khi khách nhấp vào banner, thiết lập thứ tự hiển thị và trạng thái kích hoạt.</li>
+</ul>
+
+<h4>X.5.2. Chức năng Quản lý Đánh giá & Khách hàng (Reviews & Customers)</h4>
+<p><strong>Hình X.11: Màn hình Quản lý Đánh giá và Khách hàng</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Bao gồm <code>AdminReviews.vue</code>, <code>AdminCustomers.vue</code>, <code>CustomerSupport.vue</code> và <code>FaqManager.vue</code> hỗ trợ chăm sóc khách hàng và quản lý danh tiếng thương hiệu.</p>
+<ul>
+<li><strong>Quản lý và Kiểm duyệt Đánh giá (Reviews):</strong> Theo dõi danh sách bình luận, số sao đánh giá của khán giả theo từng phim; thực hiện ẩn/hiện hoặc xóa các bình luận chứa nội dung không phù hợp hoặc spoil phim.</li>
+<li><strong>Quản lý Khách hàng Thành viên (Customers):</strong> Danh sách khách hàng đăng ký tài khoản, tra cứu lịch sử chi tiêu, cấp bậc thành viên, điểm tích lũy và các voucher khách hàng đang sở hữu.</li>
+<li><strong>Hỗ trợ Khách hàng & FAQ:</strong> Tiếp nhận và xử lý các Ticket yêu cầu hỗ trợ từ người dùng; biên tập danh mục Câu hỏi thường gặp (FAQ) hiển thị trên website.</li>
+</ul>
+
+<h3>X.6. Phân hệ Quản trị Hệ thống, Nhân sự & Sự cố</h3>
+
+<h4>X.6.1. Chức năng Quản lý Nhân sự & Phân quyền (Staff & Permissions)</h4>
+<p><strong>Hình X.12: Màn hình Quản lý Nhân viên và Phân quyền</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Phân hệ <code>StaffManager.vue</code> và <code>AdminPermissions.vue</code> đảm bảo an ninh hệ thống và phân bổ trách nhiệm nghiệp vụ rõ ràng cho toàn bộ nhân viên trong chuỗi rạp.</p>
+<ul>
+<li><strong>Quản lý Danh sách Nhân viên:</strong> Thêm mới tài khoản nhân viên, gán Vai trò (Role), gán Cụm rạp công tác, hỗ trợ khóa/mở khóa tài khoản và kích hoạt đổi mật khẩu trong lần đăng nhập đầu tiên (<code>FirstLoginPassword.vue</code>).</li>
+<li><strong>Ma trận Phân quyền Nâng cao (RBAC Matrix):</strong> Định nghĩa các vai trò (<code>ADMIN</code>, <code>MANAGER</code>, <code>STAFF</code>), thiết lập ma trận quyền chi tiết theo từng tính năng và hành vi (<code>view</code>, <code>add</code>, <code>edit</code>, <code>delete</code>, <code>export</code>, <code>manage</code>).</li>
+<li><strong>Nhật ký Hoạt động (Audit Logs - <code>AdminLogs.vue</code>):</strong> Ghi lại chi tiết lịch sử thao tác của các tài khoản trên trang quản trị phục vụ công tác giám sát và hậu kiểm.</li>
+</ul>
+
+<h4>X.6.2. Chức năng Xử lý Sự cố Phòng chiếu (Incident Management)</h4>
+<p><strong>Hình X.13: Màn hình Xử lý Sự cố Phòng chiếu (Incident Management)</strong></p>
+<p><strong>Giới thiệu chung:</strong><br>Màn hình nghiệp vụ đặc thù <code>IncidentManagement.vue</code> xử lý các tình huống phát sinh thực tế tại phòng chiếu (như hỏng ghế, lỗi thiết bị, sự cố kỹ thuật), cung cấp quy trình đổi ghế và đền bù chuyên nghiệp cho khách hàng mà không cần hoàn tiền mặt.</p>
+<ul>
+<li><strong>Tra cứu Vé Sự cố:</strong> Tìm kiếm nhanh đơn vé đang gặp sự cố theo Mã vé (<code>bookingCode</code>) hoặc Số điện thoại khách hàng.</li>
+<li><strong>Nghiệp vụ Đổi ghế Đền bù (Seat Relocation):</strong> Hiển thị trực quan sơ đồ phòng chiếu của suất (Ghế nguồn, Ghế trống khả dụng, Ghế đích). Tự động khóa tính năng đổi ghế nếu suất chiếu đã bắt đầu (chỉ cho phép Hủy chỗ đền bù).</li>
+<li><strong>Nghiệp vụ Hủy chỗ & Khóa ghế Hỏng:</strong> Hủy vị trí ghế của khách khi phòng không còn ghế trống phù hợp; Đánh dấu trực tiếp ghế bị hỏng sang trạng thái Bảo trì (<code>MAINTENANCE</code>) để tự động ngừng bán ở mọi suất tiếp theo.</li>
+<li><strong>Chính sách Đền bù Tích hợp (Compensation):</strong> Phát Voucher giảm giá vé, Tặng Combo F&B, hoặc Cấp Vé mời miễn phí.</li>
+<li><strong>Lịch sử Xử lý Sự cố:</strong> Tra cứu toàn bộ nhật ký xử lý sự cố trong quá khứ theo Loại, Mã vé, Mã voucher đền bù và Nhân viên phụ trách xử lý.</li>
+</ul>
+
+</body>
+</html>
